@@ -1,0 +1,5 @@
+,Mean Runtime(sec),Mean Message Time(ms),Mean Bandwidth(msg/sec)
+Mosquitto,0.015,0.927,682.622
+Aedes,1.377,121.928,7.265
+test.mosquitto.org,3.652,215.006,2.738
+broker.hivemq.com,3.594,204.738,2.783

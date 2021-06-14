@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <!-- Include Label Studio stylesheet -->
+    <link
+      href="https://unpkg.com/label-studio@1.0.1/build/static/css/main.css"
+      rel="stylesheet"
+    />
+    <!-- Include the Label Studio library -->
+    <script src="https://unpkg.com/label-studio@1.0.1/build/static/js/main.js"></script>
+  </head>
+  <body>
+    <div id="label-studio">
+      <!-- Initialize Label Studio -->
+      <script>
+        var labelStudio = new LabelStudio("label-studio", {
+          config: `
+          <View>
+            <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+                <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="true"/>
+                <View>
+                <Filter toName="tag" minlength="0" name="filter"/>
+                <RectangleLabels name="tag" toName="img" showInline="true">
+                    <Label value="Hello"/>
+                    <Label value="World"/>
+                </RectangleLabels>
+                </View>
+            </View>
+            </View>
+      
+    `,
+
+          interfaces: [
+            "panel",
+            "update",
+            "submit",
+            "controls",
+            "side-column",
+            "annotations:menu",
+            "annotations:add-new",
+            "annotations:delete",
+            "predictions:menu",
+          ],
+
+          user: {
+            pk: 1,
+            firstName: "James",
+            lastName: "Dean",
+          },
+
+          task: {
+            annotations: [],
+            predictions: [],
+            id: 1,
+            data: {
+              image:
+                "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg",
+            },
+          },
+
+          onLabelStudioLoad: function (LS) {
+            var c = LS.annotationStore.addAnnotation({
+              userGenerate: true,
+            });
+            LS.annotationStore.selectAnnotation(c.id);
+          },
+        });
+      </script>
+    </div>
+  </body>
+</html>
