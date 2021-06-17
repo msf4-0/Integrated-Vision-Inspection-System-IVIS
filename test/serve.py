@@ -221,3 +221,58 @@ b64code= b64encode(bb).decode('utf-8')
 print(b64code)
 data_url= f'data:image/jpg;base64,{b64code}'
 print(f"\"{data_url}\"")
+#%%
+# Python code to illustrate
+# Decorators basic in Python
+
+def decorator_fun(func):
+    print("Inside decorator")
+
+    def inner(*args, **kwargs):
+        print("Inside inner function")
+        print("Decorated the function")
+        # do operations with func
+        
+        func()
+	
+    return inner
+
+@decorator_fun
+def func_to():
+	print("Inside actual function")
+
+func_to()
+#%%
+import urllib.request
+with urllib.request.urlopen('https://raw.githubusercontent.com/streamlit/streamlit/develop/docs/api-examples-source/charts.area_chart.py') as response:
+    html=response.read()
+    print(html)
+
+#%%
+
+import json
+data="""[{
+        "name": "charts.area_chart",
+        "url": "https://raw.githubusercontent.com/streamlit/streamlit/develop/docs/api-examples-source/charts.area_chart.py"
+    },
+    {
+        "name": "charts.audio",
+        "url": "https://raw.githubusercontent.com/streamlit/streamlit/develop/docs/api-examples-source/charts.audio.py"
+    },
+    {
+        "name": "charts.bar_chart",
+        "url": "https://raw.githubusercontent.com/streamlit/streamlit/develop/docs/api-examples-source/charts.bar_chart.py"
+    },
+    {
+        "name": "charts.bokeh_chart",
+        "url": "https://raw.githubusercontent.com/streamlit/streamlit/develop/docs/api-examples-source/charts.bokeh_chart.py"
+    }]"""
+
+output = json.loads(data)
+apps={}
+for item in output:
+        if item["url"] is not None and item["url"].endswith(".py"):
+            # can overwrite if same name
+            apps[item["name"]] = item["url"]
+print(apps)
+
