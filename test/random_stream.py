@@ -1,6 +1,7 @@
 import streamlit as st
 from time import sleep
 import streamlit.components.v1 as components
+import numpy as np
 
 st.set_page_config(page_title="label studio test",
                    page_icon="random", layout='wide')
@@ -186,3 +187,36 @@ st.markdown("""
 #     )
 # tensorboard_link = "http://localhost:6006/"
 # components.iframe(tensorboard_link, scrolling=True, height=900)
+
+ran=np.random.rand(14)
+st.write(ran)
+
+cols = {
+    "Airport__Name": "Airport Name",
+    "Aircraft__Make_Model": "Aircraft Make & Model",
+    "Effect__Amount_of_damage": "Effect: Amount of Damage",
+    "Flight_Date": "Flight Date",
+    "Aircraft__Airline_Operator": "Airline Operator",
+    "Origin_State": "Origin State",
+    "When__Phase_of_flight": "When (Phase of Flight)",
+    "Wildlife__Size": "Wildlife Size",
+    "Wildlife__Species": "Wildlife Species",
+    "When__Time_of_day": "When (Time of Day)",
+    "Cost__Other": "Cost (Other)",
+    "Cost__Repair": "Cost (Repair)",
+    "Cost__Total_$": "Cost (Total) ($)",
+    "Speed_IAS_in_knots": "Speed (in Knots)",
+}
+
+
+
+# column = st.selectbox("Describe Column", ran, format_func=cols.get)
+
+# st.write(ran[column].describe())
+display = ("male", "female")
+
+options = list(range(len(display)))
+
+value = st.selectbox("gender", options, format_func=lambda x: display[x])
+
+st.write(value)

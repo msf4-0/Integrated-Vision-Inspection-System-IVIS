@@ -2,6 +2,7 @@
 from io import StringIO
 import json
 from logging import Handler
+import numpy as np
 
 
 class Object:
@@ -275,4 +276,7 @@ for item in output:
             # can overwrite if same name
             apps[item["name"]] = item["url"]
 print(apps)
+#%%
+import numpy as np
 
+ran=np.random.rand(14)

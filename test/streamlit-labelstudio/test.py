@@ -142,8 +142,8 @@ task = {
 
 # log.info("load into component")
 
-results_raw = st_labelstudio(config, interfaces, user, task)
-
+results_raw = st_labelstudio(config, interfaces, user, task, key='Labelstudio')
+st.write(results_raw)
 if results_raw is not None:
     areas = [v for k, v in results_raw['areas'].items()]
 

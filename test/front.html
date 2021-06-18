@@ -19,25 +19,18 @@
       <script>
         var labelStudio = new LabelStudio("label-studio", {
           config: `
-          <View>
-            <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-                <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="true"/>
-                <View>
-                <Filter toName="tag" minlength="0" name="filter"/>
-                <RectangleLabels name="tag" toName="img" showInline="true">
-                    <Label value="Moon"/>
-                    <Label value="Comet"/>
-                </RectangleLabels>
-                </View>
-            </View>
-            </View>
-      
+      <View>
+        <Image name="img" value="$image"></Image>
+        <RectangleLabels name="tag" toName="img">
+          <Label value="Hello"></Label>
+          <Label value="World"></Label>
+        </RectangleLabels>
+      </View>
     `,
 
           interfaces: [
             "panel",
             "update",
-            "submit",
             "controls",
             "side-column",
             "annotations:menu",
