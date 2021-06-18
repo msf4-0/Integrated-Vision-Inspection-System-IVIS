@@ -15,7 +15,7 @@ function onRender(event: Event): void {
   // eslint-disable-next-line
   const data = (event as CustomEvent<RenderData>).detail
   // eslint-disable-next-line
-  var labelStudio = new LabelStudio("label-studio", {
+  var ls = new LabelStudio("label-studio", {
     config: data.args["config"],
     interfaces: data.args["interfaces"][0],
     user: data.args["user"][0],

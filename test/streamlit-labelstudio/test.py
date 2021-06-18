@@ -38,8 +38,11 @@ def dataURL_encoder(image):
 
 # --------------------------------
 
-st.set_page_config(layout='wide')
-st.title("Label Studio")
+st.set_page_config(page_title="Label Studio Test",
+                   page_icon="random", layout='wide')
+st.markdown("""
+# SHRDC Image Labelling Web APP 🎨
+""")
 
 with st.sidebar.beta_container():
     st.markdown("""
