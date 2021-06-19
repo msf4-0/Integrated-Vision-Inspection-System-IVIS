@@ -6,7 +6,7 @@ import streamlit as st
 # the component, and True when we're ready to package and distribute it.
 # (This is, of course, optional - there are innumerable ways to manage your
 # release process.)
-_RELEASE = True
+_RELEASE = False
 
 # Declare a Streamlit component. `declare_component` returns a function
 # that is used to create instances of the component. We're naming this
@@ -48,60 +48,60 @@ def st_labelstudio(config, interfaces, user, task, key=None):
     return component_value
 
 
-if not _RELEASE:
-    config = """
-        <View>
-            <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-            <Image name="img" value="$image" width="100%" maxWidth="100%" brightnessControl="true" contrastControl="true" zoomControl="true" rotateControl="true"></Image>
-            <View>
-            <Filter toName="tag" minlength="0" name="filter"/>
-            <RectangleLabels name="tag" toName="img" showInline="true">
-            <Label value="Comet"/>
-            <Label value="Moon"/>
-            </RectangleLabels>
-        </View>
-        </View>
-    </View>
-        """
+# if not _RELEASE:
+#     config = """
+#         <View>
+#             <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+#             <Image name="img" value="$image" width="100%" maxWidth="100%" brightnessControl="true" contrastControl="true" zoomControl="true" rotateControl="true"></Image>
+#             <View>
+#             <Filter toName="tag" minlength="0" name="filter"/>
+#             <RectangleLabels name="tag" toName="img" showInline="true">
+#             <Label value="Comet"/>
+#             <Label value="Moon"/>
+#             </RectangleLabels>
+#         </View>
+#         </View>
+#     </View>
+#         """
 
-    interfaces = [
-        "panel",
-        "update",
-        "submit",
-        "controls",
-        "side-column",
-        "annotations:menu",
-        "annotations:add-new",
-        "annotations:delete",
-        "predictions:menu",
-    ],
+#     interfaces = [
+#         "panel",
+#         "update",
+#         "submit",
+#         "controls",
+#         "side-column",
+#         "annotations:menu",
+#         "annotations:add-new",
+#         "annotations:delete",
+#         "predictions:menu",
+#     ],
 
-    user = {
-        'pk': 1,
-        'firstName': "Zhen Hao",
-        'lastName': "Chu"
-    },
+#     user = {
+#         'pk': 1,
+#         'firstName': "Zhen Hao",
+#         'lastName': "Chu"
+#     },
 
-    task = {
-        'annotations': [],
-        'predictions': [],
-        'id': 1,
-        'data': {
-            'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
+#     task = {
+#         'annotations': [],
+#         'predictions': [],
+#         'id': 1,
+#         'data': {
+#             'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
 
-        }
-    }
+#         }
+#     }
 
-    results_raw = st_labelstudio(
-        config, interfaces, user, task, key='random')
-    st.write(results_raw)
-    if results_raw is not None:
-        areas = [v for k, v in results_raw['areas'].items()]
+#     results_raw = st_labelstudio(
+#         config, interfaces, user, task, key='random')
+#     st.write(results_raw)
+#     if results_raw is not None:
+#         areas = [v for k, v in results_raw['areas'].items()]
 
-        results = []
-        for a in areas:
-            results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
-                            'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
-        with st.beta_expander('Show Annotation Log'):
+#         results = []
+#         for a in areas:
+#             results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
+#                             'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
+#         with st.beta_expander('Show Annotation Log'):
 
-            st.table(results)
+#             st.table(results)

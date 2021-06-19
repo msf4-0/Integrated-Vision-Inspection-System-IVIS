@@ -61,6 +61,12 @@
             });
             LS.annotationStore.selectAnnotation(c.id);
           },
+          onSubmitAnnotation: function (LS, annotations) {
+            console.log("LS:",{LS});
+            annotations = JSON.parse(JSON.stringify(annotations));
+            console.log("annotations:",{annotations});
+            // Streamlit.setComponentValue(annotations);
+          },
         });
       </script>
     </div>

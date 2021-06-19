@@ -27,6 +27,12 @@ function onRender(event: Event): void {
       })
       ls.annotationStore.selectAnnotation(c.id)
     },
+    onSubmitAnnotation: function (ls, annotations) {
+      console.log("LS:", { ls })
+      annotations = JSON.parse(JSON.stringify(annotations)) //JSON.stringify converts JS value to JSON string
+      Streamlit.setComponentValue(annotations)
+      console.log("Annotations:", { annotations })
+    },
   })
 
   // We tell Streamlit to update our frameHeight after each render event, in
