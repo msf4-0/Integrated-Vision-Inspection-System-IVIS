@@ -188,7 +188,7 @@ st.markdown("""
 # tensorboard_link = "http://localhost:6006/"
 # components.iframe(tensorboard_link, scrolling=True, height=900)
 
-ran=np.random.rand(14)
+ran = np.random.rand(14)
 st.write(ran)
 
 cols = {
@@ -209,7 +209,6 @@ cols = {
 }
 
 
-
 # column = st.selectbox("Describe Column", ran, format_func=cols.get)
 
 # st.write(ran[column].describe())
@@ -220,3 +219,21 @@ options = list(range(len(display)))
 value = st.selectbox("gender", options, format_func=lambda x: display[x])
 
 st.write(value)
+
+# test password
+
+
+def is_authenticated(password):
+    return password == "shrdc"
+
+
+password_place = st.sidebar.empty()
+pswrd = password_place.text_input(label="Password", type="password")
+if is_authenticated(pswrd):
+
+    # st.balloons()
+    st.sidebar.header("Welcome In")
+    password_place.success("Welcome in")
+elif pswrd:
+    st.sidebar.error(
+        "User entered wrong username or password. Please enter again.")
