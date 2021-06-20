@@ -89,18 +89,15 @@ pass
 
 
 config = """
-      <View>
-        <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-          <Image name="img" value="$image" width="100%" maxWidth="100%" brightnessControl="true" contrastControl="true" zoomControl="true" rotateControl="true"></Image>
-        <View>
-        <Filter toName="tag" minlength="0" name="filter"/>
-        <RectangleLabels name="tag" toName="img" showInline="true">
-          <Label value="Comet"/>
-          <Label value="Moon"/>
-        </RectangleLabels>
-      </View>
-    </View>
-  </View>
+      
+  <View>
+          <Header value="Select label and click the image to start"/>
+            <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="true"/>
+              <PolygonLabels name="label" toName="image" strokeWidth="3" pointSize="small" opacity="0.9">
+                <Label value="Airplane" background="red"/>
+                <Label value="Car" background="blue"/>
+              </PolygonLabels>
+        </View>
     """
 
 interfaces = [

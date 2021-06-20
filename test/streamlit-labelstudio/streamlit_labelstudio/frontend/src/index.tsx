@@ -15,23 +15,24 @@ function onRender(event: Event): void {
   // eslint-disable-next-line
   const data = (event as CustomEvent<RenderData>).detail
   // eslint-disable-next-line
-  var ls = new LabelStudio("label-studio", {
+  var labelStudio = new LabelStudio("label-studio", {
     config: data.args["config"],
     interfaces: data.args["interfaces"][0],
     user: data.args["user"][0],
     task: data.args["task"],
 
-    onLabelStudioLoad: function (ls) {
-      var c = ls.annotationStore.addAnnotation({
+    onLabelStudioLoad: function (LS) {
+      var c = LS.annotationStore.addAnnotation({
         userGenerate: true,
       })
-      ls.annotationStore.selectAnnotation(c.id)
+      LS.annotationStore.selectAnnotation(c.id)
     },
-    onSubmitAnnotation: function (ls, annotations) {
-      console.log("LS:", { ls })
+    onSubmitAnnotation: function (LS, annotations) {
+      console.log("LS:", { LS })
       annotations = JSON.parse(JSON.stringify(annotations)) //JSON.stringify converts JS value to JSON string
       Streamlit.setComponentValue(annotations)
       console.log("Annotations:", { annotations })
+      // console.log(annotations.serializeAnnotation())
     },
   })
 

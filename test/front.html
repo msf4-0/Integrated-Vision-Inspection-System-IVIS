@@ -19,13 +19,14 @@
       <script>
         var labelStudio = new LabelStudio("label-studio", {
           config: `
-      <View>
-        <Image name="img" value="$image"></Image>
-        <RectangleLabels name="tag" toName="img">
-          <Label value="Hello"></Label>
-          <Label value="World"></Label>
-        </RectangleLabels>
-      </View>
+        <View>
+          <Header value="Select label and click the image to start"/>
+            <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="true"/>
+              <PolygonLabels name="label" toName="image" strokeWidth="3" pointSize="small" opacity="0.9">
+                <Label value="Airplane" background="red"/>
+                <Label value="Car" background="blue"/>
+              </PolygonLabels>
+        </View>
     `,
 
           interfaces: [
@@ -62,9 +63,17 @@
             LS.annotationStore.selectAnnotation(c.id);
           },
           onSubmitAnnotation: function (LS, annotations) {
-            console.log("LS:",{LS});
+            console.log("LS add:", { LS });
             annotations = JSON.parse(JSON.stringify(annotations));
-            console.log("annotations:",{annotations});
+            console.log("annotations add:", { annotations });
+            // console.log(annotations.serializeAnnotation());
+            // Streamlit.setComponentValue(annotations);
+          },
+          onUpdateAnnotation: function (LS, annotations) {
+            console.log("LS update:", { LS });
+            annotations = JSON.parse(JSON.stringify(annotations));
+            console.log("annotations update:", { annotations });
+            // console.log(annotations.serializeAnnotation());
             // Streamlit.setComponentValue(annotations);
           },
         });
