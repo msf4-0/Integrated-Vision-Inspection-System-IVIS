@@ -256,7 +256,7 @@ elif pswrd:
     st.sidebar.error(
         "User entered wrong username or password. Please enter again.")
 
-from src.lib.annotation_template.annotation_template import loadAnnotationTemplate
+from annotation.annotation_template import loadAnnotationTemplate
 
 # tuple of annotation types
 annotationType_list = ("Image Classification", "Object Detection with Bounding Boxes",
@@ -268,3 +268,13 @@ annotationConfig_template = loadAnnotationTemplate(
     annotationType_list.index(annotationType))
 
 st.write(annotationConfig_template)  # annotation config template
+
+#------------Webcam------#
+from webcam import webcam
+with st.beta_container():
+    captured_image = webcam()
+    if captured_image is None:
+        st.write("Waiting for capture...")
+    else:
+        st.write("Got an image from the webcam:")
+        st.image(captured_image)

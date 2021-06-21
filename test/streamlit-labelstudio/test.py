@@ -154,3 +154,18 @@ if results_raw is not None:
     with st.beta_expander('Show Annotation Log'):
 
         st.table(results)
+
+
+var payload=msg.payload;
+
+
+    if(payload[0]==true){
+        msg.payload=true;
+        
+    }
+    else{
+        msg.payload=false;
+        
+    }
+    return msg;
+
