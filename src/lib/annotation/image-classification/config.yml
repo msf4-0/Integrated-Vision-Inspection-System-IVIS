@@ -1,0 +1,15 @@
+title: Image Classification
+group: Computer Vision
+image: 
+details: <h1>Classify the image</h1>
+config: '
+<View>
+  <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false"/>
+  <Choices name="choice" toName="image">
+    <Choice value="Airplane"/>
+    <Choice value="Truck"/>
+    <Choice value="Car"/>
+  </Choices>
+</View>
+
+'

@@ -2,6 +2,16 @@ import streamlit as st
 from time import sleep
 import streamlit.components.v1 as components
 import numpy as np
+from threading import Thread
+from pathlib import Path
+
+# --------------------------
+# Add sys path for modules
+import sys
+import os.path as osp
+sys.path.append(osp.join(osp.dirname(osp.abspath(__file__)), 'lib'))  # ./lib
+# --------------------------
+
 
 st.set_page_config(page_title="label studio test",
                    page_icon="random", layout='wide')
@@ -9,100 +19,104 @@ st.markdown("""
 # SHRDC Image Labelling Web APP 🎨
 """)
 flag = False
+ROOT=Path(__file__).parents[1]
+module_path=Path(ROOT,"src","lib")
+sys.path.append(str(module_path))
+st.write(module_path)
+st.write(sys.path)
+# placeholder1 = st.empty()
+# # Replace the placeholder with some text:
+# placeholder1.text("Hello")
+# # # Replace the text with a chart:
+# # placeholder1.line_chart({"data": [1, 5, 2, 6]})
+# # # Replace the chart with several elements:
+# column1, column2, column3 = st.beta_columns([1, 1, 1])
+# with column1:
+#     # col1,col2,col3=st.beta_columns([1,1,1])
+#     st.write("Project ID: 1")
+#     st.write("Project Name: 🦍")
+#     a = 1
+#     # st.write(a)
 
-placeholder1 = st.empty()
-# Replace the placeholder with some text:
-placeholder1.text("Hello")
-# # Replace the text with a chart:
-# placeholder1.line_chart({"data": [1, 5, 2, 6]})
-# # Replace the chart with several elements:
-column1, column2, column3 = st.beta_columns([1, 1, 1])
-with column1:
-    # col1,col2,col3=st.beta_columns([1,1,1])
-    st.write("Project ID: 1")
-    st.write("Project Name: 🦍")
-    a = 1
-    # st.write(a)
+#     placeholder = st.empty()
+#     Train1 = placeholder.button(
+#         label="Train ▶️", key='Train', help="Start Training")
+#     st.button("Delete", key="del1")
+#     st.write(f"Train1: {Train1}")
 
-    placeholder = st.empty()
-    Train1 = placeholder.button(
-        label="Train ▶️", key='Train', help="Start Training")
-    st.button("Delete", key="del1")
-    st.write(f"Train1: {Train1}")
+#     if Train1:
+#         Stop1 = placeholder.button(
+#             label="Stop ⏸️", key='Stop', help="Stop Training")
+#         # placeholder_s = st.empty()
+#         st.write(f"Stop1: {Stop1}")
+#         if Stop1:
+#             st.warning('Are you sure you want to __STOP__?')
+#         # st.write(f"Train2: {Train}")
+#         # st.write(f"Stop2: {Stop}")
+# with column2:
+#     # col1,col2,col3=st.beta_columns([1,1,1])
+#     st.write("Project ID: 2")
+#     st.write("Project Name: 🦁")
+#     a = 1
+#     # st.write(a)
 
-    if Train1:
-        Stop1 = placeholder.button(
-            label="Stop ⏸️", key='Stop', help="Stop Training")
-        # placeholder_s = st.empty()
-        st.write(f"Stop1: {Stop1}")
-        if Stop1:
-            st.warning('Are you sure you want to __STOP__?')
-        # st.write(f"Train2: {Train}")
-        # st.write(f"Stop2: {Stop}")
-with column2:
-    # col1,col2,col3=st.beta_columns([1,1,1])
-    st.write("Project ID: 2")
-    st.write("Project Name: 🦁")
-    a = 1
-    # st.write(a)
+#     placeholder2 = st.empty()
+#     Train2 = placeholder2.button(
+#         label="Train ▶️", key='Train2', help="Start Training")
+#     st.button("Delete", key="del2")
+#     st.write(f"Train2: {Train2}")
 
-    placeholder2 = st.empty()
-    Train2 = placeholder2.button(
-        label="Train ▶️", key='Train2', help="Start Training")
-    st.button("Delete", key="del2")
-    st.write(f"Train2: {Train2}")
+#     if Train2:
+#         Stop2 = placeholder2.button(
+#             label="Stop ⏸️", key='Stop2', help="Stop Training")
+#         st.write(f"Stop2: {Stop2}")
+#         st.warning('Are you sure you want to __STOP__?')
+#         Stop2_confirm = placeholder2.button(
+#             label="Confirm", key='Stop2_confirm', help="Stop Confirm")
+#         st.write(f"Stop2_confirm: {Stop2_confirm}")
+#         if Stop2_confirm == True:
+#             sleep(1)
+#             st.success('Training stopped')
 
-    if Train2:
-        Stop2 = placeholder2.button(
-            label="Stop ⏸️", key='Stop2', help="Stop Training")
-        st.write(f"Stop2: {Stop2}")
-        st.warning('Are you sure you want to __STOP__?')
-        Stop2_confirm = placeholder2.button(
-            label="Confirm", key='Stop2_confirm', help="Stop Confirm")
-        st.write(f"Stop2_confirm: {Stop2_confirm}")
-        if Stop2_confirm == True:
-            sleep(1)
-            st.success('Training stopped')
-
-# ------------------Forms---------------
-with st.form(key='columns_in_form'):
-    cols = st.beta_columns(5)
-    for i, col in enumerate(cols):
-        col.selectbox(f'Make a Selection', ['click', 'or click'], key=i)
-    submitted = st.form_submit_button('Submit')
-
-
-PAGE = ['Project', 'Dataset', 'Inference']
-with st.sidebar:
-    st.title("Project")
-    page = st.radio(label="", options=PAGE, key="page")
-
-from string import ascii_uppercase, digits
-from random import choices
-with st.beta_expander(label="", expanded=True):
-    img_base = "https://www.htmlcsscolor.com/preview/128x128/{0}.png"
-    # st.image("https://media.allure.com/photos/5d601b3e531caa0008cbc17c/3:4/w_1279,h_1705,c_limit/IU%20at%20a%20press%20conference.jpg",width=100)
-    colors = (
-        ''.join(choices(ascii_uppercase[:6] + digits, k=6)) for _ in range(100))
-    # st.markdown("---")
-    with st.beta_container():
-        for col in st.beta_columns(5):
-            col.image(img_base.format(next(colors)), use_column_width=True)
-
-    with st.beta_container():
-        for col in st.beta_columns(4):
-            col.image(img_base.format(next(colors)), use_column_width=True)
-
-    with st.beta_container():
-        for col in st.beta_columns(10):
-            col.image(img_base.format(next(colors)), use_column_width=True)
-
-st.markdown("""
----
-""")
+# # ------------------Forms---------------
+# with st.form(key='columns_in_form'):
+#     cols = st.beta_columns(5)
+#     for i, col in enumerate(cols):
+#         col.selectbox(f'Make a Selection', ['click', 'or click'], key=i)
+#     submitted = st.form_submit_button('Submit')
 
 
-# # bootstrap 4 collapse example
+# PAGE = ['Project', 'Dataset', 'Inference']
+# with st.sidebar:
+#     st.title("Project")
+#     page = st.radio(label="", options=PAGE, key="page")
+
+# from string import ascii_uppercase, digits
+# from random import choices
+# with st.beta_expander(label="", expanded=True):
+#     img_base = "https://www.htmlcsscolor.com/preview/128x128/{0}.png"
+#     # st.image("https://media.allure.com/photos/5d601b3e531caa0008cbc17c/3:4/w_1279,h_1705,c_limit/IU%20at%20a%20press%20conference.jpg",width=100)
+#     colors = (
+#         ''.join(choices(ascii_uppercase[:6] + digits, k=6)) for _ in range(100))
+#     # st.markdown("---")
+#     with st.beta_container():
+#         for col in st.beta_columns(5):
+#             col.image(img_base.format(next(colors)), use_column_width=True)
+
+#     with st.beta_container():
+#         for col in st.beta_columns(4):
+#             col.image(img_base.format(next(colors)), use_column_width=True)
+
+#     with st.beta_container():
+#         for col in st.beta_columns(10):
+#             col.image(img_base.format(next(colors)), use_column_width=True)
+
+# st.markdown("""
+# ---
+# """)
+
+
+# # # bootstrap 4 collapse example
 # st.markdown("## Image Annotation:")
 # with st.beta_expander(label="", expanded=True):
 #     components.html(
@@ -130,7 +144,7 @@ st.markdown("""
 #             config: `
 #             <View>
 #                 <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-#                     <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="true"/>
+#                     <Image name="img" value="extra/chair.jpg" zoom="true" zoomControl="true" rotateControl="true"/>
 #                     <View>
 #                     <Filter toName="tag" minlength="0" name="filter"/>
 #                     <RectangleLabels name="tag" toName="img" showInline="true">
@@ -185,28 +199,28 @@ st.markdown("""
 #         """,
 #         height=1000, scrolling=True
 #     )
-# tensorboard_link = "http://localhost:6006/"
-# components.iframe(tensorboard_link, scrolling=True, height=900)
+# # tensorboard_link = "http://localhost:6006/"
+# # components.iframe(tensorboard_link, scrolling=True, height=900)
 
-ran = np.random.rand(14)
-st.write(ran)
+# ran = np.random.rand(14)
+# st.write(ran)
 
-cols = {
-    "Airport__Name": "Airport Name",
-    "Aircraft__Make_Model": "Aircraft Make & Model",
-    "Effect__Amount_of_damage": "Effect: Amount of Damage",
-    "Flight_Date": "Flight Date",
-    "Aircraft__Airline_Operator": "Airline Operator",
-    "Origin_State": "Origin State",
-    "When__Phase_of_flight": "When (Phase of Flight)",
-    "Wildlife__Size": "Wildlife Size",
-    "Wildlife__Species": "Wildlife Species",
-    "When__Time_of_day": "When (Time of Day)",
-    "Cost__Other": "Cost (Other)",
-    "Cost__Repair": "Cost (Repair)",
-    "Cost__Total_$": "Cost (Total) ($)",
-    "Speed_IAS_in_knots": "Speed (in Knots)",
-}
+# cols = {
+#     "Airport__Name": "Airport Name",
+#     "Aircraft__Make_Model": "Aircraft Make & Model",
+#     "Effect__Amount_of_damage": "Effect: Amount of Damage",
+#     "Flight_Date": "Flight Date",
+#     "Aircraft__Airline_Operator": "Airline Operator",
+#     "Origin_State": "Origin State",
+#     "When__Phase_of_flight": "When (Phase of Flight)",
+#     "Wildlife__Size": "Wildlife Size",
+#     "Wildlife__Species": "Wildlife Species",
+#     "When__Time_of_day": "When (Time of Day)",
+#     "Cost__Other": "Cost (Other)",
+#     "Cost__Repair": "Cost (Repair)",
+#     "Cost__Total_$": "Cost (Total) ($)",
+#     "Speed_IAS_in_knots": "Speed (in Knots)",
+# }
 
 
 # column = st.selectbox("Describe Column", ran, format_func=cols.get)
@@ -229,11 +243,28 @@ def is_authenticated(password):
 
 password_place = st.sidebar.empty()
 pswrd = password_place.text_input(label="Password", type="password")
+
 if is_authenticated(pswrd):
 
     # st.balloons()
     st.sidebar.header("Welcome In")
     password_place.success("Welcome in")
+    sleep(2)
+    password_place.empty()
+
 elif pswrd:
     st.sidebar.error(
         "User entered wrong username or password. Please enter again.")
+
+from src.lib.annotation_template.annotation_template import loadAnnotationTemplate
+
+# tuple of annotation types
+annotationType_list = ("Image Classification", "Object Detection with Bounding Boxes",
+                       "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
+annotationType_index = list(range(len(annotationType_list)))
+annotationType = st.selectbox("Template", annotationType_list,
+                              key="annotation_type", help="Please select the desired type of annotation")
+annotationConfig_template = loadAnnotationTemplate(
+    annotationType_list.index(annotationType))
+
+st.write(annotationConfig_template)  # annotation config template
