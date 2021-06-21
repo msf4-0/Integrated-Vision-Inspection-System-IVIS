@@ -150,7 +150,7 @@ if results_raw is not None:
     results = []
     for a in areas:
         results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
-                       'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
+                        'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
     with st.beta_expander('Show Annotation Log'):
 
         st.table(results)
