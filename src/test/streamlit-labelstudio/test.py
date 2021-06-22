@@ -16,6 +16,8 @@ import logging
 from base64 import b64encode, decode
 import io
 
+from tasks.results import BBOX
+
 #---------------Logger--------------#
 import logging
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
@@ -91,13 +93,18 @@ pass
 config = """
       
   <View>
-          <Header value="Select label and click the image to start"/>
-            <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="true"/>
-              <PolygonLabels name="label" toName="image" strokeWidth="3" pointSize="small" opacity="0.9">
-                <Label value="Airplane" background="red"/>
-                <Label value="Car" background="blue"/>
-              </PolygonLabels>
-        </View>
+<Header value="Select label and start to click on image"/>
+  <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+    <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false"/>
+    <View>
+      <Filter toName="tag" minlength="0" name="filter"/>
+      <RectangleLabels name="tag" toName="img" showInline="true">
+        <Label value="Hello"/>
+        <Label value="World"/>
+      </RectangleLabels>
+    </View>
+  </View>
+</View>
     """
 
 interfaces = [
@@ -144,6 +151,15 @@ task = {
 
 results_raw = st_labelstudio(config, interfaces, user, task, key='Labelstudio')
 st.write(results_raw)
+result_type = type(results_raw)
+st.markdown(
+    """
+Results Type: {}\n
+Area Type: {}\n
+
+""".format(result_type, type(results_raw['areas'])))
+st.write(results_raw['areas'])
+
 if results_raw is not None:
     areas = [v for k, v in results_raw['areas'].items()]
 
