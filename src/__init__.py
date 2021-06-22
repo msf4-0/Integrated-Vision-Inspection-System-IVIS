@@ -11,3 +11,5 @@ __latest_version__ = None
 __current_version_is_outdated__ = False
 __latest_version_upload_time__ = None
 __latest_version_check_time__ = None
+
+from src import lib

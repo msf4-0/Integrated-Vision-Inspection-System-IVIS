@@ -2,10 +2,16 @@
 # Add sys path for modules
 import sys
 import os.path as osp
-sys.path.append(osp.join(osp.dirname(osp.abspath(__file__)), 'lib'))  # ./lib
+from pathlib import Path
+sys.path.append(str(Path(Path(__file__).parents[2], 'lib')))  # ./lib
+# print(sys.path)
+from data_manager.annotation_type_select import annotation_sel
+from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 # --------------------------
-
 import streamlit as st
+st.set_page_config(page_title="Label Studio Test",
+                   page_icon="random", layout='wide')
+st.write(sys.path)
 from streamlit_labelstudio import st_labelstudio
 
 import numpy as np
@@ -16,7 +22,6 @@ import logging
 from base64 import b64encode, decode
 import io
 
-from tasks.results import BBOX
 
 #---------------Logger--------------#
 import logging
@@ -40,8 +45,7 @@ def dataURL_encoder(image):
 
 # --------------------------------
 
-st.set_page_config(page_title="Label Studio Test",
-                   page_icon="random", layout='wide')
+
 st.markdown("""
 # SHRDC Image Labelling Web APP 🎨
 """)
@@ -89,23 +93,23 @@ else:
 
 pass
 
-
-config = """
-      
-  <View>
-<Header value="Select label and start to click on image"/>
-  <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-    <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false"/>
-    <View>
-      <Filter toName="tag" minlength="0" name="filter"/>
-      <RectangleLabels name="tag" toName="img" showInline="true">
-        <Label value="Hello"/>
-        <Label value="World"/>
-      </RectangleLabels>
-    </View>
-  </View>
-</View>
-    """
+annotationType, annotationConfig_template = annotation_sel()
+# config = """
+#   <View>
+# <Header value="Select label and start to click on image"/>
+#   <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+#     <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false"/>
+#     <View>
+#       <Filter toName="tag" minlength="0" name="filter"/>
+#       <RectangleLabels name="tag" toName="img" showInline="true">
+#         <Label value="Hello"/>
+#         <Label value="World"/>
+#       </RectangleLabels>
+#     </View>
+#   </View>
+# </View>
+#     """
+config = annotationConfig_template['config']
 
 interfaces = [
     "panel",
@@ -149,24 +153,38 @@ task = {
 
 # log.info("load into component")
 
-results_raw = st_labelstudio(config, interfaces, user, task, key='Labelstudio')
-st.write(results_raw)
-result_type = type(results_raw)
-st.markdown(
-    """
-Results Type: {}\n
-Area Type: {}\n
+# results_raw = st_labelstudio(config, interfaces, user, task, key='Labelstudio')
+# st.write(results_raw)
+# result_type = type(results_raw)
+# st.markdown(
+#     """
+# Results Type: {}\n
+# Area Type: {}\n
 
-""".format(result_type, type(results_raw['areas'])))
-st.write(results_raw['areas'])
+# """.format(result_type, type(results_raw['areas'])))
+# st.write(results_raw['areas'])
 
-if results_raw is not None:
-    areas = [v for k, v in results_raw['areas'].items()]
+# if results_raw is not None:
+#     areas = [v for k, v in results_raw['areas'].items()]
 
-    results = []
-    for a in areas:
-        results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
-                        'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
-    with st.beta_expander('Show Annotation Log'):
+#     results = []
+#     for a in areas:
+#         results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
+#                         'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
+#     with st.beta_expander('Show Annotation Log'):
 
-        st.table(results)
+#         st.table(results)
+
+# BBox_results = DetectionBBOX(config, user, task, interfaces, key='bbox')
+if annotationType == "Image Classification":
+    results = ImgClassification(
+        config, user, task, interfaces, key='img_classification')
+elif annotationType == "Object Detection with Bounding Boxes":
+    results = DetectionBBOX(config, user, task, interfaces)
+elif annotationType == "Semantic Segmentation with Polygons":
+    results = SemanticPolygon(config, user, task, interfaces)
+
+elif annotationType == "Semantic Segmentation with Masks":
+    results = SemanticMask(config, user, task, interfaces)
+else:
+    pass

@@ -1,3 +1,4 @@
+import json
 import streamlit as st
 from time import sleep
 import streamlit.components.v1 as components
@@ -19,8 +20,8 @@ st.markdown("""
 # SHRDC Image Labelling Web APP 🎨
 """)
 flag = False
-ROOT=Path(__file__).parents[1]
-module_path=Path(ROOT,"src","lib")
+ROOT = Path(__file__).parents[2]
+module_path = Path(ROOT, "src", "lib")
 sys.path.append(str(module_path))
 st.write(module_path)
 st.write(sys.path)
@@ -256,25 +257,46 @@ elif pswrd:
     st.sidebar.error(
         "User entered wrong username or password. Please enter again.")
 
-from annotation.annotation_template import loadAnnotationTemplate
+# from annotation.annotation_template import loadAnnotationTemplate
 
-# tuple of annotation types
-annotationType_list = ("Image Classification", "Object Detection with Bounding Boxes",
-                       "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
-annotationType_index = list(range(len(annotationType_list)))
-annotationType = st.selectbox("Template", annotationType_list,
-                              key="annotation_type", help="Please select the desired type of annotation")
-annotationConfig_template = loadAnnotationTemplate(
-    annotationType_list.index(annotationType))
+# # tuple of annotation types
+# annotationType_list = ("", "Image Classification", "Object Detection with Bounding Boxes",
+#                        "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
+# annotationType_index = list(range(len(annotationType_list)))
+# annotationType = st.selectbox("Template", annotationType_list, format_func=lambda x: 'Select an option' if x == '' else x,
+#                               key="annotation_type", help="Please select the desired type of annotation")
+# st.warning(annotationType)
 
-st.write(annotationConfig_template)  # annotation config template
+# if annotationType is not "":
+#     annotationConfig_template = loadAnnotationTemplate(
+#         annotationType_list.index(annotationType) - 1)
+
+#     st.write(annotationConfig_template)  # annotation config template
+# st.write(annotationConfig_template["config"])
 
 #------------Webcam------#
-from webcam import webcam
-with st.beta_container():
-    captured_image = webcam()
-    if captured_image is None:
-        st.write("Waiting for capture...")
-    else:
-        st.write("Got an image from the webcam:")
-        st.image(captured_image)
+# from webcam import webcam
+# with st.beta_container():
+#     captured_image = webcam()
+#     if captured_image is None:
+#         st.write("Waiting for capture...")
+#     else:
+#         st.write("Got an image from the webcam:")
+#         st.image(captured_image)
+
+#-----open JSON file-----#
+import json
+# import xmltodict
+json_file_upload = st.file_uploader(
+    label="upload", type=['json'], key='json_files')
+
+if json_file_upload is not None:
+    st.write(json_file_upload)
+    xml = json_file_upload.read()
+    st.write(xml)
+    # json_file = json.dumps(xmltodict.parse(xml), indent=4)
+    json_file = json.dumps(xml.decode('utf-8'), indent=4)
+    st.write(type(json_file))
+    json_obj = json.loads(json_file)
+
+    st.json(json_obj)
