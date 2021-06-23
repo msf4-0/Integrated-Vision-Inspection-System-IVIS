@@ -26,6 +26,6 @@ def annotation_sel():
             annotationType_list.index(annotationType) - 1)
         with st.beta_expander(label="template", expanded=False):
             st.write(annotationConfig_template)  # annotation config template
-        return annotationType,annotationConfig_template
+        return annotationType, annotationConfig_template
     else:
         return None

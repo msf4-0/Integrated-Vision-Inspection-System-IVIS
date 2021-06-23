@@ -137,14 +137,7 @@ token = ""
 # Default: "True"
 showfileUploaderEncoding = "True"
 
-# Set to false to disable the deprecation warning for the image format parameter.
-# Default: "True"
-#
-# DEPRECATED.
-# The format parameter for st.image has been removed.
-# This option will be removed on or after 2021-03-24.
-#
-showImageFormat = "True"
+
 
 # Set to false to disable the deprecation warning for using the global pyplot instance.
 # Default: "True"

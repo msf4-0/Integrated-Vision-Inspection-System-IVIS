@@ -1,12 +1,7 @@
-# --------------------------
-# Add sys path for modules
-import sys
-import os.path as osp
-sys.path.append(osp.join(osp.dirname(osp.abspath(__file__)), 'lib'))  # ./lib
-# --------------------------
 
+import sys
 import streamlit as st
-from streamlit_labelstudio import st_labelstudio
+from . import st_labelstudio
 
 import numpy as np
 import pandas as pd

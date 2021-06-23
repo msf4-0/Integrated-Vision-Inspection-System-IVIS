@@ -43,7 +43,6 @@ PAGES = {
     "INFERENCE": "",
 }
 
-
 def main():
     print("Hi")
 
