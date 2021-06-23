@@ -3,7 +3,7 @@
 import sys
 import os.path as osp
 from pathlib import Path
-sys.path.append(str(Path(Path(__file__).parents[2], 'lib')))  # ./lib
+sys.path.insert(0, str(Path(Path(__file__).parents[2], 'lib')))  # ./lib
 # print(sys.path)
 from data_manager.annotation_type_select import annotation_sel
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
@@ -28,7 +28,7 @@ import logging
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
 DATEFMT = '%d-%b-%y %H:%M:%S'
 # logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.DEBUG,
+logging.basicConfig(format=FORMAT, level=logging.INFO,
                     stream=sys.stdout, datefmt=DATEFMT)
 log = logging.getLogger()
 #----------------------------------#
