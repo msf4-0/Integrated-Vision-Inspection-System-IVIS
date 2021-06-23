@@ -20,7 +20,10 @@ try:
     from . import dashboard
 except:
     import dashboard
-st.write(__package__)
+# st.write(__package__)
+
+PARENT = Path(__file__).parents[3]  # Parent folder
+RESOURCE = Path(PARENT, "resources")
 
 
 def is_authenticated(username, password):  # WIP
@@ -69,8 +72,7 @@ def main():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        PARENT = Path(__file__).parents[3]  # Parent folder
-        RESOURCE = Path(PARENT, "resources")
+
         main()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]

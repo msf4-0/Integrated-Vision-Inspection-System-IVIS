@@ -16,14 +16,14 @@ from glob import glob, iglob
 #-----------YAML PARSER-------------------#
 
 #-----------FILE HANDLER------------------#
-def file_open(path=None):
+def file_open(path):
     """general file opener"""
     with open(path, mode='r') as file:
         file = file.read()
     return file
 
 
-def multi_file_open(path=None):
+def multi_file_open(path):
     """general multi-file opener"""
 
     file_list = []
@@ -32,7 +32,7 @@ def multi_file_open(path=None):
     return file_list
 
 
-def file_search(path=None):
+def file_search(path=str(Path.home())):
     """
     File Search
     - Recursive true to search sub-directories with " ** "
@@ -47,8 +47,16 @@ def file_search(path=None):
     return file_list
 
 
-def i_file_search(path=None):
-    """Iterative File Search"""
+def i_file_search(path=str(Path.home())):
+    """Iterative File Search
+
+    Args:
+        path (str, optional): Path to file or folder. Defaults to str(Path.home()).
+
+    Returns:
+        List: List of files in that directory
+    """
+
     file_list = []
     for file in iglob(pathname=path):
         file_list.append(file)

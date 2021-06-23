@@ -22,7 +22,7 @@ def write():
     st.write("# Dashboard")
     files = []
 
-    # files = glob("/home/rchuzh/programming/*")
+    
     files = file_search(str(Path(PARENT, "src", "lib","*")))
     st.write(files)
     file_list = []
