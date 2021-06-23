@@ -8,7 +8,9 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 import os.path as osp
 from pathlib import Path
-ROOT = Path(__file__)  # ROOT folder
+
+import streamlit
+ROOT = Path(__file__).parent  # ROOT folder
 sys.path.insert(0, str(Path(ROOT, 'lib')))  # ./lib
 print(sys.path[0])
 #
@@ -21,7 +23,7 @@ logging.basicConfig(format=FORMAT, level=logging.INFO,
                     stream=sys.stdout, datefmt=DATEFMT)
 log = logging.getLogger()
 #----------------------------------------------------#
-
+from streamlit import cli as stcli  # Add CLI so can run Python script directly
 import streamlit as st
 
 # DEFINE Web APP page configuration
@@ -32,10 +34,9 @@ except:
     st.beta_set_page_config(page_title="Label Studio Test",
                             page_icon="random", layout='wide')
 
-"""
-PAGES Dictionary
-Import as modules from "./lib/pages"
-"""
+
+# PAGES Dictionary
+# Import as modules from "./lib/pages"
 PAGES = {
     "LOGIN": "",
     "PROJECT": "",
@@ -43,9 +44,14 @@ PAGES = {
     "INFERENCE": "",
 }
 
+
 def main():
     print("Hi")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if streamlit._is_running_with_streamlit:
+        main()
+    else:
+        sys.argv = ["streamlit", "run", sys.argv[0]]
+        sys.exit(stcli.main())
