@@ -16,13 +16,18 @@ sys.path.insert(0, str(Path(ROOT, 'lib')))  # ./lib
 #
 #--------------------Logger-------------------------#
 import logging
+
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
 DATEFMT = '%d-%b-%y %H:%M:%S'
+
 # logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
 logging.basicConfig(format=FORMAT, level=logging.INFO,
                     stream=sys.stdout, datefmt=DATEFMT)
+
 log = logging.getLogger()
+
 #----------------------------------------------------#
+
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 import streamlit as st
 
@@ -36,8 +41,6 @@ except:
 
 #------------------IMPORT for PAGES-------------------#
 from pages import login, dashboard, project, dataset, inference
-
-
 #----------------------------------------------------#
 
 
@@ -64,7 +67,7 @@ def main():
             "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
     st.markdown("""___""")
 #-------------------------------------------#
-    
+
     PAGES["LOGIN"].write()
 
 

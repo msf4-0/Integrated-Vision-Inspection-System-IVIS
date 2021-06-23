@@ -199,32 +199,36 @@ def keep_positives(vector: Sequence[T]) -> List[T]:
     return[item for item in vector if item > 0]
 
 
-vec2([1, 2)
+vec2([1, 2])
 keep_positives([1, 2, 3, 4])
 keep_positives([-1, -2, -1, 2, 34])
 # %%
 import cv2
 import base64
+
+
 def ndarray_to_b64(ndarray):
     """
     converts a np ndarray to a b64 string readable by html-img tags
     """
-    img= cv2.cvtColor(ndarray, cv2.COLOR_RGB2BGR)
-    _, buffer= cv2.imencode('.png', img)
+    img = cv2.cvtColor(ndarray, cv2.COLOR_RGB2BGR)
+    _, buffer = cv2.imencode('.png', img)
     return base64.b64encode(buffer).decode('utf-8')
+
 
 # %%----------------------------------------------------------------
 from base64 import b64encode, decode
 import io
-bina= io.BytesIO(b'I want to solve import issue')
-bb= bina.read()
-b64code= b64encode(bb).decode('utf-8')
+bina = io.BytesIO(b'I want to solve import issue')
+bb = bina.read()
+b64code = b64encode(bb).decode('utf-8')
 print(b64code)
-data_url= f'data:image/jpg;base64,{b64code}'
+data_url = f'data:image/jpg;base64,{b64code}'
 print(f"\"{data_url}\"")
-#%%
+# %%
 # Python code to illustrate
 # Decorators basic in Python
+
 
 def decorator_fun(func):
     print("Inside decorator")
@@ -233,26 +237,28 @@ def decorator_fun(func):
         print("Inside inner function")
         print("Decorated the function")
         # do operations with func
-        
+
         func()
-	
+
     return inner
+
 
 @decorator_fun
 def func_to():
-	print("Inside actual function")
+    print("Inside actual function")
+
 
 func_to()
-#%%
+# %%
 import urllib.request
 with urllib.request.urlopen('https://raw.githubusercontent.com/streamlit/streamlit/develop/docs/api-examples-source/charts.area_chart.py') as response:
-    html=response.read()
+    html = response.read()
     print(html)
 
-#%%
+# %%
 
 import json
-data="""[{
+data = """[{
         "name": "charts.area_chart",
         "url": "https://raw.githubusercontent.com/streamlit/streamlit/develop/docs/api-examples-source/charts.area_chart.py"
     },
@@ -270,13 +276,37 @@ data="""[{
     }]"""
 
 output = json.loads(data)
-apps={}
+apps = {}
 for item in output:
-        if item["url"] is not None and item["url"].endswith(".py"):
-            # can overwrite if same name
-            apps[item["name"]] = item["url"]
+    if item["url"] is not None and item["url"].endswith(".py"):
+        # can overwrite if same name
+        apps[item["name"]] = item["url"]
 print(apps)
-#%%
+# %%
 import numpy as np
 
-ran=np.random.rand(14)
+ran = np.random.rand(14)
+# %%
+from glob import glob
+from pathlib import Path
+
+files = Path("/home/rchuzh/programming")
+Download = Path("/home/rchuzh/Downloads")
+# not valid because does not start from the same leading directory
+print(files.relative_to(Download))
+
+
+# %%
+import random
+import string
+
+# get random password pf length 8 with letters, digits, and symbols
+characters = string.ascii_letters + string.digits + string.punctuation
+password = ''.join(random.choice(characters) for i in range(10))
+print("Random password is:", password)
+# %%
+import uuid
+stringId  = uuid.uuid4()
+print("Secure unique string id", stringId)
+# Output 0682042d-318e-45bf-8a16-6cc763dc8806
+# %%
