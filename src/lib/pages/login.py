@@ -9,11 +9,18 @@ from streamlit import cli as stcli
 from pathlib import Path
 from time import sleep
 import sys
-# with __name__ is not "__main__":
-#     PARENT = Path(__file__).parents[3]  # Parent folder
-#     RESOURCE = Path(PARENT, "resources")
+PACKAGE = Path(__file__).parent  # Package folder
+sys.path.insert(0, str(PACKAGE))
+st.write(sys.path[0])
 
-# left, mid, right = st.beta_columns([1,3,1])
+# Exception handling:
+# if __package__ is None (module run by filename), run "import dashboard"
+# if __package__ is __name__ (name of package == "pages"), run "from . import dashboard"
+try:
+    from . import dashboard
+except:
+    import dashboard
+st.write(__package__)
 
 
 def is_authenticated(username, password):  # WIP
@@ -24,12 +31,14 @@ def is_authenticated(username, password):  # WIP
 
 
 def write():
-    left, mid_login, right = st.beta_columns([1, 3, 1])
+
+    main_place = st.empty()
+    left, mid_login, right = main_place.beta_columns([1, 3, 1])
     with mid_login:
         with st.form("login", clear_on_submit=True):
             st.write("## Login")
             username = st.text_input(
-                "Username", value="Please enter your username", key="username")
+                "Username", value="Please enter your username", key="username", help="Enter your username")
             pswrd = st.text_input("Password", value="",
                                   key="safe", type="password")
             submit_login = st.form_submit_button("Log In")
@@ -42,10 +51,12 @@ def write():
                 success_place.success("Welcome in")
                 success_side = st.sidebar.empty()
 
-                success_side.write("# Welcome In 👍")
+                success_side.write("# Welcome In 👋")
                 sleep(1)
                 success_place.empty()
-                success_side.empty()
+                # success_side.empty()
+                with main_place:
+                    dashboard.write()
 
             elif pswrd:
                 st.error(

@@ -35,7 +35,7 @@ except:
                             page_icon="random", layout='wide')
 
 #------------------IMPORT for PAGES-------------------#
-from pages import login
+from pages import login, dashboard, project, dataset, inference
 
 
 #----------------------------------------------------#
@@ -45,9 +45,10 @@ from pages import login
 # Import as modules from "./lib/pages"
 PAGES = {
     "LOGIN": login,
-    "PROJECT": "",
-    "DATASET": "",
-    "INFERENCE": "",
+    "DASHBOARD": dashboard,
+    "PROJECT": project,
+    "DATASET": dataset,
+    "INFERENCE": inference
 }
 
 
@@ -63,7 +64,7 @@ def main():
             "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
     st.markdown("""___""")
 #-------------------------------------------#
-
+    
     PAGES["LOGIN"].write()
 
 
