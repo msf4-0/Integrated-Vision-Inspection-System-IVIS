@@ -4,16 +4,20 @@ AUthor: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 # ----------Add sys path for modules----------------#
-#
+
 import sys
-import os.path as osp
+from os import path, chdir
 from pathlib import Path
 
 import streamlit
 ROOT = Path(__file__).parent  # ROOT folder
 sys.path.insert(0, str(Path(ROOT, 'lib')))  # ./lib
-# print(sys.path[0])
-#
+
+# Change to Project Directory
+chdir(Path(__file__).parents[1])
+ROOT = Path.cwd()  # ./image_labelling_shrdc
+
+
 #--------------------Logger-------------------------#
 import logging
 
@@ -59,7 +63,7 @@ def main():
     #------------------START------------------------#
     with st.sidebar.beta_container():
 
-        st.image("../resources/MSF-logo.gif", use_column_width=True)
+        st.image("resources/MSF-logo.gif", use_column_width=True)
     with st.beta_container():
         st.title("Integrated Vision Inspection System", anchor='title')
 

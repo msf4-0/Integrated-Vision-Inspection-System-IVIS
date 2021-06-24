@@ -9,21 +9,24 @@ from streamlit import cli as stcli
 from pathlib import Path
 from time import sleep
 import sys
-PACKAGE = Path(__file__).parent  # Package folder
-sys.path.insert(0, str(PACKAGE))
-st.write(sys.path[0])
+
+
+
 
 # Exception handling:
 # if __package__ is None (module run by filename), run "import dashboard"
 # if __package__ is __name__ (name of package == "pages"), run "from . import dashboard"
 try:
-    from . import dashboard
+    from pages import dashboard
 except:
+    PACKAGE = Path(__file__).parent  # Package folder
+    sys.path.insert(0, str(PACKAGE))
     import dashboard
-# st.write(__package__)
 
-PARENT = Path(__file__).parents[3]  # Parent folder
-RESOURCE = Path(PARENT, "resources")
+
+PARENT = Path.home() # Parent folder
+
+
 
 
 def is_authenticated(username, password):  # WIP
@@ -34,7 +37,7 @@ def is_authenticated(username, password):  # WIP
 
 
 def write():
-
+    
     main_place = st.empty()
     left, mid_login, right = main_place.beta_columns([1, 3, 1])
     with mid_login:

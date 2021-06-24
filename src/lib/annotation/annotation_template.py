@@ -66,7 +66,9 @@ def loadAnnotationTemplate(template_index, template=None):
 
 
 def loadTemplateConfig(path):
-    with open(path, mode='r') as template:
+    # if not path.exists(path):
+    #     path = find_file(path)
+    with open(path, mode='r', encoding='utf-8') as template:
         template = full_load(template)
     return template
 
