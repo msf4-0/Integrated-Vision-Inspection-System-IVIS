@@ -31,8 +31,72 @@
 # for row in rows:
 #     st.write(row)
 
-# %%
+# %% ADD TABLE
 
+import psycopg2
+from passlib.hash import bcrypt, argon2, bcrypt_sha256
+from time import perf_counter
+
+
+conn = psycopg2.connect(
+    "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
+
+# cur = conn.cursor()
+
+# Create new table to store user credentials
+create_username_table = "CREATE TABLE Login (id serial PRIMARY KEY, username text, psd text, email text);"
+with conn:
+    with conn.cursor() as cur:
+        cur.execute(create_username_table)
+        conn.commit()
+
+# %% CREATE
+import psycopg2
+from passlib.hash import bcrypt, argon2, bcrypt_sha256
+from time import perf_counter
+import pandas as pd
+
+conn = psycopg2.connect(
+    "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
+column_names = ["id", "username", "password", "email"]
+
+
+def create_user():
+    new_user = {}
+    new_user["username"] = input("Username: ")
+    new_user["password"] = argon2.hash(input("Password: "))
+    print(f'password: {new_user["password"]}')
+    new_user["email"] = input("Email: ")
+
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO Login (username, psd,email) VALUES (%s, %s,%s);", (new_user["username"], new_user["password"], new_user["email"]))
+            cur.execute("select * from Login;")
+            conn.commit()
+            rows = cur.fetchall()
+            df = pd.DataFrame(rows, columns=column_names)
+            df.set_index('id')
+            # more options can be specified also
+            print(df)
+            print(rows)
+
+    return new_user, rows
+
+
+new_user, rows = create_user()  # Create New User
+
+# with conn:
+#     with conn.cursor() as cur:
+#         cur.execute("select * from Login;")
+
+#         cur.fetchone()
+#         conn.commit()
+
+
+conn.close()
+
+# %% LOGIN
 import psycopg2
 from passlib.hash import bcrypt, argon2, bcrypt_sha256
 from time import perf_counter
@@ -40,21 +104,36 @@ from time import perf_counter
 conn = psycopg2.connect(
     "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
 
-cur = conn.cursor()
 
-cur.execute(
-    "CREATE TABLE test (id serial PRIMARY KEY, num integer, data varchar);")
+def login():
+    old_user = {}
+    old_user["username"] = input("Username: ")
+    old_user["password"] = input("Password: ")
+    print(f'Login password: {old_user["password"]}')
 
-cur.execute("INSERT INTO test (num, data) VALUES (%s, %s)",
-            ...      (100, "abc'def"))
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT psd FROM Login where username=%s;",
+                        [old_user["username"]])
 
-cur.execute("select * from test;")
-cur.fetchone()
+            conn.commit()
+            rows = cur.fetchall()
+            print(rows)
 
-conn.commit()
+    return old_user, rows
 
-cur.close()
+
+old_user, rows = login()  # Create New User
+
+if rows is not None:
+    password = rows[0][0]
+    print(f"Retrieved password: {password}")
+    print(argon2.verify(old_user["password"], password))
+
+
+
 conn.close()
+
 
 # %%
 from passlib.hash import bcrypt, argon2, bcrypt_sha256
