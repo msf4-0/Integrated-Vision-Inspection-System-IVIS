@@ -50,7 +50,7 @@ with conn:
         cur.execute(create_username_table)
         conn.commit()
 
-# %% CREATE
+# %% CREATE 
 import psycopg2
 from passlib.hash import bcrypt, argon2, bcrypt_sha256
 from time import perf_counter
