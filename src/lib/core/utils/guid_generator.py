@@ -7,7 +7,6 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import random
 import string
 import uuid
-import warnings
 import secrets
 
 
