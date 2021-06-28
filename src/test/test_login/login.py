@@ -16,12 +16,12 @@ import sys
 # Exception handling:
 # if __package__ is None (module run by filename), run "import dashboard"
 # if __package__ is __name__ (name of package == "pages"), run "from . import dashboard"
-try:
-    from pages import dashboard
-except:
-    PACKAGE = Path(__file__).parent  # Package folder
-    sys.path.insert(0, str(PACKAGE))
-    import dashboard
+# try:
+#     from pages import dashboard
+# except:
+#     PACKAGE = Path(__file__).parent  # Package folder
+#     sys.path.insert(0, str(PACKAGE))
+#     import dashboard
 
 
 PARENT = Path.home() # Parent folder
