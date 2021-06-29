@@ -59,11 +59,12 @@ FIELDS = {
 # ------------------TEMP
 conn = psycopg2.connect(
     "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
+layout = 'centered'
 # ------------------TEMP
 
 
-def create_user_page():
-    flag = 0
+def create_user_page(layout='centered'):
+
     new_user = {}
     place = {}
     has_submitted = False
@@ -72,11 +73,14 @@ def create_user_page():
     st.write("## __Add New User__")
     st.markdown("___")
     create_user_place = st.empty()
-    col1, col2, col3 = create_user_place.beta_columns([1, 3, 1])
+    if layout == 'wide':
+        col1, col2, col3 = create_user_place.beta_columns([1, 3, 1])
+    else:
+        col2 = create_user_place
     # placeholder=col2.empty()
     # with st.beta_container():
     random_psd = make_random_password(22)
-    with st.form(key="create", clear_on_submit=True):
+    with col2.form(key="create", clear_on_submit=True):
         st.write("### Employee Company Details")
 
         new_user["emp_id"] = st.text_input(
@@ -139,6 +143,7 @@ def create_user_page():
         if psd_gen_flag:
             # ----------Need add password generator
             new_user["psd"] = random_psd
+
             # st.write(
             #     """
             #     | {psd} |
@@ -152,7 +157,7 @@ def create_user_page():
             #                      key="auto_psd_gen", type="password")
 
             # submit_login = st.form_submit_button("Submit")
-        
+
         st.markdown("___")
         submit_create_user_form = st.form_submit_button(
             "Submit")
@@ -161,9 +166,9 @@ def create_user_page():
         if submit_create_user_form:  # IF all fields are populated -> RETURN True
 
             has_submitted = check_if_field_empty(new_user, place, FIELDS)
-            st.write(has_submitted)
+            
             if has_submitted:
-                st.write("Move on")
+                
                 create_user(new_user, conn)
                 # create_success_page(new_user, placeholder=create_user_place)
                 # with create_user_place:
@@ -171,18 +176,12 @@ def create_user_page():
                 #             ### Please advice user to activate account with the temporary password sent to employee's company email.
                 #             """.format(new_user["username"]))
                 # create_user_place.write("Hi")
-                create_success_page(new_user)
+                st.success(""" Successfully created new user: {0}. 
+                            Please advice user to activate account with the temporary password sent to employee's company email. 
+                            __Employee Temporary Password: {1}__
+                            """.format(new_user["username"], new_user["psd"]))
     st.write(new_user)
     return new_user, has_submitted
-
-
-def create_success_page(new_user):
-
-    with st.beta_container():
-        st.success(""" Successfully created new user: {0}. 
-         Please advice user to activate account with the temporary password sent to employee's company email. 
-         __Employee Temporary Password: {1}__
-        """.format(new_user["username"],new_user["psd"]))
 
 
 def write():

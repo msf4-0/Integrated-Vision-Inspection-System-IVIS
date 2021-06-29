@@ -54,7 +54,7 @@ LOGGED_OUT = 4  # Account logged-out
 
 def check_if_field_empty(new_user, field_placeholder, field_name):
     empty_fields = []
-    all_field_filled = all(new_user)
+    # all_field_filled = all(new_user)
     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
     for key, value in new_user.items():
         if value == "":
@@ -95,7 +95,7 @@ def create_usertable(conn=conn):  # Create Table
 # Create User
 
 
-def create_user(new_user, conn=conn):
+def create_user(user, conn=conn):
     # def create_user(new_user):
     # new_user = {}
 
@@ -112,23 +112,22 @@ def create_user(new_user, conn=conn):
     # # Account Corporate Details
     # new_user["username"] = input("Username: ")
     # new_user["role"] = input("Role: ")
-    # new_user["psd"] = argon2.hash(input("Password: "))
-    log.info(f'password: {new_user["psd"]}')
+    psd = argon2.hash(user["psd"])
+    log.info(f'password: {user["psd"]}')
 
     with conn:
         with conn.cursor() as cur:
             cur.execute(""" INSERT INTO user_details (emp_id,first_name,last_name,email,department,position,username,role, psd) 
                             VALUES (%s,%s, %s,%s,%s,%s,%s,%s,%s)
                             RETURNING user_id,username,created_at as create_user;""",
-                        [new_user["emp_id"], new_user["first_name"], new_user["last_name"], new_user["email"], new_user["department"], new_user["position"],
-                         new_user["username"], new_user["role"], new_user["psd"]])
+                        [user["emp_id"], user["first_name"], user["last_name"], user["email"], user["department"], user["position"],
+                         user["username"], user["role"], psd])
             # cur.execute("select * from Login;")
 
             conn.commit()
             user_create = cur.fetchone()
             log.info(user_create)
-            new_user = {}
-    return user_create
+            user = {}
 
 
 # User Login
@@ -158,6 +157,22 @@ def user_login(user, conn=conn):
         log.info(argon2.verify(user["psd"], psd))
 
     return user_exist, user_entry_flag
+
+
+def update_psd(user, conn=conn):
+    psd = argon2.hash(user["psd"])
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE user_details 
+                        SET psd = %s,
+                            status = %s
+                        WHERE username = %s
+                        RETURNING psd;""",
+                        [psd, user["status"],user["username"]])
+
+            conn.commit()
+            user_exist = cur.fetchone()
+            log.info(user_exist[0])
 
 
 # user_create = create_user()  # Create New User
