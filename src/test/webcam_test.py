@@ -3,9 +3,9 @@ import cv2
 import sys
 
 # define a video capture object
-link = "http://192.168.1.106:4747"
+link = "http://192.168.1.105:4747/video"
 local_link = "http://127.0.0.1:4747"
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(link)
 if not cap.isOpened():
     sys.exit(1)
 

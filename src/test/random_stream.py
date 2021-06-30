@@ -300,3 +300,53 @@ if json_file_upload is not None:
     json_obj = json.loads(json_file)
 
     st.json(json_obj)
+
+
+components.html(
+    """
+        <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Document</title>
+        <!-- Include Label Studio stylesheet -->
+        <link
+        href="https://unpkg.com/label-studio@1.0.1/build/static/css/main.css"
+        rel="stylesheet"
+        />
+        <!-- Include the Label Studio library -->
+        <script src="https://unpkg.com/label-studio@1.0.1/build/static/js/main.js"></script>
+    </head>
+    <body>
+        <script src="https://api.labelbox.com/static/labeling-api.js"></script>
+<div id="form"></div>
+<script>
+  function label(label) {
+    Labelbox.setLabelForAsset(label).then(() => {
+      Labelbox.fetchNextAssetToLabel();
+    });
+  }
+
+  Labelbox.currentAsset().subscribe((asset) => {
+    if (asset) {
+      drawItem(asset.data);
+    }
+  });
+  function drawItem(dataToLabel) {
+    const labelForm = `
+    <img src="${dataToLabel}" style="width: 300px;"></img>
+    <div style="display: flex;">
+      <button onclick="label('bad')">Bad Quality</button>
+      <button onclick="label('good')">Good Quality</button>
+    </div>
+  `;
+    document.querySelector("#form").innerHTML = labelForm;
+  }
+</script>
+    </body>
+    </html>
+        """,
+    height=1000, scrolling=True
+)

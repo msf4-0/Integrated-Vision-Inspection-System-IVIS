@@ -20,16 +20,17 @@
         var labelStudio = new LabelStudio("label-studio", {
           config: `
           <View>
-  <Header value="Listen to the audio"/>
-  <Audio name="audio" value="$audio"/>
-  <Header value="Select its topic"/>
-  <Choices name="topic" toName="audio"
-           choice="single-radio" showInline="true">
-    <Choice value="Politics"/>
-    <Choice value="Business"/>
-    <Choice value="Education"/>
-    <Choice value="Other"/>
-  </Choices>
+<Header value="Select label and start to click on image"/>
+  <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+    <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+    <View>
+      <Filter toName="tag" minlength="0" name="filter"/>
+      <RectangleLabels name="tag" toName="img" showInline="true">
+        <Label value="Hello"/>
+        <Label value="World"/>
+      </RectangleLabels>
+    </View>
+  </View>
 </View>
     `,
 
@@ -55,7 +56,9 @@
             predictions: [],
             id: 1,
             data: {
-              audio: "https://app.heartex.ai/static/samples/game.wav",
+              // audio: "https://app.heartex.ai/static/samples/game.wav",
+              image:
+                "https://images.unsplash.com/photo-1548391350-968f58dedaed?ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
             },
           },
 
