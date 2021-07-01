@@ -47,7 +47,7 @@ def file_search(path=str(Path.home())):
     return file_list
 
 
-def i_file_search(path=str(Path.home())):
+def i_file_search(path=str(Path.home()), recursive=False):
     """Iterative File Search
 
     Args:
@@ -58,6 +58,6 @@ def i_file_search(path=str(Path.home())):
     """
 
     file_list = []
-    for file in iglob(pathname=path):
+    for file in iglob(pathname=path, recursive=recursive):
         file_list.append(file)
     return file_list
