@@ -43,3 +43,7 @@ if __name__ == '__main__':
 # %%  CREATE TABLE snippet
 def create_usertable():
     c.execute('CREATE TABLE IF NOT EXISTS userstable(username TEXT,password TEXT)')
+
+#%% System Argument
+sys.argv = ['object_detection_ngk_test_cv2.py', '-m', '/home/pi/Documents/project/uavproject/vino_model/model_040421/saved_model.xml', '-i',
+                '0', '--labels', '/home/pi/Documents/project/uavproject/vino_model/model_040421/aruco.labels', '-d', 'MYRIAD', '--target', 'aruco', '--connect', '/dev/ttyS0']

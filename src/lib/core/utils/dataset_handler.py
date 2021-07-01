@@ -64,7 +64,7 @@ def iterate_dir(source, dest, ratio, copy_xml):
                      os.path.join(train_dir, xml_filename))
 
 
-def main():
+def dataset_partition():
 
     # Initiate argument parser
     parser = argparse.ArgumentParser(description="Partition dataset of images into training and testing sets",
@@ -99,6 +99,10 @@ def main():
 
     # Now we are ready to start the iteration
     iterate_dir(args.imageDir, args.outputDir, args.ratio, args.xml)
+
+
+def main():
+    dataset_partition()
 
 
 if __name__ == '__main__':

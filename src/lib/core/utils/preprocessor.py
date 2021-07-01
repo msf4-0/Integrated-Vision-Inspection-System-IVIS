@@ -21,6 +21,8 @@ import sys
 # from streamlit import cli as stcli
 from time import perf_counter
 
+from os import getcwd, path, listdir
+from pathlib import Path
 import logging
 import psycopg2
 import cv2
@@ -108,3 +110,14 @@ def postprocess(self, raw_results, preprocess_metadata):
         detection.ymax *= scale_y
     return detections
 
+
+def image_compressor():
+    dir_path = getcwd()
+
+    for filename in listdir(dir_path):
+        # If the images are not .JPG images, change the line below to match the image type.
+        if filename.endswith(".JPG"):
+            image = cv2.imread(filename)
+            resized = cv2.resize(image, None, fx=0.25, fy=0.25,
+                                interpolation=cv2.INTER_AREA)
+            cv2.imwrite(filename, resized)
