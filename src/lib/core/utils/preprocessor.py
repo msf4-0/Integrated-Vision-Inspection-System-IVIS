@@ -121,3 +121,5 @@ def image_compressor():
             resized = cv2.resize(image, None, fx=0.25, fy=0.25,
                                 interpolation=cv2.INTER_AREA)
             cv2.imwrite(filename, resized)
+
+            
