@@ -106,7 +106,7 @@ def read_bytes_stream(filepath):
 #------------------------File Archiver----------------------#
 
 
-def check_archiver_format(filename):
+def check_archiver_format(filename=None):
     """Extract archiver format
 
     Args:
@@ -116,6 +116,15 @@ def check_archiver_format(filename):
         str: Archiver format
     """
     filename = Path(filename)
+    # if EXTENSION parsed, archive format is "filename"
+    if (len(filename.parts)) == 1:
+        archive_format = str(filename)
+
+    # if file path parsed, archive format is suffix of "filename"
+    elif (len(filename.parts)) > 1:
+        archive_format = filename.suffix
+    else:
+        log.info("Parsing error")
 
     try:
         # get file extension if shutil cannot parse/find format
@@ -125,10 +134,10 @@ def check_archiver_format(filename):
             ".bz2": "bztar",
             ".xz": "xztar"
         }
-        archive_format = filename.suffix
+
         if archive_format in archive_format_list.keys():
 
-            return archive_format
+            return archive_format_list[archive_format]
 
         else:
             log.error("Archive format invalid!")
@@ -183,4 +192,36 @@ def file_unarchiver(filename, extract_dir):
     return f"successfully archived"
 
 
-def single_file_archive():
+def single_file_archiver(archive_filename, target_filename, archive_format="zip"):
+    print("Hello")
+
+
+def batch_file_archiver(archive_filename, target_root_dir, target_base_dir, archive_format="zip"):
+    current_working_dir = Path.cwd()  # save current working directory
+    os.chdir(str(target_root_dir))  # change to target root directory
+    try:
+        extracted = shutil.make_archive(base_name=str(
+            archive_filename), format=archive_format, root_dir=target_root_dir, base_dir=target_base_dir)
+    except:
+        error_msg = "Failed to archive file"
+        log.info(error_msg)
+        st.error(error_msg)
+
+
+def file_archive(archive_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
+    # combine to form complete target file directory
+    target_filename = Path(target_root_dir, target_base_dir).resolve()
+    archive_filename = Path(archive_filename).resolve()
+
+    if target_filename.is_file():
+        log.info("Path is file")
+        single_file_archiver()
+
+    elif target_filename.is_dir():
+        log.info("Path is directory")
+        batch_file_archiver()
+
+    else:
+        error_msg = f"{FileNotFoundError}File does not exist"
+        log.error(error_msg)
+        st.error(error_msg)
