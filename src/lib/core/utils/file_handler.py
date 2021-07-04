@@ -107,6 +107,14 @@ def read_bytes_stream(filepath):
 
 
 def check_archiver_format(filename):
+    """Extract archiver format
+
+    Args:
+        filename (str or path-like object): Path to archive file
+
+    Returns:
+        str: Archiver format
+    """
     filename = Path(filename)
 
     try:
@@ -122,37 +130,6 @@ def check_archiver_format(filename):
 
             return archive_format
 
-        else:
-            log.error("Archive format invalid!")
-            st.error("Archive format invalid!")
-
-    except KeyError as e:
-        error_msg = f"{e}: Archive format invalid!"
-        log.error(error_msg)
-        st.error(error_msg)
-
-
-def manual_file_archiver(filename, extract_dir):
-    """Check archive format manually
-
-    Args:
-        filename (str or path-like object): Path to archive file
-        extract_dir (str or path-like object): Output directory
-    """
-    filename = Path(filename)
-    extract_dir = Path(extract_dir)
-    try:
-        # get file extension if shutil cannot parse/find format
-        archive_format_list = {
-            "zip": "zip",
-            "gz": "gztar",
-            "bz2": "bztar",
-            "xz": "xztar"
-        }
-        archive_format = filename.suffix
-        if archive_format in archive_format_list.keys():
-            shutil.unpack_archive(
-                filename, extract_dir, format=archive_format_list[archive_format])
         else:
             log.error("Archive format invalid!")
             st.error("Archive format invalid!")
@@ -190,7 +167,13 @@ def file_unarchiver(filename, extract_dir):
             error_msg = f"{e}: Shutil unable to extract archive format from filename"
             log.error(error_msg)
             st.error(error_msg)
-            manual_file_archiver(filename, extract_dir)
+
+            # get archiver format from Path suffix
+            archive_format = check_archiver_format(filename)
+
+            shutil.unpack_archive(
+                filename, extract_dir, format=archive_format)
+
     else:
         # pass IOError
         error_msg = f"{IOError}: File does not exist"
