@@ -45,7 +45,7 @@ for dir in [DATA_DIR, MODELS_DIR]:
     if not os.path.exists(dir):
         os.mkdir(dir)
 '''
-# ADD YOUR DIRECTORY HERE!!!!!
+# ADD YOUR DIRECTORY HERE!!!!! 
 DATA_DIR = '/home/chuzh/Documents/TensorFlow/workspace/training_demo'
 MODELS_DIR = '/home/rchuzh/Documents/aruco/exported-models/model_2'
 

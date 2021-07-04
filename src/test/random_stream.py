@@ -12,19 +12,19 @@ import sys
 import os.path as osp
 sys.path.append(osp.join(osp.dirname(osp.abspath(__file__)), 'lib'))  # ./lib
 # --------------------------
-
+flag = False
+ROOT = Path(__file__).parents[2]
+module_path = Path(ROOT, "src", "lib")
+sys.path.append(str(module_path))
 
 st.set_page_config(page_title="label studio test",
                    page_icon="random", layout='wide')
 st.markdown("""
 # SHRDC Image Labelling Web APP 🎨
 """)
-flag = False
-ROOT = Path(__file__).parents[2]
-module_path = Path(ROOT, "src", "lib")
-sys.path.append(str(module_path))
-st.write(module_path)
-st.write(sys.path)
+
+# st.write(module_path)
+# st.write(sys.path)
 # placeholder1 = st.empty()
 # # Replace the placeholder with some text:
 # placeholder1.text("Hello")
@@ -302,51 +302,104 @@ if json_file_upload is not None:
     st.json(json_obj)
 
 
-components.html(
-    """
-        <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Document</title>
-        <!-- Include Label Studio stylesheet -->
-        <link
-        href="https://unpkg.com/label-studio@1.0.1/build/static/css/main.css"
-        rel="stylesheet"
-        />
-        <!-- Include the Label Studio library -->
-        <script src="https://unpkg.com/label-studio@1.0.1/build/static/js/main.js"></script>
-    </head>
-    <body>
-        <script src="https://api.labelbox.com/static/labeling-api.js"></script>
-<div id="form"></div>
-<script>
-  function label(label) {
-    Labelbox.setLabelForAsset(label).then(() => {
-      Labelbox.fetchNextAssetToLabel();
-    });
-  }
+# *******************************************************
+# Session State
+# *******************************************************
+st.title('Counter Example')
 
-  Labelbox.currentAsset().subscribe((asset) => {
-    if (asset) {
-      drawItem(asset.data);
-    }
-  });
-  function drawItem(dataToLabel) {
-    const labelForm = `
-    <img src="${dataToLabel}" style="width: 300px;"></img>
-    <div style="display: flex;">
-      <button onclick="label('bad')">Bad Quality</button>
-      <button onclick="label('good')">Good Quality</button>
-    </div>
-  `;
-    document.querySelector("#form").innerHTML = labelForm;
-  }
-</script>
-    </body>
-    </html>
-        """,
-    height=1000, scrolling=True
-)
+# Streamlit runs from top to bottom on every iteraction so
+# we check if `count` has already been initialized in st.session_state.
+
+# If no, then initialize count to 0
+# If count is already initialized, don't do anything
+if 'count' not in st.session_state:
+    st.session_state.count = 2
+
+# Create a button which will increment the counter
+increment = st.button('Increment')
+if increment:
+    st.session_state.count += 1
+
+# A button to decrement the counter
+decrement = st.button('Decrement')
+if decrement:
+    st.session_state.count -= 1
+
+st.write('Count = ', st.session_state.count)
+
+#*****************CALLBACK**********************#
+
+
+def update_first():
+    st.session_state.second = st.session_state.first
+
+
+def update_second():
+    st.session_state.first = st.session_state.second
+
+
+st.title('🪞 Mirrored Widgets using Session State')
+
+st.text_input(label='Textbox 1', key='first', on_change=update_first)
+st.text_input(label='Textbox 2', key='second', on_change=update_second)
+
+# ************************************************
+# TIC TAC TOE
+
+
+def checkRows(board):
+    for row in board:
+        if len(set(row)) == 1:
+            return row[0]
+        return None
+
+
+def checkDiagonals(board):
+    if len(set([board[i][i] for i in range(len(board))])) == 1:
+        return board[0][0]
+    if len(set([board[i][len(board) - i - 1] for i in range(len(board))])) == 1:
+        return board[0][len(board) - 1]  # return middle
+    return None
+
+
+def checkWin(board):
+    for newBoard in [board, np.transpose(board)]:
+        result = checkRows(newBoard)
+        if result:
+            return result
+
+    return checkDiagonals(board)
+
+
+def show():
+    st.write("""
+    ## 🕸️ Tic Tac Toe
+    """)
+    st.write("")
+
+    # Initialise state
+    if "board" not in st.session_state:
+        st.session_state.board = np.full((3, 3), ".", dtype=str)
+        st.session_state.next_player = "X"
+        st.session_state.winner = None
+
+    # Define callback function to handle button clicks
+    def handle_click(i, j):
+        if not st.session_state.winner:
+            st.session_state.board[i, j] = st.session_state.next_player
+            st.session_state.next_player = (
+                "O" if st.session_state.next_player == "X"else "X")
+            winner = checkWin(st.session_state.board)
+            if winner != ".":
+                st.session_state.winner = winner
+
+    for i, row in enumerate(st.session_state.board):
+        cols = st.beta_columns([0.1, 0.1, 0.1, 0.7])
+        for j, field in enumerate(row):
+            cols[j].button(field, key=f"{i}-{j}",
+                           on_click=handle_click, args=(i, j))
+    if st.session_state.winner:
+        st.success(f"Congrats! {st.session_state.winner} won the game! 🎈")
+
+
+show()

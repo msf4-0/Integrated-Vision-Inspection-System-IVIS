@@ -9,6 +9,10 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 from pathlib import Path
 from glob import glob, iglob
+import json
+import io
+import yaml
+import os
 
 #-----------JSON PARSER-------------------#
 
@@ -61,3 +65,30 @@ def i_file_search(path=str(Path.home()), recursive=False):
     for file in iglob(pathname=path, recursive=recursive):
         file_list.append(file)
     return file_list
+
+
+def json_load(file, int_keys=False):
+    with io.open(file, encoding='utf8') as f:
+        data = json.load(f)
+        if int_keys:
+            return {int(k): v for k, v in data.items()}
+        else:
+            return data
+
+
+def read_yaml(filepath):
+    if not os.path.exists(filepath):
+        filepath = find_file(filepath)
+    with io.open(filepath, encoding='utf-8') as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+    return data
+
+
+def read_bytes_stream(filepath):
+    with open(filepath, mode='rb') as f:
+        return io.BytesIO(f.read())
+
+#------------------------File Archiver----------------------#
+
+
+def file_archive(file_path, file_type="zip"):
