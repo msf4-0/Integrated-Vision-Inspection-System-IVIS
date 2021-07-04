@@ -16,6 +16,9 @@ import os
 import shutil
 import streamlit as st
 import logging
+from zipfile import ZipFile
+import tarfile
+import sys
 
 #--------------------Logger-------------------------#
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
@@ -110,7 +113,7 @@ def check_archiver_format(filename=None):
     """Extract archiver format
 
     Args:
-        filename (str or path-like object): Path to archive file
+        filename (str or path-like object): Path to archive file or extension of archive format
 
     Returns:
         str: Archiver format
@@ -192,34 +195,70 @@ def file_unarchiver(filename, extract_dir):
     return f"successfully archived"
 
 
-def single_file_archiver(archive_filename, target_filename, archive_format="zip"):
-    print("Hello")
+def single_file_archiver(archive_filename, target_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
+    archive_filename = Path(archive_filename).with_suffix(archive_extension)
+    if archive_extension is ".zip":  # zip file
+        with ZipFile(file=archive_filename, mode='w') as zip:
+            zip.write(target_filename,
+                      arcname=target_base_dir)
+            log.info(f"Successfully archived folder: {archive_filename}")
+            st.success(f"Successfully archived folder: {archive_filename}")
+
+    else:  # remaining is tarball
+        tar_format_list = {
+            ".gz": "w:gz",
+            ".bz2": "w:bz2",
+            ".xz": "w:xz"
+        }
+        if archive_extension in tar_format_list.keys():
+
+            tar_mode = tar_format_list[archive_extension]
+
+        else:
+            log.error("Archive format invalid!")
+            st.error("Archive format invalid!")
+
+        with tarfile.open(archive_filename, tar_mode) as tar:
+            tar.add(target_filename, arcname=target_base_dir)
+            log.info(f"Successfully archived folder: {archive_filename}")
+            st.success(f"Successfully archived folder: {archive_filename}")
 
 
 def batch_file_archiver(archive_filename, target_root_dir, target_base_dir, archive_format="zip"):
     current_working_dir = Path.cwd()  # save current working directory
     os.chdir(str(target_root_dir))  # change to target root directory
     try:
-        extracted = shutil.make_archive(base_name=str(
+        archived_name = shutil.make_archive(base_name=str(
             archive_filename), format=archive_format, root_dir=target_root_dir, base_dir=target_base_dir)
+        log.info(f"Successfully archived{archived_name}")
+        # return back to initial working directory
+        os.chdir(current_working_dir)
+        return(archived_name)
     except:
         error_msg = "Failed to archive file"
         log.info(error_msg)
         st.error(error_msg)
+        # return back to initial working directory
+        os.chdir(current_working_dir)
 
 
 def file_archive(archive_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
     # combine to form complete target file directory
     target_filename = Path(target_root_dir, target_base_dir).resolve()
     archive_filename = Path(archive_filename).resolve()
+    archive_format = check_archiver_format(
+        archive_extension)  # get archive file extension
 
     if target_filename.is_file():
         log.info("Path is file")
-        single_file_archiver()
+        single_file_archiver(
+            archive_filename, target_filename, target_root_dir,
+            target_base_dir, archive_extension)
 
     elif target_filename.is_dir():
         log.info("Path is directory")
-        batch_file_archiver()
+        batch_file_archiver(archive_filename, target_root_dir,
+                            target_base_dir, archive_format)
 
     else:
         error_msg = f"{FileNotFoundError}File does not exist"
