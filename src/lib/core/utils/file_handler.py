@@ -106,7 +106,7 @@ def read_bytes_stream(filepath):
 #------------------------File Archiver----------------------#
 
 
-def unpack_archive(filename, extract_dir):
+def file_unarchiver(filename, extract_dir):
     extract_dir = Path(extract_dir)
     filename = Path(filename)
 
@@ -148,4 +148,3 @@ def unpack_archive(filename, extract_dir):
     return f"successfully archived"
 
 # def single_file_archive():
-
