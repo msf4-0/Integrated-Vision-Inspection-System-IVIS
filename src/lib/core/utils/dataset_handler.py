@@ -30,6 +30,7 @@ import logging
 from glob import glob, iglob
 import streamlit as st
 import psycopg2
+import sys
 
 #--------------------Logger-------------------------#
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'

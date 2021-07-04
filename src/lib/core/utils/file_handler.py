@@ -13,6 +13,21 @@ import json
 import io
 import yaml
 import os
+import shutil
+import streamlit as st
+import logging
+
+#--------------------Logger-------------------------#
+FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
+DATEFMT = '%d-%b-%y %H:%M:%S'
+
+# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
+logging.basicConfig(format=FORMAT, level=logging.INFO,
+                    stream=sys.stdout, datefmt=DATEFMT)
+
+log = logging.getLogger()
+
+#----------------------------------------------------#
 
 #-----------JSON PARSER-------------------#
 
@@ -91,4 +106,46 @@ def read_bytes_stream(filepath):
 #------------------------File Archiver----------------------#
 
 
-def file_archive(file_path, file_type="zip"):
+def unpack_archive(filename, extract_dir):
+    extract_dir = Path(extract_dir)
+    filename = Path(filename)
+
+    if not extract_dir.exists():
+        # create directory if extract directory does not exist
+        extract_dir.mkdir(parents=True)
+
+    if filename.exists():
+
+        try:
+            shutil.unpack_archive(filename=filename, extract_dir=extract_dir)
+        except ValueError as e:
+
+            try:
+                # get file extension if shutil cannot parse/find format
+                archive_format_list = {
+                    "zip": "zip",
+                    "gz": "gztar",
+                    "bz2": "bztar",
+                    "xz": "xztar"
+                }
+                archive_format = filename.suffix
+                if archive_format in archive_format_list.keys():
+                    shutil.unpack_archive(
+                        filename, extract_dir, format=archive_format_list[archive_format])
+                else:
+                    log.error("")
+
+            except KeyError as e:
+                error_msg = f"{e}: Archive format invalid!"
+                log.error(error_msg)
+                st.error(error_msg)
+        else:
+            # pass IOError
+            error_msg = f"{IOError}: File does not exist"
+            log.error(error_msg)
+            st.error(error_msg)
+
+    return f"successfully archived"
+
+# def single_file_archive():
+

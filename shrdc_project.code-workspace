@@ -8,6 +8,7 @@
     "python.autoComplete.extraPaths": [
       "/home/rchuzh/programming/image_labelling_shrdc/src/lib/.",
       "/home/rchuzh/programming/image_labelling_shrdc/test/."
-    ]
+    ],
+    "python.autoComplete.addBrackets": true
   }
 }
