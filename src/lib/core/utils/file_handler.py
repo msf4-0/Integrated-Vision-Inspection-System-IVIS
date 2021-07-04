@@ -106,45 +106,98 @@ def read_bytes_stream(filepath):
 #------------------------File Archiver----------------------#
 
 
+def check_archiver_format(filename):
+    filename = Path(filename)
+
+    try:
+        # get file extension if shutil cannot parse/find format
+        archive_format_list = {
+            ".zip": "zip",
+            ".gz": "gztar",
+            ".bz2": "bztar",
+            ".xz": "xztar"
+        }
+        archive_format = filename.suffix
+        if archive_format in archive_format_list.keys():
+
+            return archive_format
+
+        else:
+            log.error("Archive format invalid!")
+            st.error("Archive format invalid!")
+
+    except KeyError as e:
+        error_msg = f"{e}: Archive format invalid!"
+        log.error(error_msg)
+        st.error(error_msg)
+
+
+def manual_file_archiver(filename, extract_dir):
+    """Check archive format manually
+
+    Args:
+        filename (str or path-like object): Path to archive file
+        extract_dir (str or path-like object): Output directory
+    """
+    filename = Path(filename)
+    extract_dir = Path(extract_dir)
+    try:
+        # get file extension if shutil cannot parse/find format
+        archive_format_list = {
+            "zip": "zip",
+            "gz": "gztar",
+            "bz2": "bztar",
+            "xz": "xztar"
+        }
+        archive_format = filename.suffix
+        if archive_format in archive_format_list.keys():
+            shutil.unpack_archive(
+                filename, extract_dir, format=archive_format_list[archive_format])
+        else:
+            log.error("Archive format invalid!")
+            st.error("Archive format invalid!")
+
+    except KeyError as e:
+        error_msg = f"{e}: Archive format invalid!"
+        log.error(error_msg)
+        st.error(error_msg)
+
+
 def file_unarchiver(filename, extract_dir):
+    """Unpack archive file
+
+    Args:
+        filename (str or path-like object): Path to archive file
+        extract_dir (str or path-like object): Output directory
+
+    Returns:
+        str: Success string
+    """
     extract_dir = Path(extract_dir)
     filename = Path(filename)
 
     if not extract_dir.exists():
         # create directory if extract directory does not exist
         extract_dir.mkdir(parents=True)
+    else:
+        pass
 
     if filename.exists():
 
-        try:
+        try:  # Shutil will try to extract file extension from archive file
             shutil.unpack_archive(filename=filename, extract_dir=extract_dir)
         except ValueError as e:
-
-            try:
-                # get file extension if shutil cannot parse/find format
-                archive_format_list = {
-                    "zip": "zip",
-                    "gz": "gztar",
-                    "bz2": "bztar",
-                    "xz": "xztar"
-                }
-                archive_format = filename.suffix
-                if archive_format in archive_format_list.keys():
-                    shutil.unpack_archive(
-                        filename, extract_dir, format=archive_format_list[archive_format])
-                else:
-                    log.error("")
-
-            except KeyError as e:
-                error_msg = f"{e}: Archive format invalid!"
-                log.error(error_msg)
-                st.error(error_msg)
-        else:
-            # pass IOError
-            error_msg = f"{IOError}: File does not exist"
+            error_msg = f"{e}: Shutil unable to extract archive format from filename"
             log.error(error_msg)
             st.error(error_msg)
+            manual_file_archiver(filename, extract_dir)
+    else:
+        # pass IOError
+        error_msg = f"{IOError}: File does not exist"
+        log.error(error_msg)
+        st.error(error_msg)
 
     return f"successfully archived"
 
-# def single_file_archive():
+
+def single_file_archive():
