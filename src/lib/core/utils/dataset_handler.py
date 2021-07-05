@@ -5,21 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-""" usage: partition_dataset.py [-h] [-i IMAGEDIR] [-o OUTPUTDIR] [-r RATIO] [-x]
-
-Partition dataset of images into training and testing sets
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -i IMAGEDIR, --imageDir IMAGEDIR
-                        Path to the folder where the image dataset is stored. If not specified, the CWD will be used.
-  -o OUTPUTDIR, --outputDir OUTPUTDIR
-                        Path to the output folder where the train and test dirs should be created. Defaults to the same directory as IMAGEDIR.
-  -r RATIO, --ratio RATIO
-                        The ratio of the number of test images over the total number of images. The default is 0.1.
-  -x, --xml             Set this flag if you want the xml annotation files to be processed and copied over.
-"""
-from os import path, getcwd, makedirs, listdir
+import os
 from pathlib import Path, PurePath
 import re
 from shutil import Error, copyfile

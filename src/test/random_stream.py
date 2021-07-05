@@ -403,3 +403,28 @@ def show():
 
 
 show()
+# ********************************
+# TEST PLACEHOLDER --> FAILING
+# ********************************
+
+# new_placeholder = st.empty()
+
+# # new_placeholder.line_chart({"data":[1,2,3,4]})
+# if "button_count" not in st.session_state:
+#     st.session_state.button_count = 0
+#     st.session_state.run_id = 0
+
+# st.write(st.session_state.button_count, st.session_state.run_id)
+# with new_placeholder.beta_container():
+#     st.write("Hi")
+#     st.write("Bye")
+
+
+# button = st.button("test")
+# st.write(button)
+# if button:
+
+#     st.session_state.button_count += 1
+#     st.session_state.run_id += 1
+#     new_placeholder.empty()
+#     st.write(st.session_state.button_count)

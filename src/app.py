@@ -33,7 +33,7 @@ log = logging.getLogger()
 #----------------------------------------------------#
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-
+layout='wide'
 
 # DEFINE Web APP page configuration
 try:
@@ -41,7 +41,7 @@ try:
                        page_icon="static/media/shrdc_image/shrdc_logo.png", layout='wide')
 except:
     st.beta_set_page_config(page_title="Label Studio Test",
-                            page_icon="random", layout='wide')
+                            page_icon="random", layout=layout)
 
 #---------------Connection to db------------------#
 
