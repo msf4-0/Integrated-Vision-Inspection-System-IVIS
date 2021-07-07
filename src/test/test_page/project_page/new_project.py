@@ -86,6 +86,8 @@ def show():
 
     if "new_project" not in st.session_state:
         st.session_state.new_project = {}
+        st.session_state.new_project["id"] = get_random_string(length=8)
+        # set random project ID before getting actual from Database
 
     # >>>> Project Sidebar >>>>
     project_page_options = ("All Projects", "New Project")
@@ -99,16 +101,17 @@ def show():
     st.write("# __Add New Project__")
     st.markdown("___")
 
+    # TODO:REMOVE
     # Session State store new project ID
-    if 'project_id' not in st.session_state:
-        # set random project ID before getting actual from Database
-        st.session_state.project_id = get_random_string(length=8)
+    # if 'project_id' not in st.session_state:
+    # set random project ID before getting actual from Database
+    # st.session_state.project_id = get_random_string(length=8)
     # reference to project ID session state
-    new_project["id"] = st.session_state.project_id
+    # st.session_state.new_project["id"] = st.session_state.project_id
 
     # right-align the project ID relative to the page
     id_blank, id_right = st.beta_columns([3, 1])
-    id_right.write(f"### __Project ID:__ {new_project['id']}")
+    id_right.write(f"### __Project ID:__ {st.session_state.new_project['id']}")
 
     create_project_place = st.empty()
     # if layout == 'wide':
@@ -118,16 +121,16 @@ def show():
     with create_project_place.beta_container():
         st.write("## __Project Information :__")
 
-        new_project["title"] = st.text_input(
+        st.session_state.new_project["title"] = st.text_input(
             "Project Title", key="title", help="Enter the name of the project")
         place["title"] = st.empty()
 
         # **** Project Description (Optional) ****
-        new_project["desc"] = st.text_area(
+        st.session_state.new_project["desc"] = st.text_area(
             "Description (Optional)", key="desc", help="Enter the description of the project")
         place["title"] = st.empty()
 
-        new_project["deployment_type"] = st.selectbox(
+        st.session_state.new_project["deployment_type"] = st.selectbox(
             "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
         place["deployment_type"] = st.empty()
 
@@ -140,7 +143,7 @@ def show():
         data_left, data_right = st.beta_columns(2)
         # >>>> Right Column to select dataset >>>>
         with data_right:
-            new_project["dataset"] = st.multiselect(
+            st.session_state.new_project["dataset"] = st.multiselect(
                 "Dataset List", key="dataset", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
 
             # Button to create new dataset
@@ -148,10 +151,10 @@ def show():
 
             # print choosen dataset
             st.write("### Dataset choosen:")
-            if len(new_project["dataset"]) > 0:
-                for idx, data in enumerate(new_project["dataset"]):
+            if len(st.session_state.new_project["dataset"]) > 0:
+                for idx, data in enumerate(st.session_state.new_project["dataset"]):
                     st.write(f"{idx+1}. {data}")
-            elif len(new_project["dataset"]) == 0:
+            elif len(st.session_state.new_project["dataset"]) == 0:
                 st.info("No dataset selected")
         # <<<< Right Column to select dataset <<<<
 
@@ -181,8 +184,9 @@ def show():
                     return ['background-color: '] * len(x)
             df_slice = df.iloc[start:end]
 
+            # >>>>DATAFRAME
             st.dataframe(df_slice.style.apply(
-                highlight_row, selections=new_project["dataset"], axis=1))
+                highlight_row, selections=st.session_state.new_project["dataset"], axis=1))
         # <<<< Left Column to show full list of dataset and selection <<<<
 
         # >>>> Dataset Pagination >>>>
@@ -208,13 +212,13 @@ def show():
 
         # **** Image Augmentation (Optional) ****
         st.write("## __Image Augmentation :__")
-        new_project["augmentation"] = st.multiselect(
+        st.session_state.new_project["augmentation"] = st.multiselect(
             "Augmentation List", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
         place["augmentation"] = st.empty()
 
         # **** Training Parameters (Optional) ****
         st.write("## __Training Parameters :__")
-        new_project["training_param"] = st.multiselect(
+        st.session_state.new_project["training_param"] = st.multiselect(
             "Training Parameters", key="training_param", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
         place["augmentation"] = st.empty()
 
@@ -222,7 +226,7 @@ def show():
         col1, col2 = st.beta_columns([3, 0.5])
         submit_button = col2.button("Submit", key="submit")
 
-        st.write(new_project)
+        st.write(st.session_state.new_project)
 
 
 if __name__ == "__main__":

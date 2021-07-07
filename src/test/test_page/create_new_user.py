@@ -180,7 +180,7 @@ def show(layout='centered'):
                             Please advice user to activate account with the temporary password sent to employee's company email. 
                             __Employee Temporary Password: {1}__
                             """.format(new_user["username"], new_user["psd"]))
-    st.write(new_user)
+    
     return new_user, has_submitted
 
 
