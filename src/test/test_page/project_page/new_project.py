@@ -7,6 +7,8 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+import pandas as pd
+
 
 from streamlit.state.session_state import SessionState
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -29,6 +31,7 @@ for path in sys.path:
 from path_desc import chdir_root
 from code_generator import get_random_string
 from core.utils.log import std_log  # logger
+import numpy as np  # TEMP for table viz
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 from time import sleep
@@ -55,7 +58,7 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 # >>>> TODO: query from Database
-DATASET_LIST = ["Hello"]
+DATASET_LIST = list('abcdefghij')
 
 
 def show():
@@ -80,6 +83,9 @@ def show():
     if "current_page" not in st.session_state:  # KIV
         st.session_state.current_page = "All Projects"
         st.session_state.previous_page = "All Projects"
+
+    if "new_project" not in st.session_state:
+        st.session_state.new_project = {}
 
     # >>>> Project Sidebar >>>>
     project_page_options = ("All Projects", "New Project")
@@ -116,7 +122,7 @@ def show():
             "Project Title", key="title", help="Enter the name of the project")
         place["title"] = st.empty()
 
-        # **** Optional ****
+        # **** Project Description (Optional) ****
         new_project["desc"] = st.text_area(
             "Description (Optional)", key="desc", help="Enter the description of the project")
         place["title"] = st.empty()
@@ -125,18 +131,58 @@ def show():
             "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
         place["deployment_type"] = st.empty()
 
-        DATASET_LIST.insert(0, "")
+        # **** Dataset (Optional) ****
 
-        # **** Optional ****
+        # include options to create new dataset on this page
+        # create 2 columns for "New Data Button"
         st.write("## __Dataset :__")
-        new_project["dataset"] = st.multiselect(
-            "Dataset", key="dataset", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+
+        data_left, data_right = st.beta_columns(2)
+        # >>>> Left Column to select dataset >>>>
+        with data_left:
+            new_project["dataset"] = st.multiselect(
+                "Dataset List", key="dataset", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+
+            # Button to create new dataset
+            new_data_button = st.button("Create New Dataset")
+
+            # print choosen dataset
+            st.write("### Dataset choosen:")
+            if len(new_project["dataset"]) > 0:
+                for idx, data in enumerate(new_project["dataset"]):
+                    st.write(f"{idx+1}. {data}")
+            elif len(new_project["dataset"]) == 0:
+                st.info("No dataset selected")
+        # <<<< Left Column to select dataset <<<<
+
+        # >>>> Right Column to show full list of dataset and selection >>>>
+        with data_right:
+            df = pd.DataFrame(np.random.rand(10, 4), columns=(
+                'col{}'.format(i) for i in range(4)), index=pd.Index(list('abcdefghij')))
+
+            def highlight_row(x, selections):
+
+                if x.name in selections:
+
+                    return ['background-color: teal'] * len(x)
+                else:
+                    return ['background-color: '] * len(x)
+
+            st.table(df.style.apply(
+                highlight_row, selections=new_project["dataset"], axis=1))
+        # <<<< Right Column to show full list of dataset and selection <<<<
         place["dataset"] = st.empty()
 
-        # **** Optional ****
+        # **** Image Augmentation (Optional) ****
         st.write("## __Image Augmentation :__")
         new_project["augmentation"] = st.multiselect(
-            "Augmentation", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+            "Augmentation List", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+        place["augmentation"] = st.empty()
+
+        # **** Training Parameters (Optional) ****
+        st.write("## __Training Parameters :__")
+        new_project["training_param"] = st.multiselect(
+            "Training Parameters", key="training_param", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
         place["augmentation"] = st.empty()
 
         st.write(new_project)
