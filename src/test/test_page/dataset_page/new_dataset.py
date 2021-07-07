@@ -181,7 +181,8 @@ def show():
                     return ['background-color: '] * len(x)
             df_slice = df.iloc[start:end]
 
-            st.dataframe(df_slice.style.apply(
+            # >>>> DATAFRAME
+            st.table(df_slice.style.apply(
                 highlight_row, selections=new_project["dataset"], axis=1))
         # <<<< Left Column to show full list of dataset and selection <<<<
 
@@ -203,8 +204,8 @@ def show():
 
         col2.write(
             f"Page {1+st.session_state.dataset_page} of {num_dataset_page}")
+        place["dataset"] = st.empty()
         # <<<< Dataset Pagination <<<<
-        place["dataset"] = st.empty()  # TODO :KIV
 
         # **** Image Augmentation (Optional) ****
         st.write("## __Image Augmentation :__")
