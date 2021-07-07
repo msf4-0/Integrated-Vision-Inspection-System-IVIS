@@ -54,6 +54,9 @@ place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
+# >>>> TODO: query from Database
+DATASET_LIST = ["Hello"]
+
 
 def show():
 
@@ -113,13 +116,28 @@ def show():
             "Project Title", key="title", help="Enter the name of the project")
         place["title"] = st.empty()
 
+        # **** Optional ****
         new_project["desc"] = st.text_area(
             "Description (Optional)", key="desc", help="Enter the description of the project")
         place["title"] = st.empty()
 
-        new_project["type"] = st.selectbox(
+        new_project["deployment_type"] = st.selectbox(
             "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
-        place["title"] = st.empty()
+        place["deployment_type"] = st.empty()
+
+        DATASET_LIST.insert(0, "")
+
+        # **** Optional ****
+        st.write("## __Dataset :__")
+        new_project["dataset"] = st.multiselect(
+            "Dataset", key="dataset", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+        place["dataset"] = st.empty()
+
+        # **** Optional ****
+        st.write("## __Image Augmentation :__")
+        new_project["augmentation"] = st.multiselect(
+            "Augmentation", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+        place["augmentation"] = st.empty()
 
         st.write(new_project)
 

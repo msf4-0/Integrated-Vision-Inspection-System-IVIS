@@ -85,7 +85,7 @@ def create_usertable(conn=conn):  # Create Table
                                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                                 last_activity TIMESTAMP WITH TIME ZONE,
                                 status varchar(15) DEFAULT 'NEW' ,
-                                PRIMARY KEY (user_id,role)
+                                PRIMARY KEY (use r_id,role)
                                             );"""
     with conn:
         with conn.cursor() as cur:
