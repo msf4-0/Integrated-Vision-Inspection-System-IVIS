@@ -15,9 +15,19 @@ import psycopg2
 # -------------
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-sys.path.insert(0, str(Path(SRC, 'lib')))  # ./lib
-# print(sys.path[0])
-sys.path.insert(0, str(Path(Path(__file__).parent, 'module')))
+LIB_PATH = SRC / "lib"
+TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+
+for path in sys.path:
+    if str(LIB_PATH) not in sys.path:
+        sys.path.insert(0, str(LIB_PATH))  # ./lib
+    else:
+        pass
+
+    if str(TEST_MODULE_PATH) not in sys.path:
+        sys.path.insert(0, str(TEST_MODULE_PATH))
+    else:
+        pass
 
 #--------------------Logger-------------------------#
 
@@ -32,6 +42,8 @@ log = logging.getLogger()
 
 #----------------------------------------------------#
 from user_management import user_login, update_psd
+from path_desc import chdir_root
+from core.utils.log import std_log  # logger
 
 # ------------------TEMP
 conn = psycopg2.connect(
