@@ -29,26 +29,18 @@ for path in sys.path:
     else:
         pass
 
-#--------------------Logger-------------------------#
-
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
-
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
-from user_management import user_login, update_psd
-from path_desc import chdir_root
-from core.utils.log import std_log  # logger
-
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
+# >>>> User-defined modules >>>>
+from user_management import user_login, update_psd
+from path_desc import chdir_root
+from core.utils.log import std_log  # logger
+
+# <<<< User-defined modules <<<<
+
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
@@ -69,7 +61,9 @@ def init_connection():
 
 PARENT = Path.home()  # Parent folder
 
-user = {"username": 'chuzhenhao', "psd": "shrdc", "status": "NEW"}
+user_test = {"username": 'chuzhenhao', "psd": "shrdc", "status": "NEW"}
+user={}
+login_field_place={}
 conn=init_connection()
 
 def check_if_field_empty(field, field_placeholder):
@@ -140,24 +134,31 @@ def login_page(layout='centered'):
 
     login_place = st.empty()  # PLACEHOLDER to replace with error message
 
+    # >>>> Place login container at the centre when layout == 'wide'
     if layout == 'wide':
         left, mid_login, right = login_place.beta_columns([1, 3, 1])
-    else:
+    else: # Place login container at the centre when layout =='centred'
         mid_login = login_place
 
     with mid_login.form(key="login", clear_on_submit=True):
 
-        # with st.form("login", clear_on_submit=True):
+       
         st.write("## Login")
-        username = st.text_input(
-            "Username", value="Please enter your username", key="username", help="Enter your username")
-        pswrd = st.text_input("Password", value="",
+
+        # USERNAME
+        user["username"] = st.text_input(
+            "Username",  key="username", help="Enter your username")
+        login_field_place["username"]=st.empty()
+        # PASSWORD
+        user["psd"] = st.text_input("Password", value="",
                               key="safe", type="password")
+        login_field_place["psd"]=st.empty()
+
         submit_login = st.form_submit_button("Log In")
         # st.write(f"{username},{pswrd}")
         success_place = st.empty()
-        if submit_login:
-            if is_authenticated(username, pswrd):
+        if submit_login: #Verify user credentials with database
+            if user_login(user, conn): # if User exists in database
                 # st.balloons()
                 # st.header("Welcome In")
                 success_place.success("Welcome in")

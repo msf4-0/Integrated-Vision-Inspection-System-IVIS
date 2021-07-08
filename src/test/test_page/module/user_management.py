@@ -8,41 +8,38 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB = sys.path.insert(0, str(Path(SRC, 'lib')))  # ./lib
-# print(LIB)
+LIB_PATH = SRC / "lib"
+TEST_MODULE_PATH_PARENT = SRC / "test" / "test_page" 
 
-import logging
+for path in sys.path:
+    if str(LIB_PATH) not in sys.path:
+        sys.path.insert(0, str(LIB_PATH))  # ./lib
+    else:
+        pass
+
+    if str(TEST_MODULE_PATH_PARENT) not in sys.path:
+        sys.path.insert(0, str(TEST_MODULE_PATH_PARENT))
+    else:
+        pass
+
+
+
 import psycopg2
 from passlib.hash import argon2
-
-
-#--------------------Logger-------------------------#
-
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
-
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
+from core.utils.log import std_log  # logger
 
 # ------------------TEMP
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-# DEFINE Web APP page configuration
-# try:
-#     st.set_page_config(page_title="Integrated Vision Inspection System",
-#                        page_icon="static/media/shrdc_image/shrdc_logo.png", layout='wide')
-# except:
-#     st.beta_set_page_config(page_title="Label Studio Test",
-#                             page_icon="random", layout='wide')
-# ------------------TEMP
 
-conn = psycopg2.connect(
-    "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
+
+# conn = psycopg2.connect(
+#     "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
+@st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
+def init_connection():
+    return psycopg2.connect(**st.secrets["postgres"])
+
+conn=init_connection()
 
 # User Status
 NEW = 0  # Pending account activation
@@ -101,7 +98,7 @@ def create_user(user, conn=conn):
 
     create_usertable(conn)  # create user table if does not exist
     # Employee Corporate Details
-    log.info("User Entry")
+    std_log("User Entry")
     # new_user["emp_id"] = input("Employee ID: ")
     # new_user["first_name"] = input("First Name: ")
     # new_user["last_name"] = input("Last Name: ")
@@ -113,7 +110,7 @@ def create_user(user, conn=conn):
     # new_user["username"] = input("Username: ")
     # new_user["role"] = input("Role: ")
     psd = argon2.hash(user["psd"])
-    log.info(f'password: {user["psd"]}')
+    std_log(f'password: {user["psd"]}')
 
     with conn:
         with conn.cursor() as cur:
@@ -126,20 +123,19 @@ def create_user(user, conn=conn):
 
             conn.commit()
             user_create = cur.fetchone()
-            log.info(user_create)
+            std_log(user_create)
             user = {}
 
 
-# User Login
-
+# >>>> User Login
 def user_login(user, conn=conn):
-    # def user_login(user):
+   
     user_entry_flag = LOGGED_OUT
     # --Testing
     # user = {}
     # user["username"] = input("Username: ")
     # user["psd"] = input("Password: ")
-    log.info(f'Login password: {user["psd"]}')
+    std_log(f'Login password: {user["psd"]}')
     # -----Testing
 
     with conn:
@@ -149,12 +145,12 @@ def user_login(user, conn=conn):
 
             conn.commit()
             user_exist = cur.fetchone()
-            log.info(user_exist[0])
+            std_log(user_exist[0])
 
     if user_exist is not None:
         psd = user_exist[0]
-        log.info(f"Retrieved password: {psd}")
-        log.info(argon2.verify(user["psd"], psd))
+        std_log(f"Retrieved password: {psd}")
+        std_log(argon2.verify(user["psd"], psd))
 
     return user_exist, user_entry_flag
 
@@ -172,7 +168,7 @@ def update_psd(user, conn=conn):
 
             conn.commit()
             user_exist = cur.fetchone()
-            log.info(user_exist[0])
+            std_log(user_exist[0])
 
 
 # user_create = create_user()  # Create New User
