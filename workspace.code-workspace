@@ -2,9 +2,6 @@
   "folders": [
 	{
 		"path": "src/test/machine learning"
-	},
-	{
-		"path": "../../Documents/models/research/object_detection"
 	}
 ],
   "settings": {}

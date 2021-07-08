@@ -45,11 +45,16 @@ from user_management import user_login, update_psd
 from path_desc import chdir_root
 from core.utils.log import std_log  # logger
 
-# ------------------TEMP
-conn = psycopg2.connect(
-    "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
-layout = 'centered'
-# ------------------TEMP
+# DEFINE Web APP page configuration
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
+
+@st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
+def init_connection():
+    return psycopg2.connect(**st.secrets["postgres"])
+# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 
 # Exception handling:
@@ -65,7 +70,7 @@ layout = 'centered'
 PARENT = Path.home()  # Parent folder
 
 user = {"username": 'chuzhenhao', "psd": "shrdc", "status": "NEW"}
-
+conn=init_connection()
 
 def check_if_field_empty(field, field_placeholder):
     empty_fields = []
@@ -116,18 +121,19 @@ def activation_page(user=user, conn=conn, layout='centered'):  # activation page
                 if psd["first"] == psd["second"]:
                     user["psd"] = psd["first"]
                     user["status"] = "ACTIVE"
-                    update_psd(user, conn)
-                    st.success(""" Successfully activate user: {0}. 
+                    
+                    #   TODO
+                    #  update_psd(user, conn)
+                    st.success(""" Successfully activated account. 
                                 Please return to Login Page. 
-                                __Employee Temporary Password: {1}__
-                                """.format(user["username"], user["psd"]))
+                                """)
                     user = {}
                 else:
                     st.error(
                         "Activation failed, passwords does not match. Please enter again.")
-    has_submit_back = st.button(label="Back", key="back_to_login")
+    has_submit_back = col2.button(label="Back", key="back_to_login")
     if has_submit_back:
-        login_page()
+        login_page(layout)
 
 
 def login_page(layout='centered'):
@@ -169,15 +175,37 @@ def login_page(layout='centered'):
                     "User entered wrong username or password. Please enter again.")
 
 
-def write():
-    # login_page()
-    activation_page()
+def show():
+     # >>>> START >>>>
+     # >>>> START >>>>
+    with st.sidebar.beta_container():
+
+        st.image("resources/MSF-logo.gif", use_column_width=True)
+    # with st.beta_container():
+        st.title("Integrated Vision Inspection System", anchor='title')
+
+        st.header(
+            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+        st.markdown("""___""")
+    # with st.beta_container():
+    with st.beta_container():
+        st.title("")
+        st.title("")
+        st.title("")
+        
+    
+    # st.markdown("""___""")
+
+    # <<<< START <<<<
+    login_page(layout)
+    chdir_root()  # change to root directory
+    # activation_page(user,conn,layout)
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
 
-        write()
+        show()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

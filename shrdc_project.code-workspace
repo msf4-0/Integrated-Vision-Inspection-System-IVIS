@@ -7,9 +7,20 @@
   "settings": {
     "python.autoComplete.extraPaths": [
       "/home/rchuzh/programming/image_labelling_shrdc/src/lib/.",
-      "/home/rchuzh/programming/image_labelling_shrdc/test/."
+      "/home/rchuzh/programming/image_labelling_shrdc/test/.",
+      "D:\\hao\\image_labelling_shrdc\\src\\test",
+      "D:\\hao\\image_labelling_shrdc\\src\\lib",
+      "D:\\hao\\image_labelling_shrdc\\src\\test\\test_page\\module"
     ],
     "python.autoComplete.addBrackets": true,
-    "editor.autoClosingBrackets": "always"
+    "editor.autoClosingBrackets": "always",
+    "python.analysis.extraPaths": [
+      "/home/rchuzh/programming/image_labelling_shrdc/src/lib/.",
+      "/home/rchuzh/programming/image_labelling_shrdc/test/.",
+      "D:\\hao\\image_labelling_shrdc\\src\\test",
+      "D:\\hao\\image_labelling_shrdc\\src\\lib",
+      "D:\\hao\\image_labelling_shrdc\\src\\test\\test_page\\module"
+    ],
+    "python.analysis.completeFunctionParens": true
   }
 }

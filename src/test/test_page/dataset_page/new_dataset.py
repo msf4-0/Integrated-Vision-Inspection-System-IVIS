@@ -33,7 +33,6 @@ import numpy as np  # TEMP for table viz
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 from time import sleep
-import logging
 import psycopg2
 
 import streamlit as st
