@@ -32,17 +32,8 @@ log = logging.getLogger()
 #----------------------------------------------------#
 from user_management import create_user, check_if_field_empty
 from code_generator import make_random_password
-# Exception handling:
-# if __package__ is None (module run by filename), run "import dashboard"
-# if __package__ is __name__ (name of package == "pages"), run "from . import dashboard"
-# try:
-#     from pages import dashboard
-# except:
-#     PACKAGE = Path(__file__).parent  # Package folder
-#     sys.path.insert(0, str(PACKAGE))
 
-# PARENT = Path.home()  # Parent folder
-
+# >>>> Variable declaration >>>>
 ROLES = ["Annotator", "Developer (Model Training)",
          "Developer (Deployment)", "Administrator"]
 FIELDS = {

@@ -4,6 +4,7 @@ Date: 23/6/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
+
 import streamlit as st
 from streamlit import cli as stcli
 from pathlib import Path
@@ -12,8 +13,7 @@ import sys
 import logging
 import psycopg2
 
-# -------------
-
+# >>>>>>>>>>>>>>>>>>>>>PATH>>>>>>>>>>>>>>>>>>>>>
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
@@ -28,6 +28,7 @@ for path in sys.path:
         sys.path.insert(0, str(TEST_MODULE_PATH))
     else:
         pass
+# <<<<<<<<<<<<<<<<<<<<<<PATH<<<<<<<<<<<<<<<<<<<<<<<
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -46,27 +47,21 @@ from core.utils.log import std_log  # logger
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
 def init_connection():
     return psycopg2.connect(**st.secrets["postgres"])
-# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 
-# Exception handling:
-# if __package__ is None (module run by filename), run "import dashboard"
-# if __package__ is __name__ (name of package == "pages"), run "from . import dashboard"
-# try:
-#     from pages import dashboard
-# except:
-#     PACKAGE = Path(__file__).parent  # Package folder
-#     sys.path.insert(0, str(PACKAGE))
-#     import dashboard
 
-PARENT = Path.home()  # Parent folder
-
+# >>>> Variable declaration >>>>
 user_test = {"username": 'chuzhenhao', "psd": "shrdc", "status": "NEW"}
 user={}
 login_field_place={}
 conn=init_connection()
+FIELDS={
+    'username':'Username',
+    'psd':"Password"
+}
 
-def check_if_field_empty(field, field_placeholder):
+
+def check_if_field_empty(field, field_placeholder,field_name=None):
     empty_fields = []
 
     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
@@ -158,22 +153,25 @@ def login_page(layout='centered'):
         # st.write(f"{username},{pswrd}")
         success_place = st.empty()
         if submit_login: #Verify user credentials with database
-            if user_login(user, conn): # if User exists in database
-                # st.balloons()
-                # st.header("Welcome In")
-                success_place.success("Welcome in")
-                success_side = st.sidebar.empty()
+            has_submitted = check_if_field_empty(user, login_field_place, FIELDS)
 
-                success_side.write("# Welcome In 👋")
-                sleep(1)
-                success_place.empty()
-                # success_side.empty()
-                with main_place:
-                    dashboard.write()
+            if has_submitted:
+                if user_login(user, conn): # if User exists in database
+                    # st.balloons()
+                    # st.header("Welcome In")
+                    success_place.success("Welcome in")
+                    success_side = st.sidebar.empty()
 
-            elif pswrd:
-                st.error(
-                    "User entered wrong username or password. Please enter again.")
+                    success_side.write("# Welcome In 👋")
+                    sleep(1)
+                    success_place.empty()
+                    # success_side.empty()
+                    with main_place:
+                        dashboard.write()
+
+                elif pswrd:
+                    st.error(
+                        "User entered wrong username or password. Please enter again.")
 
 
 def show():

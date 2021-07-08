@@ -128,9 +128,9 @@ def create_user(user, conn=conn):
 
 
 # >>>> User Login
-def user_login(user, conn=conn):
+def user_login(user,attempt, conn=conn):
    
-    user_entry_flag = LOGGED_OUT
+    user_entry_flag = LOGGED_OUT # TODO why??
     # --Testing
     # user = {}
     # user["username"] = input("Username: ")
@@ -138,21 +138,40 @@ def user_login(user, conn=conn):
     std_log(f'Login password: {user["psd"]}')
     # -----Testing
 
-    with conn:
+    with conn: #open connections
         with conn.cursor() as cur:
-            cur.execute("SELECT psd FROM user where username=%s;",
+            cur.execute("SELECT psd,status FROM user where username=%s;",
                         [user["username"]])
 
-            conn.commit()
+            conn.commit() # commit SELECT query password
             user_exist = cur.fetchone()
             std_log(user_exist[0])
 
-    if user_exist is not None:
+    if user_exist is not None: #if user exists
         psd = user_exist[0]
-        std_log(f"Retrieved password: {psd}")
-        std_log(argon2.verify(user["psd"], psd))
+        status=user_exist[1]
+        # std_log(f"Retrieved password: {psd}") #compare password with hash
+        if argon2.verify(user["psd"], psd): #returns True is match
+            if status == 'NEW':
+                #TODO:GOTO activation page
+                print("activation")
+            elif status == 'LOCKED':
 
-    return user_exist, user_entry_flag
+                admin_email='sdgf'
+                st.error(f"Account Locked. Please contact admin {admin_email}")
+                #TODO: consider Markdown with href
+            else:
+                # for other status, enter web app
+                st.success("Welcome 👋🏻")
+
+        else:
+            st.error("User entered wrong username or password. Please enter again.")
+
+    elif user_exist is None:
+        #User does not exist in database
+        return False
+
+    
 
 
 def update_psd(user, conn=conn):
