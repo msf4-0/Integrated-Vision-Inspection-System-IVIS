@@ -155,7 +155,7 @@ def user_login(user,attempt, conn=conn):
         if argon2.verify(user["psd"], psd): #returns True is match
             if status == 'NEW':
                 #TODO:GOTO activation page
-                print("activation")
+                std_log("activation")
             elif status == 'LOCKED':
 
                 admin_email='sdgf'
@@ -170,7 +170,9 @@ def user_login(user,attempt, conn=conn):
 
     elif user_exist is None:
         #User does not exist in database
-        return False,attempt
+        st.error("User entered wrong username or password. Please enter again.")
+
+        return False 
     
     
 

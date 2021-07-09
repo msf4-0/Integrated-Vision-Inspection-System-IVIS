@@ -128,7 +128,7 @@ def activation_page(user=user, conn=conn, layout='centered'):  # activation page
 
 
 def login_page(layout='centered'):
-
+    
     login_place = st.empty()  # PLACEHOLDER to replace with error message
 
     # >>>> Place login container at the centre when layout == 'wide'
