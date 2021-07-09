@@ -44,26 +44,25 @@ from core.utils.log import std_log  # logger
 # <<<< User-defined modules <<<<
 
 
-
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
 def init_connection():
-    std_log(f"Connected to database {st.secrets['postgres']['dbname']} at PORT {st.secrets['postgres']['port']}")
+    std_log(
+        f"Connected to database {st.secrets['postgres']['dbname']} at PORT {st.secrets['postgres']['port']}")
     return psycopg2.connect(**st.secrets["postgres"])
-
 
 
 # >>>> Variable declaration >>>>
 user_test = {"username": 'chuzhenhao', "psd": "shrdc", "status": "NEW"}
-user={}
-login_field_place={}
-conn=init_connection()
-FIELDS={
-    'username':'Username',
-    'psd':"Password"
+user = {}
+login_field_place = {}
+conn = init_connection()
+FIELDS = {
+    'username': 'Username',
+    'psd': "Password"
 }
 
 
-def check_if_field_empty(field, field_placeholder,field_name=None):
+def check_if_field_empty(field, field_placeholder, field_name=None):
     empty_fields = []
 
     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
@@ -112,7 +111,7 @@ def activation_page(user=user, conn=conn, layout='centered'):  # activation page
                 if psd["first"] == psd["second"]:
                     user["psd"] = psd["first"]
                     user["status"] = "ACTIVE"
-                    
+
                     #   TODO
                     #  update_psd(user, conn)
                     st.success(""" Successfully activated account. 
@@ -128,41 +127,41 @@ def activation_page(user=user, conn=conn, layout='centered'):  # activation page
 
 
 def login_page(layout='centered'):
-    
+
     login_place = st.empty()  # PLACEHOLDER to replace with error message
 
     # >>>> Place login container at the centre when layout == 'wide'
     if layout == 'wide':
         left, mid_login, right = login_place.beta_columns([1, 3, 1])
-    else: # Place login container at the centre when layout =='centred'
+    else:  # Place login container at the centre when layout =='centred'
         mid_login = login_place
 
     with mid_login.form(key="login", clear_on_submit=True):
 
-       
         st.write("## Login")
 
         # USERNAME
         user["username"] = st.text_input(
-            "Username",  key="username", help="Enter your username")
-        login_field_place["username"]=st.empty()
+            "Username", key="username", help="Enter your username")
+        login_field_place["username"] = st.empty()
         # PASSWORD
         user["psd"] = st.text_input("Password", value="",
-                              key="safe", type="password")
-        login_field_place["psd"]=st.empty()
+                                    key="safe", type="password")
+        login_field_place["psd"] = st.empty()
 
         submit_login = st.form_submit_button("Log In")
         # st.write(f"{username},{pswrd}")
 
         if "attempt" not in SessionState:
-            SessionState.attempt=0
+            SessionState.attempt = 0
 
         success_place = st.empty()
-        if submit_login: #Verify user credentials with database
-            has_submitted = check_if_field_empty(user, login_field_place, FIELDS)
+        if submit_login:  # Verify user credentials with database
+            has_submitted = check_if_field_empty(
+                user, login_field_place, FIELDS)
 
             if has_submitted:
-                if user_login(user,SessionState.attempt, conn): # if User exists in database
+                if user_login(user, SessionState.attempt, conn):  # if User exists in database
                     # st.balloons()
                     # st.header("Welcome In")
                     success_place.success("Welcome in")
@@ -181,8 +180,7 @@ def login_page(layout='centered'):
 
 
 def show():
-     # >>>> START >>>>
-     # >>>> START >>>>
+    # >>>> START >>>>
     with st.sidebar.beta_container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -197,8 +195,7 @@ def show():
         st.title("")
         st.title("")
         st.title("")
-        
-    
+
     # st.markdown("""___""")
 
     # <<<< START <<<<

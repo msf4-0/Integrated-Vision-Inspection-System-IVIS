@@ -21,6 +21,10 @@
       "D:\\hao\\image_labelling_shrdc\\src\\lib",
       "D:\\hao\\image_labelling_shrdc\\src\\test\\test_page\\module"
     ],
-    "python.analysis.completeFunctionParens": true
+    "python.analysis.completeFunctionParens": true,
+    "python.formatting.autopep8Args": [
+      "--ignore",
+      "E402"
+    ]
   }
 }
