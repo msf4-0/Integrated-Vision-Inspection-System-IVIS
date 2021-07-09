@@ -157,10 +157,10 @@ def login_page(layout='centered'):
 
        # number of login attempts by user
         if "attempt" not in SessionState:
-            SessionState.attempt = 0
-            SessionState.User = None  # Instantiate UserManager class SS holder
+            # SessionState.attempt = 0
+            SessionState.user_login = UserLogin()  # Instantiate UserManager class SS holder
 
-        user_login = UserLogin()  # Instatiate Temp login user
+        # user_login = UserLogin()  # Instatiate Temp login user
         success_place = st.empty()  # Placeholder for Login success
 
         # >>>>>>>> CHECK FIELD EMPTY >>>>>>>>
@@ -172,41 +172,43 @@ def login_page(layout='centered'):
             # >>>>>>>> VERIFICATION >>>>>>>>
             if has_submitted:  # if both fields entered
 
-                if User_Login.user_login(user, conn):
-                    if user_login.status == 'NEW':
-                    # TODO:GOTO activation page
+                if SessionState.user_login.user_verification(user, conn):
+
+                    # >>>> CHECK user status >>>>
+                    if SessionState.user_login.status == 'NEW':
+
+                        # TODO:GOTO activation page
+
                         std_log("activation")
-                elif user_login.status == 'LOCKED':
+                    elif SessionState.user_login.status == 'LOCKED':
 
-                    admin_email = 'admin@shrdc.com'  # Random admin email
-                    st.error(
-                        f"Account Locked. Please contact admin {admin_email}")
-                    # TODO: consider Markdown with href
+                        admin_email = 'admin@shrdc.com'  # Random admin email
+                        st.error(
+                            f"Account Locked. Please contact admin {admin_email}")
+                        # TODO: consider Markdown with href
 
-                # >>>> SUCCESS ENTER
-                else:
-                    # for other status, enter web app
-                    user["status"] = 'LOGGED_IN'  # set status as log-in
-                    # Save Session Log
-                    with conn:  # open connections
-                        with conn.cursor() as cur:
-                            cur.execute("""INSERT INTO session_log (user_id)
-                                            VALUES (%s)
-                                            RETURNING id;""", [user_id])
-                            # this state would include id, user_id, login_at
-                            # RETURNS Session ID
-                            conn.commit()  # commit SELECT query password
-                            session_id = cur.fetchone()
-                            user['session_id'] = session_id[0]
+                    # >>>>>>>> SUCCESS ENTER >>>>>>>>
+                    else:
+                        # for other status, enter web app
+                        # set status as log-in
+                        SessionState.user_login.status = 'LOGGED_IN'
+                        # Save Session Log
+                        with conn:  # open connections
+                            with conn.cursor() as cur:
+                                cur.execute("""INSERT INTO session_log (user_id)
+                                                VALUES (%s)
+                                                RETURNING id;""", [SessionState.user_login.id])
+                                # this state would include id, user_id, login_at
+                                # RETURNS Session ID
+                                conn.commit()  # commit SELECT query password
+                                session_id = cur.fetchone()
 
-                    st.success("Welcome 👋🏻")
+                                # STORE session_id in user_login object
+                                SessionState.user_login.session_id = session_id[0]
 
-                    success_place.success("Welcome in")
-                    success_side = st.sidebar.empty()
+                        success_place.success("### Welcome 👋🏻")
+                    # <<<< CHECK user status <<<<
 
-                    success_side.write("# Welcome In 👋")
-
-                    success_place.empty()
                 else:
                     st.error(
                         "User entered wrong username or password. Please enter again.")

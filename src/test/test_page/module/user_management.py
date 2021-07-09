@@ -137,17 +137,18 @@ class UserLogin:
         # TODO:Temporary
         self.id = None
         self.username = None
-        self.first_name
-        self.last_name
-        self.email
-        self.department
-        self.position
+        # self.first_name
+        # self.last_name
+        # self.email
+        # self.department
+        # self.position
         self.psd = None
-        self.role
+        # self.role
         self.status = None
-        self.session_id
+        self.session_id = None
+        self.attempts = 0
 
-    def user_login(self, user, conn=conn):
+    def user_verification(self, user, conn=conn):
         """Verify user credentials
 
         Args:
@@ -183,7 +184,23 @@ class UserLogin:
             # std_log(f"Retrieved password: {psd}")
 
             # compare password with hash
-            return argon2.verify(user["psd"], self.psd)
+            verification = argon2.verify(user.pop('psd'), self.psd)
+            delattr(self, 'psd')  # REMOVE password
+            self.attempts += 1  # INCREMENT login attempts counter
+
+            # LOCK account if more than 3 password attempts
+            if self.attempts > 3:
+                self.status = 'LOCKED'
+
+                # >>>> Update account status
+                with conn:  # open connections to Database
+                    with conn.cursor() as cur:
+                        cur.execute("""UPDATE user 
+                                        SET status = %s
+                                        WHERE id = %s;""", [self.status, self.id])
+
+                        conn.commit()
+            return verification
             # returns True is MATCH
             # returns False if NOT MATCH
 
