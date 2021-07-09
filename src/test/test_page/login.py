@@ -37,7 +37,7 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>> User-defined modules >>>>
-from user_management import user_login, update_psd
+from user_management import UserLogin
 from path_desc import chdir_root
 from core.utils.log import std_log  # logger
 
@@ -114,8 +114,8 @@ def activation_page(user=user, conn=conn, layout='centered'):  # activation page
 
                     #   TODO
                     #  update_psd(user, conn)
-                    st.success(""" Successfully activated account. 
-                                Please return to Login Page. 
+                    st.success(""" Successfully activated account.
+                                Please return to Login Page.
                                 """)
                     user = {}
                 else:
@@ -127,7 +127,7 @@ def activation_page(user=user, conn=conn, layout='centered'):  # activation page
 
 
 def login_page(layout='centered'):
-
+    user = {}  # store user input
     login_place = st.empty()  # PLACEHOLDER to replace with error message
 
     # >>>> Place login container at the centre when layout == 'wide'
@@ -140,43 +140,78 @@ def login_page(layout='centered'):
 
         st.write("## Login")
 
-        # USERNAME
+        # >>>>>>>> INPUT >>>>>>>>
+        # 1. USERNAME
         user["username"] = st.text_input(
             "Username", key="username", help="Enter your username")
         login_field_place["username"] = st.empty()
-        # PASSWORD
+        # 2. PASSWORD
         user["psd"] = st.text_input("Password", value="",
                                     key="safe", type="password")
         login_field_place["psd"] = st.empty()
 
         submit_login = st.form_submit_button("Log In")
-        # st.write(f"{username},{pswrd}")
 
+       # st.write(f"{username},{pswrd}")
+       # >>>>>>>> INPUT >>>>>>>>
+
+       # number of login attempts by user
         if "attempt" not in SessionState:
             SessionState.attempt = 0
+            SessionState.User = None  # Instantiate UserManager class SS holder
 
-        success_place = st.empty()
-        if submit_login:  # Verify user credentials with database
+        user_login = UserLogin()  # Instatiate Temp login user
+        success_place = st.empty()  # Placeholder for Login success
+
+        # >>>>>>>> CHECK FIELD EMPTY >>>>>>>>
+        if submit_login:  # when submit button is pressed
             has_submitted = check_if_field_empty(
                 user, login_field_place, FIELDS)
+        # <<<<<<<< CHECK FIELD EMPTY <<<<<<<<
 
-            if has_submitted:
-                if user_login(user, SessionState.attempt, conn):  # if User exists in database
-                    # st.balloons()
-                    # st.header("Welcome In")
+            # >>>>>>>> VERIFICATION >>>>>>>>
+            if has_submitted:  # if both fields entered
+
+                if User_Login.user_login(user, conn):
+                    if user_login.status == 'NEW':
+                    # TODO:GOTO activation page
+                        std_log("activation")
+                elif user_login.status == 'LOCKED':
+
+                    admin_email = 'admin@shrdc.com'  # Random admin email
+                    st.error(
+                        f"Account Locked. Please contact admin {admin_email}")
+                    # TODO: consider Markdown with href
+
+                # >>>> SUCCESS ENTER
+                else:
+                    # for other status, enter web app
+                    user["status"] = 'LOGGED_IN'  # set status as log-in
+                    # Save Session Log
+                    with conn:  # open connections
+                        with conn.cursor() as cur:
+                            cur.execute("""INSERT INTO session_log (user_id)
+                                            VALUES (%s)
+                                            RETURNING id;""", [user_id])
+                            # this state would include id, user_id, login_at
+                            # RETURNS Session ID
+                            conn.commit()  # commit SELECT query password
+                            session_id = cur.fetchone()
+                            user['session_id'] = session_id[0]
+
+                    st.success("Welcome 👋🏻")
+
                     success_place.success("Welcome in")
                     success_side = st.sidebar.empty()
 
                     success_side.write("# Welcome In 👋")
-                    sleep(1)
-                    success_place.empty()
-                    # success_side.empty()
-                    with main_place:
-                        dashboard.write()
 
-                elif pswrd:
+                    success_place.empty()
+                else:
                     st.error(
                         "User entered wrong username or password. Please enter again.")
+
+            # <<<<<<<< VERIFICATION <<<<<<<<
 
 
 def show():

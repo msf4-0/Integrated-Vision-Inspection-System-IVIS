@@ -131,78 +131,81 @@ def create_user(user, conn=conn):
 
 
 # >>>> User Login
-def user_login(user, attempt, conn=conn):
+class UserLogin:
+    def __init__(self) -> None:
 
-    user_entry_flag = LOGGED_OUT  # TODO why??
-    # --Testing
-    # user = {}
-    # user["username"] = input("Username: ")
-    # user["psd"] = input("Password: ")
-    std_log(f'Login password: {user["psd"]}')
-    # -----Testing
+        # TODO:Temporary
+        self.id = None
+        self.username = None
+        self.first_name
+        self.last_name
+        self.email
+        self.department
+        self.position
+        self.psd = None
+        self.role
+        self.status = None
+        self.session_id
 
-    with conn:  # open connections
-        with conn.cursor() as cur:
-            cur.execute("SELECT id,psd,status FROM user WHERE username=%s;",
-                        [user["username"]])
+    def user_login(self, user, conn=conn):
+        """Verify user credentials
 
-            conn.commit()  # commit SELECT query password
-            user_exist = cur.fetchone()
-            std_log(user_exist[0])
+        Args:
+            user (Dict): Contains username and password input
+            conn (connect object, optional): psycopg2.connect object. Defaults to conn.
 
-    if user_exist is not None:  # if user exists
-        user_id = user_exist[0]
-        psd = user_exist[1]
-        status = user_exist[2]
-        # std_log(f"Retrieved password: {psd}") #compare password with hash
-        if argon2.verify(user["psd"], psd):  # returns True is match
-            if status == 'NEW':
-                # TODO:GOTO activation page
-                std_log("activation")
-            elif status == 'LOCKED':
+        Returns:
+            Boolean: Login Fail/Pass
+        """
 
-                admin_email = 'admin@shrdc.com'  # Random admin email
-                st.error(f"Account Locked. Please contact admin {admin_email}")
-                # TODO: consider Markdown with href
-            else:
-                # for other status, enter web app
-                user["status"] = 'LOGGED_IN'  # set status as log-in
-                # Save Session Log
-                with conn:  # open connections
-                    with conn.cursor() as cur:
-                        cur.execute("""INSERT INTO session_log (user_id)
-                                        VALUES (%s)
-                                        RETURNING id;""", [user["username"]])
+        # --Testing
+        # user = {}
+        # user["username"] = input("Username: ")
+        # user["psd"] = input("Password: ")
+        std_log(f"Login password: {user['psd']}")
+        # -----Testing
 
-                        conn.commit()  # commit SELECT query password
-                        user_exist = cur.fetchone()
+        with conn:  # open connections to Database
+            with conn.cursor() as cur:
+                # QUERY user id, hashed password and account status
+                cur.execute("SELECT id,psd,status FROM user WHERE username=%s;",
+                            [user["username"]])
 
-                st.success("Welcome 👋🏻")
+                conn.commit()  # commit SELECT query password
+                user_exist = cur.fetchone()
+                std_log(user_exist[0])
 
-        else:
-            st.error("User entered wrong username or password. Please enter again.")
+        if user_exist is not None:  # if user exists
+            self.id = user_exist[0]
+            self.psd = user_exist[1]
+            self.status = user_exist[2]
+            self.username = user['username']
+            # std_log(f"Retrieved password: {psd}")
 
-    elif user_exist is None:
-        # User does not exist in database
-        st.error("User entered wrong username or password. Please enter again.")
+            # compare password with hash
+            return argon2.verify(user["psd"], self.psd)
+            # returns True is MATCH
+            # returns False if NOT MATCH
 
-        return False
+        elif user_exist is None:
+            # User does not exist in database
+            # return False if user does not exist in database
+            return False
 
+    def update_psd(self, user, conn=conn):
+        psd = argon2.hash(user["psd"])
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE user 
+                            SET psd = %s,
+                                status = %s
+                            WHERE username = %s
+                            RETURNING psd;""",
+                            [psd, user["status"], user["username"]])
 
-def update_psd(user, conn=conn):
-    psd = argon2.hash(user["psd"])
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("""UPDATE user 
-                        SET psd = %s,
-                            status = %s
-                        WHERE username = %s
-                        RETURNING psd;""",
-                        [psd, user["status"], user["username"]])
-
-            conn.commit()
-            user_exist = cur.fetchone()
-            std_log(user_exist[0])
+                conn.commit()
+                user_exist = cur.fetchone()
+                std_log(user_exist[0])
 
 
 # user_create = create_user()  # Create New User
