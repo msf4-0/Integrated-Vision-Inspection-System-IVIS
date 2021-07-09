@@ -9,6 +9,7 @@ import sys
 from os import path, chdir
 from pathlib import Path
 import psycopg2  # for PostgreSQL
+from core.utils.log import std_log #logger
 
 SRC = Path(__file__).parent.resolve()  # ROOT folder -> ./src
 print(SRC)
@@ -17,20 +18,6 @@ sys.path.insert(0, str(Path(SRC, 'lib')))  # ./lib
 # Change to Project Directory
 ROOT = SRC.parent.resolve()  # ROOT folder -> ./image_labelling_shrdc
 
-
-#--------------------Logger-------------------------#
-import logging
-
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
-
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 layout='wide'

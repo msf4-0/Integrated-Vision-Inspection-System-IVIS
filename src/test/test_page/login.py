@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import streamlit as st
 from streamlit import cli as stcli
+from streamlit import session_state as SessionState
 from pathlib import Path
 from time import sleep
 import sys
@@ -46,6 +47,7 @@ from core.utils.log import std_log  # logger
 
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
 def init_connection():
+    std_log(f"Connected to database {st.secrets['postgres']['dbname']} at PORT {st.secrets['postgres']['port']}")
     return psycopg2.connect(**st.secrets["postgres"])
 
 
@@ -151,12 +153,16 @@ def login_page(layout='centered'):
 
         submit_login = st.form_submit_button("Log In")
         # st.write(f"{username},{pswrd}")
+
+        if "attempt" not in SessionState:
+            SessionState.attempt=0
+
         success_place = st.empty()
         if submit_login: #Verify user credentials with database
             has_submitted = check_if_field_empty(user, login_field_place, FIELDS)
 
             if has_submitted:
-                if user_login(user, conn): # if User exists in database
+                if user_login(user,SessionState.attempt, conn): # if User exists in database
                     # st.balloons()
                     # st.header("Welcome In")
                     success_place.success("Welcome in")

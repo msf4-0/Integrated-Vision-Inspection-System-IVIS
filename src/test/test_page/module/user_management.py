@@ -31,7 +31,7 @@ from core.utils.log import std_log  # logger
 # ------------------TEMP
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-
+from streamlit import session_state as SessionState
 
 # conn = psycopg2.connect(
 #     "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
@@ -130,6 +130,7 @@ def create_user(user, conn=conn):
 # >>>> User Login
 def user_login(user,attempt, conn=conn):
    
+   
     user_entry_flag = LOGGED_OUT # TODO why??
     # --Testing
     # user = {}
@@ -169,8 +170,8 @@ def user_login(user,attempt, conn=conn):
 
     elif user_exist is None:
         #User does not exist in database
-        return False
-
+        return False,attempt
+    
     
 
 
