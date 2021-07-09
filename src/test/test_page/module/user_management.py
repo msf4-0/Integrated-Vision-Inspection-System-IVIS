@@ -190,16 +190,7 @@ class UserLogin:
 
             # LOCK account if more than 3 password attempts
             if self.attempts > 3:
-                self.status = 'LOCKED'
-
-                # >>>> Update account status
-                with conn:  # open connections to Database
-                    with conn.cursor() as cur:
-                        cur.execute("""UPDATE user 
-                                        SET status = %s
-                                        WHERE id = %s;""", [self.status, self.id])
-
-                        conn.commit()
+                self.update_status("LOCKED")
             return verification
             # returns True is MATCH
             # returns False if NOT MATCH
@@ -209,20 +200,30 @@ class UserLogin:
             # return False if user does not exist in database
             return False
 
-    def update_psd(self, user, conn=conn):
-        psd = argon2.hash(user["psd"])
+    def update_status(self, status):
+        # >>>> Update account status
+        self.status = status
+        with conn:  # open connections to Database
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE user 
+                                SET status = %s
+                                WHERE id = %s;""", [self.status, self.id])
+
+                conn.commit()
+
+    def update_psd(self):
+        self.psd = argon2.hash(self.psd)
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""UPDATE user 
                             SET psd = %s,
                                 status = %s
-                            WHERE username = %s
-                            RETURNING psd;""",
-                            [psd, user["status"], user["username"]])
+                            WHERE username = %s;""",
+                            [self.psd, self.status, self.username])
 
                 conn.commit()
-                user_exist = cur.fetchone()
-                std_log(user_exist[0])
+
+                delattr(self, 'psd')  # REMOVE password
 
 
 # user_create = create_user()  # Create New User

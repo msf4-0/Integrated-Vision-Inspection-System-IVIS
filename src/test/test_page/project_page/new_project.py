@@ -102,14 +102,6 @@ def show():
     st.write("# __Add New Project__")
     st.markdown("___")
 
-    # TODO:REMOVE
-    # Session State store new project ID
-    # if 'project_id' not in SessionState:
-    # set random project ID before getting actual from Database
-    # SessionState.project_id = get_random_string(length=8)
-    # reference to project ID session state
-    # SessionState.new_project["id"] = SessionState.project_id
-
     # right-align the project ID relative to the page
     id_blank, id_right = st.beta_columns([3, 1])
     id_right.write(f"### __Project ID:__ {SessionState.new_project['id']}")

@@ -11,7 +11,7 @@ from streamlit import session_state as SessionState
 from pathlib import Path
 from time import sleep
 import sys
-import logging
+
 import psycopg2
 
 # >>>>>>>>>>>>>>>>>>>>>PATH>>>>>>>>>>>>>>>>>>>>>
@@ -62,6 +62,7 @@ FIELDS = {
 }
 
 
+
 def check_if_field_empty(field, field_placeholder, field_name=None):
     empty_fields = []
 
@@ -78,7 +79,7 @@ def check_if_field_empty(field, field_placeholder, field_name=None):
     return not empty_fields
 
 
-def activation_page(user=user, conn=conn, layout='centered'):  # activation page for new users
+def activation_page(user, layout='centered'):  # activation page for new users
 
     psd_place = {}
     psd = {}
@@ -109,15 +110,16 @@ def activation_page(user=user, conn=conn, layout='centered'):  # activation page
             has_submitted = check_if_field_empty(psd, psd_place)
             if has_submitted:
                 if psd["first"] == psd["second"]:
-                    user["psd"] = psd["first"]
-                    user["status"] = "ACTIVE"
+                    user.psd = psd["first"]
+                    user.status = "ACTIVE"
 
-                    #   TODO
-                    #  update_psd(user, conn)
+                    user.update_psd()
                     st.success(""" Successfully activated account.
                                 Please return to Login Page.
                                 """)
                     user = {}
+                    sleep(5)
+
                 else:
                     st.error(
                         "Activation failed, passwords does not match. Please enter again.")
@@ -191,7 +193,8 @@ def login_page(layout='centered'):
                     else:
                         # for other status, enter web app
                         # set status as log-in
-                        SessionState.user_login.status = 'LOGGED_IN'
+
+                        SessionState.user_login.update_status('LOGGED_IN')
                         # Save Session Log
                         with conn:  # open connections
                             with conn.cursor() as cur:
@@ -217,6 +220,10 @@ def login_page(layout='centered'):
 
 
 def show():
+    LOGIN_PAGES = {
+    'Login Page': login_page,
+    'Activation Page': activation_page
+}
     # >>>> START >>>>
     with st.sidebar.beta_container():
 
@@ -236,9 +243,10 @@ def show():
     # st.markdown("""___""")
 
     # <<<< START <<<<
-    login_page(layout)
+
     chdir_root()  # change to root directory
     # activation_page(user,conn,layout)
+    login_page(layout)
 
 
 if __name__ == "__main__":
