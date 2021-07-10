@@ -1,6 +1,8 @@
 -- >>>> New Session Log at Log-IN >>>>
-INSERT INTO session_log (user_id)
-    VALUES (% s)
+INSERT INTO session_log (
+    user_id)
+VALUES (
+    % s)
 RETURNING
     id;
 
@@ -42,7 +44,7 @@ CREATE TRIGGER update_customer_modtime
     EXECUTE PROCEDURE update_modified_column ();
 
 -- Secondary
-CREATE OR REPLACE FUNCTION trigger_set_timestamp ()
+CREATE OR REPLACE FUNCTION trigger_update_timestamp ()
     RETURNS TRIGGER
     AS $$
 BEGIN
@@ -55,5 +57,5 @@ LANGUAGE plpgsql;
 CREATE TRIGGER set_timestamp
     BEFORE UPDATE ON todos
     FOR EACH ROW
-    EXECUTE PROCEDURE trigger_set_timestamp ();
+    EXECUTE PROCEDURE trigger_update_timestamp ();
 
