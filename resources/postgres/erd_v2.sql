@@ -327,7 +327,7 @@ TABLESPACE image_labelling;
 
 ALTER TABLE public.roles OWNER TO shrdc;
 
--- PROJECT_DATASET table --------------------------------------------------
+-- PROJECT_DATASET table (Many-to-Many) --------------------------------------------------
 CREATE TABLE IF NOT EXISTS project_dataset (
     project_id bigint NOT NULL,
     dataset_id bigint NOT NULL,
