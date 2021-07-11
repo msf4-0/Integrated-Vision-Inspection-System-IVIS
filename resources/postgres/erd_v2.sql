@@ -315,5 +315,25 @@ CREATE TRIGGER annotations_update
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
+-- ANNOTATION_TYPE table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.annotation_type (
+    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1),
+    name character varying(100) NOT NULL,
+    PRIMARY KEY (id))
+TABLESPACE image_labelling;
+
+ALTER TABLE public.roles OWNER TO shrdc;
+
+-- PROJECT_DATASET table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS project_dataset (
+    project_id bigint NOT NULL,
+    dataset_id bigint NOT NULL,
+    CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
+    CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE SET NULL)
+TABLESPACE image_labelling;
+
 END;
 
