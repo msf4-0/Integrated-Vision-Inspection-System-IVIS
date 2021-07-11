@@ -13,12 +13,12 @@ ALTER FUNCTION public.trigger_update_timestamp()
     OWNER TO shrdc;
 
 --  ROW table --------------------------------------------------
-CREATE TABLE public.roles (
+CREATE TABLE IF NOT EXISTS public.roles (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
     MINVALUE 1
     MAXVALUE 9223372036854775807
     CACHE 1),
-    name character varying(50) NOT NULL,
+    name character varying(50) NOT NULL UNIQUE,
     page_access_list text[],
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -76,3 +76,18 @@ CREATE TRIGGER users_update
     BEFORE UPDATE ON public.users
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
+	
+--  SESSION_LOG table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.session_log (
+    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (CYCLE INCREMENT 1 START 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1),
+    users_id bigint NOT NULL,
+    login_at timestamp with time zone NOT NULL,
+    logout_at timestamp with time zone NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION)
+TABLESPACE image_labelling;
+
+	
