@@ -9,7 +9,7 @@ run_button = st.checkbox("Run", value=False, key='run')
 FRAME_WINDOW = st.image([])  # create empty image window
 
 
-def set_resolution(width, height, fps):
+def set_resolution(cap,width, height, fps):
     cap.set(3, width)
     cap.set(4, height)
     cap.set(5, fps)
@@ -19,11 +19,14 @@ def set_resolution(width, height, fps):
     video_fps = cap.get(cv2.CAP_PROP_FPS)
     print(video_width, video_height, video_fps)
 
+if 'cap' not in st.session_state:
+    st.session_state.cap=cv2.VideoCapture(1)
 
 # define a video capture object
 link = "http://192.168.1.104:4747/video"
 local_link = "http://127.0.0.1:4747"
-cap = cv2.VideoCapture(1)
+# cap = cv2.VideoCapture(1)
+cap=st.session_state.cap
 if not cap.isOpened():
     sys.exit(1)
 video_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
