@@ -22,9 +22,7 @@
       "D:\\hao\\image_labelling_shrdc\\src\\test\\test_page\\module"
     ],
     "python.analysis.completeFunctionParens": true,
-    "python.formatting.autopep8Args": [
-      "--ignore",
-      "E402"
-    ]
+    "python.formatting.autopep8Args": ["--ignore", "E402"],
+    "python.languageServer": "Pylance"
   }
 }
