@@ -33,40 +33,35 @@ for path in sys.path:
         sys.path.insert(0, str(TEST_MODULE_PATH))
     else:
         pass
-
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import std_log  # logger
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 
+
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
 def init_connection():
     return psycopg2.connect(**st.secrets["postgres"])
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
+# >>>> Variable Declaration <<<<
 
-# >>>> Variable Declaration
+# <<<< Variable Declaration <<<<
 
 
 def show():
-
-    chdir_root()  # change to root directory
-
     # >>>> START >>>>
+    chdir_root()  # change to root directory
+    conn = init_connection()  # initialise connection to Database
     with st.sidebar.beta_container():
-
         st.image("resources/MSF-logo.gif", use_column_width=True)
     # with st.beta_container():
         st.title("Integrated Vision Inspection System", anchor='title')
-
         st.header(
             "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
         st.markdown("""___""")
-
     # <<<< START <<<<
-
-    conn = init_connection()  # initialise connection to Database
 
 
 if __name__ == "__main__":
