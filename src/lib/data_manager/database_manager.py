@@ -29,6 +29,8 @@ dsn = "host=localhost port=5432 dbname=eye user=shrdc password=shrdc"
 
 # Initialise Connection to PostgreSQL Database Server
 
+# TODO: HANDLE KWARGS
+
 
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
 def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
@@ -40,7 +42,10 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
 
         # connect to the PostgreSQL server
         log.info('Connecting to the PostgreSQL database...')
-        conn = psycopg2.connect(**kwargs)
+        if kwargs:
+            conn = psycopg2.connect(**kwargs)
+        else:
+            conn = psycopg2.connect(dsn, connection_factory, cursor_factory)
 
         # create a cursor
         cur = conn.cursor()
