@@ -94,6 +94,19 @@ def json_load(file, int_keys=False):
             return data
 
 
+def toJSON(obj):
+    """Serialise Python Class objects to JSON string
+
+    Args:
+        obj (class): Python Class object
+
+    Returns:
+        str: Serialised JSON 
+    """
+    return json.dumps(obj, default=lambda o: o.__dict__,
+                      sort_keys=True, indent=4)
+
+
 def read_yaml(filepath):
     if not os.path.exists(filepath):
         filepath = find_file(filepath)
@@ -192,7 +205,7 @@ def file_unarchiver(filename, extract_dir):
         log.error(error_msg)
         st.error(error_msg)
 
-    return f"successfully archived"
+    log.info("Successfully Unarchive")
 
 
 def single_file_archiver(archive_filename, target_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
