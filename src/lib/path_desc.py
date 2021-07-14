@@ -11,24 +11,35 @@ import sys
 import os
 from pathlib import Path
 import logging
+from core.utils.log import log_info, log_error  # logger
 
-#--------------------Logger-------------------------#
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
-
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
-
+# ./image_labelling_shrdc
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))
-    log.info(f"Current working directory: {str(PROJECT_ROOT)} ")
+    log_info(f"Current working directory: {str(PROJECT_ROOT)} ")
+
+
+def add_path(node: str, parent_node: int = 0) -> None:
+    SRC = Path(__file__).resolve().parents[parent_node]  # ROOT folder -> ./src
+    if node is not None:
+        PATH = SRC / node  # ./PROJECT_ROOT/src/lib
+    else:
+        PATH = SRC
+    # CHECK if PATH exists
+    try:
+        PATH.resolve(strict=True)
+    except FileNotFoundError:
+        log_error(f"Path {PATH} does not exist")
+    else:
+        if str(PATH) not in sys.path:
+            sys.path.insert(0, str(PATH))  # ./lib
+        else:
+            log_info(
+                f"\'{PATH.relative_to(PROJECT_ROOT.parent)} \'added into Python PATH")
+            pass
+
 
 
