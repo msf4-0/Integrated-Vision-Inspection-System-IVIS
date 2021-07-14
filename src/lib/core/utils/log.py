@@ -16,5 +16,22 @@ logging.basicConfig(format=FORMAT, level=logging.INFO,
 
 log = logging.getLogger()
 
+
 def std_log(msg):
     log.info(msg)
+
+
+def log_debug(msg):
+    log.debug(msg)
+
+
+def log_info(msg):
+    log.info(msg)
+
+
+def log_error(msg):
+    log.error(msg)
+
+
+def log_warning(msg):
+    log.warning(msg)
