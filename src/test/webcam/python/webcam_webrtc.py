@@ -13,8 +13,13 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
 # NEW
-
-
+from webcam import webcam
+from streamlit_webrtc import (
+    ClientSettings,
+    VideoProcessorBase,
+    WebRtcMode,
+    webrtc_streamer,
+)
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -34,15 +39,28 @@ from path_desc import chdir_root
 from core.utils.log import std_log  # logger
 from data_manager.database_manager import init_connection
 
-# @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
-# def init_connection():
-#     return psycopg2.connect(**st.secrets["postgres"])
-
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
-# >>>> Variable Declaration <<<<
+# >>>> Setup WebRTC >>>>
+WEBRTC_CLIENT_SETTINGS = ClientSettings(
+    rtc_configuration={"iceServers": [
+        {"urls": ["stun:stun.l.google.com:19302"]}]},
+    media_stream_constraints={
+        "video": True,
+        "audio": True,
+    },
+)
+# <<<< Setup WebRTC <<<<
 
-# <<<< Variable Declaration <<<<
+
+def app_loopback():
+    """ Simple video loopback """
+    webrtc_streamer(
+        key="loopback",
+        mode=WebRtcMode.SENDRECV,
+        client_settings=WEBRTC_CLIENT_SETTINGS,
+        video_processor_factory=None,  # NoOp
+    )
 
 
 def show():
@@ -57,6 +75,7 @@ def show():
         st.header(
             "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
         st.markdown("""___""")
+    app_loopback()
 
 
 if __name__ == "__main__":

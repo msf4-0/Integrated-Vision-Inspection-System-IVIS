@@ -8,28 +8,21 @@ Description: Add information overlay on top of video output
 
 import sys
 from pathlib import Path
-import logging
 import cv2
 import numpy as np
 
-# -------------
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-sys.path.insert(0, str(Path(SRC, 'lib')))  # ./lib
-# print(sys.path[0])
-sys.path.insert(0, str(Path(Path(__file__).parent, 'module')))
+LIB_PATH = SRC / "lib"
+for path in sys.path:
+    if str(LIB_PATH) not in sys.path:
+        sys.path.insert(0, str(LIB_PATH))  # ./lib
+    else:
+        pass
 
-#--------------------Logger-------------------------#
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
 
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
+# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 
 def information_position(frame, text):
@@ -41,26 +34,26 @@ def information_position(frame, text):
     text_length = len(text)
     y_position = 20
     x_position = frame_width - (10 * text_length)
-    return x_position, y_position
+    return int(x_position), int(y_position)
 
 
-def component_overlay(frame, text_true, text_none, color, position, display_flag=False):
+def component_overlay(frame, string, color, position, display_flag=False):
     font = cv2.FONT_HERSHEY_COMPLEX
     fontScale = 0.6
     thickness = 2
 
     # display FPS
-    if text_true is not None:
-        cv2.putText(frame, text_true, position, font, fontScale,
+    if string is not None:
+        cv2.putText(frame, string, position, font, fontScale,
                     color, thickness, lineType=16)
     else:
-        cv2.putText(frame, text_none, position, font, fontScale,
+        cv2.putText(frame, 'Null', position, font, fontScale,
                     color, thickness, lineType=16)
 
 
 def rectangle_alert(frame, color):
-    cv2.rectangle(frame, (0, 0), int(
-        frame.shape[0], frame.shape[1]), color, 2, lineType=16)
+    cv2.rectangle(frame, (0, 0), 
+        (int(frame.shape[0]), int(frame.shape[1])), color, 2, lineType=16)
 
 
 def draw_overlay(frame, framerate, detection, framerate_color=(102, 0, 204), detection_color=(102, 0, 204), framerate_display_flag=True, rectangle_alert_flag=False):
@@ -69,17 +62,23 @@ def draw_overlay(frame, framerate, detection, framerate_color=(102, 0, 204), det
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     # display fps
-    framerate_true = "FPS: {:.1f}".format(framerate)
-    framerate_none = "FPS: 0"
-    component_overlay(frame, framerate_true, framerate_none,
+    if framerate is None:
+        framerate_string = "FPS: 0"
+    else:
+        framerate_string = "FPS: {:.1f}".format(framerate)
+
+    component_overlay(frame, framerate_string,
                       framerate_color, (10, 20), framerate_display_flag)
 
     # display detections
-    detection_true = "Detection: {}".format(detection)
-    detection_none = ""
-    detection_position = information_position(frame, detection_true)
-    component_overlay(frame, detection_true, detection_none,
-                      detection_color, int(detection_position))
+    if detection is None:
+        detection_string = ""
+    else:
+        detection_string = "Detection: {}".format(detection)
+
+    detection_position = information_position(frame, detection_string)
+    component_overlay(frame, detection_string,
+                      detection_color, detection_position)
 
     # displaay rectangle alert
     if rectangle_alert_flag:

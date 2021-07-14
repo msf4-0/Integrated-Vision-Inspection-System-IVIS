@@ -30,8 +30,9 @@ class PerformanceMetrics:
         self.current_stat = Stat()
         self.total_stat = Stat()
         self.last_update_time = None
+        self.start_time = 0
 
-    def update(self, last_req_start_time, frame):
+    def update(self, last_req_start_time):
         # configurations for data overlay on frame
         current_time = perf_counter()  # timestamp
 
@@ -74,7 +75,7 @@ class PerformanceMetrics:
 
     def print_total(self):
         total_latency, total_fps = self.get_total()
-        print("Latency: {:.1f} ms".format(total_latency * 1e3)
-              if total_latency is not None else "Latency: N/A")
-        print("FPS: {:.1f}".format(total_fps)
-              if total_fps is not None else "FPS: N/A")
+        print("Average Latency: {:.1f} ms".format(total_latency * 1e3)
+              if total_latency is not None else "Average Latency: N/A")
+        print("Average FPS: {:.1f}".format(total_fps)
+              if total_fps is not None else "Average FPS: N/A")

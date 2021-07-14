@@ -5,38 +5,45 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 Description: Object detection
 """
-import numpy as np
-import cv2
+
+
+import tensorflow as tf
 from object_detection.builders import model_builder
 from object_detection.utils import visualization_utils as viz_utils
 from object_detection.utils import config_util
 from object_detection.utils import label_map_util
-import tensorflow as tf
-# import urllib.request
-# import tarfile
 import os
 from pathlib import Path
 import sys
-import logging
 from time import perf_counter
-# -------------
+import numpy as np
+import cv2
+
+# import urllib.request
+# import tarfile
+
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-sys.path.insert(0, str(Path(SRC, 'lib')))  # ./lib
-# print(sys.path[0])
-sys.path.insert(0, str(Path(Path(__file__).parent, 'module')))
+LIB_PATH = SRC / "lib"
+TEST_MODULE_PATH_PARENT = SRC / "test" / "machine_learning" / "module"
 
-#--------------------Logger-------------------------#
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
+if str(TEST_MODULE_PATH_PARENT) not in sys.path:
+    sys.path.insert(0, str(TEST_MODULE_PATH_PARENT))
+else:
+    pass
+# >>>> User-defined Modules >>>>
+from frame_overlay import draw_overlay
+from performance_metrics import PerformanceMetrics
+from path_desc import chdir_root
+from core.utils.log import log_info, log_error  # logger
+# from data_manager.database_manager import init_connection
 
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
+# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 '''
 DATA_DIR = os.path.join(os.getcwd(), 'data')
@@ -45,14 +52,15 @@ for dir in [DATA_DIR, MODELS_DIR]:
     if not os.path.exists(dir):
         os.mkdir(dir)
 '''
-# ADD YOUR DIRECTORY HERE!!!!! 
+# ADD YOUR DIRECTORY HERE!!!!!
 DATA_DIR = '/home/chuzh/Documents/TensorFlow/workspace/training_demo'
-MODELS_DIR = '/home/rchuzh/Documents/aruco/exported-models/model_2'
+MODELS_DIR = '/home/rchuzh/programming/image_labelling_shrdc/resources/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8'
+
 
 PATH_TO_CKPT = os.path.join(MODELS_DIR, 'checkpoint/')
 PATH_TO_CFG = os.path.join(MODELS_DIR, 'pipeline.config')
 
-LABEL_FILENAME = 'labelmap.pbtxt'
+LABEL_FILENAME = 'mscoco_label_map.pbtxt'
 PATH_TO_LABELS = os.path.join(MODELS_DIR, LABEL_FILENAME)
 
 #---------------------- Load the model -------------------------#
@@ -64,7 +72,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'    # Suppress TensorFlow logging
 tf.get_logger().setLevel('ERROR')           # Suppress TensorFlow logging (2)
 
 # Enable GPU dynamic memory allocation
-gpus = tf.config.experimental.list_physical_devices('GPU')
+gpus = tf.config.list_physical_devices('GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
 
@@ -93,19 +101,21 @@ def detect_fn(image):
 #--------------- Load label map data (for plotting)---------------------#
 category_index = label_map_util.create_category_index_from_labelmap(PATH_TO_LABELS,
                                                                     use_display_name=True)
-
-load_end_time = perf_counter()  # program loading end timestamp
-load_time = load_start_time - load_end_time
-# computes loading time of the program
-log.info(f"Program Loading time = {load_time}")
 # -----------------------Start Video Capture--------------------------#
 link = "http://192.168.1.105:4747/video"  # IP webcam
 local_link = "http://127.0.0.1:4747"    # not use -> /dev/video2
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 
-while True:
-    # Read frame from camera
-    ret, image_np = cap.read()
+perfMetric = PerformanceMetrics()
+
+load_end_time = perf_counter()  # program loading end timestamp
+load_time = load_end_time - load_start_time
+# computes loading time of the program
+log_info(f"Program Loading time = {load_time}s")
+while cap.isOpened():
+
+    perfMetric.start_time = perf_counter()
+    ret, image_np = cap.read()  # Read frame from camera
 
     # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
     image_np_expanded = np.expand_dims(image_np, axis=0)
@@ -115,8 +125,12 @@ while True:
     detections, predictions_dict, shapes = detect_fn(input_tensor)
 
     label_id_offset = 1
-    image_np_with_detections = image_np.copy()
-
+    image_np_with_detections = image_np.copy()  # frame
+    current_latency, current_fps = perfMetric.update(perfMetric.start_time)
+    if (current_latency and current_fps) is not None:
+        log_info(
+            f"{'Current Latency=':<4} {(current_latency* 1e3):4.1f}ms {'|':^8} {'Current FPS=':<4} {current_fps:4.1f}")
+    # print(f"Current Latency: {current_latency} ; Current FPS: {current_fps}")
     viz_utils.visualize_boxes_and_labels_on_image_array(
         image_np_with_detections,
         detections['detection_boxes'][0].numpy(),
@@ -126,9 +140,10 @@ while True:
         category_index,
         use_normalized_coordinates=True,
         max_boxes_to_draw=200,
-        min_score_thresh=.30,
+        min_score_thresh=.60,
         agnostic_mode=False)
-
+    image_np_with_detections = draw_overlay(
+        image_np_with_detections, current_fps, ' ')
     # Display output
     # cv2.imshow('object detection', cv2.resize(
     #     image_np_with_detections, (1280, 960)))
@@ -144,6 +159,6 @@ while True:
     if key in {ord('q'), ord('Q'), ESC_KEY}:
         break
     # *********************************************
-
+perfMetric.print_total()
 cap.release()
 cv2.destroyAllWindows()

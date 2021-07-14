@@ -22,7 +22,7 @@ def dumper(obj):
 me = Object()
 me.name = "Onur"
 me.age = 35
-me.dog = Object()
+# me.dog = Object()
 me.dog.name = "Apollo"
 
 print(me.toJSON())
