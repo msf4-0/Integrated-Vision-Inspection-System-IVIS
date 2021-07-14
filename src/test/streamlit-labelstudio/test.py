@@ -12,7 +12,7 @@ import streamlit as st
 st.set_page_config(page_title="Label Studio Test",
                    page_icon="random", layout='wide')
 st.write(sys.path)
-from streamlit_labelstudio import st_labelstudio
+from .streamlit_labelstudio import st_labelstudio
 
 import numpy as np
 import pandas as pd
@@ -93,7 +93,7 @@ else:
 
 pass
 
-annotationType, annotationConfig_template = annotation_sel()
+
 # config = """
 #   <View>
 # <Header value="Select label and start to click on image"/>
@@ -109,6 +109,8 @@ annotationType, annotationConfig_template = annotation_sel()
 #   </View>
 # </View>
 #     """
+
+annotationType, annotationConfig_template = annotation_sel()
 config = annotationConfig_template['config']
 
 interfaces = [

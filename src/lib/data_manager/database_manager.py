@@ -29,7 +29,7 @@ dsn = "host=localhost port=5432 dbname=eye user=shrdc password=shrdc"
 # Initialise Connection to PostgreSQL Database Server
 
 
-def initCconnection(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
     """ Connect to the PostgreSQL database server """
     conn = None
     try:
