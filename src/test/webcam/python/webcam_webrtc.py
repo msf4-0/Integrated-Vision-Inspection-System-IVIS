@@ -13,7 +13,7 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
 # NEW
-from webcam import webcam
+
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -32,11 +32,12 @@ for path in sys.path:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import std_log  # logger
+from data_manager.database_manager import init_connection
 
+# @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
+# def init_connection():
+#     return psycopg2.connect(**st.secrets["postgres"])
 
-@st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
-def init_connection():
-    return psycopg2.connect(**st.secrets["postgres"])
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
@@ -45,25 +46,17 @@ def init_connection():
 
 
 def show():
-    # >>>> TEMPLATE >>>>
+
     chdir_root()  # change to root directory
-    conn = init_connection()  # initialise connection to Database
+    # initialise connection to Database
+    conn = init_connection(**st.secrets["postgres"])
     with st.sidebar.beta_container():
         st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.beta_container():
+
         st.title("Integrated Vision Inspection System", anchor='title')
         st.header(
             "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
         st.markdown("""___""")
-    # <<<< TEMPLATE <<<<
-
-    # >>>> START >>>>
-    captured_image = webcam()
-    if captured_image is None:
-        st.write("Waiting for capture...")
-    else:
-        st.write("Got an image from the webcam:")
-        st.image(captured_image)
 
 
 if __name__ == "__main__":
