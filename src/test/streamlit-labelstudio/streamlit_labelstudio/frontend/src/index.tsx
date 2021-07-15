@@ -29,10 +29,25 @@ function onRender(event: Event): void {
     },
     onSubmitAnnotation: function (LS, annotations) {
       console.log("LS:", { LS })
+      let flag = 0
       annotations = JSON.parse(JSON.stringify(annotations)) //JSON.stringify converts JS value to JSON string
-      Streamlit.setComponentValue(annotations)
-      console.log("Annotations:", { annotations })
+      let results = [annotations, flag]
+      Streamlit.setComponentValue(results)
+      console.log("Annotations:", { results })
       // console.log(annotations.serializeAnnotation())
+    },
+    onUpdateAnnotation: function (LS, annotations) {
+      console.log("LS update:", { LS })
+      let flag = 1
+
+      annotations = JSON.parse(JSON.stringify(annotations))
+      let results = [annotations, flag]
+      console.log("Updated Annotations", { results })
+      Streamlit.setComponentValue(results)
+
+      // console.log("annotations update:", { results });
+      // console.log(annotations.serializeAnnotation());
+      // Streamlit.setComponentValue(annotations);
     },
   })
 
