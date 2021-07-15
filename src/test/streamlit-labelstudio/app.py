@@ -1,18 +1,22 @@
 import streamlit as st
 from streamlit_labelstudio import st_labelstudio
 
-st.set_page_config(layout='wide')
+# st.set_page_config(layout='wide')
 st.title("Label Studio")
 config = """
-      <View>
-        <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA;">
-          <Image name="img" value="$image" width="100%" maxWidth="100%" brightnessControl="true" contrastControl="true" zoomControl="true" rotateControl="true"></Image>
-        </View>
-        <RectangleLabels name="tag" toName="img">
-          <Label value="Comet"></Label>
-          <Label value="Moon"></Label>
-        </RectangleLabels>
-      </View>
+                <View>
+<Header value="Select label and start to click on image"/>
+  <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+    <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+    <View>
+      <Filter toName="tag" minlength="0" name="filter"/>
+      <RectangleLabels name="tag" toName="img" showInline="true" fillOpacity="0.8">
+        <Label value="Hello"/>
+        <Label value="World"/>
+      </RectangleLabels>
+    </View>
+  </View>
+</View>
     """
 
 interfaces = [

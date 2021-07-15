@@ -1,3 +1,6 @@
+import streamlit as st
+st.set_page_config(page_title="Label Studio Test",
+                   page_icon="random", layout='wide')
 # --------------------------
 # Add sys path for modules
 import sys
@@ -6,13 +9,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(Path(__file__).parents[2], 'lib')))  # ./lib
 # print(sys.path)
 from data_manager.annotation_type_select import annotation_sel
-from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
+from streamlit_labelstudio.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 # --------------------------
-import streamlit as st
-st.set_page_config(page_title="Label Studio Test",
-                   page_icon="random", layout='wide')
-st.write(sys.path)
-from .streamlit_labelstudio import st_labelstudio
+
+
+from streamlit_labelstudio import st_labelstudio
 
 import numpy as np
 import pandas as pd
@@ -56,7 +57,7 @@ with st.sidebar.beta_container():
 
     # streamlit.file_uploader(label, type=None, accept_multiple_files=False, key=None, help=None)
     uploaded_files_multi = st.file_uploader(
-        label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key=2)
+        label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
     # if uploaded_files_multi is not None:
     # image_multi = Image.open(uploaded_files)
     # st.image(image_multi, caption="Uploaded Image")

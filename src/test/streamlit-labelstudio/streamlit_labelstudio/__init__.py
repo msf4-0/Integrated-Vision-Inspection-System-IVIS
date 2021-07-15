@@ -1,6 +1,7 @@
 import os
 import streamlit.components.v1 as components
 import streamlit as st
+
 # st.set_page_config(layout='wide')
 # Create a _RELEASE constant. We'll set this to False while we're developing
 # the component, and True when we're ready to package and distribute it.
@@ -50,47 +51,48 @@ def st_labelstudio(config, interfaces, user, task, key=None):
 
 # if not _RELEASE:
 #     config = """
-#         <View>
-#             <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-#             <Image name="img" value="$image" width="100%" maxWidth="100%" brightnessControl="true" contrastControl="true" zoomControl="true" rotateControl="true"></Image>
-#             <View>
-#             <Filter toName="tag" minlength="0" name="filter"/>
-#             <RectangleLabels name="tag" toName="img" showInline="true">
-#             <Label value="Comet"/>
-#             <Label value="Moon"/>
-#             </RectangleLabels>
-#         </View>
-#         </View>
+#                 <View>
+# <Header value="Select label and start to click on image"/>
+#   <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+#     <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+#     <View>
+#       <Filter toName="tag" minlength="0" name="filter"/>
+#       <RectangleLabels name="tag" toName="img" showInline="true" fillOpacity="0.8">
+#         <Label value="Hello"/>
+#         <Label value="World"/>
+#       </RectangleLabels>
 #     </View>
-#         """
+#   </View>
+# </View>
+#     """
 
 #     interfaces = [
-#         "panel",
-#         "update",
-#         "submit",
-#         "controls",
-#         "side-column",
-#         "annotations:menu",
-#         "annotations:add-new",
-#         "annotations:delete",
-#         "predictions:menu",
-#     ],
+#     "annotations:add-new",
+#     "annotations:delete",
+#     "annotations:menu",
+#     "controls",
+#     "panel",
+#     "predictions:menu",
+#     "side-column",
+#     "skip",
+#     "submit"
+#     "update",
+# ],
 
 #     user = {
-#         'pk': 1,
-#         'firstName': "Zhen Hao",
-#         'lastName': "Chu"
-#     },
+#     'pk': 1,
+#     'firstName': "Zhen Hao",
+#     'lastName': "Chu"
+# },
 
 #     task = {
-#         'annotations': [],
-#         'predictions': [],
-#         'id': 1,
-#         'data': {
-#             'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
-
-#         }
+#     'completions': [],
+#     'predictions': [],
+#     'id': 1,
+#     'data': {
+#         'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
 #     }
+# }
 
 #     results_raw = st_labelstudio(
 #         config, interfaces, user, task, key='random')

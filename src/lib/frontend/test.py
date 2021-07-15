@@ -12,7 +12,7 @@ import streamlit as st
 st.set_page_config(page_title="Label Studio Test",
                    page_icon="random", layout='wide')
 st.write(sys.path)
-from streamlit_labelstudio import st_labelstudio
+from frontend.streamlit_labelstudio import st_labelstudio
 
 import numpy as np
 import pandas as pd
@@ -56,7 +56,7 @@ with st.sidebar.beta_container():
 
     # streamlit.file_uploader(label, type=None, accept_multiple_files=False, key=None, help=None)
     uploaded_files_multi = st.file_uploader(
-        label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key=2)
+        label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
     # if uploaded_files_multi is not None:
     # image_multi = Image.open(uploaded_files)
     # st.image(image_multi, caption="Uploaded Image")
@@ -110,8 +110,6 @@ pass
 # </View>
 #     """
 
-annotationType, annotationConfig_template = annotation_sel()
-config = annotationConfig_template['config']
 
 interfaces = [
     "panel",
@@ -178,15 +176,24 @@ task = {
 #         st.table(results)
 
 # BBox_results = DetectionBBOX(config, user, task, interfaces, key='bbox')
-if annotationType == "Image Classification":
-    results = ImgClassification(
-        config, user, task, interfaces, key='img_classification')
-elif annotationType == "Object Detection with Bounding Boxes":
-    results = DetectionBBOX(config, user, task, interfaces)
-elif annotationType == "Semantic Segmentation with Polygons":
-    results = SemanticPolygon(config, user, task, interfaces)
 
-elif annotationType == "Semantic Segmentation with Masks":
-    results = SemanticMask(config, user, task, interfaces)
-else:
-    pass
+v = annotation_sel()
+if None not in v:
+    (annotationType, annotationConfig_template) = v
+
+    config = annotationConfig_template['config']
+
+    # if annotationType == "Image Classification":
+    #     results = ImgClassification(
+    #         config, user, task, interfaces, key='img_classification')
+    # elif annotationType == "Object Detection with Bounding Boxes":
+    #     results = DetectionBBOX(config, user, task, interfaces)
+    # elif annotationType == "Semantic Segmentation with Polygons":
+    #     results = SemanticPolygon(config, user, task, interfaces)
+
+    # elif annotationType == "Semantic Segmentation with Masks":
+    #     results = SemanticMask(config, user, task, interfaces)
+    # else:
+    #     pass
+    results_raw = st_labelstudio(config, interfaces, user, task, "hi")
+    st.write(results_raw)
