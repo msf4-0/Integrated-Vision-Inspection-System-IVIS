@@ -50,13 +50,13 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
 
     Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
@@ -80,17 +80,17 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
         areas = [v for k, v in results_raw[0]['areas'].items()]
 
         results = []
-        results_component = []
+        results_display = []
         for a in areas:
-            results_component.append(
+            results_display.append(
                 {'id': a['id'], 'choices': a['results'][0]['value']['choices'][0]})
 
-            results = a['results'][0]
+            results = a['results'][0]  # store results based on LS format
             st.write(results)
 
         with st.beta_expander('Show Annotation Log'):
 
-            st.table(results_component)
+            st.table(results_display)
             st.write(results_raw[0]['areas'])
         # st.write(f"Flag: {flag}")
 
@@ -111,17 +111,17 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
 
 
 def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
-    """Obtain annotation results for Object Detection with Bounding Boxes 
+    """Obtain annotation results for Object Detection with Bounding Boxes
 
     Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
@@ -143,13 +143,22 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
     if results_raw is not None:
         areas = [v for k, v in results_raw[0]['areas'].items()]
 
-        results = []
+        results = []  # array to hold dictionary of 'result'
+        results_display = []
         for a in areas:
-            results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
-                            'height': a['height'], 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
+            results_display.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
+                                    'height': a['height'], 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
+            bbox_results = {'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
+                            'height': a['height']}  # store current bbox results:x,y,w,h
+            results_temp = a['results'][0]  # incomplete results dictionary
+            # include bbox results into key:'value'
+            results_temp['value'].update(bbox_results)
+            results.append(results_temp)
+            st.write("### Results")
+            st.write(results)
         with st.beta_expander('Show Annotation Log'):
 
-            st.table(results)
+            st.table(results_display)
             st.write(results_raw[0]['areas'])
 
         return results
@@ -164,13 +173,13 @@ def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
 
     Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
@@ -216,13 +225,13 @@ def SemanticMask(config, user, task, interfaces=interfaces, key="Mask"):
 
         Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
