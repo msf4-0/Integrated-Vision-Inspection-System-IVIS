@@ -58,7 +58,7 @@ class Annotations:
         self.results = Results()  # or Dict?
 
 
-def upload_results(results, annotation_type_id, project_id, users_id, task_id):
+def submit_results(results, annotation_type_id, project_id, users_id, task_id):
     # upload results to annotations
     #results, annotation_type_id,project_id,users_id,task_id
     # TODO is it neccessary to have annotation type id?
