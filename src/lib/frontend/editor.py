@@ -4,17 +4,17 @@ st.set_page_config(page_title="Label Studio Test",
 # --------------------------
 # Add sys path for modules
 import sys
-import os.path as osp
+from os import path
 from pathlib import Path
 sys.path.insert(0, str(Path(Path(__file__).parents[2], 'lib')))  # ./lib
 # print(sys.path)
 from data_manager.annotation_type_select import annotation_sel
-from streamlit_labelstudio.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
+from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 from PIL.Image import Image
 # --------------------------
 
-
-from streamlit_labelstudio import st_labelstudio
+# TODO: not used
+from frontend.streamlit_labelstudio import st_labelstudio
 
 import numpy as np
 import pandas as pd
@@ -203,7 +203,7 @@ if None not in v:
     config = annotationConfig_template['config']
     if annotationType == "Image Classification":
         results = ImgClassification(
-            config, user, task, original_width, original_height, interfaces, key='img_classification')
+            config, user, task, interfaces, key='img_classification')
     elif annotationType == "Object Detection with Bounding Boxes":
         results = DetectionBBOX(
             config, user, task, original_width, original_height, interfaces)

@@ -27,8 +27,8 @@ else:
     pass
 
 import streamlit as st
-from streamlit_labelstudio import st_labelstudio
-from annotation_manager import Results, Annotations
+from frontend.streamlit_labelstudio import st_labelstudio
+from annotation.annotation_manager import Results, Annotations
 
 interfaces = [
     "panel",
@@ -45,7 +45,7 @@ interfaces = [
 #----------Image Classification----------------#
 
 
-def ImgClassification(config, user, task, original_width, original_height, interfaces=interfaces, key="ImgClassification"):
+def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassification"):
     """Obtain annotation results for Image Classification
 
     Args:
