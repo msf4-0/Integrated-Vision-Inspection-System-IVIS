@@ -54,10 +54,13 @@ def dataURL_encoder(image):
     Returns:
         bytes: UTF-8 encoded base64 bytes
     """
+    
     bb = image.read()
     b64code = b64encode(bb).decode('utf-8')
-    data_url = f'data:image/jpg;base64,{b64code}'
+    data_url='data:'+image.type+';base64,'+b64code
+    # data_url = f'data:image/jpeg;base64,{b64code}'
     # st.write(f"\"{data_url}\"")
+    
     return data_url
 
 
@@ -106,6 +109,7 @@ def main():
         image_name = {}
         image_list = []
         i = 0
+        st.write(uploaded_files_multi[0].type)
         for image in uploaded_files_multi:
             image_name[image.name] = i
             image_list.append(image.name)
@@ -117,6 +121,7 @@ def main():
         st.subheader(f'Filename: {image_sel}')
         st.write(image_sel)
         # st.image(uploaded_files_multi[image_name[image_sel]])
+
         st.write(uploaded_files_multi[image_name[image_sel]])
         # for image in uploaded_files_multi:
         #     st.write(image)
