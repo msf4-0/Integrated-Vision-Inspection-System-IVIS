@@ -1,12 +1,13 @@
 import os
 import streamlit.components.v1 as components
 import streamlit as st
+
 # st.set_page_config(layout='wide')
 # Create a _RELEASE constant. We'll set this to False while we're developing
 # the component, and True when we're ready to package and distribute it.
 # (This is, of course, optional - there are innumerable ways to manage your
 # release process.)
-_RELEASE = True
+_RELEASE = False
 
 # Declare a Streamlit component. `declare_component` returns a function
 # that is used to create instances of the component. We're naming this
@@ -45,64 +46,64 @@ else:
 def st_labelstudio(config, interfaces, user, task, key=None):
     component_value = _component_func(
         config=config, interfaces=interfaces, user=user, task=task, key=key)
-    print(component_value)
     return component_value
 
 
-if not _RELEASE:
-    config = """
-        <View>
-            <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-            <Image name="img" value="$image" width="100%" maxWidth="100%" brightnessControl="true" contrastControl="true" zoomControl="true" rotateControl="true"></Image>
-            <View>
-            <Filter toName="tag" minlength="0" name="filter"/>
-            <RectangleLabels name="tag" toName="img" showInline="true">
-            <Label value="Comet"/>
-            <Label value="Moon"/>
-            </RectangleLabels>
-        </View>
-        </View>
-    </View>
-        """
+# if not _RELEASE:
+#     config = """
+#                 <View>
+# <Header value="Select label and start to click on image"/>
+#   <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+#     <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+#     <View>
+#       <Filter toName="tag" minlength="0" name="filter"/>
+#       <RectangleLabels name="tag" toName="img" showInline="true" fillOpacity="0.8">
+#         <Label value="Hello"/>
+#         <Label value="World"/>
+#       </RectangleLabels>
+#     </View>
+#   </View>
+# </View>
+#     """
 
-    interfaces = [
-        "panel",
-        "update",
-        "submit",
-        "controls",
-        "side-column",
-        "annotations:menu",
-        "annotations:add-new",
-        "annotations:delete",
-        "predictions:menu",
-    ],
+#     interfaces = [
+#     "annotations:add-new",
+#     "annotations:delete",
+#     "annotations:menu",
+#     "controls",
+#     "panel",
+#     "predictions:menu",
+#     "side-column",
+#     "skip",
+#     "submit"
+#     "update",
+# ],
 
-    user = {
-        'pk': 1,
-        'firstName': "Zhen Hao",
-        'lastName': "Chu"
-    },
+#     user = {
+#     'pk': 1,
+#     'firstName': "Zhen Hao",
+#     'lastName': "Chu"
+# },
 
-    task = {
-        'annotations': [],
-        'predictions': [],
-        'id': 1,
-        'data': {
-            'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
+#     task = {
+#     'completions': [],
+#     'predictions': [],
+#     'id': 1,
+#     'data': {
+#         'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
+#     }
+# }
 
-        }
-    }
+#     results_raw = st_labelstudio(
+#         config, interfaces, user, task, key='random')
+#     st.write(results_raw)
+#     if results_raw is not None:
+#         areas = [v for k, v in results_raw['areas'].items()]
 
-    results_raw = st_labelstudio(
-        config, interfaces, user, task, key='random')
-    st.write(results_raw)
-    if results_raw is not None:
-        areas = [v for k, v in results_raw['areas'].items()]
+#         results = []
+#         for a in areas:
+#             results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
+#                             'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
+#         with st.beta_expander('Show Annotation Log'):
 
-        results = []
-        for a in areas:
-            results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
-                            'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
-        with st.beta_expander('Show Annotation Log'):
-
-            st.table(results)
+#             st.table(results)

@@ -5,8 +5,30 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 
 """
+import sys
+from pathlib import Path
+SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+LS_PATH = Path(__file__).resolve().parent
+
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
+
+if str(TEST_MODULE_PATH) not in sys.path:
+    sys.path.insert(0, str(TEST_MODULE_PATH))
+else:
+    pass
+if str(LS_PATH) not in sys.path:
+    sys.path.insert(0, str(LS_PATH))
+else:
+    pass
+
 import streamlit as st
-from frontend.streamlit_labelstudio import st_labelstudio
+from streamlit_labelstudio import st_labelstudio
+from annotation_manager import Results, Annotations
 
 interfaces = [
     "panel",
@@ -23,18 +45,18 @@ interfaces = [
 #----------Image Classification----------------#
 
 
-def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassification"):
+def ImgClassification(config, user, task, original_width, original_height, interfaces=interfaces, key="ImgClassification"):
     """Obtain annotation results for Image Classification
 
     Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
@@ -53,39 +75,53 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
 
     results_raw = st_labelstudio(config, interfaces, user, task, key)
     st.write(results_raw)
-
+    # flag = results_raw[1]
     if results_raw is not None:
-        areas = [v for k, v in results_raw['areas'].items()]
+        areas = [v for k, v in results_raw[0]['areas'].items()]
 
         results = []
+        results_display = []
         for a in areas:
-            results.append(
+            results_display.append(
                 {'id': a['id'], 'choices': a['results'][0]['value']['choices'][0]})
+
+            results = a['results'][0]  # store results based on LS format
+            st.write(results)
+
         with st.beta_expander('Show Annotation Log'):
 
-            st.table(results)
-            st.write(results_raw['areas'])
+            st.table(results_display)
+            st.write(results_raw[0]['areas'])
+        # st.write(f"Flag: {flag}")
+
+        # # TODO
+        # if flag == 0:  # Submit /INSERT
+        #     # INSERT function
+        #     x = 1
+        # elif flag == 1:
+        #     # UPDATE function
+        #     y = 1
 
     else:
         results = None
-
     return results
+
 
 #----------Object Detection with Bounding Boxes----------------#
 
 
-def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
-    """Obtain annotation results for Object Detection with Bounding Boxes 
+def DetectionBBOX(config, user, task, original_width, original_height, interfaces=interfaces, key="BBox"):
+    """Obtain annotation results for Object Detection with Bounding Boxes
 
     Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
@@ -105,16 +141,28 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
     st.write(results_raw)
 
     if results_raw is not None:
-        areas = [v for k, v in results_raw['areas'].items()]
+        areas = [v for k, v in results_raw[0]['areas'].items()]
 
-        results = []
+        results = []  # array to hold dictionary of 'result'
+        results_display = []
         for a in areas:
-            results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
-                            'height': a['height'], 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
+            results_display.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
+                                    'height': a['height'], 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
+            bbox_results = {'x': a['x'], 'y': a['y'], 'width': a['width'],
+                            'height': a['height']}  # store current bbox results:x,y,w,h
+            results_temp = a['results'][0]  # incomplete results dictionary
+            # include bbox results into key:'value'
+            results_temp['value'].update(bbox_results)
+            results_temp.update(original_width=original_width,
+                                original_height=original_height)
+
+            results.append(results_temp)
+            st.write("### Results")
+            st.write(results)
         with st.beta_expander('Show Annotation Log'):
 
-            st.table(results)
-            st.write(results_raw['areas'])
+            st.table(results_display)
+            st.write(results_raw[0]['areas'])
 
         return results
     else:
@@ -123,18 +171,18 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
 #----------Semantic Segmentation with Polygons----------------#
 
 
-def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
+def SemanticPolygon(config, user, task, original_width, original_height, interfaces=interfaces, key="Polygons"):
     """Obtain annotation results for Semantic Segmentation with Polygons
 
     Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
@@ -155,18 +203,37 @@ def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
     st.write(results_raw)
 
     if results_raw is not None:
-        areas = [v for k, v in results_raw['areas'].items()]
+        # contains all annotation results
+        areas = [v for _, v in results_raw[0]['areas'].items()]
 
-        results = []
+        results = []  # array to hold dictionary of 'result'
+        points = []  # List to temp store points for each 'a'
+        results_display = []
         for a in areas:
-            st.write(a["points"])
+
+            points = []  # List to temp store points for each 'a'
+            results_temp = a['results'][0]  # incomplete results dictionary
             for p in a["points"]:
-                results.append({'id': p['id'], 'x': p['x'], 'y': p['y'],
-                               'polygonlabels': a['results'][0]['value']['polygonlabels'][0]})
-        with st.beta_expander('Show Annotation Log'):
+                results_display.append({'id': p['id'], 'x': p['x'], 'y': p['y'],
+                                        'polygonlabels': a['results'][0]['value']['polygonlabels'][0]})
+                points.append([p['relativeX'], p['relativeY']])
+            results_temp.update(original_width=original_width,
+                                original_height=original_height)
+            results_temp['value'].update(points=points)
+            results.append(results_temp)
+
+            with st.beta_expander("Points"):
+                st.write(points)
+        col1, col2 = st.beta_columns(2)
+
+        with col1.beta_expander('Show Annotation Log'):
+
+            st.table(results_display)
+            st.write(results_raw[0]['areas'])
+        with col2.beta_expander('Show Results in LS Format'):
 
             st.table(results)
-            st.write(results_raw['areas'])
+            st.write(results)
 
         return results
     else:
@@ -175,18 +242,18 @@ def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
 #----------Semantic Segmentation with Masks----------------#
 
 
-def SemanticMask(config, user, task, interfaces=interfaces, key="Mask"):
+def SemanticMask(config, user, task, original_width, original_height, interfaces=interfaces, key="Mask"):
     """Obtain annotation results for Semantic Segmentation with Masks
 
         Args:
         config (str): Annotation type React JSX DOM
-        user (Dict): 
+        user (Dict):
                     user = {
                                 'pk': 1,
                                 'firstName': "James",
                                 'lastName': "Dean"
                             },
-        task (Dict): 
+        task (Dict):
                     task = {
                             'annotations': [],
                             'predictions': [],
@@ -207,7 +274,7 @@ def SemanticMask(config, user, task, interfaces=interfaces, key="Mask"):
     st.write(results_raw)
 
     if results_raw is not None:
-        areas = [v for k, v in results_raw['areas'].items()]
+        areas = [v for k, v in results_raw[0]['areas'].items()]
 
         results = []
         for a in areas:
@@ -219,7 +286,7 @@ def SemanticMask(config, user, task, interfaces=interfaces, key="Mask"):
         with st.beta_expander('Show Annotation Log'):
 
             st.table(results)
-            st.write(results_raw['areas'])
+            st.write(results_raw[0]['areas'])
 
         return results
     else:

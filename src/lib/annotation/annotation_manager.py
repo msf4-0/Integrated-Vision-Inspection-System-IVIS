@@ -7,16 +7,11 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-import psycopg2
 from typing import List, Dict
+from datetime import datetime
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
-
-# DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -50,6 +45,21 @@ class Results:
         self.value: List[Dict] = value
 
 
-class Annotation:
+class Annotations:
     def __init__(self) -> None:
-        self.results = Results()
+        self.id: int = 0
+        self.completed_by: Dict = {}  # user_id, email, first_name, last_name
+        self.was_cancelled: bool = False
+        self.ground_truth: bool = True
+        self.created_at: datetime = datetime.now().astimezone()
+        self.updated_at: datetime = datetime.now().astimezone()
+        self.lead_time: float = 0
+        self.task: int = 0
+        self.results = Results()  # or Dict?
+
+
+def upload_results(results, annotation_type_id, project_id, users_id, task_id):
+    # upload results to annotations
+    #results, annotation_type_id,project_id,users_id,task_id
+    # TODO is it neccessary to have annotation type id?
+    print("Hi")

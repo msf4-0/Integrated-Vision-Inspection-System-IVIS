@@ -1,3 +1,6 @@
+import streamlit as st
+st.set_page_config(page_title="Label Studio Test",
+                   page_icon="random", layout='wide')
 # --------------------------
 # Add sys path for modules
 import sys
@@ -6,13 +9,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(Path(__file__).parents[2], 'lib')))  # ./lib
 # print(sys.path)
 from data_manager.annotation_type_select import annotation_sel
-from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
+from streamlit_labelstudio.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
+from PIL.Image import Image
 # --------------------------
-import streamlit as st
-st.set_page_config(page_title="Label Studio Test",
-                   page_icon="random", layout='wide')
-st.write(sys.path)
-from frontend.streamlit_labelstudio import st_labelstudio
+
+
+from streamlit_labelstudio import st_labelstudio
 
 import numpy as np
 import pandas as pd
@@ -41,6 +43,20 @@ def dataURL_encoder(image):
     data_url = f'data:image/jpg;base64,{b64code}'
     # st.write(f"\"{data_url}\"")
     return data_url or "None"
+
+
+def get_image_size(image_path):
+    """get dimension of image
+
+    Args:
+        image_path (str): path to image or byte_like object
+
+    Returns:
+        tuple: original_width and original_height
+    """
+    with Image.open(image_path) as img:
+        original_width, original_height = img.size
+    return original_width, original_height
 
 
 # --------------------------------
@@ -86,6 +102,10 @@ if uploaded_files_multi:
     # st.image(uploaded_files_multi[1])
     # st.image(image)
     data_url = dataURL_encoder(uploaded_files_multi[image_name[image_sel]])
+    original_width, original_height = get_image_size(
+        uploaded_files_multi[image_name[image_sel]])
+    st.write(
+        f"original_width: {original_width}{'|':^8}original_height: {original_height}")
 
 
 else:
@@ -176,24 +196,23 @@ task = {
 #         st.table(results)
 
 # BBox_results = DetectionBBOX(config, user, task, interfaces, key='bbox')
-
 v = annotation_sel()
 if None not in v:
     (annotationType, annotationConfig_template) = v
 
     config = annotationConfig_template['config']
+    if annotationType == "Image Classification":
+        results = ImgClassification(
+            config, user, task, original_width, original_height, interfaces, key='img_classification')
+    elif annotationType == "Object Detection with Bounding Boxes":
+        results = DetectionBBOX(
+            config, user, task, original_width, original_height, interfaces)
+    elif annotationType == "Semantic Segmentation with Polygons":
+        results = SemanticPolygon(
+            config, user, task, original_width, original_height, interfaces)
 
-    # if annotationType == "Image Classification":
-    #     results = ImgClassification(
-    #         config, user, task, interfaces, key='img_classification')
-    # elif annotationType == "Object Detection with Bounding Boxes":
-    #     results = DetectionBBOX(config, user, task, interfaces)
-    # elif annotationType == "Semantic Segmentation with Polygons":
-    #     results = SemanticPolygon(config, user, task, interfaces)
-
-    # elif annotationType == "Semantic Segmentation with Masks":
-    #     results = SemanticMask(config, user, task, interfaces)
-    # else:
-    #     pass
-    results_raw = st_labelstudio(config, interfaces, user, task, "hi")
-    st.write(results_raw)
+    elif annotationType == "Semantic Segmentation with Masks":
+        results = SemanticMask(
+            config, user, task, original_width, original_height, interfaces)
+    else:
+        pass
