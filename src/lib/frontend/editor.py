@@ -45,7 +45,7 @@ from frontend.streamlit_labelstudio import st_labelstudio
 
 
 @st.cache
-def dataURL_encoder(image):
+def data_url_encoder(image):
     """Load Image and generate Data URL in base64 bytes
 
     Args:
@@ -54,13 +54,13 @@ def dataURL_encoder(image):
     Returns:
         bytes: UTF-8 encoded base64 bytes
     """
-    
+
     bb = image.read()
     b64code = b64encode(bb).decode('utf-8')
-    data_url='data:'+image.type+';base64,'+b64code
+    data_url = 'data:' + image.type + ';base64,' + b64code
     # data_url = f'data:image/jpeg;base64,{b64code}'
     # st.write(f"\"{data_url}\"")
-    
+
     return data_url
 
 
@@ -129,7 +129,7 @@ def main():
         # st.image(uploaded_files_multi[0])
         # st.image(uploaded_files_multi[1])
         # st.image(image)
-        data_url = dataURL_encoder(uploaded_files_multi[image_name[image_sel]])
+        data_url = data_url_encoder(uploaded_files_multi[image_name[image_sel]])
         original_width, original_height = get_image_size(
             uploaded_files_multi[image_name[image_sel]])
         st.write(
