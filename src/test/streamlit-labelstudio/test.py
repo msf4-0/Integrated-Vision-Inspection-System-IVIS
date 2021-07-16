@@ -131,23 +131,7 @@ user = {
 },
 
 task = {
-    'annotations': [{'result':[{
-  "id": "6AzLyX8Onk",
-  "score": 0,
-  "from_name": "tag",
-  "to_name": "image",
-  "type": "rectanglelabels",
-  "value": {
-    "rectanglelabels": [
-      "Hello"
-    ],
-    "id": "NipjZJkaTj",
-    "x": 265,
-    "y": 129,
-    "width": 474,
-    "height": 253
-  }
-}]}],
+    'annotations': [],
     'predictions': [],
     'id': 1,
     'data': {

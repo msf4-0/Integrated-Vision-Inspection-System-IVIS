@@ -200,19 +200,36 @@ def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
     st.write(results_raw)
 
     if results_raw is not None:
-        areas = [v for k, v in results_raw[0]['areas'].items()]
+        # contains all annotation results
+        areas = [v for _, v in results_raw[0]['areas'].items()]
 
         results = []  # array to hold dictionary of 'result'
+        points = []  # List to temp store points for each 'a'
         results_display = []
         for a in areas:
-            st.write(a["points"])
+
+            points = []  # List to temp store points for each 'a'
+            results_temp = a['results'][0]  # incomplete results dictionary
             for p in a["points"]:
-                results.append({'id': p['id'], 'x': p['x'], 'y': p['y'],
-                               'polygonlabels': a['results'][0]['value']['polygonlabels'][0]})
-        with st.beta_expander('Show Annotation Log'):
+                results_display.append({'id': p['id'], 'x': p['x'], 'y': p['y'],
+                                        'polygonlabels': a['results'][0]['value']['polygonlabels'][0]})
+                points.append([p['relativeX'], p['relativeY']])
+
+            results_temp['value'].update(points=points)
+            results.append(results_temp)
+
+            with st.beta_expander("Points"):
+                st.write(points)
+        col1, col2 = st.beta_columns(2)
+
+        with col1.beta_expander('Show Annotation Log'):
+
+            st.table(results_display)
+            st.write(results_raw[0]['areas'])
+        with col2.beta_expander('Show Results in LS Format'):
 
             st.table(results)
-            st.write(results_raw[0]['areas'])
+            st.write(results)
 
         return results
     else:
