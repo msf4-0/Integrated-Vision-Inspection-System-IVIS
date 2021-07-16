@@ -45,7 +45,7 @@ interfaces = [
 #----------Image Classification----------------#
 
 
-def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassification"):
+def ImgClassification(config, user, task, original_width, original_height, interfaces=interfaces, key="ImgClassification"):
     """Obtain annotation results for Image Classification
 
     Args:
@@ -110,7 +110,7 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
 #----------Object Detection with Bounding Boxes----------------#
 
 
-def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
+def DetectionBBOX(config, user, task, original_width, original_height, interfaces=interfaces, key="BBox"):
     """Obtain annotation results for Object Detection with Bounding Boxes
 
     Args:
@@ -153,6 +153,9 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
             results_temp = a['results'][0]  # incomplete results dictionary
             # include bbox results into key:'value'
             results_temp['value'].update(bbox_results)
+            results_temp.update(original_width=original_width,
+                                original_height=original_height)
+
             results.append(results_temp)
             st.write("### Results")
             st.write(results)
@@ -168,7 +171,7 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
 #----------Semantic Segmentation with Polygons----------------#
 
 
-def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
+def SemanticPolygon(config, user, task, original_width, original_height, interfaces=interfaces, key="Polygons"):
     """Obtain annotation results for Semantic Segmentation with Polygons
 
     Args:
@@ -214,7 +217,8 @@ def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
                 results_display.append({'id': p['id'], 'x': p['x'], 'y': p['y'],
                                         'polygonlabels': a['results'][0]['value']['polygonlabels'][0]})
                 points.append([p['relativeX'], p['relativeY']])
-
+            results_temp.update(original_width=original_width,
+                                original_height=original_height)
             results_temp['value'].update(points=points)
             results.append(results_temp)
 
@@ -238,7 +242,7 @@ def SemanticPolygon(config, user, task, interfaces=interfaces, key="Polygons"):
 #----------Semantic Segmentation with Masks----------------#
 
 
-def SemanticMask(config, user, task, interfaces=interfaces, key="Mask"):
+def SemanticMask(config, user, task, original_width, original_height, interfaces=interfaces, key="Mask"):
     """Obtain annotation results for Semantic Segmentation with Masks
 
         Args:
