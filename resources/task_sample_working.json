@@ -1,4 +1,4 @@
-task = {
+ [{
         "annotations":
             [{
                 "id": "1001",
@@ -61,7 +61,7 @@ task = {
                         "to_name": "img",
                         "type": "rectanglelabels"
                     }]}],
-        'predictions': [
+        "predictions": [
                 {
                     "model_version": "model 1",
                     "created_ago": "3 hours",
@@ -112,6 +112,6 @@ task = {
         "id": 1,
         "data": {
             //  "image": 'https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg'
-            "image": f'{data_url}'
-            }
-    }
+            "image": f'{data_url}',
+            },
+    }]

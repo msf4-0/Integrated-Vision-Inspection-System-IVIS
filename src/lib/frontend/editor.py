@@ -307,16 +307,18 @@ def main():
         else:
             pass
 
-        # if flag == editor_flag.submit:
-        #     annotation_id = submit_annotations(
-        #         results, project_id, users_id, task_id, annotation_id, is_labelled, conn)
-        # elif flag == editor_flag.update:
-        #     update_annotation_return = update_annotations(
-        #         results, users_id, annotation_id, conn)
-        # elif flag == editor_flag.delete:
-        #     delete_annotation_return = delete_annotation(annotation_id)
-        # elif flag == editor_flag.skip:
-        #     skipped_task_return = skip_task(task_id, skipped)
+# TODO: add required fields
+        if flag and results is not None:
+            if flag == editor_flag.submit:
+                annotation_id = submit_annotations(
+                    results, project_id, users_id, task_id, annotation_id, is_labelled, conn)
+            elif flag == editor_flag.update:
+                update_annotation_return = update_annotations(
+                    results, users_id, annotation_id, conn)
+            elif flag == editor_flag.delete:
+                delete_annotation_return = delete_annotation(annotation_id)
+            elif flag == editor_flag.skip:
+                skipped_task_return = skip_task(task_id, skipped)
 
 
 if __name__ == "__main__":
