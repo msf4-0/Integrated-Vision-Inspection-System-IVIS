@@ -14,6 +14,30 @@ ls_div.setAttribute("id", "label-studio")
 function onRender(event: Event): void {
   // eslint-disable-next-line
   const data = (event as CustomEvent<RenderData>).detail
+
+  //return results back to Streamlit Python End
+  function return_results(annotations: JSON, flag: number = 1, status: string) {
+    let canvas = document.querySelector("canvas")
+    let img = document.querySelector("img")
+
+    if (canvas == null) throw new Error("Could not get canvas")
+    var canvas_width = canvas.width
+    var canvas_height = canvas.height
+    let canvas_dim = [canvas_width, canvas_height]
+    console.log(canvas_width, canvas_height)
+
+    if (img == null) throw new Error("Could not get image")
+    var original_width = img.naturalWidth
+    var original_height = img.naturalHeight
+    let img_dim = [original_width, original_height]
+    console.log(original_width, original_height)
+
+    annotations = JSON.parse(JSON.stringify(annotations)) //JSON.stringify converts JS value to JSON string
+    let results = [annotations, canvas_dim, img_dim, flag]
+    Streamlit.setComponentValue(results)
+    console.log({ status }, "Annotations:", { results })
+  }
+
   // eslint-disable-next-line
   var labelStudio = new LabelStudio("label-studio", {
     config: data.args["config"],
@@ -29,25 +53,34 @@ function onRender(event: Event): void {
     },
     onSubmitAnnotation: function (LS, annotations) {
       console.log("LS:", { LS })
-      let flag = 0
-      annotations = JSON.parse(JSON.stringify(annotations)) //JSON.stringify converts JS value to JSON string
-      let results = [annotations, flag]
-      Streamlit.setComponentValue(results)
-      console.log("Annotations:", { results })
+      let flag = 1 // New Submission Flag
+      let status = "New Submission"
+      return_results(annotations, flag, status)
+      // annotations = JSON.parse(JSON.stringify(annotations)) //JSON.stringify converts JS value to JSON string
+      // let results = [annotations, flag]
+      // Streamlit.setComponentValue(results)
+      // console.log("Annotations:", { results })
       // console.log(annotations.serializeAnnotation())
     },
     onUpdateAnnotation: function (LS, annotations) {
       console.log("LS update:", { LS })
-      let flag = 1
-
-      annotations = JSON.parse(JSON.stringify(annotations))
-      let results = [annotations, flag]
-      console.log("Updated Annotations", { results })
-      Streamlit.setComponentValue(results)
-
-      // console.log("annotations update:", { results });
-      // console.log(annotations.serializeAnnotation());
-      // Streamlit.setComponentValue(annotations);
+      let flag = 2 // Update Submission Flag
+      let status = "Update Submission"
+      return_results(annotations, flag, status)
+      // annotations = JSON.parse(JSON.stringify(annotations))
+      // let results = [annotations, flag]
+      // console.log("Updated Annotations", { results })
+      // Streamlit.setComponentValue(results)
+    },
+    onDeleteAnnotation: function (LS, annotations) {
+      console.log("LS Delete:", { LS })
+      let flag = 3 // Update Submission Flag
+      let status = "Delete Submission"
+      return_results(annotations, flag, status)
+      // annotations = JSON.parse(JSON.stringify(annotations))
+      // let results = [annotations, flag]
+      // console.log("Updated Annotations", { results })
+      // Streamlit.setComponentValue(results)
     },
   })
 

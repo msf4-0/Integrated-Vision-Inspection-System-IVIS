@@ -1,9 +1,14 @@
 -- Insert new annotations into Database
 -- returns annotation_id for task
-INSERT INTO public.annotations results
+INSERT INTO public.annotations (
+    results,
+    project_id,
+    users_id,
+    task_id)
 VALUES (
     % s ::jsonb,
-    % s) --results and user_id
+    % s,
+    % s % s) --results , project_id, user_id and task_id
 RETURNING
     id;
 

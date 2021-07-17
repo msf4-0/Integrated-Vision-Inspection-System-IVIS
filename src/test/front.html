@@ -17,6 +17,20 @@
     <div id="label-studio">
       <!-- Initialize Label Studio -->
       <script>
+        function return_results(annotations, flag = 1, status) {
+          annotations = JSON.parse(JSON.stringify(annotations)); //JSON.stringify converts JS value to JSON string
+          let canvas = document.querySelector("canvas");
+
+          canvas_width = canvas.width;
+          canvas_height = canvas.height;
+          console.log(canvas_width, canvas_height);
+          let img = document.querySelector("img");
+          console.log(img.naturalWidth);
+          let results = [annotations, flag];
+          // Streamlit.setComponentValue(results)
+          console.log({ status }, "Annotations:", { results });
+        }
+
         var labelStudio = new LabelStudio("label-studio", {
           config: `
           <View>
@@ -46,19 +60,18 @@
           ],
 
           user: {
-            pk: 1,
-            firstName: "James",
-            lastName: "Dean",
+            pk: 2,
+            firstName: "Zhen Hao",
+            lastName: "Chu",
           },
 
           task: {
             annotations: [],
             predictions: [],
-            id: 1,
+            id: 2,
             data: {
               // audio: "https://app.heartex.ai/static/samples/game.wav",
-              image:
-                "https://images.unsplash.com/photo-1548391350-968f58dedaed?ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
+              image: "https://i.insider.com/605cf697106eb50019d05b14?width=700",
             },
           },
 
@@ -70,19 +83,27 @@
           },
           onSubmitAnnotation: function (LS, annotations) {
             console.log("LS add:", { LS });
-            console.log(annotations);
-            annotations = JSON.parse(JSON.stringify(annotations));
-            console.log("annotations add:", { annotations });
+            let flag = 1; //submission flag
+            let status = "New Submission";
+            return_results(annotations, flag, status);
+
+            // console.log(annotations);
+            // annotations = JSON.parse(JSON.stringify(annotations));
+            // console.log("annotations add:", { annotations });
             // console.log(annotations.serializeAnnotation());
             // Streamlit.setComponentValue(annotations);
           },
           onUpdateAnnotation: function (LS, annotations) {
             console.log("LS update:", { LS });
-            let flag = 1;
+            let flag = 2; //submission flag
+            let status = "Update Submission";
+            return_results(annotations, flag, status);
 
-            annotations = JSON.parse(JSON.stringify(annotations));
-            results = [annotations, flag];
-            console.log("annotations update:", { results });
+            // let flag = 2;
+
+            // annotations = JSON.parse(JSON.stringify(annotations));
+            // results = [annotations, flag];
+            // console.log("annotations update:", { results });
             // console.log(annotations.serializeAnnotation());
             // Streamlit.setComponentValue(annotations);
           },

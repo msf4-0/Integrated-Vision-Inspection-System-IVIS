@@ -178,7 +178,7 @@ def main():
                 config, user, task, interfaces, key='img_classification')
         elif annotationType == "Object Detection with Bounding Boxes":
             results = DetectionBBOX(
-                config, user, task, original_width, original_height, interfaces)
+                config, user, task,interfaces)
         elif annotationType == "Semantic Segmentation with Polygons":
             results = SemanticPolygon(
                 config, user, task, original_width, original_height, interfaces)
