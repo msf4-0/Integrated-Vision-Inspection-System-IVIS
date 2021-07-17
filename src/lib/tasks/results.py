@@ -102,9 +102,10 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
         #     # UPDATE function
         #     y = 1
 
+        flag = results_raw[3]
+        return results, flag
     else:
-        results = None
-    return results
+        results, flag = None
 
 
 #----------Object Detection with Bounding Boxes----------------#
@@ -171,10 +172,10 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
 
             st.table(results_display)
             st.write(results_raw[0]['areas'])
-
-        return results
+        flag = results_raw[3]
+        return results, flag
     else:
-        results = None
+        results, flag = None
 
 #----------Semantic Segmentation with Polygons----------------#
 
@@ -243,9 +244,10 @@ def SemanticPolygon(config, user, task, original_width, original_height, interfa
             st.table(results)
             st.write(results)
 
-        return results
+        flag = results_raw[3]
+        return results, flag
     else:
-        results = None
+        results, flag = None
 
 #----------Semantic Segmentation with Masks----------------#
 
@@ -296,6 +298,7 @@ def SemanticMask(config, user, task, original_width, original_height, interfaces
             st.table(results)
             st.write(results_raw[0]['areas'])
 
-        return results
+        flag = results_raw[3]
+        return results, flag
     else:
-        results = None
+        results, flag = None

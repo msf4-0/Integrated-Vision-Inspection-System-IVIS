@@ -61,7 +61,7 @@ class Annotations:
         self.results = Results()  # or Dict?
 
 
-def submit_annotations(results: Dict, project_id: int, users_id: int, task_id: int, annotation_id: int, is_labelled: bool = True, skipped: bool = False, conn=conn) -> int:
+def submit_annotations(results: Dict, project_id: int, users_id: int, task_id: int, annotation_id: int, is_labelled: bool = True, conn=conn) -> int:
     """ Submit results for new annotations
 
     Args:
@@ -71,7 +71,6 @@ def submit_annotations(results: Dict, project_id: int, users_id: int, task_id: i
         task_id (int): [description]
         annotation_id (int): [description]
         is_labelled (bool, optional): [description]. Defaults to True.
-        skipped (bool, optional): [description]. Defaults to False.
         conn (psycopg2 connection object, optional): [description]. Defaults to conn.
 
     Returns:
@@ -99,24 +98,22 @@ def submit_annotations(results: Dict, project_id: int, users_id: int, task_id: i
                             public.task
                         SET
                             (annotation_id = %s),
-                            (is_labelled = %s),
-                            (skipped = %s)
+                            (is_labelled = %s)
                         WHERE
                             id = %s;
-                    """, [annotation_id, is_labelled, skipped]
+                    """, [annotation_id, is_labelled]
     db_uni_query(update_task_SQL, conn)
 
     return annotation_id
 
 
-def update_annotations(results: Dict, users_id: int, annotation_id: int, skipped: bool = False, conn=conn) -> tuple:
+def update_annotations(results: Dict, users_id: int, annotation_id: int, conn=conn) -> tuple:
     """Update results for new annotations
 
     Args:
         results (Dict): [description]
         users_id (int): [description]
         annotation_id (int): [description]
-        skipped (bool, optional): [description]. Defaults to False.
         conn (psycopg2 connection object, optional): [description]. Defaults to conn.
 
     Returns:

@@ -6,6 +6,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 import sys
 from pathlib import Path
+from numpy.lib.function_base import delete
 import psycopg2
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -38,10 +39,19 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
+from annotation.annotation_manager import submit_annotations, update_annotations, skip_task, delete_annotation
+from enum import IntEnum
 # <<<< User-defined Modules <<<<
 
 # TODO: not used
 from frontend.streamlit_labelstudio import st_labelstudio
+
+
+class editor_flag(IntEnum):
+    submit = 1
+    update = 2
+    delete = 3
+    skip = 4
 
 
 @st.cache
@@ -129,7 +139,8 @@ def main():
         # st.image(uploaded_files_multi[0])
         # st.image(uploaded_files_multi[1])
         # st.image(image)
-        data_url = data_url_encoder(uploaded_files_multi[image_name[image_sel]])
+        data_url = data_url_encoder(
+            uploaded_files_multi[image_name[image_sel]])
         original_width, original_height = get_image_size(
             uploaded_files_multi[image_name[image_sel]])
         st.write(
@@ -174,20 +185,31 @@ def main():
 
         config = annotationConfig_template['config']
         if annotationType == "Image Classification":
-            results = ImgClassification(
+            results, flag = ImgClassification(
                 config, user, task, interfaces, key='img_classification')
         elif annotationType == "Object Detection with Bounding Boxes":
-            results = DetectionBBOX(
-                config, user, task,interfaces)
+            results, flag = DetectionBBOX(
+                config, user, task, interfaces)
         elif annotationType == "Semantic Segmentation with Polygons":
-            results = SemanticPolygon(
+            results, flag = SemanticPolygon(
                 config, user, task, original_width, original_height, interfaces)
 
         elif annotationType == "Semantic Segmentation with Masks":
-            results = SemanticMask(
+            results, flag = SemanticMask(
                 config, user, task, original_width, original_height, interfaces)
         else:
             pass
+
+        if flag == editor_flag.submit:
+            annotation_id = submit_annotations(
+                results, project_id, users_id, task_id, annotation_id, is_labelled, conn)
+        elif flag == editor_flag.update:
+            update_annotation_return = update_annotations(
+                results, users_id, annotation_id, conn)
+        elif flag == editor_flag.delete:
+            delete_annotation_return = delete_annotation(annotation_id)
+        elif flag == editor_flag.skip:
+            skipped_task_return = skip_task(task_id, skipped)
 
 
 if __name__ == "__main__":
