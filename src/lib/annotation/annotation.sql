@@ -1,3 +1,4 @@
+-- NEW ANNOTATION
 -- Insert new annotations into Database
 -- returns annotation_id for task
 INSERT INTO public.annotations (
@@ -8,7 +9,8 @@ INSERT INTO public.annotations (
 VALUES (
     % s ::jsonb,
     % s,
-    % s % s) --results , project_id, user_id and task_id
+    % s,
+    % s) --results , project_id, user_id and task_id
 RETURNING
     id;
 
@@ -23,12 +25,30 @@ SET
 WHERE
     id = % s;
 
+-- UPDATE ANNOTATION
 -- Update annotations table
--- skipped annotation"type_id
 UPDATE
     public.annotations
 SET
-    (results = % s::jsonb)
+    (results = % s::jsonb),
+    (users_id = % s)
+WHERE
+    id = % s
+RETURNING *;
+
+--SKIPPING TASK
+-- Update task table skipped
+UPDATE
+    public.task
+SET
+    (skipped = % s)
 WHERE
     id = % s;
+
+-- DELETE ANNOTATION
+-- Delete annotations from annotations table
+DELETE FROM public.annotation
+WHERE id = % s
+RETURNING
+    *;
 
