@@ -7,7 +7,6 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from numpy.lib.function_base import delete
-import psycopg2
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -127,12 +126,12 @@ def main():
         image_sel = st.sidebar.selectbox(
             "Select image", image_list)
         # with st.beta_expander('Show image'):
-        st.write(uploaded_files_multi)
+        # st.write(uploaded_files_multi)
         st.subheader(f'Filename: {image_sel}')
-        st.write(image_sel)
+        # st.write(image_sel)
         # st.image(uploaded_files_multi[image_name[image_sel]])
 
-        st.write(uploaded_files_multi[image_name[image_sel]])
+        # st.write(uploaded_files_multi[image_name[image_sel]])
         # for image in uploaded_files_multi:
         #     st.write(image)
         #     st.subheader(f"Filename: {image.name}")
@@ -160,7 +159,7 @@ def main():
         "annotations:menu",
         "annotations:add-new",
         "annotations:delete",
-        "predictions:menu",
+        "predictions:menu"
     ],
 
     user = {
@@ -170,13 +169,121 @@ def main():
     },
 
     task = {
-        'annotations': [],
-        'predictions': [],
+        "annotations":
+            [{
+                "id": "1001",
+                "lead_time": 15.053,
+                "result": [
+                    {
+                        "original_width": 2242,
+                        "original_height": 2802,
+                        "image_rotation": 0,
+                        "value": {
+                            "x": 20,
+                            "y": 38.72113676731794,
+                            "width": 33.6,
+                            "height": 38.18827708703375,
+                            "rotation": 0,
+                            "rectanglelabels": [
+                                "Hello"
+                            ]
+                        },
+                        "id": "Dx_aB91ISN",
+                        "from_name": "tag",
+                        "to_name": "img",
+                        "type": "rectanglelabels"
+                    },
+                    {
+                        "original_width": 2242,
+                        "original_height": 2802,
+                        "image_rotation": 0,
+                        "value": {
+                            "x": 48.93333333333334,
+                            "y": 25.22202486678508,
+                            "width": 15.466666666666667,
+                            "height": 16.163410301953817,
+                            "rotation": 0,
+                            "rectanglelabels": [
+                                "Hello"
+                            ]
+                        },
+                        "id": "Dx_a1ISN",
+                        "from_name": "tag",
+                        "to_name": "img",
+                        "type": "rectanglelabels"
+                    },
+                    {
+                        "original_width": 2242,
+                        "original_height": 2802,
+                        "image_rotation": 0,
+                        "value": {
+                            "x": 63.866666666666674,
+                            "y": 40.49733570159858,
+                            "width": 14.000000000000002,
+                            "height": 18.29484902309059,
+                            "rotation": 0,
+                            "rectanglelabels": [
+                                "Hello"
+                            ]
+                        },
+                        "id": "Dx_aB9",
+                        "from_name": "tag",
+                        "to_name": "img",
+                        "type": "rectanglelabels"
+                    }]}],
+        'predictions': [
+                {
+                    "model_version": "model 1",
+                    "created_ago": "3 hours",
+                    "result": [
+                        {
+                            "from_name": "tag",
+                            "id": "1",
+                            "source": "$image",
+                            "to_name": "img",
+                            "type": "rectanglelabels",
+                            "value": {
+                                "height": 11.612284069097889,
+                                "rectanglelabels": [
+                                    "Hello"
+                                ],
+                                "rotation": 0,
+                                "width": 39.6,
+                                "x": 13.2,
+                                "y": 34.702495201535505
+                            }
+                        }
+                    ]
+                },
+                {
+                    "model_version": "model 2",
+                    "created_ago": "4 hours",
+                    "result": [
+                        {
+                            "from_name": "tag",
+                            "id": "t5sp3TyXPo",
+                            "source": "$image",
+                            "to_name": "img",
+                            "type": "rectanglelabels",
+                            "value": {
+                                "height": 33.61228406909789,
+                                "rectanglelabels": [
+                                    "World"
+                                ],
+                                "rotation": 0,
+                                "width": 39.6,
+                                "x": 13.2,
+                                "y": 54.702495201535505
+                            }
+                        }
+                    ]
+                }
+        ],
         'id': 1,
         'data': {
             # 'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
             'image': f'{data_url}'
-        }
+            }
     }
 
     v = annotation_sel()
@@ -188,28 +295,28 @@ def main():
             results, flag = ImgClassification(
                 config, user, task, interfaces, key='img_classification')
         elif annotationType == "Object Detection with Bounding Boxes":
-            results, flag = DetectionBBOX(
+            results = DetectionBBOX(
                 config, user, task, interfaces)
         elif annotationType == "Semantic Segmentation with Polygons":
             results, flag = SemanticPolygon(
                 config, user, task, original_width, original_height, interfaces)
 
         elif annotationType == "Semantic Segmentation with Masks":
-            results, flag = SemanticMask(
+            results = SemanticMask(
                 config, user, task, original_width, original_height, interfaces)
         else:
             pass
 
-        if flag == editor_flag.submit:
-            annotation_id = submit_annotations(
-                results, project_id, users_id, task_id, annotation_id, is_labelled, conn)
-        elif flag == editor_flag.update:
-            update_annotation_return = update_annotations(
-                results, users_id, annotation_id, conn)
-        elif flag == editor_flag.delete:
-            delete_annotation_return = delete_annotation(annotation_id)
-        elif flag == editor_flag.skip:
-            skipped_task_return = skip_task(task_id, skipped)
+        # if flag == editor_flag.submit:
+        #     annotation_id = submit_annotations(
+        #         results, project_id, users_id, task_id, annotation_id, is_labelled, conn)
+        # elif flag == editor_flag.update:
+        #     update_annotation_return = update_annotations(
+        #         results, users_id, annotation_id, conn)
+        # elif flag == editor_flag.delete:
+        #     delete_annotation_return = delete_annotation(annotation_id)
+        # elif flag == editor_flag.skip:
+        #     skipped_task_return = skip_task(task_id, skipped)
 
 
 if __name__ == "__main__":

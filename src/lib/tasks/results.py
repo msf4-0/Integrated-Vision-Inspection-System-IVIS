@@ -105,7 +105,7 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
         flag = results_raw[3]
         return results, flag
     else:
-        results, flag = None
+        pass
 
 
 #----------Object Detection with Bounding Boxes----------------#
@@ -152,13 +152,15 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
         results = []  # array to hold dictionary of 'result'
         results_display = []
         for a in areas:
-            relativeX = (a['x'] / canvas_width) * 100
-            relativeY = (a['y'] / canvas_height) * 100
+            relative_x = (a['x'] / canvas_width) * 100
+            relative_y = (a['y'] / canvas_height) * 100
+            relative_width = (a['width'] / canvas_width) * 100
+            relative_height = (a['height'] / canvas_height) * 100
 
-            results_display.append({'id': a['id'], 'x': relativeX, 'y': relativeY, 'width': a['width'],
-                                    'height': a['height'], 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
-            bbox_results = {'x': relativeX, 'y': relativeY, 'width': a['width'],
-                            'height': a['height']}  # store current bbox results:x,y,w,h
+            results_display.append({'id': a['id'], 'x': relative_x, 'y': relative_y, 'width': relative_width,
+                                    'height': relative_height, 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
+            bbox_results = {'x': relative_x, 'y': relative_y, 'width': relative_width,
+                            'height': relative_height}  # store current bbox results:x,y,w,h
             results_temp = a['results'][0]  # incomplete results dictionary
             # include bbox results into key:'value'
             results_temp['value'].update(bbox_results)
@@ -173,9 +175,9 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
             st.table(results_display)
             st.write(results_raw[0]['areas'])
         flag = results_raw[3]
-        return results, flag
-    else:
-        results, flag = None
+        return results
+
+    # TODO solve NoneType for flags
 
 #----------Semantic Segmentation with Polygons----------------#
 

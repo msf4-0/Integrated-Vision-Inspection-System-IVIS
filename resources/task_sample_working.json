@@ -1,0 +1,117 @@
+task = {
+        "annotations":
+            [{
+                "id": "1001",
+                "lead_time": 15.053,
+                "result": [
+                    {
+                        "original_width": 2242,
+                        "original_height": 2802,
+                        "image_rotation": 0,
+                        "value": {
+                            "x": 20,
+                            "y": 38.72113676731794,
+                            "width": 33.6,
+                            "height": 38.18827708703375,
+                            "rotation": 0,
+                            "rectanglelabels": [
+                                "Hello"
+                            ]
+                        },
+                        "id": "Dx_aB91ISN",
+                        "from_name": "tag",
+                        "to_name": "img",
+                        "type": "rectanglelabels"
+                    },
+                    {
+                        "original_width": 2242,
+                        "original_height": 2802,
+                        "image_rotation": 0,
+                        "value": {
+                            "x": 48.93333333333334,
+                            "y": 25.22202486678508,
+                            "width": 15.466666666666667,
+                            "height": 16.163410301953817,
+                            "rotation": 0,
+                            "rectanglelabels": [
+                                "Hello"
+                            ]
+                        },
+                        "id": "Dx_a1ISN",
+                        "from_name": "tag",
+                        "to_name": "img",
+                        "type": "rectanglelabels"
+                    },
+                    {
+                        "original_width": 2242,
+                        "original_height": 2802,
+                        "image_rotation": 0,
+                        "value": {
+                            "x": 63.866666666666674,
+                            "y": 40.49733570159858,
+                            "width": 14.000000000000002,
+                            "height": 18.29484902309059,
+                            "rotation": 0,
+                            "rectanglelabels": [
+                                "Hello"
+                            ]
+                        },
+                        "id": "Dx_aB9",
+                        "from_name": "tag",
+                        "to_name": "img",
+                        "type": "rectanglelabels"
+                    }]}],
+        'predictions': [
+                {
+                    "model_version": "model 1",
+                    "created_ago": "3 hours",
+                    "result": [
+                        {
+                            "from_name": "tag",
+                            "id": "1",
+                            "source": "$image",
+                            "to_name": "img",
+                            "type": "rectanglelabels",
+                            "value": {
+                                "height": 11.612284069097889,
+                                "rectanglelabels": [
+                                    "Hello"
+                                ],
+                                "rotation": 0,
+                                "width": 39.6,
+                                "x": 13.2,
+                                "y": 34.702495201535505
+                            }
+                        }
+                    ]
+                },
+                {
+                    "model_version": "model 2",
+                    "created_ago": "4 hours",
+                    "result": [
+                        {
+                            "from_name": "tag",
+                            "id": "t5sp3TyXPo",
+                            "source": "$image",
+                            "to_name": "img",
+                            "type": "rectanglelabels",
+                            "value": {
+                                "height": 33.61228406909789,
+                                "rectanglelabels": [
+                                    "World"
+                                ],
+                                "rotation": 0,
+                                "width": 39.6,
+                                "x": 13.2,
+                                "y": 54.702495201535505
+                            }
+                        }
+                    ]
+                }
+        ],
+        "id": 1,
+        "data": {
+            //  "image": 'https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg'
+            "image": f'{data_url}'
+            }
+    }

@@ -31,7 +31,7 @@ for path in sys.path:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection
+
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
