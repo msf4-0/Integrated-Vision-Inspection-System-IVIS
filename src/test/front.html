@@ -197,6 +197,26 @@
             // console.log(annotations.serializeAnnotation());
             // Streamlit.setComponentValue(annotations);
           },
+          onDeleteAnnotation: function (LS, annotations) {
+            console.log("LS Delete:", { LS });
+            let flag = 3; // Delete Annotation Flag
+            let status = "Delete Submission";
+            return_results(annotations, flag, status);
+            // annotations = JSON.parse(JSON.stringify(annotations))
+            // let results = [annotations, flag]
+            // console.log("Updated Annotations", { results })
+            // Streamlit.setComponentValue(results)
+          },
+          onSkipTask: function (LS) {
+            console.log("LS Delete:", { LS });
+            let flag = 4; // Skip Task Flag
+            let status = "Skip Task";
+            return_results({}, flag, status);
+            // annotations = JSON.parse(JSON.stringify(annotations))
+            // let results = [annotations, flag]
+            // console.log("Updated Annotations", { results })
+            // Streamlit.setComponentValue(results)
+          },
         });
       </script>
     </div>

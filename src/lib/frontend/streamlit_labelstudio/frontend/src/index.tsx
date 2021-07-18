@@ -45,13 +45,13 @@ function onRender(event: Event): void {
     user: data.args["user"][0],
     task: data.args["task"],
 
-    onLabelStudioLoad: function (LS) {
+    onLabelStudioLoad: function (LS: any) {
       var c = LS.annotationStore.addAnnotation({
         userGenerate: true,
       })
       LS.annotationStore.selectAnnotation(c.id)
     },
-    onSubmitAnnotation: function (LS, annotations) {
+    onSubmitAnnotation: function (LS: any, annotations: JSON) {
       console.log("LS:", { LS })
       let flag = 1 // New Submission Flag
       let status = "New Submission"
@@ -62,7 +62,7 @@ function onRender(event: Event): void {
       // console.log("Annotations:", { results })
       // console.log(annotations.serializeAnnotation())
     },
-    onUpdateAnnotation: function (LS, annotations) {
+    onUpdateAnnotation: function (LS: any, annotations: JSON) {
       console.log("LS update:", { LS })
       let flag = 2 // Update Submission Flag
       let status = "Update Submission"
@@ -72,10 +72,21 @@ function onRender(event: Event): void {
       // console.log("Updated Annotations", { results })
       // Streamlit.setComponentValue(results)
     },
-    onDeleteAnnotation: function (LS, annotations) {
+    onDeleteAnnotation: function (LS: any, annotations: JSON) {
       console.log("LS Delete:", { LS })
       let flag = 3 // Update Submission Flag
       let status = "Delete Submission"
+      return_results(annotations, flag, status)
+      // annotations = JSON.parse(JSON.stringify(annotations))
+      // let results = [annotations, flag]
+      // console.log("Updated Annotations", { results })
+      // Streamlit.setComponentValue(results)
+    },
+    onSkipTask: function (LS: any) {
+      console.log("LS Delete:", { LS })
+      let flag = 4 // Skip Task Flag
+      let status = "Skip Task"
+      const annotations = {} as JSON //return nothing
       return_results(annotations, flag, status)
       // annotations = JSON.parse(JSON.stringify(annotations))
       // let results = [annotations, flag]

@@ -159,7 +159,8 @@ def main():
         "annotations:menu",
         "annotations:add-new",
         "annotations:delete",
-        "predictions:menu"
+        "predictions:menu",
+        "skip"
     ],
 
     user = {
