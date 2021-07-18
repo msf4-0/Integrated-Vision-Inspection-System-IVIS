@@ -175,7 +175,7 @@ def show(layout='centered'):
     return new_user, has_submitted
 
 
-def write():
+def main():
     # PAGES = {
     #     "CREATE_USER": create_user_page,
     #     "SUCCESS": create_success_page
@@ -191,7 +191,7 @@ def write():
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
 
-        write()
+        main()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
