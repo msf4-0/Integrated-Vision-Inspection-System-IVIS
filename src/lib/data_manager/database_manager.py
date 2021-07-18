@@ -9,14 +9,13 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 import psycopg2
-import logging
 import streamlit as st
 # from config import config
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+# TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
 for path in sys.path:
     if str(LIB_PATH) not in sys.path:
@@ -24,10 +23,10 @@ for path in sys.path:
     else:
         pass
 
-    if str(TEST_MODULE_PATH) not in sys.path:
-        sys.path.insert(0, str(TEST_MODULE_PATH))
-    else:
-        pass
+    # if str(TEST_MODULE_PATH) not in sys.path:
+    #     sys.path.insert(0, str(TEST_MODULE_PATH))
+    # else:
+    #     pass
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
@@ -35,7 +34,7 @@ from core.utils.log import log_info, log_error  # logger
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
-dsn = "host=localhost port=5432 dbname=eye user=shrdc password=shrdc"
+# dsn = "host=localhost port=5432 dbname=eye user=shrdc password=shrdc"
 
 # Initialise Connection to PostgreSQL Database Server
 
@@ -45,7 +44,7 @@ dsn = "host=localhost port=5432 dbname=eye user=shrdc password=shrdc"
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
 def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
     """ Connect to the PostgreSQL database server """
-    conn = None
+
     try:
         # read connection parameters
         # params = config()
@@ -54,22 +53,25 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
         log_info('Connecting to the PostgreSQL database...')
         if kwargs:
             conn = psycopg2.connect(**kwargs)
+
         else:
             conn = psycopg2.connect(dsn, connection_factory, cursor_factory)
 
         # create a cursor
-        cur = conn.cursor()
+        with conn:
+            with conn.cursor() as cur:
 
-        # execute a statement
-        log_info('PostgreSQL database version:')
-        cur.execute('SELECT version()')
+                # execute a statement
+                cur.execute('SELECT version();')
+                conn.commit()
 
-        # display the PostgreSQL database server version
-        db_version = cur.fetchone()
-        log_info(db_version)
-
-        # close the communication with the PostgreSQL
-        cur.close()
+                # display the PostgreSQL database server version
+                db_version = cur.fetchall()[0]
+                log_info(f"PostgreSQL database version: {db_version}")
+                log_info(f"PostgreSQL connection status: {conn.info.status}")
+                log_info(
+                    f"You are connected to database '{conn.info.dbname}' as user '{conn.info.user}' on host '{conn.info.host}' at port '{conn.info.port}'.")
+        return conn
     except (Exception, psycopg2.DatabaseError) as error:
         log_error(error)
         conn = None
@@ -77,7 +79,6 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
     #     if conn is not None:
     #         conn.close()
     #         print('Database connection closed.')
-    return conn
 
 
 def db_uni_query(sql_message, conn):
@@ -97,10 +98,9 @@ def db_fetchone(sql_message, conn):
                 cur.execute(sql_message)
                 conn.commit()
                 return_one = cur.fetchone()  # return tuple
+                return return_one
             except psycopg2.Error as e:
                 log_error(e)
-
-    return return_one
 
 
 def db_fetchall(sql_message, conn):
@@ -110,7 +110,6 @@ def db_fetchall(sql_message, conn):
                 cur.execute(sql_message)
                 conn.commit()
                 return_all = cur.fetchall()  # return array of tuple
+                return return_all
             except psycopg2.Error as e:
                 log_error(e)
-
-    return return_all

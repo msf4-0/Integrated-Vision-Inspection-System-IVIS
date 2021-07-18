@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+import psycopg2
 import pandas as pd
 import numpy as np  # TEMP for table viz
 import streamlit as st
@@ -40,9 +41,10 @@ for path in sys.path:
 from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection
+from data_manager.database_manager import init_connection, db_fetchone
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
-conn = init_connection(**st.secrets["postgres"])  # connect to database
+# initialise connection to Database
+conn = init_connection(**st.secrets["postgres"])
 
 # >>>> Variable Declaration
 new_dataset = {}  # store
@@ -70,8 +72,6 @@ def show():
         st.markdown("""___""")
 
     # <<<< START <<<<
-
-    conn = init_connection()  # initialise connection to Database
 
     if "current_page" not in SessionState:  # KIV
         SessionState.current_page = "All Datasets"
@@ -224,7 +224,6 @@ def show():
 
 def main():
     show()
-
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

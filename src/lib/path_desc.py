@@ -10,7 +10,6 @@ Description:
 import sys
 import os
 from pathlib import Path
-import logging
 from core.utils.log import log_info, log_error  # logger
 
 # ./image_labelling_shrdc
