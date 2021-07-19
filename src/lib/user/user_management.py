@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+from enum import IntEnum
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 TEST_MODULE_PATH_PARENT = SRC / "test" / "test_page"
@@ -43,12 +44,13 @@ def init_connection():
 
 conn = init_connection()
 
-# User Status
-NEW = 0  # Pending account activation
-ACTIVE = 1  # Account activated
-LOCKED = 2  # Account locked
-LOGGED_IN = 3  # Account logged-in
-LOGGED_OUT = 4  # Account logged-out
+
+class ACCOUNT_STATUS(IntEnum):  # User Status
+    NEW = 0  # Pending account activation
+    ACTIVE = 1  # Account activated
+    LOCKED = 2  # Account locked
+    LOGGED_IN = 3  # Account logged-in
+    LOGGED_OUT = 4  # Account logged-out
 
 
 # TODO: move to form_manager

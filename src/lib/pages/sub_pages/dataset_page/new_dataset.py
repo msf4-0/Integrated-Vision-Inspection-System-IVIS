@@ -94,13 +94,6 @@ def show():
     st.write("# __Add New Dataset__")
     st.markdown("___")
 
-    # TODO:REMOVE
-    # Session State store new dataset ID
-    # if 'project_id' not in SessionState:
-    # set random dataset ID before getting actual from Database
-    # SessionState.project_id = get_random_string(length=8)
-    # reference to dataset ID session state
-    # SessionState.new_dataset["id"] = SessionState.project_id
 
     # right-align the dataset ID relative to the page
     id_blank, id_right = st.beta_columns([3, 1])
@@ -222,8 +215,13 @@ def show():
         st.write(SessionState.new_dataset)
 
 
+from stqdm import stqdm
+from time import sleep
+
+
 def main():
     show()
+
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
