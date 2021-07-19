@@ -67,7 +67,6 @@ def show():
 
     chdir_root()  # change to root directory
 
-    # >>>> START >>>>
     with st.sidebar.beta_container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -78,37 +77,25 @@ def show():
             "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
         st.markdown("""___""")
 
-    # <<<< START <<<<
-    activation_place = st.empty()
-    if layout == 'wide':
-        col1, col2, col3 = activation_place.beta_columns([1, 3, 1])
-    else:
-        col2 = activation_place
-    user={}
-    with col2.form(key="activate", clear_on_submit=True):
-        st.write("Hi")
-        user["username"] = st.text_input(
-            "Username", key="username", help="Enter your username")
-        # login_field_place["username"] = st.empty()
-        submit_login = st.form_submit_button("Log In")
-
-
+    # ******** SESSION STATE ********
     if "current_page" not in session_state:
         session_state.previous_page = "All Datasets"
 
     if "new_dataset" not in session_state:
-        session_state.new_dataset = NewDataset(get_random_string(length=8))
-        # SessionState.new_dataset["id"] = get_random_string(length=8)
         # set random dataset ID before getting actual from Database
-    st.write(session_state.new_dataset.dataset_id)
-    # >>>> Dataset Sidebar >>>>
+        session_state.new_dataset = NewDataset(get_random_string(length=8))
+        session_state.data_source = "File Upload 📂"
+
+    # ******** SESSION STATE ********
+
+    # >>>> Dataset SIDEBAR >>>>
     project_page_options = ("All Datasets", "New Dataset")
     with st.sidebar.beta_expander("Dataset Page", expanded=True):
         session_state.current_page = st.radio("project_page_select", options=project_page_options,
                                               index=0)
-    # <<<< Dataset Sidebar <<<<
+    # <<<< Dataset SIDEBAR <<<<
 
-    # >>>> New Dataset MAIN >>>>
+    # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
     st.write("# __Add New Dataset__")
     st.markdown("___")
@@ -118,46 +105,53 @@ def show():
     id_right.write(
         f"### __Dataset ID:__ {session_state.new_dataset.dataset_id}")
 
-    create_project_place = st.empty()
-    # if layout == 'wide':
-    #     col1, col2, col3 = create_project_place.beta_columns([1, 3, 1])
-    # else:
-    #     col2 = create_project_place
-    outercol1,outercol2=create_project_place.beta_columns(2)
-    with outercol1.beta_container():
-        st.write("## __Dataset Information :__")
+    create_dataset_place = st.empty()
+    if layout == 'wide':
+        outercol1, outercol2, outercol3 = create_dataset_place.beta_columns([
+                                                                            1, 3, 1])
+    else:
+        outercol2 = create_dataset_place
 
-        session_state.new_dataset.title = st.text_input(
+    with st.beta_container():
+        outercol1.write("## __Dataset Information :__")
+
+        session_state.new_dataset.title = outercol2.text_input(
             "Dataset Title", key="title", help="Enter the name of the dataset")
-        place["title"] = st.empty()
+        place["title"] = outercol2.empty()
 
         # **** Dataset Description (Optional) ****
-        session_state.new_dataset.desc = st.text_area(
+        session_state.new_dataset.desc = outercol2.text_area(
             "Description (Optional)", key="desc", help="Enter the description of the dataset")
         place["title"] = st.empty()
 
-        session_state.new_dataset.deployment_type = st.selectbox(
+        deployment_type = outercol2.selectbox(
             "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
-        place["deployment_type"] = st.empty()
 
-    # >>>> Dataset Upload
+        if deployment_type is not None:
+            session_state.new_dataset.deployment_type = deployment_type
+            session_state.new_dataset.query_deployment_id()
+
+        else:
+            pass
+
+        place["deployment_type"] = outercol2.empty()
+
+    # <<<<<<<< New Dataset INFO <<<<<<<<
+
+    # >>>>>>>> New Dataset Upload >>>>>>>>
     # with st.beta_container():
-
+    upload_dataset_place = st.empty()
+    if layout == 'wide':
+        outercol1, outercol2, outercol3 = upload_dataset_place.beta_columns([
+                                                                            1, 3, 1])
+    else:
+        outercol2 = upload_dataset_place
     if 'webcam_flag' not in session_state:
         session_state.webcam_flag = False
         session_state.file_upload_flag = False
         # session_state.img1=True
 
-    # TODO: Remove
-    # def update_webcam_flag():
-    #     session_state.webcam_flag = True
-    #     session_state.file_upload_flag = False
-
-    # def update_file_uploader_flag():
-    #     session_state.webcam_flag = False
-    #     session_state.file_upload_flag = True
-    # st.button()
-    outercol2.write("## __Dataset Upload:__")
+    outercol1.write("## __Dataset Upload:__")
     data_source_options = ["Webcam 📷", "File Upload 📂"]
     # col1, col2 = st.beta_columns(2)
     data_source = outercol2.radio(
@@ -167,10 +161,11 @@ def show():
     col1, col2, col3 = st.beta_columns([1, 3, 1])
 
     if data_source == 0:
-        with col2:
+        with outercol2:
             webcam_webrtc.app_loopback()
+
     elif data_source == 1:
-        uploaded_files_multi = col2.file_uploader(
+        uploaded_files_multi = outercol2.file_uploader(
             label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
         if uploaded_files_multi:
             dataset_size = len(uploaded_files_multi)
@@ -185,17 +180,20 @@ def show():
                 for image in uploaded_files_multi:
                     imgcol1.image(uploaded_files_multi[1])
 
+            # TODO: KIV
+
             # col1, col2, col3 = st.beta_columns([1, 1, 7])
             # webcam_button = col1.button(
             #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
             # file_upload_button = col2.button(
             #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
 
+    # <<<<<<<< New Dataset Upload <<<<<<<<
         # **** Submit Button ****
-        col1, col2 = st.beta_columns([3, 0.5])
-        submit_button = col2.button("Submit", key="submit")
+    submit_col1, submit_col2 = st.beta_columns([3, 0.5])
+    submit_button = submit_col2.button("Submit", key="submit")
 
-        st.write(vars(session_state.new_dataset))
+    st.write(vars(session_state.new_dataset))
 
 
 def main():

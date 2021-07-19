@@ -8,6 +8,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from typing import Union
+import psycopg2
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -47,10 +48,11 @@ class BaseDataset:
         self.title: str = ""
         self.desc: str = ""
         self.file_type: str = None
-        self.dataset_size: int = None
+        self.dataset_size: int = None  # Number of files
         self.dataset_path: str = None
         self.deployment_id: Union[str, int] = None
         self.deployment_type: str = ' '
+        self.dataset = []
 
     def check_if_field_empty(self, field, field_placeholder):
         empty_fields = []
@@ -72,6 +74,7 @@ class NewDataset(BaseDataset):
     def __init__(self, dataset_id) -> None:
         # init BaseDataset -> Temporary dataset ID from random gen
         super().__init__(dataset_id)
+        self.dataset_total_filesize = 0  # in byte-size
 
     def query_deployment_id(self) -> int:
         query_id_SQL = """
@@ -80,8 +83,14 @@ class NewDataset(BaseDataset):
                         FROM
                             public.deployment_type
                         WHERE
-                            name = %s;""", [self.deployment_type]
-        self.deployment_id = db_fetchone(query_id_SQL, conn)
+                            name = %s;
+                        """
+        if self.deployment_type is not None and self.deployment_type != '':
+
+            self.deployment_id = db_fetchone(
+                query_id_SQL, [self.deployment_type], conn)[0]
+        else:
+            self.deployment_id = None
 
     def create_dataset_directory(self):
         print("Hi")

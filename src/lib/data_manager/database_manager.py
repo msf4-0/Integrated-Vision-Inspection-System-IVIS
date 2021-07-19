@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import psycopg2
 import streamlit as st
+from typing import List, Dict
 # from config import config
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -91,11 +92,11 @@ def db_uni_query(sql_message, conn):
                 log_error(e)
 
 
-def db_fetchone(sql_message, conn):
+def db_fetchone(sql_message, vars: List, conn):
     with conn:
         with conn.cursor() as cur:
             try:
-                cur.execute(sql_message)
+                cur.execute(sql_message, vars)
                 conn.commit()
                 return_one = cur.fetchone()  # return tuple
                 return return_one
