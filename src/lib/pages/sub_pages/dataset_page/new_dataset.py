@@ -107,17 +107,17 @@ def show():
         f"### __Dataset ID:__ {session_state.new_dataset.dataset_id}")
 
     create_dataset_place = st.empty()
-    if layout == 'wide':
-        outercol1, outercol2, outercol3 = st.beta_columns([1, 3, 1])
-    else:
-        outercol2 = create_dataset_place
+    # if layout == 'wide':
+    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
+    # else:
+    #     outercol2 = st.beta_columns(1)
 
     # with st.beta_container():
     outercol1.write("## __Dataset Information :__")
 
-    session_state.new_dataset.title = outercol2.text_input(
-        "Dataset Title", key="title", help="Enter the name of the dataset")
-    place["title"] = outercol2.empty()
+    session_state.new_dataset.name = outercol2.text_input(
+        "Dataset Title", key="name", help="Enter the name of the dataset")
+    place["name"] = outercol2.empty()
 
     # **** Dataset Description (Optional) ****
     session_state.new_dataset.desc = outercol2.text_area(
@@ -129,6 +129,7 @@ def show():
     if deployment_type is not None:
         session_state.new_dataset.deployment_type = deployment_type
         session_state.new_dataset.query_deployment_id()
+        st.write(session_state.new_dataset.deployment_id)
 
     else:
         pass
@@ -140,41 +141,54 @@ def show():
     # >>>>>>>> New Dataset Upload >>>>>>>>
     # with st.beta_container():
 
-    upload_dataset_place = st.empty()
-    if layout == 'wide':
-        outercol1, outercol2, outercol3 = upload_dataset_place.beta_columns([
-                                                                            1, 3, 1])
-    else:
-        outercol2 = upload_dataset_place
-    if 'webcam_flag' not in session_state:
-        session_state.webcam_flag = False
-        session_state.file_upload_flag = False
-        # session_state.img1=True
+    # upload_dataset_place = st.empty()
+    # if layout == 'wide':
+    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
+    # else:
+    # pass
+    # if 'webcam_flag' not in session_state:
+    #     session_state.webcam_flag = False
+    #     session_state.file_upload_flag = False
+    #     # session_state.img1=True
 
     outercol1.write("## __Dataset Upload:__")
     data_source_options = ["Webcam 📷", "File Upload 📂"]
     # col1, col2 = st.beta_columns(2)
     data_source = outercol2.radio(
-        "Data Source", options=data_source_options, key="data_source")
+        "Data Source", options=data_source_options, key="data_source_radio")
     data_source = data_source_options.index(data_source)
+    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 2, 2])
+    dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
+    dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
+    outercol3.markdown(" ____ ")
+    dataset_size_place = outercol3.empty()
+    dataset_size_place.write(dataset_size_string)
+    dataset_filesize_place = outercol3.empty()
+    dataset_filesize_place.write(dataset_filesize_string)
 
-    col1, col2, col3 = st.beta_columns([1, 3, 1])
-
+    outercol3.markdown(" ____ ")
     # TODO:KIV
-    # if data_source == 0:
-    #     with outercol2:
-    #         webcam_webrtc.app_loopback()
+    if data_source == 0:
+        with outercol2:
+            webcam_webrtc.app_loopback()
 
-    # elif data_source == 1:
-    uploaded_files_multi = outercol2.file_uploader(
-        label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
-    if uploaded_files_multi:
-        
-        dataset_size = len(uploaded_files_multi)
-        st.write(dataset_size)
-        file_size = bytes_divisor(
-            (uploaded_files_multi[0].size), -2)
-        outercol2.image(uploaded_files_multi[0])
+    elif data_source == 1:
+        uploaded_files_multi = outercol2.file_uploader(
+            label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload_widget")
+        place["upload"] = outercol2.empty()
+        if uploaded_files_multi:
+            session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
+            session_state.new_dataset.dataset_size = len(
+                uploaded_files_multi)  # length of uploaded files
+            dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
+            dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
+
+            outercol2.image(uploaded_files_multi[0])
+            dataset_size_place.write(dataset_size_string)
+            dataset_filesize_place.write(dataset_filesize_string)
+
+            st.write(uploaded_files_multi)
+
         # with st.beta_expander("Data Viewer", expanded=False):
         #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
         #     imgcol1.checkbox("img1", key="img1")
@@ -188,10 +202,10 @@ def show():
         #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
         # file_upload_button = col2.button(
         #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
-    place["upload"] = outercol2.empty()
+
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # **** Submit Button ****
-    field = [session_state.new_dataset.title,
+    field = [session_state.new_dataset.name,
              session_state.new_dataset.deployment_id, session_state.new_dataset.dataset]
     st.write(field)
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
@@ -203,7 +217,7 @@ def show():
         if session_state.new_dataset.has_submitted:
             # TODO: Upload to database
             st.success(""" Successfully created new dataset: {0}.
-                            """.format(session_state.new_dataset.title))
+                            """.format(session_state.new_dataset.name))
             session_state.new_dataset = NewDataset()
 
     st.write(vars(session_state.new_dataset))

@@ -33,7 +33,7 @@ for path in sys.path:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone
-
+from core.utils.file_handler import bytes_divisor
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -45,13 +45,13 @@ conn = init_connection(**st.secrets["postgres"])
 class BaseDataset:
     def __init__(self, dataset_id) -> None:
         self.dataset_id = dataset_id
-        self.title: str = ""
-        self.desc: str = ""
+        self.name: str = None
+        self.desc: str = None
         self.file_type: str = None
         self.dataset_size: int = None  # Number of files
         self.dataset_path: str = None
         self.deployment_id: Union[str, int] = None
-        self.deployment_type: str = ' '
+        self.deployment_type: str = None
         self.dataset = []
 
 
@@ -83,7 +83,7 @@ class NewDataset(BaseDataset):
 
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
-        keys = ["title", "deployment_type", "upload"]
+        keys = ["name", "deployment_type", "upload"]
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
         for i in field:
             if i:
@@ -96,6 +96,56 @@ class NewDataset(BaseDataset):
                 empty_fields.append(keys[idx])
 
         return not empty_fields
+
+    def calc_total_filesize(self):
+        if self.dataset:
+            self.dataset_total_filesize = 0
+            for data in self.dataset:
+                self.dataset_total_filesize += data.size
+            # To get size in MB
+            self.dataset_total_filesize = bytes_divisor(
+                self.dataset_total_filesize, -2)
+        return self.dataset_total_filesize
+
+    def check_if_exist(self):
+        check_exist_SQL = """
+                            SELECT
+                                EXISTS (
+                                    SELECT
+                                        name
+                                    FROM
+                                        public.dataset
+                                    WHERE
+                                        name = %s);
+                        """
+        exist_status=db_fetchone(check_exist_SQL,self.name)
+    def insert_dataset(self):
+        insert_dataset_SQL = """
+                                INSERT INTO public.dataset (
+                                    name,
+                                    description,
+                                    file_type,
+                                    dataset_path,
+                                    dataset_size,
+                                    deployment_id)
+                                VALUES (
+                                    %s,
+                                    %s,
+                                    %s,
+                                    %s,
+                                    %s,
+                                    %s)
+                                RETURNING
+                                    id;
+                            """
+        insert_dataset_vars = [self.name, self.desc,
+                               self.file_type, self.file_type, self.dataset_path, self.dataset_size, self.deployment_id]
+        self.dataset_id = db_fetchone(
+            insert_dataset_SQL, insert_dataset_vars, conn)[0]
+        return self.dataset_id
+
+    def save_dataset(self):
+        
 
 
 def main():
