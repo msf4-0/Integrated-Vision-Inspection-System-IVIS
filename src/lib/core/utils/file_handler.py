@@ -21,17 +21,20 @@ import tarfile
 import sys
 from typing import Union
 
-#--------------------Logger-------------------------#
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
+SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
 
-log = logging.getLogger()
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
-#----------------------------------------------------#
+# >>>> User-defined Modules >>>>
+from path_desc import chdir_root
+from core.utils.log import log_info, log_error  # logger
+# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 
 def bytes_divisor(value: Union[int, float], power: int = 1) -> Union[int, float]:
@@ -100,6 +103,21 @@ def i_file_search(path=str(Path.home()), recursive=False):
     for file in iglob(pathname=path, recursive=recursive):
         file_list.append(file)
     return file_list
+
+#-----------FILE STORAGE-------------------#
+
+
+def create_folder_if_not_exist(path: Path) -> None:
+    path = Path(path)
+    if not path.is_dir():
+        try:
+            path.mkdir(parents=True)
+            log_info(f"Created Directory at {str(path)}")
+        except FileExistsError as e:
+            log_info(f"Directory already exists: {e}")
+    else:
+        log_info(f"Directory already exist")
+        pass
 
 
 def json_load(file, int_keys=False):
@@ -280,13 +298,13 @@ def file_archive(archive_filename, target_root_dir, target_base_dir, archive_ext
         archive_extension)  # get archive file extension
 
     if target_filename.is_file():
-        log.info("Path is file")
+        log_info("Path is file")
         single_file_archiver(
             archive_filename, target_filename, target_root_dir,
             target_base_dir, archive_extension)
 
     elif target_filename.is_dir():
-        log.info("Path is directory")
+        log_info("Path is directory")
         batch_file_archiver(archive_filename, target_root_dir,
                             target_base_dir, archive_format)
 

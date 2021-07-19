@@ -183,12 +183,12 @@ def show():
             dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
             dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
 
-            outercol2.image(uploaded_files_multi[0])
+            outercol2.write(uploaded_files_multi[0])
             dataset_size_place.write(dataset_size_string)
             dataset_filesize_place.write(dataset_filesize_string)
-
-            st.write(uploaded_files_multi)
-
+            for img in session_state.new_dataset.dataset:
+                st.write(img.name)
+            
         # with st.beta_expander("Data Viewer", expanded=False):
         #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
         #     imgcol1.checkbox("img1", key="img1")
@@ -211,14 +211,21 @@ def show():
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
     if submit_button:
-        session_state.new_dataset.check_if_field_empty(
+        session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
             field, field_placeholder=place)
 
         if session_state.new_dataset.has_submitted:
             # TODO: Upload to database
             st.success(""" Successfully created new dataset: {0}.
                             """.format(session_state.new_dataset.name))
-            session_state.new_dataset = NewDataset()
+            try:
+                session_state.new_dataset.save_dataset()
+                st.success(
+                    f"Successfully created **{session_state.new_dataset.name}** dataset")
+            except Exception as e:
+                st.error(f"{e} occured")
+
+                # session_state.pop('new_dataset', None)  # reset
 
     st.write(vars(session_state.new_dataset))
 

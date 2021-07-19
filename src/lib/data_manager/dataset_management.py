@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Union, List
 import psycopg2
+from PIL import Image
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -33,7 +34,8 @@ for path in sys.path:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone
-from core.utils.file_handler import bytes_divisor
+from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
+from core.utils.helper import split_string, join_string
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -49,7 +51,7 @@ class BaseDataset:
         self.desc: str = None
         self.file_type: str = None
         self.dataset_size: int = None  # Number of files
-        self.dataset_path: str = None
+        self.dataset_path: Path = None
         self.deployment_id: Union[str, int] = None
         self.deployment_type: str = None
         self.dataset = []
@@ -78,18 +80,17 @@ class NewDataset(BaseDataset):
         else:
             self.deployment_id = None
 
-    def create_dataset_directory(self):
-        print("Hi")
-
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
         keys = ["name", "deployment_type", "upload"]
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
         for i in field:
             if i:
+
                 pass
 
             else:
+
                 idx = field.index(i)
                 field_placeholder[keys[idx]].error(
                     f"Please do not leave field blank")
@@ -118,7 +119,8 @@ class NewDataset(BaseDataset):
                                     WHERE
                                         name = %s);
                         """
-        exist_status=db_fetchone(check_exist_SQL,self.name)
+        exist_status = db_fetchone(check_exist_SQL, self.name)
+
     def insert_dataset(self):
         insert_dataset_SQL = """
                                 INSERT INTO public.dataset (
@@ -144,8 +146,38 @@ class NewDataset(BaseDataset):
             insert_dataset_SQL, insert_dataset_vars, conn)[0]
         return self.dataset_id
 
-    def save_dataset(self):
-        
+    def dataset_PNG_encoding(self):
+        if self.dataset:
+            for img in self.dataset:
+                img_name = img.name
+                log_info(img.name)
+                save_path = Path(self.dataset_path) / str(img_name)
+                try:
+                    pil_img = Image.open(img)
+                    pil_img.save(save_path)
+                except ValueError as e:
+                    log_error(f"{e}: Could not reolve output format")
+                except OSError as e:
+                    log_error(
+                        f"{e}: Failed to create file. File may exist or contain partial data")
+                else:
+                    log_info(
+                        f"Successfully stored '{str(img_name)}' in '{str(self.dataset_path)}' ")
+                    return True
+
+    def save_dataset(self) -> bool:
+        directory_name = self.name
+        directory_name = directory_name.lower()  # change name to lowercase
+        # join directory name with '-' dash
+        directory_name = join_string(split_string(str(self.name)))
+        self.dataset_path = Path.home() / '.local' / 'share' / \
+            'integrated-vision-inspection-system' / \
+            'app_media' / 'dataset' / str(directory_name)
+        # self.dataset_path = Path(self.dataset_path)
+        create_folder_if_not_exist(self.dataset_path)
+        self.dataset_PNG_encoding()
+        st.success(f"Successfully created **{self.name}** dataset")
+        return self.dataset_path
 
 
 def main():
