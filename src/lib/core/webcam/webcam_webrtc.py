@@ -47,7 +47,7 @@ WEBRTC_CLIENT_SETTINGS = ClientSettings(
         {"urls": ["stun:stun.l.google.com:19302"]}]},
     media_stream_constraints={
         "video": True,
-        "audio": True,
+        "audio": False,
     },
 )
 # <<<< Setup WebRTC <<<<

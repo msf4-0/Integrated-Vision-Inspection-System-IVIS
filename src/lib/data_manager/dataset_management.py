@@ -44,13 +44,13 @@ conn = init_connection(**st.secrets["postgres"])
 class BaseDataset:
     def __init__(self, dataset_id) -> None:
         self.dataset_id = dataset_id
-        self.title: str = None
-        self.desc: str = None
+        self.title: str = ""
+        self.desc: str = ""
         self.file_type: str = None
         self.dataset_size: int = None
         self.dataset_path: str = None
         self.deployment_id: Union[str, int] = None
-        self.deployment_type: str = None
+        self.deployment_type: str = ' '
 
     def check_if_field_empty(self, field, field_placeholder):
         empty_fields = []

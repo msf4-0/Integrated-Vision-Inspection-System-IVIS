@@ -44,12 +44,7 @@ from core.utils.log import log_info, log_error  # logger
 from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.dataset_management import NewDataset
-from streamlit_webrtc import (
-    ClientSettings,
-    VideoProcessorBase,
-    WebRtcMode,
-    webrtc_streamer,
-)
+from core.utils.file_handler import bytes_divisor
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -68,27 +63,6 @@ class Random(IntEnum):
     Masks = 4
 
 
-# >>>> Setup WebRTC >>>>
-WEBRTC_CLIENT_SETTINGS = ClientSettings(
-    rtc_configuration={"iceServers": [
-        {"urls": ["stun:stun.l.google.com:19302"]}]},
-    media_stream_constraints={
-        "video": True,
-        "audio": False,
-    },
-)
-
-
-def launch_webcam():
-    """ Simple video loopback """
-    webrtc_streamer(
-        key="loopback",
-        mode=WebRtcMode.SENDRECV,
-        client_settings=WEBRTC_CLIENT_SETTINGS,
-        video_processor_factory=None,  # NoOp
-    )
-
-
 def show():
 
     chdir_root()  # change to root directory
@@ -105,6 +79,19 @@ def show():
         st.markdown("""___""")
 
     # <<<< START <<<<
+    activation_place = st.empty()
+    if layout == 'wide':
+        col1, col2, col3 = activation_place.beta_columns([1, 3, 1])
+    else:
+        col2 = activation_place
+    user={}
+    with col2.form(key="activate", clear_on_submit=True):
+        st.write("Hi")
+        user["username"] = st.text_input(
+            "Username", key="username", help="Enter your username")
+        # login_field_place["username"] = st.empty()
+        submit_login = st.form_submit_button("Log In")
+
 
     if "current_page" not in session_state:
         session_state.previous_page = "All Datasets"
@@ -136,7 +123,8 @@ def show():
     #     col1, col2, col3 = create_project_place.beta_columns([1, 3, 1])
     # else:
     #     col2 = create_project_place
-    with create_project_place.beta_container():
+    outercol1,outercol2=create_project_place.beta_columns(2)
+    with outercol1.beta_container():
         st.write("## __Dataset Information :__")
 
         session_state.new_dataset.title = st.text_input(
@@ -152,35 +140,56 @@ def show():
             "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
         place["deployment_type"] = st.empty()
 
-        # >>>> Dataset Upload
-        with st.beta_container():
+    # >>>> Dataset Upload
+    # with st.beta_container():
 
-            if 'webcam_flag' not in session_state:
-                session_state.webcam_flag = False
-                session_state.file_upload_flag = False
+    if 'webcam_flag' not in session_state:
+        session_state.webcam_flag = False
+        session_state.file_upload_flag = False
+        # session_state.img1=True
 
-            def update_webcam_flag():
-                session_state.webcam_flag = True
-                session_state.file_upload_flag = False
+    # TODO: Remove
+    # def update_webcam_flag():
+    #     session_state.webcam_flag = True
+    #     session_state.file_upload_flag = False
 
-            def update_file_uploader_flag():
-                session_state.webcam_flag = False
-                session_state.file_upload_flag = True
-            # st.button()
-            st.write("## __Dataset Upload:__")
-            col1, col2, col3 = st.beta_columns([1, 1, 7])
-            webcam_button = col1.button(
-                "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
-            file_upload_button = col2.button(
-                "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
+    # def update_file_uploader_flag():
+    #     session_state.webcam_flag = False
+    #     session_state.file_upload_flag = True
+    # st.button()
+    outercol2.write("## __Dataset Upload:__")
+    data_source_options = ["Webcam 📷", "File Upload 📂"]
+    # col1, col2 = st.beta_columns(2)
+    data_source = outercol2.radio(
+        "Data Source", options=data_source_options, key="data_source")
+    data_source = data_source_options.index(data_source)
 
-            col1, col2 = st.beta_columns(2)
-            if session_state.webcam_flag:
-                with col1:
-                    webcam_webrtc.app_loopback()
-            elif session_state.file_upload_flag:
-                uploaded_files_multi = col1.file_uploader(
-                    label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
+    col1, col2, col3 = st.beta_columns([1, 3, 1])
+
+    if data_source == 0:
+        with col2:
+            webcam_webrtc.app_loopback()
+    elif data_source == 1:
+        uploaded_files_multi = col2.file_uploader(
+            label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
+        if uploaded_files_multi:
+            dataset_size = len(uploaded_files_multi)
+            st.write(dataset_size)
+            file_size = bytes_divisor(
+                (uploaded_files_multi[0].size), -2)
+            col2.write(file_size)
+            # col2.image(uploaded_files_multi[0])
+            with st.beta_expander("Data Viewer", expanded=False):
+                imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
+                imgcol1.checkbox("img1", key="img1")
+                for image in uploaded_files_multi:
+                    imgcol1.image(uploaded_files_multi[1])
+
+            # col1, col2, col3 = st.beta_columns([1, 1, 7])
+            # webcam_button = col1.button(
+            #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
+            # file_upload_button = col2.button(
+            #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
 
         # **** Submit Button ****
         col1, col2 = st.beta_columns([3, 0.5])

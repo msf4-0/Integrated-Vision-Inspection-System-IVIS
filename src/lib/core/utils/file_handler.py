@@ -19,6 +19,7 @@ import logging
 from zipfile import ZipFile
 import tarfile
 import sys
+from typing import Union
 
 #--------------------Logger-------------------------#
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
@@ -31,6 +32,22 @@ logging.basicConfig(format=FORMAT, level=logging.INFO,
 log = logging.getLogger()
 
 #----------------------------------------------------#
+
+
+def bytes_divisor(value: Union[int, float], power: int = 1) -> Union[int, float]:
+    """Convert bytes size 
+
+    Args:
+        value (Union[int,float]): bytes size value
+        power (int, optional): Conversion power (2^power bytes). Defaults to 1.
+
+    Returns:
+        Union[int,float]: Converted bytes size value
+    """
+    byte_unit = 1024
+    converted_byte = value * (byte_unit**(power))
+    return converted_byte
+
 
 #-----------JSON PARSER-------------------#
 
