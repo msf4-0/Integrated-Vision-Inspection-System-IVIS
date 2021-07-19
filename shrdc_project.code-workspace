@@ -21,6 +21,7 @@
     ],
     "python.analysis.completeFunctionParens": true,
     "python.formatting.autopep8Args": ["--ignore", "E402"],
-    "python.languageServer": "Pylance"
+    "python.languageServer": "Pylance",
+    "python.autoComplete.addBrackets": true
   }
 }

@@ -7,14 +7,10 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+from typing import Union
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
-
-# DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -35,7 +31,7 @@ for path in sys.path:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection
+from data_manager.database_manager import init_connection, db_fetchone
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
@@ -46,13 +42,15 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 class BaseDataset:
-    def __init__(self) -> None:
+    def __init__(self, dataset_id) -> None:
+        self.dataset_id = dataset_id
         self.title: str = None
         self.desc: str = None
         self.file_type: str = None
         self.dataset_size: int = None
         self.dataset_path: str = None
-        self.deployment_id: int = None
+        self.deployment_id: Union[str, int] = None
+        self.deployment_type: str = None
 
     def check_if_field_empty(self, field, field_placeholder):
         empty_fields = []
@@ -71,8 +69,22 @@ class BaseDataset:
 
 
 class NewDataset(BaseDataset):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, dataset_id) -> None:
+        # init BaseDataset -> Temporary dataset ID from random gen
+        super().__init__(dataset_id)
+
+    def query_deployment_id(self) -> int:
+        query_id_SQL = """
+                        SELECT
+                            id
+                        FROM
+                            public.deployment_type
+                        WHERE
+                            name = %s;""", [self.deployment_type]
+        self.deployment_id = db_fetchone(query_id_SQL, conn)
+
+    def create_dataset_directory(self):
+        print("Hi")
 
 
 def main():
