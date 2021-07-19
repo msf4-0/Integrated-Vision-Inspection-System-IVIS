@@ -11,6 +11,7 @@ import psycopg2
 import pandas as pd
 import numpy as np  # TEMP for table viz
 from enum import IntEnum
+from copy import deepcopy
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -50,7 +51,7 @@ from core.utils.file_handler import bytes_divisor
 conn = init_connection(**st.secrets["postgres"])
 
 # >>>> Variable Declaration
-new_dataset = {}  # store
+# new_dataset = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
@@ -107,39 +108,38 @@ def show():
 
     create_dataset_place = st.empty()
     if layout == 'wide':
-        outercol1, outercol2, outercol3 = create_dataset_place.beta_columns([
-                                                                            1, 3, 1])
+        outercol1, outercol2, outercol3 = st.beta_columns([1, 3, 1])
     else:
         outercol2 = create_dataset_place
 
-    with st.beta_container():
-        outercol1.write("## __Dataset Information :__")
+    # with st.beta_container():
+    outercol1.write("## __Dataset Information :__")
 
-        session_state.new_dataset.title = outercol2.text_input(
-            "Dataset Title", key="title", help="Enter the name of the dataset")
-        place["title"] = outercol2.empty()
+    session_state.new_dataset.title = outercol2.text_input(
+        "Dataset Title", key="title", help="Enter the name of the dataset")
+    place["title"] = outercol2.empty()
 
-        # **** Dataset Description (Optional) ****
-        session_state.new_dataset.desc = outercol2.text_area(
-            "Description (Optional)", key="desc", help="Enter the description of the dataset")
-        place["title"] = st.empty()
+    # **** Dataset Description (Optional) ****
+    session_state.new_dataset.desc = outercol2.text_area(
+        "Description (Optional)", key="desc", help="Enter the description of the dataset")
 
-        deployment_type = outercol2.selectbox(
-            "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
+    deployment_type = outercol2.selectbox(
+        "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
 
-        if deployment_type is not None:
-            session_state.new_dataset.deployment_type = deployment_type
-            session_state.new_dataset.query_deployment_id()
+    if deployment_type is not None:
+        session_state.new_dataset.deployment_type = deployment_type
+        session_state.new_dataset.query_deployment_id()
 
-        else:
-            pass
+    else:
+        pass
 
-        place["deployment_type"] = outercol2.empty()
+    place["deployment_type"] = outercol2.empty()
 
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
     # >>>>>>>> New Dataset Upload >>>>>>>>
     # with st.beta_container():
+
     upload_dataset_place = st.empty()
     if layout == 'wide':
         outercol1, outercol2, outercol3 = upload_dataset_place.beta_columns([
@@ -160,38 +160,51 @@ def show():
 
     col1, col2, col3 = st.beta_columns([1, 3, 1])
 
-    if data_source == 0:
-        with outercol2:
-            webcam_webrtc.app_loopback()
+    # TODO:KIV
+    # if data_source == 0:
+    #     with outercol2:
+    #         webcam_webrtc.app_loopback()
 
-    elif data_source == 1:
-        uploaded_files_multi = outercol2.file_uploader(
-            label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
-        if uploaded_files_multi:
-            dataset_size = len(uploaded_files_multi)
-            st.write(dataset_size)
-            file_size = bytes_divisor(
-                (uploaded_files_multi[0].size), -2)
-            col2.write(file_size)
-            # col2.image(uploaded_files_multi[0])
-            with st.beta_expander("Data Viewer", expanded=False):
-                imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
-                imgcol1.checkbox("img1", key="img1")
-                for image in uploaded_files_multi:
-                    imgcol1.image(uploaded_files_multi[1])
+    # elif data_source == 1:
+    uploaded_files_multi = outercol2.file_uploader(
+        label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload")
+    if uploaded_files_multi:
+        
+        dataset_size = len(uploaded_files_multi)
+        st.write(dataset_size)
+        file_size = bytes_divisor(
+            (uploaded_files_multi[0].size), -2)
+        outercol2.image(uploaded_files_multi[0])
+        # with st.beta_expander("Data Viewer", expanded=False):
+        #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
+        #     imgcol1.checkbox("img1", key="img1")
+        #     for image in uploaded_files_multi:
+        #         imgcol1.image(uploaded_files_multi[1])
 
-            # TODO: KIV
+        # TODO: KIV
 
-            # col1, col2, col3 = st.beta_columns([1, 1, 7])
-            # webcam_button = col1.button(
-            #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
-            # file_upload_button = col2.button(
-            #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
-
+        # col1, col2, col3 = st.beta_columns([1, 1, 7])
+        # webcam_button = col1.button(
+        #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
+        # file_upload_button = col2.button(
+        #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
+    place["upload"] = outercol2.empty()
     # <<<<<<<< New Dataset Upload <<<<<<<<
-        # **** Submit Button ****
+    # **** Submit Button ****
+    field = [session_state.new_dataset.title,
+             session_state.new_dataset.deployment_id, session_state.new_dataset.dataset]
+    st.write(field)
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
+    if submit_button:
+        session_state.new_dataset.check_if_field_empty(
+            field, field_placeholder=place)
+
+        if session_state.new_dataset.has_submitted:
+            # TODO: Upload to database
+            st.success(""" Successfully created new dataset: {0}.
+                            """.format(session_state.new_dataset.title))
+            session_state.new_dataset = NewDataset()
 
     st.write(vars(session_state.new_dataset))
 

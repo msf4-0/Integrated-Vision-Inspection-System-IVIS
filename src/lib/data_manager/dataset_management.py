@@ -7,7 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union
+from typing import Union, List
 import psycopg2
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -54,27 +54,13 @@ class BaseDataset:
         self.deployment_type: str = ' '
         self.dataset = []
 
-    def check_if_field_empty(self, field, field_placeholder):
-        empty_fields = []
-
-        # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-        for key, value in field.items():
-            if value == "":
-                field_placeholder[key].error(
-                    f"Please do not leave field blank")
-                empty_fields.append(key)
-
-            else:
-                pass
-
-        return not empty_fields
-
 
 class NewDataset(BaseDataset):
     def __init__(self, dataset_id) -> None:
         # init BaseDataset -> Temporary dataset ID from random gen
         super().__init__(dataset_id)
         self.dataset_total_filesize = 0  # in byte-size
+        self.has_submitted = False
 
     def query_deployment_id(self) -> int:
         query_id_SQL = """
@@ -94,6 +80,22 @@ class NewDataset(BaseDataset):
 
     def create_dataset_directory(self):
         print("Hi")
+
+    def check_if_field_empty(self, field: List, field_placeholder):
+        empty_fields = []
+        keys = ["title", "deployment_type", "upload"]
+        # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
+        for i in field:
+            if i:
+                pass
+
+            else:
+                idx = field.index(i)
+                field_placeholder[keys[idx]].error(
+                    f"Please do not leave field blank")
+                empty_fields.append(keys[idx])
+
+        return not empty_fields
 
 
 def main():
