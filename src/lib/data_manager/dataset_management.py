@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Union, List
 import psycopg2
 from PIL import Image
+from time import sleep
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -85,10 +86,18 @@ class NewDataset(BaseDataset):
         keys = ["name", "deployment_type", "upload"]
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
         for i in field:
-            if i:
+            if i and i != "":
+                if field.index(i) == 0:
+                    context = ['name', field[0]]
+                    if self.check_if_exist(context, conn):
+                        field_placeholder[keys[0]].error(
+                            f"Dataset name used. Please enter a new name")
+                        log_error(
+                            f"Dataset name used. Please enter a new name")
+                        empty_fields.append(keys[0])
 
-                pass
-
+                else:
+                    pass
             else:
 
                 idx = field.index(i)
@@ -96,13 +105,13 @@ class NewDataset(BaseDataset):
                     f"Please do not leave field blank")
                 empty_fields.append(keys[idx])
         # check if dataset title exist: field[0]
-        if field[0]:
-            context=['name',field[0]]
-            if self.check_if_exist(context,conn):
-                field_placeholder[keys[0]].error(
-                    f"Dataset name used. Please enter a new name")
-                log_error(f"Dataset name used. Please enter a new name")
-                empty_fields.append(keys[idx])
+        # if field[0]:
+        #     context = ['name', field[0]]
+        #     if self.check_if_exist(context, conn):
+        #         field_placeholder[keys[0]].error(
+        #             f"Dataset name used. Please enter a new name")
+        #         log_error(f"Dataset name used. Please enter a new name")
+        #         empty_fields.append(keys[0])
 
         # if empty_fields not empty -> return False, else -> return True
         return not empty_fields
@@ -162,18 +171,20 @@ class NewDataset(BaseDataset):
                 img_name = img.name
                 log_info(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
+                st.title(img.name)
                 try:
-                    pil_img = Image.open(img)
-                    pil_img.save(save_path)
+                    with Image.open(img) as pil_img:
+                        pil_img.save(save_path)
                 except ValueError as e:
-                    log_error(f"{e}: Could not reolve output format")
+                    log_error(
+                        f"{e}: Could not reolve output format for '{str(img_name)}'")
                 except OSError as e:
                     log_error(
-                        f"{e}: Failed to create file. File may exist or contain partial data")
+                        f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")
                 else:
                     log_info(
                         f"Successfully stored '{str(img_name)}' in '{str(self.dataset_path)}' ")
-                    return True
+            return True
 
     def save_dataset(self) -> bool:
         directory_name = self.name
@@ -185,9 +196,9 @@ class NewDataset(BaseDataset):
             'app_media' / 'dataset' / str(directory_name)
         # self.dataset_path = Path(self.dataset_path)
         create_folder_if_not_exist(self.dataset_path)
-        self.dataset_PNG_encoding()
-        st.success(f"Successfully created **{self.name}** dataset")
-        return self.dataset_path
+        if self.dataset_PNG_encoding():
+            st.success(f"Successfully created **{self.name}** dataset")
+            return self.dataset_path
 
 
 def main():

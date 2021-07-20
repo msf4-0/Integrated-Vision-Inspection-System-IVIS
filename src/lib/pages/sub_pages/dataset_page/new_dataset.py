@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from copy import deepcopy
+from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -121,6 +122,7 @@ def show():
             if session_state.new_dataset.check_if_exist(context, conn):
                 field_placeholder['name'].error(
                     f"Dataset name used. Please enter a new name")
+                sleep(1)
                 log_error(f"Dataset name used. Please enter a new name")
             else:
                 session_state.new_dataset.name = session_state.name
@@ -199,8 +201,7 @@ def show():
             outercol2.write(uploaded_files_multi[0])
             dataset_size_place.write(dataset_size_string)
             dataset_filesize_place.write(dataset_filesize_string)
-            for img in session_state.new_dataset.dataset:
-                st.write(img.name)
+            
     place["upload"] = outercol2.empty()
     # with st.beta_expander("Data Viewer", expanded=False):
     #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
@@ -231,16 +232,18 @@ def show():
             # TODO: Upload to database
             st.success(""" Successfully created new dataset: {0}.
                             """.format(session_state.new_dataset.name))
-            try:
-                session_state.new_dataset.save_dataset()
+
+            if session_state.new_dataset.save_dataset():
                 st.success(
-                    f"Successfully created **{session_state.new_dataset.name}** dataset")
-            except Exception as e:
-                st.error(f"{e} occured")
+                    f"Successfully created **{session_state.new_dataset.name}** dataset OUTSIDE")
+                # session_state.new_dataset = NewDataset(
+                #     get_random_string(length=8))  # reset NewDataset class object
 
                 # session_state.pop('new_dataset', None)  # reset
 
     st.write(vars(session_state.new_dataset))
+    # for img in session_state.new_dataset.dataset:
+    #     st.image(img)
 
 
 def main():
