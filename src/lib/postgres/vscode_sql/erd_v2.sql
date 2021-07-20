@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS public.project (
     CACHE 1),
     name text NOT NULL UNIQUE,
     description text,
+    project_path text NOT NULL,
     deployment_id integer,
     dataset_id bigint,
     training_id bigint,
