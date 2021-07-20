@@ -95,7 +95,16 @@ class NewDataset(BaseDataset):
                 field_placeholder[keys[idx]].error(
                     f"Please do not leave field blank")
                 empty_fields.append(keys[idx])
+        # check if dataset title exist: field[0]
+        if field[0]:
+            context=['name',field[0]]
+            if self.check_if_exist(context,conn):
+                field_placeholder[keys[0]].error(
+                    f"Dataset name used. Please enter a new name")
+                log_error(f"Dataset name used. Please enter a new name")
+                empty_fields.append(keys[idx])
 
+        # if empty_fields not empty -> return False, else -> return True
         return not empty_fields
 
     def calc_total_filesize(self):
@@ -108,18 +117,19 @@ class NewDataset(BaseDataset):
                 self.dataset_total_filesize, -2)
         return self.dataset_total_filesize
 
-    def check_if_exist(self):
+    def check_if_exist(self, context: List, conn) -> bool:
         check_exist_SQL = """
                             SELECT
                                 EXISTS (
                                     SELECT
-                                        name
+                                        %s
                                     FROM
                                         public.dataset
                                     WHERE
                                         name = %s);
                         """
-        exist_status = db_fetchone(check_exist_SQL, self.name)
+        exist_status = db_fetchone(check_exist_SQL, context, conn)[0]
+        return exist_status
 
     def insert_dataset(self):
         insert_dataset_SQL = """

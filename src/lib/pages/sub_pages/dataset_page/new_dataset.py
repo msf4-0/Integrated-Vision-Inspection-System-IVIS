@@ -115,8 +115,19 @@ def show():
     # with st.beta_container():
     outercol1.write("## __Dataset Information :__")
 
-    session_state.new_dataset.name = outercol2.text_input(
-        "Dataset Title", key="name", help="Enter the name of the dataset")
+    def check_if_name_exist(field_placeholder, conn):
+        context = ['name', session_state.name]
+        if session_state.name:
+            if session_state.new_dataset.check_if_exist(context, conn):
+                field_placeholder['name'].error(
+                    f"Dataset name used. Please enter a new name")
+                log_error(f"Dataset name used. Please enter a new name")
+            else:
+                session_state.new_dataset.name = session_state.name
+                log_error(f"Dataset name fresh and ready to rumble")
+
+    outercol2.text_input(
+        "Dataset Title", key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
     place["name"] = outercol2.empty()
 
     # **** Dataset Description (Optional) ****
@@ -168,14 +179,16 @@ def show():
 
     outercol3.markdown(" ____ ")
     # TODO:KIV
+    # >>>> WEBCAM >>>>
     if data_source == 0:
         with outercol2:
             webcam_webrtc.app_loopback()
 
+    # >>>> FILE UPLOAD >>>>
     elif data_source == 1:
         uploaded_files_multi = outercol2.file_uploader(
             label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload_widget")
-        place["upload"] = outercol2.empty()
+
         if uploaded_files_multi:
             session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
             session_state.new_dataset.dataset_size = len(
@@ -188,20 +201,20 @@ def show():
             dataset_filesize_place.write(dataset_filesize_string)
             for img in session_state.new_dataset.dataset:
                 st.write(img.name)
-            
-        # with st.beta_expander("Data Viewer", expanded=False):
-        #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
-        #     imgcol1.checkbox("img1", key="img1")
-        #     for image in uploaded_files_multi:
-        #         imgcol1.image(uploaded_files_multi[1])
+    place["upload"] = outercol2.empty()
+    # with st.beta_expander("Data Viewer", expanded=False):
+    #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
+    #     imgcol1.checkbox("img1", key="img1")
+    #     for image in uploaded_files_multi:
+    #         imgcol1.image(uploaded_files_multi[1])
 
-        # TODO: KIV
+    # TODO: KIV
 
-        # col1, col2, col3 = st.beta_columns([1, 1, 7])
-        # webcam_button = col1.button(
-        #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
-        # file_upload_button = col2.button(
-        #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
+    # col1, col2, col3 = st.beta_columns([1, 1, 7])
+    # webcam_button = col1.button(
+    #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
+    # file_upload_button = col2.button(
+    #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
 
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # **** Submit Button ****
