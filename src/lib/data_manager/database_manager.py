@@ -96,7 +96,10 @@ def db_fetchone(sql_message, vars: List, conn):
     with conn:
         with conn.cursor() as cur:
             try:
-                cur.execute(sql_message, vars)
+                if vars:
+                    cur.execute(sql_message, vars)
+                else:
+                    cur.execute(sql_message)
                 conn.commit()
                 return_one = cur.fetchone()  # return tuple
                 return return_one

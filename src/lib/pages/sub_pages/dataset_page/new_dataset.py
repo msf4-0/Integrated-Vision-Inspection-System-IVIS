@@ -87,7 +87,6 @@ def show():
         # set random dataset ID before getting actual from Database
         session_state.new_dataset = NewDataset(get_random_string(length=8))
         session_state.data_source = "File Upload 📂"
-
     # ******** SESSION STATE ********
 
     # >>>> Dataset SIDEBAR >>>>
@@ -116,6 +115,7 @@ def show():
     # with st.beta_container():
     outercol1.write("## __Dataset Information :__")
 
+    # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
         context = ['name', session_state.name]
         if session_state.name:
@@ -133,8 +133,12 @@ def show():
     place["name"] = outercol2.empty()
 
     # **** Dataset Description (Optional) ****
-    session_state.new_dataset.desc = outercol2.text_area(
+    description = outercol2.text_area(
         "Description (Optional)", key="desc", help="Enter the description of the dataset")
+    if description:
+        session_state.new_dataset.desc = description
+    else:
+        pass
 
     deployment_type = outercol2.selectbox(
         "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
@@ -167,15 +171,19 @@ def show():
     outercol1.write("## __Dataset Upload:__")
     data_source_options = ["Webcam 📷", "File Upload 📂"]
     # col1, col2 = st.beta_columns(2)
+
     data_source = outercol2.radio(
         "Data Source", options=data_source_options, key="data_source_radio")
     data_source = data_source_options.index(data_source)
+
     outercol1, outercol2, outercol3 = st.beta_columns([1.5, 2, 2])
     dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
     dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
     outercol3.markdown(" ____ ")
+
     dataset_size_place = outercol3.empty()
     dataset_size_place.write(dataset_size_string)
+
     dataset_filesize_place = outercol3.empty()
     dataset_filesize_place.write(dataset_filesize_string)
 
@@ -193,15 +201,17 @@ def show():
 
         if uploaded_files_multi:
             session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
+
             session_state.new_dataset.dataset_size = len(
                 uploaded_files_multi)  # length of uploaded files
+
             dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
             dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
 
             outercol2.write(uploaded_files_multi[0])
             dataset_size_place.write(dataset_size_string)
             dataset_filesize_place.write(dataset_filesize_string)
-            
+
     place["upload"] = outercol2.empty()
     # with st.beta_expander("Data Viewer", expanded=False):
     #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
@@ -219,27 +229,42 @@ def show():
 
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # **** Submit Button ****
+    success_place = st.empty()
     field = [session_state.new_dataset.name,
              session_state.new_dataset.deployment_id, session_state.new_dataset.dataset]
     st.write(field)
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
+
     if submit_button:
         session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
             field, field_placeholder=place)
 
         if session_state.new_dataset.has_submitted:
             # TODO: Upload to database
-            st.success(""" Successfully created new dataset: {0}.
-                            """.format(session_state.new_dataset.name))
+            # st.success(""" Successfully created new dataset: {0}.
+            #                 """.format(session_state.new_dataset.name))
 
             if session_state.new_dataset.save_dataset():
-                st.success(
-                    f"Successfully created **{session_state.new_dataset.name}** dataset OUTSIDE")
-                # session_state.new_dataset = NewDataset(
-                #     get_random_string(length=8))  # reset NewDataset class object
 
-                # session_state.pop('new_dataset', None)  # reset
+                success_place.success(
+                    f"Successfully created **{session_state.new_dataset.name}** dataset")
+
+                if session_state.new_dataset.insert_dataset():
+
+                    success_place.success(
+                        f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
+
+                    # reset NewDataset class object
+                    session_state.new_dataset = NewDataset(
+                        get_random_string(length=8))
+
+                else:
+                    st.error(
+                        f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")
+            else:
+                st.error(
+                    f"Failed to created **{session_state.new_dataset.name}** dataset")
 
     st.write(vars(session_state.new_dataset))
     # for img in session_state.new_dataset.dataset:

@@ -156,13 +156,12 @@ class NewDataset(BaseDataset):
                                     %s,
                                     %s,
                                     %s)
-                                RETURNING
-                                    id;
+                                RETURNING id;
                             """
-        insert_dataset_vars = [self.name, self.desc,
-                               self.file_type, self.file_type, self.dataset_path, self.dataset_size, self.deployment_id]
+        insert_dataset_vars = [self.name, self.desc, self.file_type,
+                               str(self.dataset_path), self.dataset_size, self.deployment_id]
         self.dataset_id = db_fetchone(
-            insert_dataset_SQL, insert_dataset_vars, conn)[0]
+            insert_dataset_SQL, insert_dataset_vars, conn)
         return self.dataset_id
 
     def dataset_PNG_encoding(self):
@@ -197,7 +196,7 @@ class NewDataset(BaseDataset):
         # self.dataset_path = Path(self.dataset_path)
         create_folder_if_not_exist(self.dataset_path)
         if self.dataset_PNG_encoding():
-            st.success(f"Successfully created **{self.name}** dataset")
+            # st.success(f"Successfully created **{self.name}** dataset")
             return self.dataset_path
 
 
