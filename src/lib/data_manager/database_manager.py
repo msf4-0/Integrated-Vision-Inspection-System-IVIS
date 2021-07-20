@@ -82,17 +82,20 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
     #         print('Database connection closed.')
 
 
-def db_uni_query(sql_message, conn):
+def db_no_fetch(sql_message, vars: List, conn) -> None:
     with conn:
         with conn.cursor() as cur:
             try:
-                cur.execute(sql_message)
+                if vars:
+                    cur.execute(sql_message, vars)
+                else:
+                    cur.execute(sql_message)
                 conn.commit()
             except psycopg2.Error as e:
                 log_error(e)
 
 
-def db_fetchone(sql_message, vars: List, conn):
+def db_fetchone(sql_message, vars: List, conn) -> tuple:
     with conn:
         with conn.cursor() as cur:
             try:
@@ -107,11 +110,14 @@ def db_fetchone(sql_message, vars: List, conn):
                 log_error(e)
 
 
-def db_fetchall(sql_message, conn):
+def db_fetchall(sql_message, vars: List, conn) -> tuple:
     with conn:
         with conn.cursor() as cur:
             try:
-                cur.execute(sql_message)
+                if vars:
+                    cur.execute(sql_message, vars)
+                else:
+                    cur.execute(sql_message)
                 conn.commit()
                 return_all = cur.fetchall()  # return array of tuple
                 return return_all
