@@ -272,7 +272,7 @@ def show():
 
 
 def main():
-    show()s
+    show()
 
 
 if __name__ == "__main__":
