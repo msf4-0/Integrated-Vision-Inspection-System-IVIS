@@ -82,7 +82,7 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
     #         print('Database connection closed.')
 
 
-def db_no_fetch(sql_message, vars: List, conn) -> None:
+def db_no_fetch(sql_message, conn, vars: List = None) -> None:
     with conn:
         with conn.cursor() as cur:
             try:
@@ -95,7 +95,7 @@ def db_no_fetch(sql_message, vars: List, conn) -> None:
                 log_error(e)
 
 
-def db_fetchone(sql_message, vars: List, conn) -> tuple:
+def db_fetchone(sql_message, conn, vars: List = None) -> tuple:
     with conn:
         with conn.cursor() as cur:
             try:
@@ -110,7 +110,7 @@ def db_fetchone(sql_message, vars: List, conn) -> tuple:
                 log_error(e)
 
 
-def db_fetchall(sql_message, vars: List, conn) -> tuple:
+def db_fetchall(sql_message, conn, vars: List = None) -> tuple:
     with conn:
         with conn.cursor() as cur:
             try:

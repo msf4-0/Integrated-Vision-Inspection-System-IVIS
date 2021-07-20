@@ -51,7 +51,7 @@ from core.utils.file_handler import bytes_divisor
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
 
-# >>>> Variable Declaration
+# >>>> Variable Declaration >>>>
 # new_dataset = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
