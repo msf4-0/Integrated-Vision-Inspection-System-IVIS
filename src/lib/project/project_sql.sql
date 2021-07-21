@@ -6,6 +6,15 @@ FROM
 WHERE
     name = % s;
 
+-- Query Dataset List from dataset table
+SELECT
+    id,
+    name,
+    dataset_size,
+    updated_at
+FROM
+    public.dataset;
+
 --Check if name exists
 SELECT
     EXISTS (

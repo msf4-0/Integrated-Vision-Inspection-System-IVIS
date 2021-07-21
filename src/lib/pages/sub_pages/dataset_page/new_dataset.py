@@ -58,7 +58,7 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-class Random(IntEnum):
+class AnnotationType(IntEnum):
     Image_Classification = 1
     BBox = 2
     Polygons = 3

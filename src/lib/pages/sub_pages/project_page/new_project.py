@@ -50,7 +50,7 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-class Random(IntEnum):
+class AnnotationType(IntEnum):
     Image_Classification = 1
     BBox = 2
     Polygons = 3
@@ -164,7 +164,7 @@ def show():
     data_left, data_right = st.beta_columns(2)
     # >>>> Right Column to select dataset >>>>
     with outercol3:
-        session_state.new_project.dataset= st.multiselect(
+        session_state.new_project.dataset = st.multiselect(
             "Dataset List", key="dataset", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
 
         # Button to create new dataset
@@ -193,8 +193,8 @@ def show():
         start = 10 * session_state.dataset_page
         end = start + 10
 
-        df = pd.DataFrame(np.random.rand(20, 4), columns=(
-            'col{}'.format(i) for i in range(4)), index=DATASET_LIST)
+        df = session_state.new_project.create_dataset_dataframe()
+        
 
         def highlight_row(x, selections):
 
@@ -204,9 +204,15 @@ def show():
             else:
                 return ['background-color: '] * len(x)
         df_slice = df.iloc[start:end]
+        styler = df_slice.style.format(
+                {
+                    "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
+
+                }
+            )
 
         # >>>>DATAFRAME
-        st.dataframe(df_slice.style.apply(
+        st.table(styler.apply(
             highlight_row, selections=session_state.new_project.dataset, axis=1))
     # <<<< Left Column to show full list of dataset and selection <<<<
 

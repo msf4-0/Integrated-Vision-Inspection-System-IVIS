@@ -71,7 +71,7 @@ class NewDataset(BaseDataset):
         if self.deployment_type is not None and self.deployment_type != '':
 
             self.deployment_id = db_fetchone(
-                query_id_SQL, [self.deployment_type], conn)[0]
+                query_id_SQL, conn, [self.deployment_type])[0]
         else:
             self.deployment_id = None
 
@@ -131,7 +131,7 @@ class NewDataset(BaseDataset):
                                     WHERE
                                         name = %s);
                         """
-        exist_status = db_fetchone(check_exist_SQL, conn,context)[0]
+        exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
         return exist_status
 
     def insert_dataset(self):

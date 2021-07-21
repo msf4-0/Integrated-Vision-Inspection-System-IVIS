@@ -12,6 +12,8 @@ import psycopg2
 from PIL import Image
 from time import sleep
 from enum import IntEnum
+from copy import copy, deepcopy
+import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -29,7 +31,7 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch
+from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import split_string, join_string
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -106,6 +108,7 @@ class BaseProject:
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
         self.dataset: List = []
+        self.df: pd.DataFrame = None
 
 
 class NewProject(BaseProject):
@@ -127,11 +130,52 @@ class NewProject(BaseProject):
         if self.deployment_type is not None and self.deployment_type != '':
 
             self.deployment_id = db_fetchone(
-                query_id_SQL, [self.deployment_type], conn)[0]
+                query_id_SQL, conn, [self.deployment_type])[0]
         else:
             self.deployment_id = None
 
+    @st.cache
+    def query_dataset_list(self):
+        query_dataset_SQL = """SELECT
+                                id,
+                                name,
+                                dataset_size,
+                                updated_at
+                            FROM
+                                public.dataset;"""
+
+        datasets = list(deepcopy(db_fetchall(query_dataset_SQL, conn)))
+        dataset_tmp = []
+        for dataset in datasets:
+            dataset = list(dataset)
+
+            # convert datetime with TZ to (2021-07-30 12:12:12) format
+            dataset[3] = dataset[3].strftime('%Y-%m-%d %H:%M:%S')
+            dataset_tmp.append(dataset)
+        self.dataset = dataset_tmp
+        log_info(self.dataset)
+        return dataset_tmp
+
+    def create_dataset_dataframe(self) -> pd.DataFrame:
+
+        self.dataset = self.query_dataset_list()
+        if self.dataset:
+            df = pd.DataFrame(self.dataset, columns=[
+                'ID', 'Name', 'Dataset Size', 'Date/Time'])
+            df['Date/Time'] = pd.to_datetime(df['Date/Time'],
+                                             format='%Y-%m-%d %H:%M:%S')
+            df.sort_values(by=['Date/Time'], inplace=True,
+                           ascending=False, ignore_index=True)
+            df.index.name = ('No.')
+
+            # dfStyler = df.style.set_properties(**{'text-align': 'center'})
+            # dfStyler.set_table_styles(
+            #     [dict(selector='th', props=[('text-align', 'center')])])
+
+        return df
+
 # TODO
+
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
         keys = ["name", "deployment_type", "upload"]
