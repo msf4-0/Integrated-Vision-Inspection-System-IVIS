@@ -155,7 +155,7 @@ class NewDataset(BaseDataset):
         insert_dataset_vars = [self.name, self.desc, self.file_type,
                                str(self.dataset_path), self.dataset_size, self.deployment_id]
         self.dataset_id = db_fetchone(
-            insert_dataset_SQL, insert_dataset_vars, conn)
+            insert_dataset_SQL,conn, insert_dataset_vars)[0]
         return self.dataset_id
 
     def dataset_PNG_encoding(self):
