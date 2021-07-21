@@ -131,7 +131,7 @@ class NewDataset(BaseDataset):
                                     WHERE
                                         name = %s);
                         """
-        exist_status = db_fetchone(check_exist_SQL, context, conn)[0]
+        exist_status = db_fetchone(check_exist_SQL, conn,context)[0]
         return exist_status
 
     def insert_dataset(self):

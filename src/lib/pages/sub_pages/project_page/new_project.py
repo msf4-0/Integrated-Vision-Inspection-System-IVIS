@@ -84,7 +84,7 @@ def show():
     if "new_project" not in session_state:
         session_state.new_project = NewProject(get_random_string(length=8))
         # set random project ID before getting actual from Database
-        session_state.dataset_page
+        session_state.dataset_page = 0
     # ******** SESSION STATE ********
 
     # >>>> PROJECT SIDEBAR >>>>
@@ -123,7 +123,7 @@ def show():
                 log_error(f"Dataset name used. Please enter a new name")
             else:
                 session_state.new_project.name = session_state.name
-                log_error(f"Dataset name fresh and ready to rumble")
+                log_info(f"Dataset name fresh and ready to rumble")
 
     outercol2.text_input(
         "Project Title", key="name", help="Enter the name of the project", on_change=check_if_name_exist, args=(place, conn,))
