@@ -105,10 +105,65 @@ class BaseProject:
         self.training_id: int = None
         self.editor_config: str = None
         self.deployment_type: str = None
+        self.dataset_chosen: List = []
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
-        self.dataset: List = []
-        self.df: pd.DataFrame = None
+        self.datasets: List = self.query_dataset_list()
+        self.dataset_name_list: List = self.get_dataset_name_list()
+
+    @st.cache
+    def query_dataset_list(self) -> List:
+        query_dataset_SQL = """SELECT
+                                id,
+                                name,
+                                dataset_size,
+                                updated_at
+                            FROM
+                                public.dataset;"""
+
+        datasets = db_fetchall(query_dataset_SQL, conn)
+        dataset_tmp = []
+        if datasets:
+            for dataset in datasets:
+                dataset = list(dataset)  # convert tuples to List
+
+                # convert datetime with TZ to (2021-07-30 12:12:12) format
+                dataset[3] = dataset[3].strftime('%Y-%m-%d %H:%M:%S')
+                dataset_tmp.append(dataset)
+
+            self.datasets = dataset_tmp
+        else:
+            dataset_tmp = []
+
+        return dataset_tmp
+
+    def get_dataset_name_list(self) -> List:
+        dataset_name_tmp = []
+        if self.datasets:
+            for dataset in self.datasets:
+                dataset_name_tmp.append(dataset[1])
+            self.dataset_name_list = dataset_name_tmp
+        else:
+            self.dataset_name_list = []
+
+        return dataset_name_tmp
+
+    def create_dataset_dataframe(self) -> pd.DataFrame:
+
+        if self.datasets:
+            df = pd.DataFrame(self.datasets, columns=[
+                'ID', 'Name', 'Dataset Size', 'Date/Time'])
+            df['Date/Time'] = pd.to_datetime(df['Date/Time'],
+                                             format='%Y-%m-%d %H:%M:%S')
+            df.sort_values(by=['Date/Time'], inplace=True,
+                           ascending=False, ignore_index=True)
+            df.index.name = ('No.')
+
+            # dfStyler = df.style.set_properties(**{'text-align': 'center'})
+            # dfStyler.set_table_styles(
+            #     [dict(selector='th', props=[('text-align', 'center')])])
+
+        return df
 
 
 class NewProject(BaseProject):
@@ -134,45 +189,6 @@ class NewProject(BaseProject):
         else:
             self.deployment_id = None
 
-    @st.cache
-    def query_dataset_list(self):
-        query_dataset_SQL = """SELECT
-                                id,
-                                name,
-                                dataset_size,
-                                updated_at
-                            FROM
-                                public.dataset;"""
-
-        datasets = list(deepcopy(db_fetchall(query_dataset_SQL, conn)))
-        dataset_tmp = []
-        for dataset in datasets:
-            dataset = list(dataset)
-
-            # convert datetime with TZ to (2021-07-30 12:12:12) format
-            dataset[3] = dataset[3].strftime('%Y-%m-%d %H:%M:%S')
-            dataset_tmp.append(dataset)
-        self.dataset = dataset_tmp
-        log_info(self.dataset)
-        return dataset_tmp
-
-    def create_dataset_dataframe(self) -> pd.DataFrame:
-
-        self.dataset = self.query_dataset_list()
-        if self.dataset:
-            df = pd.DataFrame(self.dataset, columns=[
-                'ID', 'Name', 'Dataset Size', 'Date/Time'])
-            df['Date/Time'] = pd.to_datetime(df['Date/Time'],
-                                             format='%Y-%m-%d %H:%M:%S')
-            df.sort_values(by=['Date/Time'], inplace=True,
-                           ascending=False, ignore_index=True)
-            df.index.name = ('No.')
-
-            # dfStyler = df.style.set_properties(**{'text-align': 'center'})
-            # dfStyler.set_table_styles(
-            #     [dict(selector='th', props=[('text-align', 'center')])])
-
-        return df
 
 # TODO
 

@@ -156,26 +156,29 @@ def show():
 
     # include options to create new dataset on this page
     # create 2 columns for "New Data Button"
-    outercol1, _, _ = st.beta_columns([1.5, 3.5, 0.5])
+    outercol1, outercol2, outercol3,_= st.beta_columns([1.5, 1.75, 1.75,0.5])
 
     outercol1.write("## __Dataset :__")
-    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 2, 2])
+    # outercol1, outercol2, outercol3 = st.beta_columns([1, 2, 2])
 
     data_left, data_right = st.beta_columns(2)
     # >>>> Right Column to select dataset >>>>
     with outercol3:
-        session_state.new_project.dataset = st.multiselect(
-            "Dataset List", key="dataset", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+        session_state.new_project.datasets = session_state.new_project.query_dataset_list()
+        session_state.new_project.dataset_name_list = session_state.new_project.get_dataset_name_list()
+
+        session_state.new_project.dataset_chosen = st.multiselect(
+            "Dataset List", key="dataset", options=session_state.new_project.dataset_name_list, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
 
         # Button to create new dataset
         new_data_button = st.button("Create New Dataset")
 
         # print choosen dataset
         st.write("### Dataset choosen:")
-        if len(session_state.new_project.dataset) > 0:
-            for idx, data in enumerate(session_state.new_project.dataset):
+        if len(session_state.new_project.dataset_chosen) > 0:
+            for idx, data in enumerate(session_state.new_project.dataset_chosen):
                 st.write(f"{idx+1}. {data}")
-        elif len(session_state.new_project.dataset) == 0:
+        elif len(session_state.new_project.dataset_chosen) == 0:
             st.info("No dataset selected")
     # <<<< Right Column to select dataset <<<<
 
@@ -194,26 +197,26 @@ def show():
         end = start + 10
 
         df = session_state.new_project.create_dataset_dataframe()
-        
 
         def highlight_row(x, selections):
 
-            if x.name in selections:
+            if x.Name in selections:
 
                 return ['background-color: #90a4ae'] * len(x)
             else:
                 return ['background-color: '] * len(x)
         df_slice = df.iloc[start:end]
         styler = df_slice.style.format(
-                {
-                    "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
+            {
+                "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
 
-                }
-            )
+            }
+        )
 
         # >>>>DATAFRAME
         st.table(styler.apply(
-            highlight_row, selections=session_state.new_project.dataset, axis=1))
+            highlight_row, selections=session_state.new_project.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
+                [dict(selector='th', props=[('text-align', 'center')])]))
     # <<<< Left Column to show full list of dataset and selection <<<<
 
     # >>>> Dataset Pagination >>>>
