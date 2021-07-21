@@ -74,5 +74,5 @@ def loadTemplateConfig(path):
 
 
 # loadAnnotationTemplate()
-template = loadAnnotationTemplate(0)
+# template = loadAnnotationTemplate(0)
 # print(template)

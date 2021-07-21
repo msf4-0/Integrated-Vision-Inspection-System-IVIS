@@ -55,6 +55,15 @@ class AnnotationType(IntEnum):
     BBox = 2
     Polygons = 3
     Masks = 4
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return AnnotationType[s]
+        except KeyError:
+            raise ValueError()
 
 
 # >>>> TODO: query from Database
