@@ -220,7 +220,7 @@ def show():
     # <<<< Left Column to show full list of dataset and selection <<<<
 
     # >>>> Dataset Pagination >>>>
-    col1, col2, col3, _ = st.beta_columns([0.15, 0.2, 0.15, 0.5])
+    _,col1,_, col2,_, col3, _ = st.beta_columns([1.5,0.15, 0.5,0.45,0.5, 0.15, 2.25])
     num_dataset_per_page = 10
     num_dataset_page = len(DATASET_LIST) // num_dataset_per_page
     # st.write(num_dataset_page)
