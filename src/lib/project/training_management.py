@@ -1,13 +1,13 @@
 """
-Title: Project Management
-Date: 21/7/2021
+Title: Training Management
+Date: 23/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict
+from typing import Optional, Union, List, Dict
 import psycopg2
 from PIL import Image
 from time import sleep
@@ -92,16 +92,20 @@ class Augmentation:
 
 
 class BaseTraining:
-    def __init__(self, training_id) -> None:
+    def __init__(self, training_id, project) -> None:
         self.id: Union[str, int] = training_id
         self.name: str = None
-        self.training_param: TrainingParam = TrainingParam()
-        self.augmentation: Augmentation = Augmentation()  # TODO
+        self.training_param: Optional[TrainingParam] = TrainingParam()
+        self.augmentation: Optional[Augmentation] = Augmentation()  # TODO
+        self.project_id: int = project.project_id
+        self.model_id: int = None
+        self.pre_trained_model_id: Optional[int] = None
+        self.deployment_type: int = project.deployment_type
 
 
 class NewTraining(BaseTraining):
-    def __init__(self, training_id) -> None:
-        super().__init__(training_id)
+    def __init__(self, training_id, project) -> None:
+        super().__init__(training_id, project)
 
 
 class BaseProject:
@@ -206,7 +210,6 @@ class NewProject(BaseProject):
 
 
 # TODO
-
 
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
