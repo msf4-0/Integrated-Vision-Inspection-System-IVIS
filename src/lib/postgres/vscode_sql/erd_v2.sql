@@ -360,5 +360,28 @@ TABLESPACE image_labelling;
 
 ALTER TABLE public.project_dataset OWNER TO shrdc;
 
+-- EDITOR table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.editor (
+    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1),
+    name character varying(50) NOT NULL,
+    editor_config text,
+    labels text[],
+    project_id bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
+    TABLESPACE image_labelling;
+
+CREATE TRIGGER editor_update
+    BEFORE UPDATE ON public.editor
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_update_timestamp ();
+
+ALTER TABLE public.editor OWNER TO shrdc;
+
 END;
 

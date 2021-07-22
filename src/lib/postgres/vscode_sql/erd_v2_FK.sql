@@ -1,5 +1,3 @@
-
-
 --Foreign Keys Constraint
 -- USERS
 ALTER TABLE IF EXISTS public.users
@@ -131,4 +129,10 @@ ALTER TABLE IF EXISTS public.project_dataset
     ADD CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.project_dataset VALIDATE CONSTRAINT fk_dataset_id;
+
+-- EDITOR
+ALTER TABLE IF EXISTS public.editor
+    ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
+
+ALTER TABLE public.editor VALIDATE CONSTRAINT fk_project_id;
 
