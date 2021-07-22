@@ -5,6 +5,7 @@ image:
 details: <h1>Draw a bounding box around the object</h1>
 config: '
 <View>
+<View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
 <Header value="Select label and start to click on image"/>
   <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
     <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
@@ -16,6 +17,7 @@ config: '
       </RectangleLabels>
     </View>
   </View>
+</View>
 </View>
 '
 example: '

@@ -9,9 +9,11 @@ from pathlib import Path
 from PIL import Image
 from base64 import b64encode, decode
 from io import BytesIO
+from enum import IntEnum
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state as session_state
+from traitlets.traitlets import default
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -36,7 +38,8 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
-from enum import IntEnum
+from frontend.editor_manager import BaseEditor, Editor
+from core.utils.code_generator import get_random_string
 # <<<< User-defined Modules <<<<
 
 # TODO: not used
@@ -140,13 +143,47 @@ def main():
                 }
     }
 
-# >>>> EDITOR >>>>>
+    # >>>> EDITOR >>>>>
+
+    # **** Instantiate Editor ****
+    if "editor" not in session_state:
+        session_state.editor = Editor(get_random_string(8))
+
     v = annotation_sel()
     col1, col2 = st.beta_columns(2)
     if None not in v:
         (annotationType, annotationConfig_template) = v
 
         config = annotationConfig_template['config']
+
+        with col1:
+            # >>>> Load XML -> Document object
+            session_state.editor.xml_doc = session_state.editor.load_xml(config)
+
+            # >>>> get labels
+
+            session_state.editor.childNodes = session_state.editor.get_child(
+                'RectangleLabels', 'Label')
+
+            session_state.editor.labels = session_state.editor.get_labels(
+                session_state.editor.childNodes)
+            tagName_attributes = session_state.editor.get_tagname_attributes(
+                session_state.editor.childNodes)
+            label = st.text_input('Labels Input', key='labels_input')
+            st.info(
+                '''Please enter desired labels and choose the labels to be used from the multi-select widget below''')
+            labels_chosen = ['Hello', 'World', 'Bye']
+            st.multiselect('Labels', options=[
+                            'Hello', 'Bye', 'World'], default=labels_chosen, key='labels_select')
+
+            st.write(session_state.editor.xml_doc)
+            st.write(session_state.editor.childNodes)
+            st.write(session_state.editor.labels)
+            st.write(tagName_attributes)
+        with st.beta_expander('Editor Config', expanded=False):
+            st.code(session_state.editor.to_xml_string(
+                pretty=True), language='xml')
+
         with col2:
             st_labelstudio(config, interfaces, user, task, key='editor_test')
 
