@@ -15,6 +15,7 @@ from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -37,7 +38,9 @@ from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 import numpy as np  # TEMP for table viz
 from project.project_management import NewProject
+from frontend.editor_manager import NewEditor
 from data_manager.database_manager import init_connection, db_fetchone
+from data_manager.annotation_type_select import annotation_sel
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -89,6 +92,7 @@ def show():
 
     if "new_project" not in session_state:
         session_state.new_project = NewProject(get_random_string(length=8))
+        session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
         session_state.dataset_page = 0
     # ******** SESSION STATE *********************************************************
@@ -143,16 +147,22 @@ def show():
     else:
         pass
 
-    deployment_type = outercol2.selectbox(
-        "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+    with outercol2:
+        v = annotation_sel()
+        if None not in v:
+            (deployment_type, editor_base_config) = v
 
-    if deployment_type is not None:
-        session_state.new_project.deployment_type = deployment_type
-        session_state.new_project.query_deployment_id()
-        # st.write(session_state.new_project.deployment_id)
+            session_state.new_editor.editor_config = editor_base_config['config']
+    # deployment_type = outercol2.selectbox(
+    #     "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
 
-    else:
-        pass
+            if deployment_type is not None:
+                session_state.new_project.deployment_type = deployment_type
+                session_state.new_project.query_deployment_id()
+                # st.write(session_state.new_project.deployment_id)
+
+            else:
+                pass
 
     place["deployment_type"] = outercol2.empty()
 
@@ -275,12 +285,21 @@ def show():
 
         if session_state.new_project.has_submitted:
             if session_state.new_project.initialise_project():
-                success_place.success(
-                    f"Successfully stored **{session_state.new_project.name}** project information in database")
+                session_state.new_editor.project_id = session_state.new_project.id
+                if session_state.new_editor.init_editor():
+                    success_place.success(
+                        f"Successfully stored **{session_state.new_project.name}** project information in database")
+                else:
+                    success_place.error(
+                        f"Failed to stored **{session_state.new_editor.name}** editor config in database")
+
             else:
-                st.error(
+                success_place.error(
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
-    st.write(vars(session_state.new_project))
+
+    col1, col2 = st.beta_columns(2)
+    col1.write(vars(session_state.new_project))
+    col2.write(vars(session_state.new_editor))
 
 
 def main():

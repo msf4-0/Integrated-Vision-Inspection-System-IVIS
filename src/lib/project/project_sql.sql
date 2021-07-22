@@ -45,3 +45,14 @@ VALUES (
     % s,
     % s);
 
+-- Insert Editor Base Config into Editor Table
+INSERT INTO public.editor (
+    name,
+    editor_config,project_id)
+VALUES (
+    % s,
+    % s,
+    % s)
+RETURNING
+    id;
+

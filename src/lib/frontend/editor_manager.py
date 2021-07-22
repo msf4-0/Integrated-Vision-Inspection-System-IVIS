@@ -50,10 +50,33 @@ class BaseEditor:
     def __init__(self, random_generator) -> None:
 
         # name is editor id for reference. Not the same as PK of DB
+        self.id: int = None
         self.name: str = random_generator
         self.editor_config: str = None
         self.labels: List = []
         self.project_id: Union[str, int] = None
+
+
+class NewEditor(BaseEditor):
+    def __init__(self, random_generator) -> None:
+        super().__init__(random_generator)
+
+    def init_editor(self) -> int:
+        init_editor_SQL = """
+                                    INSERT INTO public.editor (
+                                        name,
+                                        editor_config,
+                                        project_id)
+                                    VALUES (
+                                        %s,
+                                        %s,
+                                        %s)
+                                    RETURNING
+                                        id;"""
+
+        init_editor_vars = [self.name, self.editor_config, self.project_id]
+        self.id = db_fetchone(init_editor_SQL, conn, init_editor_vars)[0]
+        return self.id
 
 
 class Editor(BaseEditor):
