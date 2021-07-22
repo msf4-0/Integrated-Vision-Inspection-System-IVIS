@@ -17,6 +17,7 @@ import json
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
+from streamlit import error_util
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -60,8 +61,8 @@ class Editor(BaseEditor):
         super().__init__(random_generator)
         self.xml_doc: minidom.Document = None
         self.childNodes: minidom.Node = None
-        
 
+    @st.cache
     def load_xml(self, editor_config: str) -> minidom.Document:
         if editor_config:
             xml_doc = minidom.parseString(editor_config)
@@ -137,13 +138,38 @@ class Editor(BaseEditor):
         new_label = self.xml_doc.createElement(tagname)  # 'Label'
         new_label.setAttribute(attr, value)  # value='<label-name>'
 
-        nodeList.appendChild(new_label)  # add new tag to parent childNodelist
+        # add new tag to parent childNodelist
+        newChild = nodeList.appendChild(new_label)
+        return newChild
 
-    def edit_labels(self):
-        pass
+    def edit_labels(self, tagName: str, attr: str, old_value: str, new_value: str):
+        nodeList = self.xml_doc.getElementsByTagName(tagName)
+        new_attributes = []
+        for node in reversed(nodeList):
+            if node.hasAttribute(attr) and node.getAttribute(attr) == old_value:
+                node.setAttribute(attr, new_value)
+                new_attributes.append((node.tagName, node.attributes.items()))
+                log_info(
+                    f"Label '{attr}:{old_value}' updated with attribute '{attr}:{new_value}'")
+        if new_attributes:
+            return new_attributes
 
-    def remove_labels(self):
-        pass
+    def remove_labels(self, tagName: str, attr: str, value: str):
+        nodeList = self.xml_doc.getElementsByTagName(tagName)
+        removedChild = []
+        for node in reversed(nodeList):
+            if node.hasAttribute(attr) and node.getAttribute(attr) == value:
+                parent = node.parentNode
+                try:
+                    removedChild.append(parent.removeChild(node))
+
+                except ValueError as e:
+                    error_msg = f"{e}: Child node does not exist"
+                    log_error(error_msg)
+            else:
+                error_msg = f"Child node does not exist"
+                log_error(error_msg)
+
 
 # ************************************************* OLD *************************************************
 

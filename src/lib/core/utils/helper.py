@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+from typing import Union, List, Dict
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -25,15 +26,20 @@ from core.utils.log import log_info, log_error  # logger
 
 
 def split_string(string):
-  
+
     # Split the string based on space delimiter
     list_string = string.split(' ')
-      
+
     return list_string
-  
+
+
 def join_string(list_string):
-  
+
     # Join the string based on '-' delimiter
     string = '-'.join(list_string)
-      
+
     return string
+
+
+def is_empty(iterable: Union[List, Dict, set]) -> bool:
+    return not bool(iterable)
