@@ -9,6 +9,8 @@ from os import name
 import sys
 from pathlib import Path
 from typing import List, Dict, Union
+import xml.dom
+from xml.dom import minidom
 from datetime import datetime
 import psycopg2
 import json
@@ -53,9 +55,95 @@ class BaseEditor:
         self.project_id: Union[str, int] = None
 
 
-class NewEditor(BaseEditor):
+class Editor(BaseEditor):
     def __init__(self, random_generator) -> None:
         super().__init__(random_generator)
+        self.xml_doc: minidom.Document = None
+        self.childNodes: minidom.Node = None
+        
+
+    def load_xml(self, editor_config: str) -> minidom.Document:
+        if editor_config:
+            xml_doc = minidom.parseString(editor_config)
+            self.xml_doc = xml_doc
+            return xml_doc
+        else:
+            pass
+
+    def to_xml_string(self, pretty=False) -> str:
+        if pretty:
+            xml_string = self.xml_doc.toprettyxml(
+                encoding='utf8').decode('utf-8')
+        else:
+            xml_string = self.xml_doc.toxml(encoding='utf8').decode('utf-8')
+
+        return xml_string
+
+    # get Nodelist of parent tag
+    def get_parents(self, parent_tagName: str, attr: str = None, value: str = None) -> List:
+        if self.xml_doc:
+            if attr and value:
+                pass
+            else:
+                parents = self.xml_doc.getElementsByTagName(parent_tagName)
+            return parents
+
+    # to get list of labels
+    def get_child(self, parent_tagName: str, child_tagName: str, attr: str = None, value: str = None) -> List:
+        parents = self.get_parents(parent_tagName, attr, value)
+        elements = []
+        for parent in parents:
+            childs = parent.getElementsByTagName(
+                child_tagName)  # list of child elements
+            for child in childs:
+                elements.append(child)
+
+        return elements
+
+    def get_tagname_attributes(self, elements: List) -> List:
+        '''
+        element.attributes.items() -> give a list of tuples of attributes
+        [('value', 'Hello'), ('background', 'blue')]
+        [('value', 'World'), ('background', 'pink')]
+        [('value', 'Hello'), ('background', 'blue')]
+        [('value', 'World'), ('background', 'pink')]
+        '''
+        tagName_attributes = []
+        for element in elements:
+            tagName_attributes.append(
+                (element.tagName, element.attributes.items()))
+
+        return tagName_attributes
+
+    def get_labels(self, elements: List) -> List:
+        # assume only one type of annotation type
+        labels = []
+        for element in elements:  # for 'value' attrib ONLY
+            if element.hasAttribute('value'):
+                labels.append(element.getAttribute('value'))
+
+        # TODO: add option for background
+        # element.attributes.items() -> give a list of tuples of attributes
+        # [('value', 'Hello'), ('background', 'blue')]
+        # [('value', 'World'), ('background', 'pink')]
+        # [('value', 'Hello'), ('background', 'blue')]
+        # [('value', 'World'), ('background', 'pink')]
+        return labels
+
+    def create_label(self, parent, tagname, attr, value):
+        nodeList = self.xml_doc.getElementsByTagName(
+            parent)[0]  # 'RectangleLabels'
+
+        new_label = self.xml_doc.createElement(tagname)  # 'Label'
+        new_label.setAttribute(attr, value)  # value='<label-name>'
+
+        nodeList.appendChild(new_label)  # add new tag to parent childNodelist
+
+    def edit_labels(self):
+        pass
+
+    def remove_labels(self):
+        pass
 
 # ************************************************* OLD *************************************************
 
