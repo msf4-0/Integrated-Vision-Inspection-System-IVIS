@@ -26,20 +26,22 @@ SELECT
             name = % s);
 
 -- Submit Dataset details into public.dataset table
-INSERT INTO public.dataset (
-    name,
+NSERT INTO public.project (name,
     description,
-    file_type,
-    dataset_path,
-    dataset_size,
+    project_path,
     deployment_id)
-VALUES (
-    % s,
-    % s,
-    % s,
+VALUES (% s,
     % s,
     % s,
     % s)
 RETURNING
     id;
+
+-- Insert to project_dataset table
+INSERT INTO public.project_dataset (
+    project_id,
+    dataset_id)
+VALUES (
+    % s,
+    % s);
 

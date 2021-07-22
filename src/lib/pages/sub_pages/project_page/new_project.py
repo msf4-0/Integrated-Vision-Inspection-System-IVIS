@@ -55,6 +55,7 @@ class AnnotationType(IntEnum):
     BBox = 2
     Polygons = 3
     Masks = 4
+
     def __str__(self):
         return self.name
 
@@ -64,10 +65,6 @@ class AnnotationType(IntEnum):
             return AnnotationType[s]
         except KeyError:
             raise ValueError()
-
-
-# >>>> TODO: query from Database
-DATASET_LIST = list('abcdefghijabcdefghij')
 
 
 def show():
@@ -84,7 +81,7 @@ def show():
             "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
         st.markdown("""___""")
 
-    # ******** SESSION STATE ********
+    # ******** SESSION STATE ***********************************************************
 
     if "current_page" not in session_state:  # KIV
         session_state.current_page = "All Projects"
@@ -94,7 +91,7 @@ def show():
         session_state.new_project = NewProject(get_random_string(length=8))
         # set random project ID before getting actual from Database
         session_state.dataset_page = 0
-    # ******** SESSION STATE ********
+    # ******** SESSION STATE *********************************************************
 
     # >>>> PROJECT SIDEBAR >>>>
     project_page_options = ("All Projects", "New Project")
@@ -103,7 +100,7 @@ def show():
                                               index=0)
     # <<<< PROJECT SIDEBAR <<<<
 
-# >>>> New Project INFO >>>>
+# >>>> New Project INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # Page title
     st.write("# __Add New Project__")
     st.markdown("___")
@@ -127,12 +124,12 @@ def show():
         if session_state.name:
             if session_state.new_project.check_if_exist(context, conn):
                 field_placeholder['name'].error(
-                    f"Dataset name used. Please enter a new name")
+                    f"Project name used. Please enter a new name")
                 sleep(1)
-                log_error(f"Dataset name used. Please enter a new name")
+                log_error(f"Project name used. Please enter a new name")
             else:
                 session_state.new_project.name = session_state.name
-                log_info(f"Dataset name fresh and ready to rumble")
+                log_info(f"Project name fresh and ready to rumble")
 
     outercol2.text_input(
         "Project Title", key="name", help="Enter the name of the project", on_change=check_if_name_exist, args=(place, conn,))
@@ -152,20 +149,21 @@ def show():
     if deployment_type is not None:
         session_state.new_project.deployment_type = deployment_type
         session_state.new_project.query_deployment_id()
-        st.write(session_state.new_project.deployment_id)
+        # st.write(session_state.new_project.deployment_id)
 
     else:
         pass
 
     place["deployment_type"] = outercol2.empty()
 
-# <<<<<<<< New Project INFO <<<<<<<<
+# <<<<<<<< New Project INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# >>>>>>>> Choose Dataset >>>>>>>>
+# >>>>>>>> Choose Dataset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     # include options to create new dataset on this page
     # create 2 columns for "New Data Button"
-    outercol1, outercol2, outercol3,_= st.beta_columns([1.5, 1.75, 1.75,0.5])
+    outercol1, outercol2, outercol3, _ = st.beta_columns(
+        [1.5, 1.75, 1.75, 0.5])
 
     outercol1.write("## __Dataset :__")
     # outercol1, outercol2, outercol3 = st.beta_columns([1, 2, 2])
@@ -174,11 +172,11 @@ def show():
     # >>>> Right Column to select dataset >>>>
     with outercol3:
         session_state.new_project.datasets = session_state.new_project.query_dataset_list()
-        session_state.new_project.dataset_name_list = session_state.new_project.get_dataset_name_list()
+        session_state.new_project.dataset_name_list, session_state.new_project.dataset_name_id = session_state.new_project.get_dataset_name_list()
 
         session_state.new_project.dataset_chosen = st.multiselect(
-            "Dataset List", key="dataset", options=session_state.new_project.dataset_name_list, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
-
+            "Dataset List", key="dataset", options=session_state.new_project.dataset_name_list, help="Assign dataset to the project")
+        place["dataset_chosen"] = outercol2.empty()
         # Button to create new dataset
         new_data_button = st.button("Create New Dataset")
 
@@ -229,9 +227,11 @@ def show():
     # <<<< Left Column to show full list of dataset and selection <<<<
 
     # >>>> Dataset Pagination >>>>
-    _,col1,_, col2,_, col3, _ = st.beta_columns([1.5,0.15, 0.5,0.45,0.5, 0.15, 2.25])
+    _, col1, _, col2, _, col3, _ = st.beta_columns(
+        [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
     num_dataset_per_page = 10
-    num_dataset_page = len(DATASET_LIST) // num_dataset_per_page
+    num_dataset_page = len(
+        session_state.new_project.dataset_name_list) // num_dataset_per_page
     # st.write(num_dataset_page)
     if num_dataset_page > 1:
         if session_state.dataset_page < num_dataset_page:
@@ -244,8 +244,8 @@ def show():
         else:
             col1.write("")  # this makes the empty column show up on mobile
 
-    col2.write(
-        f"Page {1+session_state.dataset_page} of {num_dataset_page}")
+        col2.write(
+            f"Page {1+session_state.dataset_page} of {num_dataset_page}")
     # <<<< Dataset Pagination <<<<
     place["dataset"] = st.empty()  # TODO :KIV
 
@@ -262,9 +262,24 @@ def show():
     # place["augmentation"] = st.empty()
 
     # **** Submit Button ****
+    success_place = st.empty()
+    field = [session_state.new_project.name,
+             session_state.new_project.deployment_id, session_state.new_project.dataset_chosen]
+    st.write(field)
     col1, col2 = st.beta_columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
 
+    if submit_button:
+        session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
+            field, field_placeholder=place)
+
+        if session_state.new_project.has_submitted:
+            if session_state.new_project.initialise_project():
+                success_place.success(
+                    f"Successfully stored **{session_state.new_project.name}** project information in database")
+            else:
+                st.error(
+                    f"Failed to stored **{session_state.new_project.name}** project information in database")
     st.write(vars(session_state.new_project))
 
 

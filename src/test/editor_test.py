@@ -10,6 +10,7 @@ from PIL import Image
 from base64 import b64encode, decode
 from io import BytesIO
 from enum import IntEnum
+from copy import deepcopy
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
@@ -64,7 +65,7 @@ class EditorFlag(IntEnum):
 
 
 @st.cache
-def data_url_encoder():
+def load_sample_image():
     """Load Image and generate Data URL in base64 bytes
 
     Args:
@@ -74,6 +75,7 @@ def data_url_encoder():
         bytes: UTF-8 encoded base64 bytes
     """
     chdir_root()  # ./image_labelling
+    log_info("Loading Sample Image")
     sample_image = "resources/sample.jpg"
     with Image.open(sample_image) as img:
         img_byte_arr = BytesIO()
@@ -85,10 +87,7 @@ def data_url_encoder():
     # data_url = f'data:image/jpeg;base64,{b64code}'
     # st.write(f"\"{data_url}\"")
 
-    return data_url, bb
-
-
-data_url, bb = data_url_encoder()
+    return data_url
 
 
 def get_image_size(image_path):
@@ -119,6 +118,8 @@ def main():
         st.markdown("""___""")
     # <<<< Template <<<<
 
+    data_url = load_sample_image()
+
     interfaces = [
         "panel",
         "controls",
@@ -140,7 +141,7 @@ def main():
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-                }
+        }
     }
 
     # >>>> EDITOR >>>>>
@@ -158,32 +159,90 @@ def main():
 
         with col1:
             # >>>> Load XML -> Document object
-            session_state.editor.xml_doc = session_state.editor.load_xml(config)
+            xml_doc = session_state.editor.load_xml(
+                config)
+            session_state.editor.xml_doc = deepcopy(xml_doc)  # DEEPCOPY
 
             # >>>> get labels
 
             session_state.editor.childNodes = session_state.editor.get_child(
                 'RectangleLabels', 'Label')
 
+            # labels
             session_state.editor.labels = session_state.editor.get_labels(
                 session_state.editor.childNodes)
+
             tagName_attributes = session_state.editor.get_tagname_attributes(
                 session_state.editor.childNodes)
-            label = st.text_input('Labels Input', key='labels_input')
-            st.info(
-                '''Please enter desired labels and choose the labels to be used from the multi-select widget below''')
-            labels_chosen = ['Hello', 'World', 'Bye']
-            st.multiselect('Labels', options=[
-                            'Hello', 'Bye', 'World'], default=labels_chosen, key='labels_select')
+
+            # add label into list
+            def add_label():
+                st.write(session_state.labels_input)
+                if session_state.labels_input:
+                    session_state.editor.labels.append(
+                        session_state.labels_input)
+
+            def update_labels():
+                st.write(session_state.labels_select)
+                diff_12 = set(session_state.editor.labels).difference(
+                    session_state.labels_select)  # set 1 - set 2 REMOVAL
+                diff_21 = set(session_state.labels_select).difference(
+                    session_state.editor.labels)  # set 2 - set 1 ADDITION
+                if diff_12:
+                    print("Removal")
+                    removed_label = list(diff_12).pop()
+                    try:
+                        session_state.editor.labels.remove(
+                            removed_label)
+                        session_state.editor.labels = sorted(
+                            session_state.editor.labels)
+                        # TODO: function to remove DOM
+                    except ValueError as e:
+                        st.error(f"{e}: Label already removed")
+                elif diff_21:
+                    print("Addition")
+                    # added_label = list(diff_21).pop()
+                    # session_state.editor.labels.append(added_label)
+                    session_state.editor.labels = sorted(
+                        session_state.editor.labels + list(diff_21))
+                    # TODO: function to add DOM
+
+                else:
+                    print("No Change")
+                    pass
+                # if len(session_state.editor.labels) > len(session_state.labels_select):
+                #     # Action:REMOVE
+                #     # Find removed label
+                #     removed_label =
+
+            # TODO
+            # st.text_input('Labels Input', key='labels_input',
+            #               on_change=add_label)
+            # st.info(
+            #     '''Please enter desired labels and choose the labels to be used from the multi-select widget below''')
+            # # labels_chosen = ['Hello', 'World', 'Bye']
+            # st.multiselect('Labels', options=[
+            #     'Hello', 'Bye', 'World'], default=session_state.editor.labels, key='labels_select', on_change=update_labels)
+            # st.write(session_state.labels_select)
+            
+            
+            # >>>>>>>>> try to create node
+            newChild=session_state.editor.create_label('RectangleLabels','Label','value','aruco')
+            st.write(newChild.attributes.items())
+            st.write(session_state.editor.remove_labels('Label','value','Hello')[0].attributes.items())
+            # st.write(removeChild)
+            st.write(session_state.editor.edit_labels('Label','value','aruco','Hello'))
 
             st.write(session_state.editor.xml_doc)
             st.write(session_state.editor.childNodes)
             st.write(session_state.editor.labels)
             st.write(tagName_attributes)
-        with st.beta_expander('Editor Config', expanded=False):
+            st.write(vars(session_state.editor))
+        with st.beta_expander('Editor Config', expanded=True):
             st.code(session_state.editor.to_xml_string(
                 pretty=True), language='xml')
 
+        
         with col2:
             st_labelstudio(config, interfaces, user, task, key='editor_test')
 

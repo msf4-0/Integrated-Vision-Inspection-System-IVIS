@@ -8,6 +8,7 @@ import sys
 from os import path
 from pathlib import Path
 from yaml import full_load, load
+import streamlit as st
 #---------------Logger--------------#
 import logging
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
@@ -42,7 +43,7 @@ base_dir = Path(__file__).parent
 #     # log.info(Path.cwd().joinpath("computer-vision"))
 #     return template_dir
 
-
+@st.cache
 def loadAnnotationTemplate(template_index, template=None):
     """Load Annotation Template
 

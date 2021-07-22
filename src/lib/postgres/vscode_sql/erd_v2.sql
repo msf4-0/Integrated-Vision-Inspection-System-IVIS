@@ -354,6 +354,8 @@ ALTER TABLE public.annotation_type OWNER TO shrdc;
 CREATE TABLE IF NOT EXISTS public.project_dataset (
     project_id bigint NOT NULL,
     dataset_id bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY (project_id, dataset_id),
     CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
     CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;

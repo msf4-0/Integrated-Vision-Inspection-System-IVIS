@@ -42,7 +42,7 @@ from core.utils.helper import split_string, join_string
 conn = init_connection(**st.secrets["postgres"])
 
 
-class account_status(IntEnum):
+class AccountStatus(IntEnum):
     # **** User Status ****
 
     NEW = 0  # Pending account activation
@@ -50,6 +50,16 @@ class account_status(IntEnum):
     LOCKED = 2  # Account locked
     LOGGED_IN = 3  # Account logged-in
     LOGGED_OUT = 4  # Account logged-out
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return AccountStatus[s]
+        except KeyError:
+            raise ValueError()
 
 # <<<< Variable Declaration <<<<
 
@@ -110,6 +120,7 @@ class BaseProject:
         self.project_size: int = None  # Number of files
         self.datasets: List = self.query_dataset_list()
         self.dataset_name_list: List = self.get_dataset_name_list()
+        self.dataset_name_id: Dict = {}
 
     @st.cache
     def query_dataset_list(self) -> List:
@@ -139,14 +150,18 @@ class BaseProject:
 
     def get_dataset_name_list(self) -> List:
         dataset_name_tmp = []
+        dataset_name_id = {}
         if self.datasets:
             for dataset in self.datasets:
                 dataset_name_tmp.append(dataset[1])
+                dataset_name_id[dataset[1]] = dataset[0]
             self.dataset_name_list = dataset_name_tmp
+            self.dataset_name_id = dataset_name_id
         else:
             self.dataset_name_list = []
+            self.dataset_name_id = {}
 
-        return dataset_name_tmp
+        return dataset_name_tmp, dataset_name_id
 
     def create_dataset_dataframe(self) -> pd.DataFrame:
 
@@ -192,9 +207,10 @@ class NewProject(BaseProject):
 
 # TODO
 
+
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
-        keys = ["name", "deployment_type", "upload"]
+        keys = ["name", "deployment_type", "dataset_chosen"]
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
         for i in field:
             if i and i != "":
@@ -202,9 +218,9 @@ class NewProject(BaseProject):
                     context = ['name', field[0]]
                     if self.check_if_exist(context, conn):
                         field_placeholder[keys[0]].error(
-                            f"Dataset name used. Please enter a new name")
+                            f"Project name used. Please enter a new name")
                         log_error(
-                            f"Dataset name used. Please enter a new name")
+                            f"Project name used. Please enter a new name")
                         empty_fields.append(keys[0])
 
                 else:
@@ -237,25 +253,69 @@ class NewProject(BaseProject):
         insert_project_SQL = """
                                 INSERT INTO public.project (
                                     name,
-                                    description,
-                                    file_type,
-                                    project_path,
-                                    project_size,
+                                    description,                                    
+                                    project_path,                                    
                                     deployment_id)
                                 VALUES (
                                     %s,
                                     %s,
                                     %s,
-                                    %s,
-                                    %s,
                                     %s)
                                 RETURNING id;
+                                
                             """
-        insert_project_vars = [self.name, self.desc, self.file_type,
-                               str(self.project_path), self.project_size, self.deployment_id]
-        self.project_id = db_fetchone(
-            insert_project_SQL, insert_project_vars, conn)
-        return self.project_id
+        insert_project_vars = [self.name, self.desc,
+                               str(self.project_path), self.deployment_id]
+        self.id = db_fetchone(
+            insert_project_SQL, conn, insert_project_vars)[0]
+        insert_project_dataset_SQL = """
+                                        INSERT INTO public.project_dataset (
+                                            project_id,
+                                            dataset_id)
+                                        VALUES (
+                                            %s,
+                                            %s);"""
+        for dataset in self.dataset_chosen:
+            dataset_id = self.dataset_name_id[dataset]
+            insert_project_dataset_vars = [self.id, dataset_id]
+            db_no_fetch(insert_project_dataset_SQL, conn,
+                        insert_project_dataset_vars)
+        return self.id
+
+    # def insert_project_dataset(self):
+
+    #     insert_project_dataset_SQL = """
+    #                                     INSERT INTO public.project_dataset (
+    #                                         project_id,
+    #                                         dataset_id)
+    #                                     VALUES (
+    #                                         %s,
+    #                                         %s);"""
+    #     for dataset in self.dataset_chosen:
+    #         dataset_id = self.dataset_name_id[dataset]
+    #         insert_project_dataset_vars = [self.id, dataset_id]
+    #         db_no_fetch(insert_project_dataset_SQL, conn,
+    #                     insert_project_dataset_vars)
+
+    def initialise_project(self):
+        directory_name = self.name.lower()
+        directory_name = join_string(split_string(str(directory_name)))
+        self.project_path = Path.home() / '.local' / 'share' / \
+            'integrated-vision-inspection-system' / \
+            'app_media' / 'project' / str(directory_name)
+        create_folder_if_not_exist(self.project_path)
+        log_info(
+            f"Successfully created **{self.name}** project at {str(self.project_path)}")
+        if self.insert_project():
+
+            log_info(
+                f"Successfully stored **{self.name}** project information in database")
+            return True
+
+        else:
+            log_error(
+                f"Failed to stored **{self.name}** project information in database")
+            return False
 
 
 # TODO: move to form_manager

@@ -155,7 +155,7 @@ class NewDataset(BaseDataset):
         insert_dataset_vars = [self.name, self.desc, self.file_type,
                                str(self.dataset_path), self.dataset_size, self.deployment_id]
         self.dataset_id = db_fetchone(
-            insert_dataset_SQL,conn, insert_dataset_vars)[0]
+            insert_dataset_SQL, conn, insert_dataset_vars)[0]
         return self.dataset_id
 
     def dataset_PNG_encoding(self):
@@ -180,10 +180,9 @@ class NewDataset(BaseDataset):
             return True
 
     def save_dataset(self) -> bool:
-        directory_name = self.name
-        directory_name = directory_name.lower()  # change name to lowercase
+        directory_name = self.name.lower()  # change name to lowercase
         # join directory name with '-' dash
-        directory_name = join_string(split_string(str(self.name)))
+        directory_name = join_string(split_string(str(directory_name)))
         self.dataset_path = Path.home() / '.local' / 'share' / \
             'integrated-vision-inspection-system' / \
             'app_media' / 'dataset' / str(directory_name)

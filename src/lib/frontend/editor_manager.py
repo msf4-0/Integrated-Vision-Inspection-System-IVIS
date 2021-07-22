@@ -62,7 +62,6 @@ class Editor(BaseEditor):
         self.xml_doc: minidom.Document = None
         self.childNodes: minidom.Node = None
 
-    @st.cache
     def load_xml(self, editor_config: str) -> minidom.Document:
         if editor_config:
             xml_doc = minidom.parseString(editor_config)
@@ -166,9 +165,12 @@ class Editor(BaseEditor):
                 except ValueError as e:
                     error_msg = f"{e}: Child node does not exist"
                     log_error(error_msg)
+
             else:
                 error_msg = f"Child node does not exist"
                 log_error(error_msg)
+        if removedChild:
+            return removedChild
 
 
 # ************************************************* OLD *************************************************

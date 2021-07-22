@@ -315,7 +315,9 @@ ALTER TABLE public.annotation_type OWNER TO shrdc;
 -- PROJECT_DATASET table (Many-to-Many) --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.project_dataset (
     project_id bigint NOT NULL,
-    dataset_id bigint NOT NULL)
+    dataset_id bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, dataset_id))
 TABLESPACE image_labelling;
 
 ALTER TABLE public.project_dataset OWNER TO shrdc;
