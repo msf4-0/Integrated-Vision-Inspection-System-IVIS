@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS public.training (
     MAXVALUE 9223372036854775807
     CACHE 1),
     name text NOT NULL UNIQUE,
+    description text,
     training_param jsonb[],
     augmentation jsonb[],
     model_id bigint,
