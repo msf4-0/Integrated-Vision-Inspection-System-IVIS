@@ -12,18 +12,29 @@ from object_detection.builders import model_builder
 from object_detection.utils import visualization_utils as viz_utils
 from object_detection.utils import config_util
 from object_detection.utils import label_map_util
+
+import sys
 import os
 from pathlib import Path
-import sys
+
 from time import perf_counter
 import numpy as np
 import cv2
+import streamlit as st
+from streamlit import cli as stcli
+from streamlit import session_state as session_state
+from streamlit_webrtc import (
+    ClientSettings,
+    VideoProcessorBase,
+    WebRtcMode,
+    webrtc_streamer,
+)
 
 # import urllib.request
 # import tarfile
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
@@ -32,16 +43,27 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-os.chdir(str(PROJECT_ROOT))
-print(PROJECT_ROOT)
+
 # >>>> User-defined Modules >>>>
-from module.frame_overlay import draw_overlay
-from module.performance_metrics import PerformanceMetrics
+from frame_overlay import draw_overlay
+from performance_metrics import PerformanceMetrics
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 # from data_manager.database_manager import init_connection
-
+from detector import Detector
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
+
+# >>>> Setup WebRTC >>>>
+WEBRTC_CLIENT_SETTINGS = ClientSettings(
+    rtc_configuration={"iceServers": [
+        {"urls": ["stun:stun.l.google.com:19302"]}]},
+    media_stream_constraints={
+        "video": True,
+        "audio": False,
+    },
+)
+# <<<< Setup WebRTC <<<<
+
 
 '''
 DATA_DIR = os.path.join(os.getcwd(), 'data')
@@ -102,9 +124,11 @@ def main():
     # -----------------------Start Video Capture--------------------------#
     link = "http://192.168.1.105:4747/video"  # IP webcam
     local_link = "http://127.0.0.1:4747"    # not use -> /dev/video2
+
+    # TODO : >>>>>>>>>>>>>>>>>>>>GET VIDEO FROM WEBRTC>>>>>>>>>>>>>>>>>>>>
     cap = cv2.VideoCapture(0)
 
-    perfMetric = PerformanceMetrics()
+    perfMetric = PerformanceMetrics()  # instantiate performance metrics class
 
     load_end_time = perf_counter()  # program loading end timestamp
     load_time = load_end_time - load_start_time
@@ -114,20 +138,22 @@ def main():
 
         perfMetric.start_time = perf_counter()
         ret, image_np = cap.read()  # Read frame from camera
+        image_np = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)  # convert to RGB
         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
 
         input_tensor = tf.convert_to_tensor(
             image_np_expanded, dtype=tf.float32)
         detections, predictions_dict, shapes = detect_fn(input_tensor)
-        print(detections)
+
         label_id_offset = 1
         image_np_with_detections = image_np.copy()  # frame
         current_latency, current_fps = perfMetric.update(perfMetric.start_time)
         if (current_latency and current_fps) is not None:
             log_info(
                 f"{'Current Latency=':<4} {(current_latency* 1e3):4.1f}ms {'|':^8} {'Current FPS=':<4} {current_fps:4.1f}")
-        # print(f"Current Latency: {current_latency} ; Current FPS: {current_fps}")
+
+        # >>>>>>>>>> ADD ANNOTATIONS TO VIDEO FRAMES >>>>>>>>>>>#
         viz_utils.visualize_boxes_and_labels_on_image_array(
             image_np_with_detections,
             detections['detection_boxes'][0].numpy(),
@@ -161,5 +187,9 @@ def main():
     cv2.destroyAllWindows()
 
 
-if __name__ == '__main__':
-    sys.exit(main() or 0)
+if __name__ == "__main__":
+    if st._is_running_with_streamlit:
+        main()
+    else:
+        sys.argv = ["streamlit", "run", sys.argv[0]]
+        sys.exit(stcli.main())
