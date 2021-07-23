@@ -60,7 +60,7 @@ def main():
     PATH_TO_CKPT = os.path.join(MODELS_DIR, 'checkpoint/')
     PATH_TO_CFG = os.path.join(MODELS_DIR, 'pipeline.config')
 
-    LABEL_FILENAME = 'mscoco_label_map.pbtxt'
+    LABEL_FILENAME = 'labelmap.pbtxt'
     PATH_TO_LABELS = os.path.join(MODELS_DIR, LABEL_FILENAME)
 
     #---------------------- Load the model -------------------------#
@@ -120,10 +120,12 @@ def main():
         input_tensor = tf.convert_to_tensor(
             image_np_expanded, dtype=tf.float32)
         detections, predictions_dict, shapes = detect_fn(input_tensor)
-        print(detections)
+        # print(detections)
         label_id_offset = 1
         image_np_with_detections = image_np.copy()  # frame
+
         current_latency, current_fps = perfMetric.update(perfMetric.start_time)
+        
         if (current_latency and current_fps) is not None:
             log_info(
                 f"{'Current Latency=':<4} {(current_latency* 1e3):4.1f}ms {'|':^8} {'Current FPS=':<4} {current_fps:4.1f}")

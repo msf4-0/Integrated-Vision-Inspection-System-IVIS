@@ -72,7 +72,7 @@ def return_camera_idx_linux():
     return video_open_list
 
 
-print(return_camera_idx_linux())
+# print(return_camera_idx_linux())
 
 
 def return_camera_idx_windows():
