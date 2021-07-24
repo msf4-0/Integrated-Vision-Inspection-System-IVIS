@@ -136,3 +136,14 @@ ALTER TABLE IF EXISTS public.editor
 
 ALTER TABLE public.editor VALIDATE CONSTRAINT fk_project_id;
 
+-- PROJECT_TRAINING (Many-to-Many)
+ALTER TABLE IF EXISTS public.project_training
+    ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
+
+ALTER TABLE public.project_training VALIDATE CONSTRAINT fk_project_id;
+
+ALTER TABLE IF EXISTS public.project_training
+    ADD CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE NOT VALID;
+
+ALTER TABLE public.project_training VALIDATE CONSTRAINT fk_training_id;
+

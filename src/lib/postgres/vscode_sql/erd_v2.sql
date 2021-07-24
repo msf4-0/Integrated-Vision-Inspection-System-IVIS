@@ -356,7 +356,7 @@ CREATE TABLE IF NOT EXISTS public.project_dataset (
     project_id bigint NOT NULL,
     dataset_id bigint NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY (project_id, dataset_id),
+    PRIMARY KEY (project_id, dataset_id),
     CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
     CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
@@ -376,8 +376,8 @@ CREATE TABLE IF NOT EXISTS public.editor (
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
-    TABLESPACE image_labelling;
+    CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE)
+TABLESPACE image_labelling;
 
 CREATE TRIGGER editor_update
     BEFORE UPDATE ON public.editor
@@ -385,6 +385,61 @@ CREATE TRIGGER editor_update
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
 ALTER TABLE public.editor OWNER TO shrdc;
+
+-- FRAMEWORK table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.framework (
+    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1),
+    name character varying(50) NOT NULL,
+    link text,
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id))
+TABLESPACE image_labelling;
+
+CREATE TRIGGER framework_update
+    BEFORE UPDATE ON public.framework
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_update_timestamp ();
+
+ALTER TABLE public.framework OWNER TO shrdc;
+
+INSERT INTO public.framework (
+    name,
+    link)
+VALUES (
+    'TensorFlow',
+    'https://www.tensorflow.org/'),
+(
+    'PyTorch',
+    'https://pytorch.org/'),
+(
+    'Scikit-learn',
+    'https://scikit-learn.org/stable/'),
+(
+    'Caffe',
+    'https://caffe.berkeleyvision.org/'),
+(
+    'MXNet',
+    'https://mxnet.apache.org/'),
+(
+    'ONNX',
+    'https://onnx.ai/');
+
+-- PROJECT_TRAINING table (Many-to-Many) ---------------------------
+CREATE TABLE IF NOT EXISTS public.project_training (
+    project_id bigint NOT NULL,
+    training_id bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, training_id),
+    CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
+    CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE)
+TABLESPACE image_labelling;
+
+ALTER TABLE public.project_training OWNER TO shrdc;
 
 END;
 
