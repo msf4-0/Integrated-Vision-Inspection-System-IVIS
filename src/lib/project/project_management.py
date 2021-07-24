@@ -7,7 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict
+from typing import NamedTuple, Union, List, Dict
 import psycopg2
 from PIL import Image
 from time import sleep
@@ -92,7 +92,7 @@ class Augmentation:
 
 
 class BaseTraining:
-    def __init__(self, training_id) -> None:
+    def __init__(self, training_id: Union[int, str]) -> None:
         self.id: Union[str, int] = training_id
         self.name: str = None
         self.training_param: TrainingParam = TrainingParam()
@@ -100,7 +100,7 @@ class BaseTraining:
 
 
 class NewTraining(BaseTraining):
-    def __init__(self, training_id) -> None:
+    def __init__(self, training_id: str) -> None:
         super().__init__(training_id)
 
 
@@ -180,6 +180,49 @@ class BaseProject:
 
         return df
 
+    def query_all_projects(self) -> NamedTuple:
+        query_all_projects_SQL = """
+                                    SELECT
+                                        p.id,
+                                        p.name,
+                                        description,
+                                        dt.name deployment_type,
+                                        deployment_id,
+                                        project_path
+                                    FROM
+                                        public.project p
+                                        LEFT JOIN deployment_type dt ON dt.id = p.deployment_id;
+                                """
+        projects = db_fetchall(
+            query_all_projects_SQL, conn)
+        return projects
+
+
+class Project(BaseProject):
+    def __init__(self, project_id: int) -> None:
+        super().__init__(project_id)
+
+    def query_all_fields(self) -> NamedTuple:
+        query_all_field_SQL = """
+                            SELECT
+                                p.id,
+                                p.name,
+                                description,
+                                dt.name as deployment_type,
+                                deployment_id,
+                                project_path
+                                
+                            FROM
+                                public.project p
+                                LEFT JOIN deployment_type dt ON dt.id = p.deployment_id
+                            WHERE
+                                p.id = %s;
+                            """
+        query_all_field_vars = [self.id]
+        project_field = db_fetchone(
+            query_all_field_SQL, conn, query_all_field_vars)
+        return project_field
+
 
 class NewProject(BaseProject):
     def __init__(self, project_id) -> None:
@@ -203,10 +246,6 @@ class NewProject(BaseProject):
                 query_id_SQL, conn, [self.deployment_type])[0]
         else:
             self.deployment_id = None
-
-
-# TODO
-
 
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
