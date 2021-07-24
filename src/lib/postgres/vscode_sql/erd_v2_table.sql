@@ -88,9 +88,7 @@ CREATE TABLE IF NOT EXISTS public.project (
     description text,
     project_path text NOT NULL,
     deployment_id integer,
-    dataset_id bigint,
     training_id bigint,
-    editor_config text,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))

@@ -9,8 +9,9 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 import psycopg2
+from psycopg2.extras import NamedTupleCursor
 import streamlit as st
-from typing import List, Dict
+from typing import List, Dict, NamedTuple
 # from config import config
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -60,14 +61,14 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
 
         # create a cursor
         with conn:
-            with conn.cursor() as cur:
+            with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
 
                 # execute a statement
                 cur.execute('SELECT version();')
                 conn.commit()
 
                 # display the PostgreSQL database server version
-                db_version = cur.fetchall()[0]
+                db_version = cur.fetchone().version
                 log_info(f"PostgreSQL database version: {db_version}")
                 log_info(f"PostgreSQL connection status: {conn.info.status}")
                 log_info(
@@ -95,9 +96,9 @@ def db_no_fetch(sql_message, conn, vars: List = None) -> None:
                 log_error(e)
 
 
-def db_fetchone(sql_message, conn, vars: List = None) -> tuple:
+def db_fetchone(sql_message, conn, vars: List = None) -> NamedTuple:
     with conn:
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
             try:
                 if vars:
                     cur.execute(sql_message, vars)
@@ -110,9 +111,9 @@ def db_fetchone(sql_message, conn, vars: List = None) -> tuple:
                 log_error(e)
 
 
-def db_fetchall(sql_message, conn, vars: List = None) -> tuple:
+def db_fetchall(sql_message, conn, vars: List = None) -> NamedTuple:
     with conn:
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
             try:
                 if vars:
                     cur.execute(sql_message, vars)
