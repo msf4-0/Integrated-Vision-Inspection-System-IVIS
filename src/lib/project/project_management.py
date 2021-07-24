@@ -42,68 +42,7 @@ from core.utils.helper import split_string, join_string
 conn = init_connection(**st.secrets["postgres"])
 
 
-class AccountStatus(IntEnum):
-    # **** User Status ****
-
-    NEW = 0  # Pending account activation
-    ACTIVE = 1  # Account activated
-    LOCKED = 2  # Account locked
-    LOGGED_IN = 3  # Account logged-in
-    LOGGED_OUT = 4  # Account logged-out
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return AccountStatus[s]
-        except KeyError:
-            raise ValueError()
-
 # <<<< Variable Declaration <<<<
-
-
-# >>>> TODO >>>>
-ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
-OPTIMIZER = []
-CLASSIFICATION_LOSS = []
-
-
-class TrainingParam:
-    def __init__(self) -> None:
-        self.epoch: Union[int, float] = 50
-        self.batch_size: int = 2
-        self.learning_rate: Union[int, float] = 0.0008
-        self.total_steps: int = 50000
-        self.warmup_steps = 1000
-        self.warmup_learning_rate = 0.00001
-        self.shuffle_buffer_size = 2048
-        self.activation_function: str = 'RELU_6'
-        self.optimizer: str = None
-        self.classification_loss: str = 'weighted_sigmoid_focal'
-
-# >>>> TODO >>>>
-
-
-class Augmentation:
-    def __init__(self) -> None:
-        pass
-
-
-class BaseTraining:
-    def __init__(self, training_id: Union[int, str]) -> None:
-        self.id: Union[str, int] = training_id
-        self.name: str = None
-        self.training_param: TrainingParam = TrainingParam()
-        self.augmentation: Augmentation = Augmentation()  # TODO
-
-
-class NewTraining(BaseTraining):
-    def __init__(self, training_id: str) -> None:
-        super().__init__(training_id)
-
-
 class BaseProject:
     def __init__(self, project_id) -> None:
         self.id = project_id
@@ -180,7 +119,8 @@ class BaseProject:
 
         return df
 
-    def query_all_projects(self) -> NamedTuple:
+    @st.cache(ttl=600)
+    def query_all_projects(self) -> List[NamedTuple]:
         query_all_projects_SQL = """
                                     SELECT
                                         p.id,
@@ -195,6 +135,7 @@ class BaseProject:
                                 """
         projects = db_fetchall(
             query_all_projects_SQL, conn)
+
         return projects
 
 
@@ -205,7 +146,7 @@ class Project(BaseProject):
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
                             SELECT
-                                p.id,
+                                
                                 p.name,
                                 description,
                                 dt.name as deployment_type,
@@ -221,7 +162,40 @@ class Project(BaseProject):
         query_all_field_vars = [self.id]
         project_field = db_fetchone(
             query_all_field_SQL, conn, query_all_field_vars)
+        self.name, self.desc, self.deployment_type, self.deployment_id, self.project_path = project_field
         return project_field
+
+    @st.cache
+    def query_project_dataset_list(self) -> List:
+        query_project_dataset_SQL = """
+                                SELECT
+                                    d.id AS dataset_id,
+                                    d.name AS dataset_name,
+                                    d.dataset_size,
+                                    pd.updated_at 
+                                FROM
+                                    public.project_dataset pd
+                                    LEFT JOIN public.dataset d ON d.id = pd.dataset_id
+                                WHERE
+                                    pd.project_id = %s;
+                                    """
+        query_project_dataset_vars = [self.id]
+        project_datasets = db_fetchall(
+            query_project_dataset_SQL, conn, query_project_dataset_vars)
+        project_dataset_tmp = []
+        if project_datasets:
+            for dataset in project_datasets:
+                dataset = list(dataset)  # convert tuples to List
+
+                # convert datetime with TZ to (2021-07-30 12:12:12) format
+                dataset[3] = dataset[3].strftime('%Y-%m-%d %H:%M:%S')
+                project_dataset_tmp.append(dataset)
+
+            self.datasets = project_dataset_tmp
+        else:
+            project_dataset_tmp = []
+
+        return project_dataset_tmp
 
 
 class NewProject(BaseProject):

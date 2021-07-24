@@ -149,6 +149,8 @@ CREATE TABLE IF NOT EXISTS public.pre_trained_models (
     MAXVALUE 9223372036854775807
     CACHE 1),
     name text NOT NULL,
+    model_path text,
+    framework_id bigint,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))
@@ -168,7 +170,9 @@ CREATE TABLE IF NOT EXISTS public.models (
     MAXVALUE 9223372036854775807
     CACHE 1),
     model_name text NOT NULL UNIQUE,
+    model_path text,
     training_id bigint,
+    framework_id bigint,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))

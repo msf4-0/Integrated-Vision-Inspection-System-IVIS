@@ -83,3 +83,15 @@ FROM
     public.project p
     LEFT JOIN deployment_type dt ON dt.id = p.deployment_id;
 
+-- Query PROJECT_DATASET table
+SELECT
+    d.id AS dataset_id,
+    d.name AS dataset_name,
+    d.dataset_size,
+    pd.updated_at 
+FROM
+    public.project_dataset pd
+    LEFT JOIN public.dataset d ON d.id = pd.dataset_id
+WHERE
+    pd.project_id = % s;
+

@@ -186,9 +186,12 @@ CREATE TABLE IF NOT EXISTS public.pre_trained_models (
     MAXVALUE 9223372036854775807
     CACHE 1),
     name text NOT NULL,
+    model_path text,
+    framework_id bigint,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id))
+    PRIMARY KEY (id),
+    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
 
 CREATE TRIGGER pre_trained_models_update
@@ -205,11 +208,14 @@ CREATE TABLE IF NOT EXISTS public.models (
     MAXVALUE 9223372036854775807
     CACHE 1),
     model_name text NOT NULL UNIQUE,
+    model_path text,
     training_id bigint,
+    framework_id bigint,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL)
+    CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL,
+    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
 
 CREATE TRIGGER models_update
