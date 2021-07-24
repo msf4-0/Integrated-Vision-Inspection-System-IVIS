@@ -147,10 +147,12 @@ CREATE TABLE IF NOT EXISTS public.training (
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     project_id bigint NOT NULL,
     pre_trained_model_id bigint,
+    framework_id bigint,
     PRIMARY KEY (id),
     CONSTRAINT fk_model_id FOREIGN KEY (model_id) REFERENCES public.models (id) ON DELETE SET NULL,
     CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
-    CONSTRAINT fk_pre_trained_model_id FOREIGN KEY (pre_trained_model_id) REFERENCES public.pre_trained_models (id) ON DELETE SET NULL)
+    CONSTRAINT fk_pre_trained_model_id FOREIGN KEY (pre_trained_model_id) REFERENCES public.pre_trained_models (id) ON DELETE SET NULL,
+    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
 
 CREATE TRIGGER training_update
@@ -437,7 +439,30 @@ CREATE TABLE IF NOT EXISTS public.project_training (
     CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE)
 TABLESPACE image_labelling;
 
+CREATE TRIGGER project_training_update
+    BEFORE UPDATE ON public.project_training
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_update_timestamp ();
+
 ALTER TABLE public.project_training OWNER TO shrdc;
+
+-- TRAINING_DATASET table (Many-to-Many) ---------------------------
+CREATE TABLE IF NOT EXISTS public.training_dataset (
+    training_id bigint NOT NULL,
+    dataset_id bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (training_id, dataset_id),
+    CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE,
+    CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE)
+TABLESPACE image_labelling;
+
+CREATE TRIGGER training_dataset_update
+    BEFORE UPDATE ON public.training_dataset
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_update_timestamp ();
+
+ALTER TABLE public.training_dataset OWNER TO shrdc;
 
 END;
 

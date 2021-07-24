@@ -38,6 +38,11 @@ ALTER TABLE IF EXISTS public.training
 
 ALTER TABLE public.training VALIDATE CONSTRAINT fk_pre_trained_model_id;
 
+ALTER TABLE IF EXISTS public.training
+    ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.training VALIDATE CONSTRAINT fk_framework_id;
+
 -- TRAINING_LOG
 ALTER TABLE IF EXISTS public.training_log
     ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION NOT VALID;
@@ -146,4 +151,15 @@ ALTER TABLE IF EXISTS public.project_training
     ADD CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.project_training VALIDATE CONSTRAINT fk_training_id;
+
+-- TRAINING_DATASET (Many-to-Many)
+ALTER TABLE IF EXISTS public.training_dataset
+    ADD CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE NOT VALID;
+
+ALTER TABLE public.training_dataset VALIDATE CONSTRAINT fk_training_id;
+
+ALTER TABLE IF EXISTS public.training_dataset
+    ADD CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE NOT VALID;
+
+ALTER TABLE public.training_dataset VALIDATE CONSTRAINT fk_dataset_id;
 
