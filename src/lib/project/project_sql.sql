@@ -48,11 +48,38 @@ VALUES (
 -- Insert Editor Base Config into Editor Table
 INSERT INTO public.editor (
     name,
-    editor_config,project_id)
+    editor_config,
+    project_id)
 VALUES (
     % s,
     % s,
     % s)
 RETURNING
     id;
+
+-- Query all field of Project
+SELECT
+    p.id,
+    p.name,
+    description,
+    dt.name AS deployment_type,
+    deployment_id,
+    project_path
+FROM
+    public.project p
+    LEFT JOIN deployment_type dt ON dt.id = p.deployment_id
+WHERE
+    p.id = % s;
+
+-- Query all project
+SELECT
+    p.id,
+    p.name,
+    description,
+    dt.name deployment_type,
+    deployment_id,
+    project_path
+FROM
+    public.project p
+    LEFT JOIN deployment_type dt ON dt.id = p.deployment_id;
 
