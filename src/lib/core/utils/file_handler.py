@@ -8,19 +8,19 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 """
 from pathlib import Path
+import sys
+import os
+import io
 from glob import glob, iglob
 import json
-import io
 import yaml
-import os
 import shutil
-import streamlit as st
-import logging
 from zipfile import ZipFile
 import tarfile
-import sys
-from typing import Union
+import urllib
 
+from typing import Union, List, Dict
+import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
@@ -154,6 +154,52 @@ def read_bytes_stream(filepath):
     with open(filepath, mode='rb') as f:
         return io.BytesIO(f.read())
 
+
+# This code is based on https://github.com/streamlit/demo-self-driving/blob/230245391f2dda0cb464008195a470751c01770b/streamlit_app.py#L48  # noqa: E501
+def download_file(url, download_to: Path, expected_size=None):
+    # Don't download the file twice.
+    # (If possible, verify the download using the file length.)
+    if download_to.exists():
+        if expected_size:
+            if download_to.stat().st_size == expected_size:
+                return
+        else:
+            st.info(f"{url} is already downloaded.")
+            if not st.button("Download again?"):
+                return
+
+    download_to.parent.mkdir(parents=True, exist_ok=True)
+
+    # These are handles to two visual elements to animate.
+    weights_warning, progress_bar = None, None
+    try:
+        weights_warning = st.warning("Downloading %s..." % url)
+        progress_bar = st.progress(0)
+        with open(download_to, "wb") as output_file:
+            with urllib.request.urlopen(url) as response:
+                length = int(response.info()["Content-Length"])
+                counter = 0.0
+                MEGABYTES = 2.0 ** 20.0
+                while True:
+                    data = response.read(8192)
+                    if not data:
+                        break
+                    counter += len(data)
+                    output_file.write(data)
+
+                    # We perform animation by overwriting the elements.
+                    weights_warning.warning(
+                        "Downloading %s... (%6.2f/%6.2f MB)"
+                        % (url, counter / MEGABYTES, length / MEGABYTES)
+                    )
+                    progress_bar.progress(min(counter / length, 1.0))
+    # Finally, we remove these visual elements by calling .empty().
+    finally:
+        if weights_warning is not None:
+            weights_warning.empty()
+        if progress_bar is not None:
+            progress_bar.empty()
+
 #------------------------File Archiver----------------------#
 
 
@@ -175,7 +221,7 @@ def check_archiver_format(filename=None):
     elif (len(filename.parts)) > 1:
         archive_format = filename.suffix
     else:
-        log.info("Parsing error")
+        log_info("Parsing error")
 
     try:
         # get file extension if shutil cannot parse/find format
@@ -191,12 +237,12 @@ def check_archiver_format(filename=None):
             return archive_format_list[archive_format]
 
         else:
-            log.error("Archive format invalid!")
+            log_error("Archive format invalid!")
             st.error("Archive format invalid!")
 
     except KeyError as e:
         error_msg = f"{e}: Archive format invalid!"
-        log.error(error_msg)
+        log_error(error_msg)
         st.error(error_msg)
 
 
@@ -225,7 +271,7 @@ def file_unarchiver(filename, extract_dir):
             shutil.unpack_archive(filename=filename, extract_dir=extract_dir)
         except ValueError as e:
             error_msg = f"{e}: Shutil unable to extract archive format from filename"
-            log.error(error_msg)
+            log_error(error_msg)
             st.error(error_msg)
 
             # get archiver format from Path suffix
@@ -237,10 +283,10 @@ def file_unarchiver(filename, extract_dir):
     else:
         # pass IOError
         error_msg = f"{IOError}: File does not exist"
-        log.error(error_msg)
+        log_error(error_msg)
         st.error(error_msg)
 
-    log.info("Successfully Unarchive")
+    log_info("Successfully Unarchive")
 
 
 def single_file_archiver(archive_filename, target_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
@@ -249,7 +295,7 @@ def single_file_archiver(archive_filename, target_filename, target_root_dir, tar
         with ZipFile(file=archive_filename, mode='w') as zip:
             zip.write(target_filename,
                       arcname=target_base_dir)
-            log.info(f"Successfully archived folder: {archive_filename}")
+            log_info(f"Successfully archived folder: {archive_filename}")
             st.success(f"Successfully archived folder: {archive_filename}")
 
     else:  # remaining is tarball
@@ -263,12 +309,12 @@ def single_file_archiver(archive_filename, target_filename, target_root_dir, tar
             tar_mode = tar_format_list[archive_extension]
 
         else:
-            log.error("Archive format invalid!")
+            log_error("Archive format invalid!")
             st.error("Archive format invalid!")
 
         with tarfile.open(archive_filename, tar_mode) as tar:
             tar.add(target_filename, arcname=target_base_dir)
-            log.info(f"Successfully archived folder: {archive_filename}")
+            log_info(f"Successfully archived folder: {archive_filename}")
             st.success(f"Successfully archived folder: {archive_filename}")
 
 
@@ -278,13 +324,13 @@ def batch_file_archiver(archive_filename, target_root_dir, target_base_dir, arch
     try:
         archived_name = shutil.make_archive(base_name=str(
             archive_filename), format=archive_format, root_dir=target_root_dir, base_dir=target_base_dir)
-        log.info(f"Successfully archived{archived_name}")
+        log_info(f"Successfully archived{archived_name}")
         # return back to initial working directory
         os.chdir(current_working_dir)
         return(archived_name)
     except:
         error_msg = "Failed to archive file"
-        log.info(error_msg)
+        log_info(error_msg)
         st.error(error_msg)
         # return back to initial working directory
         os.chdir(current_working_dir)
@@ -310,5 +356,5 @@ def file_archive(archive_filename, target_root_dir, target_base_dir, archive_ext
 
     else:
         error_msg = f"{FileNotFoundError}File does not exist"
-        log.error(error_msg)
+        log_error(error_msg)
         st.error(error_msg)
