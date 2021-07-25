@@ -169,10 +169,10 @@ class Project(BaseProject):
     def query_project_dataset_list(self) -> List:
         query_project_dataset_SQL = """
                                 SELECT
-                                    d.id AS dataset_id,
-                                    d.name AS dataset_name,
-                                    d.dataset_size,
-                                    pd.updated_at 
+                                    d.id AS "ID",
+                                    d.name AS "Name",
+                                    d.dataset_size AS "Dataset Size",
+                                    pd.updated_at AS "Date/Time"
                                 FROM
                                     public.project_dataset pd
                                     LEFT JOIN public.dataset d ON d.id = pd.dataset_id

@@ -51,6 +51,7 @@ new_training = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
+DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 
 class DeploymentType(IntEnum):
@@ -156,7 +157,7 @@ def show():
 
 
 # >>>>>>>> Choose Dataset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
+    st.write("___")
     # include options to create new dataset on this page
     # create 2 columns for "New Data Button"
     outercol1, outercol2, outercol3, _ = st.beta_columns(
@@ -169,19 +170,21 @@ def show():
         session_state.project.datasets = session_state.project.query_project_dataset_list()
         session_state.project.dataset_name_list, session_state.project.dataset_name_id = session_state.project.get_dataset_name_list()
 
-        session_state.project.dataset_chosen = st.multiselect(
+        session_state.new_training.dataset_chosen = st.multiselect(
             "Dataset List", key="dataset", options=session_state.project.dataset_name_list, help="Assign dataset to the project")
-        place["dataset_chosen"] = outercol2.empty()
+
         # Button to create new dataset
         new_data_button = st.button("Create New Dataset")
+        place["dataset_chosen"] = outercol3.empty()
 
         # print choosen dataset
-        st.write("### Dataset choosen:")
-        if len(session_state.project.dataset_chosen) > 0:
-            for idx, data in enumerate(session_state.project.dataset_chosen):
-                st.write(f"{idx+1}. {data}")
-        elif len(session_state.project.dataset_chosen) == 0:
-            st.info("No dataset selected")
+        with place["dataset_chosen"]:
+            if len(session_state.new_training.dataset_chosen) > 0:
+                st.write("### Dataset choosen:")
+                for idx, data in enumerate(session_state.new_training.dataset_chosen):
+                    st.write(f"{idx+1}. {data}")
+            elif len(session_state.new_training.dataset_chosen) == 0:
+                st.info("No dataset selected")
     # <<<< Right Column to select dataset <<<<
 
     # >>>> Left Column to show full list of dataset and selection >>>>
@@ -217,7 +220,7 @@ def show():
 
         # >>>>DATAFRAME
         st.table(styler.apply(
-            highlight_row, selections=session_state.project.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
+            highlight_row, selections=session_state.new_training.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
                 [dict(selector='th', props=[('text-align', 'center')])]))
     # <<<< Left Column to show full list of dataset and selection <<<<
 
@@ -246,6 +249,7 @@ def show():
 # <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>>>>>> Model >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    st.write("___")
     outercol1, outercol2, outercol3, _ = st.beta_columns(
         [1.5, 1.75, 1.75, 0.5])
 
@@ -274,7 +278,7 @@ def show():
         model = place["model_selection"].file_uploader("User Custom Model Upload", type=[
             'zip', 'tar.gz', 'tar.bz2', 'tar.xz'], key='user_custom_upload')
         if model:
-            session_state.new_training.model = deepcopy(
+            session_state.new_training.model_selected = deepcopy(
                 model)  # store in model attribute
             st.write(model)  # TODO
     # >>>>>>>>>>>> MODEL UPLOAD >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -438,6 +442,7 @@ def show():
                     f"Page {1+session_state.model_page} of {num_data_page}")
     place["model"] = outercol2.empty()  # TODO :KIV
 
+    # >>>>>>>>>>>>>>>>>>WARNING>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if not session_state.new_training.model_selected:
 
         place["model"].info("No Deep Learning Model selected")
@@ -449,22 +454,31 @@ def show():
 
 # <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    # # **** Image Augmentation (Optional) ****
-    # st.write("## __Image Augmentation :__")
-    # session_state.new_project["augmentation"] = st.multiselect(
-    #     "Augmentation List", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
-    # place["augmentation"] = st.empty()
-
-    # # **** Training Parameters (Optional) ****
-    # st.write("## __Training Parameters :__")
-    # session_state.new_project["training_param"] = st.multiselect(
-    #     "Training Parameters", key="training_param", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
-    # place["augmentation"] = st.empty()
-
+# >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    st.write("___")
+    DATASET_LIST = []
+    # **** Image Augmentation (Optional) ****
+    outercol1, outercol2, outercol3, _ = st.beta_columns(
+        [1.5, 1.75, 1.75, 0.5])
+    outercol1.write("## __Image Augmentation :__")
+    session_state.new_training.augmentation = outercol2.multiselect(
+        "Augmentation List", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+    place["augmentation"] = st.empty()
+    outercol3.error("# WIP")
+    # **** Training Parameters (Optional) ****
+    st.write("___")
+    outercol1, outercol2, outercol3, _ = st.beta_columns(
+        [1.5, 1.75, 1.75, 0.5])
+    outercol1.write("## __Training Parameters :__")
+    session_state.new_training.training_param = outercol2.multiselect(
+        "Training Parameters", key="training_param", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+    place["training_param"] = st.empty()
+    outercol3.error("# WIP")
+# >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # **** Submit Button ****
     success_place = st.empty()
-    field = [session_state.project.name,
-             session_state.project.deployment_id, session_state.project.dataset_chosen]
+    field = [session_state.new_training.name,
+             session_state.new_training.dataset_chosen, session_state.new_training.model_selected]
     st.write(field)
     col1, col2 = st.beta_columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")

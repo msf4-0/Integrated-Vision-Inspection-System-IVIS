@@ -88,6 +88,8 @@ class BaseTraining:
         self.model = None  # TODO
         self.framework: str = None
 
+        self.dataset_chosen: List = None
+
     @st.cache
     def get_framework_list(self):
         get_framework_list_SQL = """
@@ -110,7 +112,7 @@ class NewTraining(BaseTraining):
 
     def check_if_field_empty(self, field: List, field_placeholder) -> bool:
         empty_fields = []
-        keys = ["name", "deployment_type", "dataset_chosen"]
+        keys = ["name", "dataset_chosen", "model"]
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
         for i in field:
             if i and i != "":
