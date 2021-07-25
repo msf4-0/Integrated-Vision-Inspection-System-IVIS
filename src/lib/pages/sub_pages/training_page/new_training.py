@@ -25,6 +25,8 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
+DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
+
 # TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
 if str(LIB_PATH) not in sys.path:
@@ -51,7 +53,6 @@ new_training = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
-DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 
 class DeploymentType(IntEnum):
@@ -109,11 +110,14 @@ def show():
 
 # >>>> New Training INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # Page title
-    st.write("# __Add New Training__")
-    dt_place, _ = st.beta_columns([3, 1])
+    st.write(f'# Project Name: {session_state.project.name}')
+    st.write("## __Add New Training__")
+    dt_place, project_id_place = st.beta_columns([3, 1])
     with dt_place:
-        st.write("## __Deployment Type:__",
+        st.write("### __Deployment Type:__",
                  f"{session_state.project.deployment_type}")
+    with project_id_place:
+        st.write(f"### **Project ID:** {session_state.project.id}")
     st.markdown("___")
 
     # right-align the project ID relative to the page
@@ -178,13 +182,20 @@ def show():
         place["dataset_chosen"] = outercol3.empty()
 
         # print choosen dataset
-        with place["dataset_chosen"]:
-            if len(session_state.new_training.dataset_chosen) > 0:
-                st.write("### Dataset choosen:")
-                for idx, data in enumerate(session_state.new_training.dataset_chosen):
-                    st.write(f"{idx+1}. {data}")
-            elif len(session_state.new_training.dataset_chosen) == 0:
-                st.info("No dataset selected")
+
+        if len(session_state.new_training.dataset_chosen) > 0:
+
+            # st.write("### Dataset Partition Ratio")
+            session_state.new_training.partition_ratio=outercol3.number_input(
+                "Dataset Partition Ratio", min_value=0.5, max_value=1.0, value=0.8, step=0.1, key="partition_ratio")
+            with outercol3.beta_expander("Partition info"):
+                st.info("Ratio of Training datasets to Evaluation datasets. Example: '0.5' means the dataset are split randomly and equally into training and evaluation datasets.")
+
+            st.write("### Dataset choosen:")
+            for idx, data in enumerate(session_state.new_training.dataset_chosen):
+                st.write(f"{idx+1}. {data}")
+        elif len(session_state.new_training.dataset_chosen) == 0:
+            place["dataset_chosen"].info("No dataset selected")
     # <<<< Right Column to select dataset <<<<
 
     # >>>> Left Column to show full list of dataset and selection >>>>
@@ -245,7 +256,6 @@ def show():
         col2.write(
             f"Page {1+session_state.dataset_page} of {num_dataset_page}")
     # <<<< Dataset Pagination <<<<
-    place["dataset"] = st.empty()  # TODO :KIV
 # <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>>>>>> Model >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
