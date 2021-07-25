@@ -188,10 +188,12 @@ CREATE TABLE IF NOT EXISTS public.pre_trained_models (
     name text NOT NULL,
     model_path text,
     framework_id bigint,
+    deployment_id integer,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL)
+    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL,
+    CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
 
 CREATE TRIGGER pre_trained_models_update
@@ -211,11 +213,13 @@ CREATE TABLE IF NOT EXISTS public.models (
     model_path text,
     training_id bigint,
     framework_id bigint,
+    deployment_id integer,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL,
-    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL)
+    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL,
+    CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
 
 CREATE TRIGGER models_update

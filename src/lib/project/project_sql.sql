@@ -97,13 +97,15 @@ WHERE
 
 -- Query PRE_TRAINED_MODELS table
 SELECT
-    pt.id,
-    pt.name,
-    f.name AS framework,
-    pt.model_path
+    pt.id AS "ID",
+    pt.name AS "Name",
+    f.name AS "Framework",
+    dt.name AS "Deployment Type",
+    pt.model_path AS "Model Path"
 FROM
     public.pre_trained_models pt
-    LEFT JOIN public.framework f ON f.id = pt.framework_id;
+    LEFT JOIN public.framework f ON f.id = pt.framework_id
+    LEFT JOIN public.deployment_type dt ON dt.id = pt.deployment_id;
 
 -- Queyr list of Framework
 SELECT

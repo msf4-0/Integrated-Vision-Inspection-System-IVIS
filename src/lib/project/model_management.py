@@ -69,12 +69,15 @@ class PreTrainedModel(BaseModel):
                 pt.id AS "ID",
                 pt.name AS "Name",
                 f.name AS "Framework",
+                dt.name AS "Deployment Type",
                 pt.model_path AS "Model Path"
             FROM
                 public.pre_trained_models pt
-                LEFT JOIN public.framework f ON f.id = pt.framework_id;"""
-        PT_model_list,column_names = db_fetchall(query_PT_table_SQL, conn,fetch_col_name=True)
-        return PT_model_list,column_names
+                LEFT JOIN public.framework f ON f.id = pt.framework_id
+                LEFT JOIN public.deployment_type dt ON dt.id = pt.deployment_id;"""
+        PT_model_list, column_names = db_fetchall(
+            query_PT_table_SQL, conn, fetch_col_name=True)
+        return PT_model_list, column_names
 
 
 def main():

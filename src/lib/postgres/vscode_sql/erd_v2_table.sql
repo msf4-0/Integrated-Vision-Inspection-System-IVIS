@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS public.pre_trained_models (
     name text NOT NULL,
     model_path text,
     framework_id bigint,
+    deployment_id integer,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))
@@ -166,7 +167,8 @@ ALTER TABLE public.pre_trained_models OWNER TO shrdc;
 INSERT INTO public.pre_trained_models (
     name,
     framework_id,
-    model_path)
+    model_path,
+    deployment_id)
 VALUES (
     '[TF] SSD MobileNet V2 FPNLite 320x320',
     (
@@ -175,13 +177,13 @@ VALUES (
         FROM
             public.framework f
         WHERE
-            f.name = 'TensorFlow'), './pre-trained-models/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8'), ('[TF] SSD ResNet50 V1 FPN 640x640 (RetinaNet50)', (
+            f.name = 'TensorFlow'), './pre-trained-models/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8', 2), ('[TF] SSD ResNet50 V1 FPN 640x640 (RetinaNet50)', (
         SELECT
             f.id
         FROM
             public.framework f
         WHERE
-            f.name = 'TensorFlow'), './pre-trained-models/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8');
+            f.name = 'TensorFlow'), './pre-trained-models/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8', 2);
 
 -- MODELS table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.models (
@@ -193,6 +195,7 @@ CREATE TABLE IF NOT EXISTS public.models (
     model_path text,
     training_id bigint,
     framework_id bigint,
+    deployment_id integer,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))

@@ -65,11 +65,21 @@ ALTER TABLE IF EXISTS public.models
 
 ALTER TABLE public.models VALIDATE CONSTRAINT fk_framework_id;
 
+ALTER TABLE IF EXISTS public.models
+    ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.models VALIDATE CONSTRAINT fk_deployment_id;
+
 -- PRE-TRAINED MODELS
 ALTER TABLE IF EXISTS public.pre_trained_models
     ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.pre_trained_models VALIDATE CONSTRAINT fk_framework_id;
+
+ALTER TABLE IF EXISTS public.pre_trained_models
+    ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.pre_trained_models VALIDATE CONSTRAINT fk_deployment_id;
 
 -- PREDICTIONS
 ALTER TABLE IF EXISTS public.predictions

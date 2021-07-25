@@ -274,8 +274,14 @@ def show():
                 model)  # store in model attribute
             st.write(model)
     elif model_upload_select == 'Pre-trained Models':
+
+        # TODO *************************************************
         pre_trained_models, pt_column_names = session_state.pt_model.query_PT_table()
-        pt_name_list = [pt.Name for pt in pre_trained_models]
+        pt_name_list = [
+            pt.Name for pt in pre_trained_models if pt.Framework == framework]  # List to get DL model name based on framework
+
+        # **********************************************************************************
+        # >>>> Pre-trained models dataframe >>>>
         df = create_dataframe(pre_trained_models, pt_column_names)
         df_loc = df.loc[(df["Framework"] == session_state.new_training.framework),
                         "ID":"Framework"] if framework else df.loc[:, "ID":"Framework"]
@@ -285,6 +291,8 @@ def show():
             "", options=pt_name_list, key='pre_trained_models', format_func=lambda x: 'Select a Model' if x == "" else x)
 
         session_state.new_training.model_selected = model_selection if model_selection else None
+        # <<<< Pre-trained models dataframe <<<<
+        # **********************************************************************************
 
     else:
         model_selection = outercol2.selectbox(
@@ -292,6 +300,10 @@ def show():
 
     if not session_state.new_training.model_selected:
         outercol2.info("No Deep Learning Model selected")
+    else:
+        outercol2.write(
+            f"### Deep Learning Model selected: ")
+        outercol2.write(f"#### {session_state.new_training.model_selected}")
     # *******************************************
     # TODO: place selectbox for model stored in database
     # *********************************************
