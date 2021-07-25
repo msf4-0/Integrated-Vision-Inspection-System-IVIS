@@ -281,29 +281,88 @@ def show():
             pt.Name for pt in pre_trained_models if pt.Framework == framework]  # List to get DL model name based on framework
 
         # **********************************************************************************
-        # >>>> Pre-trained models dataframe >>>>
-        df = create_dataframe(pre_trained_models, pt_column_names)
-        df_loc = df.loc[(df["Framework"] == session_state.new_training.framework),
-                        "ID":"Framework"] if framework else df.loc[:, "ID":"Framework"]
-        outercol3.table(df_loc)
+        # >>>>RIGHT: Pre-trained models selection >>>>
         pt_name_list.insert(0, "")
-        model_selection = outercol2.selectbox(
-            "", options=pt_name_list, key='pre_trained_models', format_func=lambda x: 'Select a Model' if x == "" else x)
+        try:
+            model_selection = outercol2.selectbox(
+                "", options=pt_name_list, key='pre_trained_models', format_func=lambda x: 'Select a Model' if x == "" else x)
+        except ValueError as e:
+            pass
+        # <<<<RIGHT: Pre-trained models selection <<<<
 
         session_state.new_training.model_selected = model_selection if model_selection else None
-        # <<<< Pre-trained models dataframe <<<<
+
+        # >>>>LEFT: Pre-trained models dataframe >>>>
+        if "pt_page" not in session_state:
+            session_state.pt_page = 0
+
+        def next_pt_page():
+            session_state.pt_page += 1
+
+        def prev_pt_page():
+            session_state.pt_page -= 1
+        with outercol3:
+            start = 10 * session_state.pt_page
+            end = start + 10
+
+            df = create_dataframe(pre_trained_models, pt_column_names)
+            df_loc = df.loc[(df["Framework"] == session_state.new_training.framework),
+                            "ID":"Framework"] if framework else df.loc[:, "ID":"Framework"]
+            df_slice = df_loc.iloc[start:end]
+            if session_state.new_training.model_selected:
+                def highlight_row(x, selections):
+
+                    if x.Name in selections:
+
+                        return ['background-color: #90a4ae'] * len(x)
+                    else:
+                        return ['background-color: '] * len(x)
+
+                styler = df_slice.style.apply(
+                    highlight_row, selections=session_state.new_training.model_selected, axis=1)
+            else:
+                styler = df_slice.style
+            st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+                [dict(selector='th', props=[('text-align', 'center')])]))
+
+        # >>>> Dataset Pagination >>>>
+
+        _, _, col1, _, col2, _, col3, _ = st.beta_columns(
+            [1.5, 1.75, 0.15, 0.5, 0.45, 0.5, 0.15, 0.5])
+        num_data_per_page = 10
+        num_data_page = len(
+            pre_trained_models) // num_data_per_page
+        # st.write(num_dataset_page)
+        if num_data_page > 1:
+            if session_state.pt_page < num_data_page:
+                col3.button(">", on_click=next_pt_page)
+            else:
+                col3.write("")  # this makes the empty column show up on mobile
+
+            if session_state.pt_page > 0:
+                col1.button("<", on_click=prev_pt_page)
+            else:
+                col1.write("")  # this makes the empty column show up on mobile
+
+            col2.write(f"Page {1+session_state.pt_page} of {num_data_page}")
+        # <<<< Dataset Pagination <<<<
+
+        # <<<<LEFT: Pre-trained models dataframe <<<<
+
         # **********************************************************************************
 
     else:
         model_selection = outercol2.selectbox(
             "", options=[], key='project_models')
-
+    place["model"] = outercol2.empty()  # TODO :KIV
     if not session_state.new_training.model_selected:
-        outercol2.info("No Deep Learning Model selected")
+        place["model"].info("No Deep Learning Model selected")
     else:
-        outercol2.write(
-            f"### Deep Learning Model selected: ")
-        outercol2.write(f"#### {session_state.new_training.model_selected}")
+        with place["model"]:
+            st.write(
+                f"### Deep Learning Model selected: ")
+            st.write(
+                f"#### {session_state.new_training.model_selected}")
     # *******************************************
     # TODO: place selectbox for model stored in database
     # *********************************************
