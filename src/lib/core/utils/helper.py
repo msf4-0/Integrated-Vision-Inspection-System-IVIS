@@ -8,6 +8,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from typing import Union, List, Dict
+import pandas as pd
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -43,3 +44,26 @@ def join_string(list_string):
 
 def is_empty(iterable: Union[List, Dict, set]) -> bool:
     return not bool(iterable)
+
+
+def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort_by_ID: bool = False, date_time_format: bool = False) -> pd.DataFrame:
+    if data:
+
+        df = pd.DataFrame(data, columns=column_names)
+        df.index.name = ('No.')
+        if date_time_format:
+            df['Date/Time'] = pd.to_datetime(df['Date/Time'],
+                                             format='%Y-%m-%d %H:%M:%S')
+
+            df.sort_values(by=['Date/Time'], inplace=True,
+                           ascending=False, ignore_index=True)
+        elif sort_by_ID:
+
+            df.sort_values(by=['ID'], inplace=True,
+                           ascending=True, ignore_index=True)
+
+            # dfStyler = df.style.set_properties(**{'text-align': 'center'})
+            # dfStyler.set_table_styles(
+            #     [dict(selector='th', props=[('text-align', 'center')])])
+
+        return df

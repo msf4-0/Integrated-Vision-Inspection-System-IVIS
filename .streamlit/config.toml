@@ -1,4 +1,4 @@
-# last updated 2021-06-17
+# last updated 2021-07-22
 
 [global]
 
@@ -10,6 +10,13 @@ disableWatchdogWarning = false
 # If True, will show a warning when you run a Streamlit-enabled script via "python my_script.py".
 # Default: true
 showWarningOnDirectExecution = true
+
+# DataFrame serialization.
+# Acceptable values:
+# - 'legacy': Serialize DataFrames using Streamlit's custom format. Slow but battle-tested.
+# - 'arrow': Serialize DataFrames using Apache Arrow. Much faster and versatile.
+# Default: 'arrow'
+dataFrameSerialization = "arrow"
 
 [logger]
 
@@ -85,7 +92,7 @@ runOnSave = false
 
 # The port where the server will listen for browser connections.
 # Default: 8501
-port = 8507
+port = 8501
 
 # The base path for the URL where Streamlit should be served from.
 # Default: ""
@@ -103,7 +110,7 @@ enableXsrfProtection = true
 
 # Max size, in megabytes, for files uploaded with the file_uploader.
 # Default: 200
-maxUploadSize = 200
+maxUploadSize = 500
 
 # Enables support for websocket compression.
 # Default: true
@@ -123,7 +130,7 @@ gatherUsageStats = true
 # Port where users should point their browsers in order to connect to the app.
 # This is used to: - Set the correct URL for CORS and XSRF protection purposes. - Show the URL on the terminal - Open the browser - Tell the browser where to connect to the server when in liveSave mode.
 # Default: whatever value is set in server.port.
-serverPort = 8507
+serverPort = 8501
 
 [mapbox]
 
@@ -135,13 +142,13 @@ token = ""
 
 # Set to false to disable the deprecation warning for the file uploader encoding.
 # Default: "True"
-showfileUploaderEncoding = "True"
+showfileUploaderEncoding = "false"
 
 
 
 # Set to false to disable the deprecation warning for using the global pyplot instance.
 # Default: "True"
-showPyplotGlobalUse = "True"
+showPyplotGlobalUse = "false"
 
 [s3]
 
@@ -183,20 +190,14 @@ keyPrefix = ""
 #primaryColor =
 
 # Background color for the main content area.
-#backgroundColor="#2c589e"
+#backgroundColor =
 
 # Background color used for the sidebar and most interactive widgets.
-#secondaryBackgroundColor="#133971"
+#secondaryBackgroundColor =
 
 # Color used for almost all text.
-#textColor="#ffffff"
+#textColor =
 
 # Font family for all text in the app, except code blocks. One of "sans serif", "serif", or "monospace".
 # Default: "sans serif"
 font = "sans serif"
-
-
-
-
-
-
