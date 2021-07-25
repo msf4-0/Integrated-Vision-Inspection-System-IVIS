@@ -88,10 +88,27 @@ SELECT
     d.id AS dataset_id,
     d.name AS dataset_name,
     d.dataset_size,
-    pd.updated_at 
+    pd.updated_at
 FROM
     public.project_dataset pd
     LEFT JOIN public.dataset d ON d.id = pd.dataset_id
 WHERE
     pd.project_id = % s;
+
+-- Query PRE_TRAINED_MODELS table
+SELECT
+    pt.id,
+    pt.name,
+    f.name AS framework,
+    pt.model_path
+FROM
+    public.pre_trained_models pt
+    LEFT JOIN public.framework f ON f.id = pt.framework_id;
+
+-- Queyr list of Framework
+SELECT
+    id,
+    name
+FROM
+    public.framework;
 

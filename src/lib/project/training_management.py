@@ -85,13 +85,27 @@ class BaseTraining:
         self.model_id: int = None
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: int = project.deployment_type
+        self.model = None  # TODO
+        self.framework: str = None
+
+    @st.cache
+    def get_framework_list(self):
+        get_framework_list_SQL = """
+            SELECT
+                id as "ID",
+                name as "Name"
+            FROM
+                public.framework;
+                    """
+        framework_list = db_fetchall(get_framework_list_SQL, conn)
+        return framework_list
 
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
         self.has_submitted = False
-
+        self.model_selected = None  # TODO
     # TODO *************************************
 
     def check_if_field_empty(self, field: List, field_placeholder) -> bool:

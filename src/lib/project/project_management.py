@@ -102,6 +102,7 @@ class BaseProject:
 
         return dataset_name_tmp, dataset_name_id
 
+    @st.cache
     def create_dataset_dataframe(self) -> pd.DataFrame:
 
         if self.datasets:
@@ -123,11 +124,10 @@ class BaseProject:
     def query_all_projects(self) -> List[NamedTuple]:
         query_all_projects_SQL = """
                                     SELECT
-                                        p.id,
-                                        p.name,
-                                        description,
-                                        dt.name deployment_type,
-                                        deployment_id,
+                                        p.id as "ID",
+                                        p.name as "Name",
+                                        description as "Description",
+                                        dt.name as "Deployment Type",
                                         project_path
                                     FROM
                                         public.project p

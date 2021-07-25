@@ -7,7 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict
+from typing import NamedTuple, Union, List, Dict
 import psycopg2
 from PIL import Image
 from time import sleep
@@ -29,7 +29,7 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch
+from data_manager.database_manager import db_fetchall, init_connection, db_fetchone, db_no_fetch
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import split_string, join_string
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -45,16 +45,36 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 class BaseModel:
-    def __init__(self, model_id) -> None:
-        self.id: Union[str, int] = model_id
+    def __init__(self,) -> None:
+        self.id: Union[str, int] = None
         self.name: str = None
+        self.framework: str = None
         self.training_id: int = None
         self.model_path: Path = None
 
 
-class PretrainedModel(BaseModel):
-    def __init__(self, model_id) -> None:
-        super().__init__(model_id)
+class Model(BaseModel):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+class PreTrainedModel(BaseModel):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @st.cache
+    def query_PT_table(self) -> NamedTuple:
+        query_PT_table_SQL = """
+            SELECT
+                pt.id AS "ID",
+                pt.name AS "Name",
+                f.name AS "Framework",
+                pt.model_path AS "Model Path"
+            FROM
+                public.pre_trained_models pt
+                LEFT JOIN public.framework f ON f.id = pt.framework_id;"""
+        PT_model_list,column_names = db_fetchall(query_PT_table_SQL, conn,fetch_col_name=True)
+        return PT_model_list,column_names
 
 
 def main():

@@ -163,6 +163,26 @@ CREATE TRIGGER pre_trained_models_update
 
 ALTER TABLE public.pre_trained_models OWNER TO shrdc;
 
+INSERT INTO public.pre_trained_models (
+    name,
+    framework_id,
+    model_path)
+VALUES (
+    '[TF] SSD MobileNet V2 FPNLite 320x320',
+    (
+        SELECT
+            f.id
+        FROM
+            public.framework f
+        WHERE
+            f.name = 'TensorFlow'), './pre-trained-models/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8'), ('[TF] SSD ResNet50 V1 FPN 640x640 (RetinaNet50)', (
+        SELECT
+            f.id
+        FROM
+            public.framework f
+        WHERE
+            f.name = 'TensorFlow'), './pre-trained-models/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8');
+
 -- MODELS table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.models (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1

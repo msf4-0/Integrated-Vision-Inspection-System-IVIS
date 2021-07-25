@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from time import sleep
+from copy import deepcopy
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -34,11 +35,12 @@ else:
 from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
+from core.utils.helper import create_dataframe
 import numpy as np  # TEMP for table viz
 from project.project_management import Project
 from project.training_management import NewTraining
 from data_manager.database_manager import init_connection
-
+from project.model_management import PreTrainedModel, Model
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -152,7 +154,6 @@ def show():
         pass
 # <<<<<<<< New Training INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# <<<<<<<< Deployment Type <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>>>>>> Choose Dataset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -162,9 +163,7 @@ def show():
         [1.5, 1.75, 1.75, 0.5])
 
     outercol1.write("## __Dataset :__")
-    # outercol1, outercol2, outercol3 = st.beta_columns([1, 2, 2])
 
-    data_left, data_right = st.beta_columns(2)
     # >>>> Right Column to select dataset >>>>
     with outercol3:
         session_state.project.datasets = session_state.project.query_project_dataset_list()
@@ -244,6 +243,65 @@ def show():
             f"Page {1+session_state.dataset_page} of {num_dataset_page}")
     # <<<< Dataset Pagination <<<<
     place["dataset"] = st.empty()  # TODO :KIV
+# <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# >>>>>>>> Model >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    outercol1, outercol2, outercol3, _ = st.beta_columns(
+        [1.5, 1.75, 1.75, 0.5])
+
+    if 'pt_model' not in session_state:
+        session_state.pt_model = PreTrainedModel()
+
+    outercol1.write("## __Deep Learning Model Selection :__")
+
+    framework_list = [framework.Name for framework in deepcopy(
+        session_state.new_training.get_framework_list())]
+    framework_list.insert(0, "")
+    framework = outercol2.selectbox("Select Deep Learning Framework", options=framework_list,
+                                    format_func=lambda x: 'Select a framework' if x == "" else x)
+    session_state.new_training.framework = framework if framework else None
+
+    model_upload_select = outercol2.radio("",
+                                          options=["Pre-trained Models", "Project Models", "User Custom Deep Learning Model Upload"], key='model_selection')
+
+    # empty() placeholder to dynamically display file upload if checkbox selected
+    place["model_selection"] = outercol2.empty()
+    if model_upload_select == 'User Custom Deep Learning Model Upload':
+        model = place["model_selection"].file_uploader("User Custom Model Upload", type=[
+            'zip', 'tar.gz', 'tar.bz2', 'tar.xz'], key='user_custom_upload')
+        if model:
+            session_state.new_training.model = deepcopy(
+                model)  # store in model attribute
+            st.write(model)
+    elif model_upload_select == 'Pre-trained Models':
+        pre_trained_models, pt_column_names = session_state.pt_model.query_PT_table()
+        pt_name_list = [pt.Name for pt in pre_trained_models]
+        df = create_dataframe(pre_trained_models, pt_column_names)
+        df_loc = df.loc[(df["Framework"] == session_state.new_training.framework),
+                        "ID":"Framework"] if framework else df.loc[:, "ID":"Framework"]
+        outercol3.table(df_loc)
+        pt_name_list.insert(0, "")
+        model_selection = outercol2.selectbox(
+            "", options=pt_name_list, key='pre_trained_models', format_func=lambda x: 'Select a Model' if x == "" else x)
+
+        session_state.new_training.model_selected = model_selection if model_selection else None
+
+    else:
+        model_selection = outercol2.selectbox(
+            "", options=[], key='project_models')
+
+    if not session_state.new_training.model_selected:
+        outercol2.info("No Deep Learning Model selected")
+    # *******************************************
+    # TODO: place selectbox for model stored in database
+    # *********************************************
+
+    # *******************************************
+    # TODO: place model selected
+    # *********************************************
+
+
+# <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     # # **** Image Augmentation (Optional) ****
     # st.write("## __Image Augmentation :__")
@@ -284,8 +342,8 @@ def show():
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
 
     col1, col2 = st.beta_columns(2)
-    col1.write(vars(session_state.new_project))
-    col2.write(vars(session_state.new_editor))
+    col1.write(vars(session_state.project))
+    col2.write(vars(session_state.new_training))
 
 
 def main():
