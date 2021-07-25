@@ -96,22 +96,32 @@ def db_no_fetch(sql_message, conn, vars: List = None) -> None:
                 log_error(e)
 
 
-def db_fetchone(sql_message, conn, vars: List = None) -> NamedTuple:
+def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = False) -> NamedTuple:
+
     with conn:
         with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
+
             try:
+
                 if vars:
                     cur.execute(sql_message, vars)
+
                 else:
                     cur.execute(sql_message)
+
                 conn.commit()
                 return_one = cur.fetchone()  # return tuple
-                return return_one
+                column_names = [desc[0] for desc in cur.description]
+                if fetch_col_name:
+                    return return_one, column_names
+                else:
+                    column_names=None
+                    return return_one
             except psycopg2.Error as e:
                 log_error(e)
 
 
-def db_fetchall(sql_message, conn, vars: List = None) -> NamedTuple:
+def db_fetchall(sql_message, conn, vars: List = None, fetch_col_name: bool = False) -> NamedTuple:
     with conn:
         with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
             try:
@@ -121,6 +131,10 @@ def db_fetchall(sql_message, conn, vars: List = None) -> NamedTuple:
                     cur.execute(sql_message)
                 conn.commit()
                 return_all = cur.fetchall()  # return array of tuple
-                return return_all
+                column_names = [desc[0] for desc in cur.description]
+                if fetch_col_name:
+                    return return_all, column_names
+                else:
+                    return return_all
             except psycopg2.Error as e:
                 log_error(e)
