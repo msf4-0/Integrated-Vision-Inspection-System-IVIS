@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS public.training (
     training_param jsonb[],
     augmentation jsonb[],
     model_id bigint,
+    partition_size real,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     project_id bigint NOT NULL,
@@ -209,7 +210,7 @@ CREATE TABLE IF NOT EXISTS public.models (
     MINVALUE 1
     MAXVALUE 9223372036854775807
     CACHE 1),
-    model_name text NOT NULL UNIQUE,
+    name text NOT NULL UNIQUE,
     model_path text,
     training_id bigint,
     framework_id bigint,

@@ -114,3 +114,82 @@ SELECT
 FROM
     public.framework;
 
+-- Insert into Training Table
+INSERT INTO public.training (
+    name,
+    description,
+    training_param,
+    augmentation,
+    pre_trained_model_id,
+    framework_id,
+    project_id,
+    partition_size)
+VALUES (
+    % s,
+    % s,
+    % s,
+    % s,
+    (
+        SELECT
+            pt.id
+        FROM
+            public.pre_trained_models pt
+        WHERE
+            pt.name = % s), (
+            SELECT
+                f.id
+            FROM
+                public.framework f
+            WHERE
+                f.name = % s), % s, % s)
+RETURNING
+    id;
+
+-- Insert into Project_Training table
+INSERT INTO public.project_training (
+    project_id,
+    training_id)
+VALUES (
+    % s,
+    % s);
+
+-- Insert into Model table
+INSERT INTO public.models (
+    name,
+    model_path,
+    training_id,
+    framework_id,
+    deployment_id)
+VALUES (
+    % s,
+    % s,
+    % s,
+    (
+        SELECT
+            f.id
+        FROM
+            public.framework f
+        WHERE
+            f.name = % s), (
+            SELECT
+                dt.id
+            FROM
+                public.deployment_type dt
+            WHERE
+                dt.name = % s))
+RETURNING
+    id;
+
+--Insert into training_dataset table
+INSERT INTO public.training_dataset (
+    training_id,
+    dataset_id)
+VALUES (
+    % s,
+    (
+        SELECT
+            id
+        FROM
+            public.dataset d
+        WHERE
+            d.name = % s))

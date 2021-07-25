@@ -93,7 +93,7 @@ def show():
         session_state.previous_page = "All Trainings"
 
     if "new_training" not in session_state:
-        # TODO: query all project details
+        # TODO: query all project
         session_state.project = Project(7)
         session_state.new_training = NewTraining(get_random_string(
             length=8), session_state.project)  # TODO move below
@@ -186,7 +186,7 @@ def show():
         if len(session_state.new_training.dataset_chosen) > 0:
 
             # st.write("### Dataset Partition Ratio")
-            session_state.new_training.partition_ratio=outercol3.number_input(
+            session_state.new_training.partition_ratio = outercol3.number_input(
                 "Dataset Partition Ratio", min_value=0.5, max_value=1.0, value=0.8, step=0.1, key="partition_ratio")
             with outercol3.beta_expander("Partition info"):
                 st.info("Ratio of Training datasets to Evaluation datasets. Example: '0.5' means the dataset are split randomly and equally into training and evaluation datasets.")
@@ -458,9 +458,23 @@ def show():
         place["model"].info("No Deep Learning Model selected")
 
     else:
+        def check_if_model_name_exist(field_placeholder, conn):
+            context = ['name', session_state.model_name]
+            if session_state.model_name:
+                if session_state.model.check_if_exist(context, conn):
+                    field_placeholder['model_name'].error(
+                        f"Model name used. Please enter a new name")
+                    sleep(1)
+                    log_error(f"Model name used. Please enter a new name")
+                else:
+                    session_state.model.name = session_state.model_name
+                    log_info(f"Model name fresh and ready to rumble")
+
         place["model"].write(
             f"### **Deep Learning Model selected:** {session_state.new_training.model_selected} ")
-
+        outercol2.text_input(
+            "Exported Model Name", key="model_name", help="Enter the name of the exported model after training", on_change=check_if_model_name_exist, args=(place, conn,))
+        place["model_name"] = outercol2.empty()
 
 # <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -498,18 +512,13 @@ def show():
             field, field_placeholder=place)
 
         if session_state.new_training.has_submitted:
-            if session_state.new_project.initialise_project():
-                session_state.new_editor.project_id = session_state.new_project.id
-                if session_state.new_editor.init_editor():
-                    success_place.success(
-                        f"Successfully stored **{session_state.new_project.name}** project information in database")
-                else:
-                    success_place.error(
-                        f"Failed to stored **{session_state.new_editor.name}** editor config in database")
+            if session_state.new_training.initialise_training(session_state.model, session_state.project):
+                success_place.success(
+                    f"Successfully stored **{session_state.new_training.name}** training information in database")
 
             else:
                 success_place.error(
-                    f"Failed to stored **{session_state.new_project.name}** project information in database")
+                    f"Failed to stored **{session_state.new_training.name}** training information in database")
 
     col1, col2 = st.beta_columns(2)
     col1.write(vars(session_state.project))

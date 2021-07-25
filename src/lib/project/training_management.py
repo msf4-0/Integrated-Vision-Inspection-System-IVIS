@@ -12,11 +12,13 @@ import psycopg2
 from PIL import Image
 from time import sleep
 from enum import IntEnum
+import json
 from copy import copy, deepcopy
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
+from project.model_management import Model
 
 from project.project_management import Project
 
@@ -24,6 +26,7 @@ from project.project_management import Project
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
+DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
@@ -86,9 +89,12 @@ class BaseTraining:
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: int = project.deployment_type
         self.model = None  # TODO
+        self.model_path: str = None
         self.framework: str = None
-
+        self.partition_ratio: float = 0.5
         self.dataset_chosen: List = None
+        self.training_param_json: json = None
+        self.augmentation_json: json = None
 
     @st.cache
     def get_framework_list(self):
@@ -137,8 +143,6 @@ class NewTraining(BaseTraining):
         # if empty_fields not empty -> return False, else -> return True
         return not empty_fields
 
-    # TODO ****************************************************
-
     def check_if_exist(self, context: List, conn) -> bool:
         check_exist_SQL = """
                             SELECT
@@ -152,6 +156,167 @@ class NewTraining(BaseTraining):
                         """
         exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
         return exist_status
+
+    def insert_training(self, model: Model, project: Project):
+
+        # insert into training table
+        insert_training_SQL = """
+            INSERT INTO public.training (
+                name,
+                description,
+                training_param,
+                augmentation,
+                pre_trained_model_id,
+                framework_id,
+                project_id,
+                partition_size)
+            VALUES (
+                %s,
+                %s,
+                %s::jsonb,
+                %s::jsonb,
+                (
+                    SELECT
+                        pt.id
+                    FROM
+                        public.pre_trained_models pt
+                    WHERE
+                        pt.name = %s), (
+                        SELECT
+                            f.id
+                        FROM
+                            public.framework f
+                        WHERE
+                            f.name = %s), %s, %s)
+            RETURNING
+                id;
+
+            """
+        # convert dictionary into serialised JSON
+        self.training_param_json = json.dumps(
+            self.training_param, sort_keys=True, indent=4)
+        self.augmentation_json = json.dumps(
+            self.augmentation, sort_keys=True, indent=4)
+        insert_training_vars = [self.name, self.desc, self.training_param_json, self.augmentation_json,
+                                self.model_selected, self.framework, self.project_id, self.partition_ratio]
+        self.training_id = db_fetchone(
+            insert_training_SQL, conn, insert_training_vars).id
+
+        # Insert into project_training table
+        insert_project_training_SQL = """
+            INSERT INTO public.project_training (
+                project_id,
+                training_id)
+            VALUES (
+                %s,
+                %s);
+        
+            """
+        insert_project_training_vars = [self.project_id, self.training_id]
+        db_no_fetch(insert_project_training_SQL, conn,
+                    insert_project_training_vars)
+
+        # insert into model table
+        insert_model_SQL = """
+            INSERT INTO public.models (
+                name,
+                model_path,
+                training_id,
+                framework_id,
+                deployment_id)
+            VALUES (
+                %s,
+                %s,
+                %s,
+                (
+                    SELECT
+                        f.id
+                    FROM
+                        public.framework f
+                    WHERE
+                        f.name = %s), (
+                        SELECT
+                            dt.id
+                        FROM
+                            public.deployment_type dt
+                        WHERE
+                            dt.name = %s))
+            RETURNING
+                id;
+            """
+        insert_model_vars = [model.name, model.model_path,
+                             self.training_id, self.framework, project.deployment_type]
+        model.id = db_fetchone(insert_model_SQL, conn, insert_model_vars)
+
+        # Insert into training_dataset table
+        insert_training_dataset_SQL = """
+            INSERT INTO public.training_dataset (
+                training_id,
+                dataset_id)
+            VALUES (
+                %s,
+                (
+                    SELECT
+                        id
+                    FROM
+                        public.dataset d
+                    WHERE
+                        d.name = %s))"""
+        for dataset in self.dataset_chosen:
+            insert_training_dataset_vars = [self.training_id, dataset]
+            db_no_fetch(insert_training_dataset_SQL, conn,
+                        insert_training_dataset_vars)
+
+        return self.id
+
+    def initialise_training(self, model:Model,project:Project):
+        '''
+        project_dir
+        |
+        |-annotations/
+        | |-labelmap
+        | |-TFRecords*
+        |
+        |-exported_models/
+        |-dataset
+        | |-train/
+        | |-evaluation/
+        |
+        |-models/
+
+        '''
+        directory_name = self.name.lower()
+        directory_name = join_string(split_string(str(directory_name)))
+
+        self.training_path = project.project_path / \
+            str(directory_name)  # user training name
+        self.main_model_path = self.training_path / 'models'
+        self.dataset_path = self.training_path / 'dataset'
+        self.exported_model_path = self.training_path / 'exported_models'
+        self.annotations_path = self.training_path / 'annotations'
+        directory_pipeline = [self.annotations_path, self.exported_model_path, self.main_model_path,
+                              self.dataset_path]
+
+        # CREATE Training directory recursively
+        for dir in directory_pipeline:
+            create_folder_if_not_exist(dir)
+            log_info(
+                f"Successfully created **{str(dir)}**")
+
+        log_info(
+            f"Successfully created **{self.name}** training at {str(self.training_path)}")
+
+        # Entry into DB for training,project_training,model,model_training tables
+        if self.insert_training():
+
+            log_info(
+                f"Successfully stored **{self.name}** traiing information in database")
+            return True
+
+        else:
+            log_error(
+                f"Failed to stored **{self.name}** training information in database")
+            return False
 
 
 def main():

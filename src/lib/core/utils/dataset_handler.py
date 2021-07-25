@@ -138,7 +138,7 @@ def dataset_partition(project_id, data_path, project_dir=Path.cwd(), a=0.9, b=0.
     # instantiate Path objects for dataset and output directory
     data_path = Path(data_path)  # KIV
     project_dir = Path(project_dir)
-    output_dir = Path(project_dir, "image")
+    output_dir = Path(project_dir, "dataset")
     train_img_dir = Path(output_dir, "train")
     eval_img_dir = Path(output_dir, "evaluation")
     test_img_dir = Path(output_dir, "test")

@@ -79,6 +79,20 @@ class Model(BaseModel):
             column_names = None
         return project_model_list, column_names
 
+    def check_if_exist(self, context: List, conn) -> bool:
+        check_exist_SQL = """
+                            SELECT
+                                EXISTS (
+                                    SELECT
+                                        %s
+                                    FROM
+                                        public.models
+                                    WHERE
+                                        name = %s);
+                        """
+        exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
+        return exist_status
+
 
 class PreTrainedModel(BaseModel):
     def __init__(self) -> None:
