@@ -251,31 +251,35 @@ def show():
 
     if 'pt_model' not in session_state:
         session_state.pt_model = PreTrainedModel()
+        session_state.model = Model()
 
     outercol1.write("## __Deep Learning Model Selection :__")
 
+    # ***********FRAMEWORK LIST *****************************************************************************
     framework_list = [framework.Name for framework in deepcopy(
         session_state.new_training.get_framework_list())]
     framework_list.insert(0, "")
     framework = outercol2.selectbox("Select Deep Learning Framework", options=framework_list,
                                     format_func=lambda x: 'Select a framework' if x == "" else x)
     session_state.new_training.framework = framework if framework else None
-
+    # ***********FRAMEWORK LIST *****************************************************************************
     model_upload_select = outercol2.radio("",
                                           options=["Pre-trained Models", "Project Models", "User Custom Deep Learning Model Upload"], key='model_selection')
 
     # empty() placeholder to dynamically display file upload if checkbox selected
     place["model_selection"] = outercol2.empty()
+
+    # >>>>>>>>>>>> MODEL UPLOAD >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if model_upload_select == 'User Custom Deep Learning Model Upload':
         model = place["model_selection"].file_uploader("User Custom Model Upload", type=[
             'zip', 'tar.gz', 'tar.bz2', 'tar.xz'], key='user_custom_upload')
         if model:
             session_state.new_training.model = deepcopy(
                 model)  # store in model attribute
-            st.write(model)
+            st.write(model)  # TODO
+    # >>>>>>>>>>>> MODEL UPLOAD >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     elif model_upload_select == 'Pre-trained Models':
 
-        # TODO *************************************************
         pre_trained_models, pt_column_names = session_state.pt_model.query_PT_table()
         pt_name_list = [
             pt.Name for pt in pre_trained_models if pt.Framework == framework]  # List to get DL model name based on framework
@@ -352,24 +356,95 @@ def show():
         # **********************************************************************************
 
     else:
-        model_selection = outercol2.selectbox(
-            "", options=[], key='project_models')
-    place["model"] = outercol2.empty()  # TODO :KIV
-    if not session_state.new_training.model_selected:
-        place["model"].info("No Deep Learning Model selected")
-    else:
-        with place["model"]:
-            st.write(
-                f"### Deep Learning Model selected: ")
-            st.write(
-                f"#### {session_state.new_training.model_selected}")
-    # *******************************************
-    # TODO: place selectbox for model stored in database
-    # *********************************************
 
-    # *******************************************
-    # TODO: place model selected
-    # *********************************************
+        project_models, project_model_column_names = session_state.model.query_model_table()
+        if project_models:
+            project_model_name_list = [
+                m.Name for m in project_models if m.Framework == framework]  # List to get DL model name based on framework
+            project_model_name_list.insert(0, "")
+        else:
+            project_model_name_list = []
+        # **********************************************************************************
+        # >>>>RIGHT: Project models selection >>>>
+
+        try:
+            model_selection = outercol2.selectbox(
+                "", options=project_model_name_list, key='project_models', format_func=lambda x: 'Select a Model' if x == "" else x)
+        except ValueError as e:
+            pass
+        # <<<<RIGHT: Project models selection <<<<
+
+        session_state.new_training.model_selected = model_selection if model_selection else None
+
+        # >>>>LEFT: Pre-trained models dataframe >>>>
+        if "model_page" not in session_state:
+            session_state.model_page = 0
+
+        def next_model_page():
+            session_state.model_page += 1
+
+        def prev_model_page():
+            session_state.model_page -= 1
+        with outercol3:
+            start = 10 * session_state.model_page
+            end = start + 10
+            if project_models:
+                df = create_dataframe(
+                    project_models, project_model_column_names)
+                df_loc = df.loc[(df["Framework"] == session_state.new_training.framework),
+                                "ID":"Framework"] if framework else df.loc[:, "ID":"Framework"]
+                df_slice = df_loc.iloc[start:end]
+                if session_state.new_training.model_selected:
+                    def highlight_row(x, selections):
+
+                        if x.Name in selections:
+
+                            return ['background-color: #90a4ae'] * len(x)
+                        else:
+                            return ['background-color: '] * len(x)
+
+                    styler = df_slice.style.apply(
+                        highlight_row, selections=session_state.new_training.model_selected, axis=1)
+                else:
+                    styler = df_slice.style
+                st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+                    [dict(selector='th', props=[('text-align', 'center')])]))
+            else:
+                st.error(
+                    "No Project Deep Learning Models available. Please choose from the list of Pre-trained Models or Upload your own Deep Learning Model")
+
+        # >>>> Dataset Pagination >>>>
+        if project_models:
+            _, _, col1, _, col2, _, col3, _ = st.beta_columns(
+                [1.5, 1.75, 0.15, 0.5, 0.45, 0.5, 0.15, 0.5])
+            num_data_per_page = 10
+            num_data_page = len(
+                project_models) // num_data_per_page
+            # st.write(num_dataset_page)
+            if num_data_page > 1:
+                if session_state.model_page < num_data_page:
+                    col3.button(">", on_click=next_model_page)
+                else:
+                    # this makes the empty column show up on mobile
+                    col3.write("")
+
+                if session_state.model_page > 0:
+                    col1.button("<", on_click=prev_model_page)
+                else:
+                    # this makes the empty column show up on mobile
+                    col1.write("")
+
+                col2.write(
+                    f"Page {1+session_state.model_page} of {num_data_page}")
+    place["model"] = outercol2.empty()  # TODO :KIV
+
+    if not session_state.new_training.model_selected:
+
+        place["model"].info("No Deep Learning Model selected")
+
+    else:
+        place["model"].write(
+            f"### **Deep Learning Model selected:** {session_state.new_training.model_selected} ")
 
 
 # <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

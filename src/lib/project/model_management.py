@@ -57,6 +57,28 @@ class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
 
+    @st.cache
+    def query_model_table(self) -> NamedTuple:
+        query_model_table_SQL = """
+            SELECT
+                m.id AS "ID",
+                m.name AS "Name",
+                f.name AS "Framework",
+                dt.name AS "Deployment Type",
+                m.model_path AS "Model Path"
+            FROM
+                public.models m
+                LEFT JOIN public.framework f ON f.id = m.framework_id
+                LEFT JOIN public.deployment_type dt ON dt.id = m.deployment_id;"""
+        return_all = db_fetchall(
+            query_model_table_SQL, conn, fetch_col_name=True)
+        if return_all:
+            project_model_list, column_names = return_all
+        else:
+            project_model_list = None
+            column_names = None
+        return project_model_list, column_names
+
 
 class PreTrainedModel(BaseModel):
     def __init__(self) -> None:
