@@ -193,3 +193,19 @@ VALUES (
             public.dataset d
         WHERE
             d.name = % s))
+-- Query Editor config
+SELECT
+    editor_config
+FROM
+    public.editor
+WHERE
+    project_id = % s;
+
+-- Update Editor Config
+UPDATE
+    public.editor
+SET
+    editor_config = % s
+WHERE
+    project_id = % s;
+

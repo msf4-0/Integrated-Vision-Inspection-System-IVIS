@@ -47,20 +47,34 @@ conn = init_connection(**st.secrets['postgres'])
 
 
 class BaseEditor:
-    def __init__(self, random_generator) -> None:
+    def __init__(self) -> None:
 
         # name is editor id for reference. Not the same as PK of DB
         self.id: int = None
-        self.name: str = random_generator
+        self.name: str = None
         self.editor_config: str = None
         self.labels: List = []
         self.project_id: Union[str, int] = None
 
+    def update_editor_config(self, updated_editor_config):
+        update_editor_config_SQL = """
+                                    UPDATE
+                                        public.editor
+                                    SET
+                                        editor_config = %s
+                                    WHERE
+                                        project_id = %s;
+                                            """
+        update_editor_config_vars = [updated_editor_config, self.project_id]
+        db_no_fetch(update_editor_config_SQL, conn, update_editor_config_vars)
+
 
 class NewEditor(BaseEditor):
     def __init__(self, random_generator) -> None:
-        super().__init__(random_generator)
+        super().__init__()
+        self.name: str = random_generator
 
+    @classmethod
     def init_editor(self) -> int:
         init_editor_SQL = """
                                     INSERT INTO public.editor (
@@ -80,10 +94,55 @@ class NewEditor(BaseEditor):
 
 
 class Editor(BaseEditor):
-    def __init__(self, random_generator) -> None:
-        super().__init__(random_generator)
+    def __init__(self, project_id) -> None:
+        super().__init__()
         self.xml_doc: minidom.Document = None
         self.childNodes: minidom.Node = None
+        self.project_id = project_id
+        self.editor_config = self.load_raw_xml()
+        self.query_editor_fields()
+
+    def query_editor_fields(self):
+        query_editor_fields_SQL = """
+                SELECT                    
+                    id,
+                    name,
+                    labels
+                    
+                FROM
+                    public.editor 
+                WHERE
+                    project_id = %s
+                """
+        query_editor_fields_vars = [self.project_id]
+        editor_fields = db_fetchone(
+            query_editor_fields_SQL, conn, query_editor_fields_vars)
+        if editor_fields:
+            self.id, self.name, self.labels = editor_fields
+        else:
+            log_error(
+                f"Editor for Project with ID: {self.project_id} does not exists in the database!!!")
+        return editor_fields
+
+    def load_raw_xml(self):
+        query_editor_SQL = """SELECT
+                                editor_config
+                            FROM
+                                public.editor
+                            WHERE
+                                project_id = %s;"""
+
+        query_editor_vars = [self.project_id]
+
+        editor_config = db_fetchone(
+            query_editor_SQL, conn, query_editor_vars)[0]
+
+        self.editor_config = editor_config if editor_config else None
+        if not editor_config:
+            log_info(
+                f"Editor config does not exists in the database for Project ID:{self.project_id}")
+
+        return self.editor_config
 
     def load_xml(self, editor_config: str) -> minidom.Document:
         if editor_config:
@@ -162,6 +221,11 @@ class Editor(BaseEditor):
 
         # add new tag to parent childNodelist
         newChild = nodeList.appendChild(new_label)
+
+        # serialise XML doc and Update database
+        updated_editor_config_xml_string = self.to_xml_string(pretty=True)
+        self.update_editor_config(updated_editor_config_xml_string)
+
         return newChild
 
     def edit_labels(self, tagName: str, attr: str, old_value: str, new_value: str):
@@ -176,7 +240,7 @@ class Editor(BaseEditor):
         if new_attributes:
             return new_attributes
 
-    def remove_labels(self, tagName: str, attr: str, value: str):
+    def remove_label(self, tagName: str, attr: str, value: str):
         nodeList = self.xml_doc.getElementsByTagName(tagName)
         removedChild = []
         for node in reversed(nodeList):
@@ -192,7 +256,10 @@ class Editor(BaseEditor):
             else:
                 error_msg = f"Child node does not exist"
                 log_error(error_msg)
+
         if removedChild:
+            updated_editor_config_xml_string = self.to_xml_string(pretty=True)
+            self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
 
 

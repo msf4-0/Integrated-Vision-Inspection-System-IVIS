@@ -58,8 +58,7 @@ class BaseProject:
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
         self.datasets: List = self.query_dataset_list()
-        self.dataset_name_list: List = self.get_dataset_name_list()
-        self.dataset_name_id: Dict = {}
+        self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
 
     @st.cache
     def query_dataset_list(self) -> List:
@@ -142,6 +141,9 @@ class BaseProject:
 class Project(BaseProject):
     def __init__(self, project_id: int) -> None:
         super().__init__(project_id)
+        self.datasets = self.query_project_dataset_list()
+        self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
+        self.query_all_fields()
 
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
@@ -162,7 +164,11 @@ class Project(BaseProject):
         query_all_field_vars = [self.id]
         project_field = db_fetchone(
             query_all_field_SQL, conn, query_all_field_vars)
-        self.name, self.desc, self.deployment_type, self.deployment_id, self.project_path = project_field
+        if project_field:
+            self.name, self.desc, self.deployment_type, self.deployment_id, self.project_path = project_field
+        else:
+            log_error(
+                f"Project with ID: {self.id} does not exists in the database!!!")
         return project_field
 
     @st.cache
