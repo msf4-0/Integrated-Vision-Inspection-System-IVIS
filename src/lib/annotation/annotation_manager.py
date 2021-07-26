@@ -49,6 +49,7 @@ class Results:
 
 
 class Annotations:
+    # will then be converted into JSON format
     def __init__(self) -> None:
         self.id: int = 0
         self.completed_by: Dict = {}  # user_id, email, first_name, last_name

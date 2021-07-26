@@ -33,25 +33,25 @@ from object_detection.protos.string_int_label_map_pb2 import StringIntLabelMap, 
 from google.protobuf import text_format
 
 
-def convert_classes(classes, start=1):
+def label_map_to_text(classes: List, start=1) -> bytes:
+    # 'id' must start from 1
     msg = StringIntLabelMap()
     for id, name in enumerate(classes, start=start):
-        msg.item.append(StringIntLabelMapItem(id=id, name=name,display_name=None))
+        msg.item.append(StringIntLabelMapItem(
+            id=id, name=name))
 
     text = str(text_format.MessageToBytes(msg, as_utf8=True), 'utf-8')
     return text
 
 
+def label_map_to_pbtxt(labelmap_text: bytes, filepath: Path) -> None:
+    filepath = Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    with filepath.open("w", encoding="utf-8") as f:
+        f.write(labelmap_text)
+
+
 if __name__ == '__main__':
-    txt = convert_classes(['cat', 'dog', 'fox', 'squirrel'])
+    txt = label_map_to_text(['Hello', 'World', 'Car', 'Plane', 'shrdc'])
     print(txt)
-    with open('label_map.pbtxt', 'w') as f:
-        f.write(txt)
-
-
-def main():
-    pass
-
-
-if __name__ == '__main__':
-    main()
+    label_map_to_pbtxt(txt, 'label_map.pbtxt')

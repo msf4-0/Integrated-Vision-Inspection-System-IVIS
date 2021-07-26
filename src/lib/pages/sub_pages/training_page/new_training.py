@@ -496,25 +496,25 @@ def show():
     else:
         outercol2.info("Augmentation deactivated")
     # **** Training Parameters (Optional) ****
-    if "training_param" not in session_state:
-        session_state.training_param = TrainingParam()
+    # Reference to "training_param" attribute of 'session_state.new_training' object
+    training_param = session_state.new_training.training_param
 
     st.write("___")
     outercol1, outercol2, outercol3, _ = st.beta_columns(
         [1.5, 1.75, 1.75, 0.5])
     outercol1.write("## __Training Parameters :__")
-    session_state.new_training.training_param = outercol2.multiselect(
+    training_param.training_param_optional = outercol2.multiselect(
         "Training Parameters", key="training_param", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
 
     with outercol2:
-        session_state.training_param.num_classes = st.number_input("Number of Class", min_value=1,
-                                                                   step=1, key="num_class", help="Value must correspond to the number of labels used in the dataset.")
-        session_state.training_param.batch_size = st.number_input("Batch Size", min_value=1, step=1, key="batch_size",
-                                                                  help="Number of data passed into the target device at one instance. **Number of Batch = Number of data/Batch size**")
-        session_state.training_param.num_steps = st.number_input("Number of Training Steps",
-                                                                 min_value=1, step=1, key="num_steps", help="Number of training steps per training session")
-        session_state.training_param.learning_rate = st.number_input("Learning Rate", min_value=0.000001,
-                                                                     step=0.0000001, format='%.7f')
+        training_param.num_classes = st.number_input("Number of Class", min_value=1,
+                                                     step=1, key="num_class", help="Value must correspond to the number of labels used in the dataset.")
+        training_param.batch_size = st.number_input("Batch Size", min_value=1, step=1, key="batch_size",
+                                                    help="Number of data passed into the target device at one instance. **Number of Batch = Number of data/Batch size**")
+        training_param.num_steps = st.number_input("Number of Training Steps",
+                                                   min_value=1, step=1, key="num_steps", help="Number of training steps per training session")
+        training_param.learning_rate = st.number_input("Learning Rate", min_value=0.000001,
+                                                       step=0.0000001, format='%.7f')
     place["training_param"] = st.empty()
     outercol3.error("# WIP")
     # >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

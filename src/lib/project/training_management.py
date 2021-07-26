@@ -68,6 +68,7 @@ class TrainingParam:
         self.activation_function: str = 'RELU_6'
         self.optimizer: str = None
         self.classification_loss: str = 'weighted_sigmoid_focal'
+        self.training_param_optional: List = []
 
 # >>>> TODO >>>>
 

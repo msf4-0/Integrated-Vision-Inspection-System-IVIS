@@ -154,7 +154,7 @@ class Editor(BaseEditor):
 
     def to_xml_string(self, pretty=False) -> str:
         if pretty:
-            xml_string = self.xml_doc.toprettyxml(
+            xml_string = self.xml_doc.toxml(
                 encoding='utf8').decode('utf-8')
         else:
             xml_string = self.xml_doc.toxml(encoding='utf8').decode('utf-8')
