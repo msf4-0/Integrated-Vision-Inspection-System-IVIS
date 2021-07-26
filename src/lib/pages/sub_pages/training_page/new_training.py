@@ -40,7 +40,7 @@ from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
 import numpy as np  # TEMP for table viz
 from project.project_management import Project
-from project.training_management import NewTraining
+from project.training_management import NewTraining, TrainingParam
 from data_manager.database_manager import init_connection
 from project.model_management import PreTrainedModel, Model
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -476,30 +476,50 @@ def show():
             "Exported Model Name", key="model_name", help="Enter the name of the exported model after training", on_change=check_if_model_name_exist, args=(place, conn,))
         place["model_name"] = outercol2.empty()
 
-# <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    # <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     st.write("___")
     DATASET_LIST = []
     # **** Image Augmentation (Optional) ****
     outercol1, outercol2, outercol3, _ = st.beta_columns(
         [1.5, 1.75, 1.75, 0.5])
-    outercol1.write("## __Image Augmentation :__")
-    session_state.new_training.augmentation = outercol2.multiselect(
-        "Augmentation List", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
-    place["augmentation"] = st.empty()
-    outercol3.error("# WIP")
+    outercol1.write("## __Image Augmentation (Optional) :__")
+    augmentation_activate = outercol1.checkbox("Image Augmentation", value=False,
+                                               key='augmentation_checkbox', help="Optional")
+
+    if augmentation_activate:
+        session_state.new_training.augmentation = outercol2.multiselect(
+            "Augmentation List", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+        place["augmentation"] = st.empty()
+        outercol3.error("# WIP")
+    else:
+        outercol2.info("Augmentation deactivated")
     # **** Training Parameters (Optional) ****
+    if "training_param" not in session_state:
+        session_state.training_param = TrainingParam()
+
     st.write("___")
     outercol1, outercol2, outercol3, _ = st.beta_columns(
         [1.5, 1.75, 1.75, 0.5])
     outercol1.write("## __Training Parameters :__")
     session_state.new_training.training_param = outercol2.multiselect(
         "Training Parameters", key="training_param", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
+
+    with outercol2:
+        session_state.training_param.num_classes = st.number_input("Number of Class", min_value=1,
+                                                                   step=1, key="num_class", help="Value must correspond to the number of labels used in the dataset.")
+        session_state.training_param.batch_size = st.number_input("Batch Size", min_value=1, step=1, key="batch_size",
+                                                                  help="Number of data passed into the target device at one instance. **Number of Batch = Number of data/Batch size**")
+        session_state.training_param.num_steps = st.number_input("Number of Training Steps",
+                                                                 min_value=1, step=1, key="num_steps", help="Number of training steps per training session")
+        session_state.training_param.learning_rate = st.number_input("Learning Rate", min_value=0.000001,
+                                                                     step=0.0000001, format='%.7f')
     place["training_param"] = st.empty()
     outercol3.error("# WIP")
-# >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    # **** Submit Button ****
+    # >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    # **** Submit Button *******************************************************************
     success_place = st.empty()
     field = [session_state.new_training.name,
              session_state.new_training.dataset_chosen, session_state.new_training.model_selected]
@@ -521,7 +541,9 @@ def show():
                     f"Failed to stored **{session_state.new_training.name}** training information in database")
 
     col1, col2 = st.beta_columns(2)
+    col1.write("Project Class")
     col1.write(vars(session_state.project))
+    col2.write("New Training Class")
     col2.write(vars(session_state.new_training))
 
 

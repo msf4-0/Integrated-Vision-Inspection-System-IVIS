@@ -58,10 +58,10 @@ CLASSIFICATION_LOSS = []
 
 class TrainingParam:
     def __init__(self) -> None:
-        self.epoch: Union[int, float] = 50
+        self.num_classes: int = 1
         self.batch_size: int = 2
         self.learning_rate: Union[int, float] = 0.0008
-        self.total_steps: int = 50000
+        self.num_steps: int = 50000
         self.warmup_steps = 1000
         self.warmup_learning_rate = 0.00001
         self.shuffle_buffer_size = 2048
@@ -269,7 +269,7 @@ class NewTraining(BaseTraining):
 
         return self.id
 
-    def initialise_training(self, model:Model,project:Project):
+    def initialise_training(self, model: Model, project: Project):
         '''
         project_dir
         |
