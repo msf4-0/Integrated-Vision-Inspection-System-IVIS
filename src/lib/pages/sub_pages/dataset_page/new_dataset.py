@@ -47,6 +47,7 @@ from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.dataset_management import NewDataset
 from core.utils.file_handler import bytes_divisor
+from data_export.label_studio_converter.converter import Converter
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])

@@ -1,6 +1,8 @@
 import io
 import os
 import xml.etree.ElementTree
+from lxml import etree
+from collections import defaultdict
 import requests
 import hashlib
 import logging
@@ -30,25 +32,33 @@ def tokenize(text):
     return out
 
 
+_LABEL_TAGS = {'Label', 'Choice'}
+_NOT_CONTROL_TAGS = {'Filter', }
+
+
 def create_tokens_and_tags(text, spans):
-    #tokens_and_idx = tokenize(text) # This function doesn't work properly if text contains multiple whitespaces...
-    token_index_tuples = [token for token in WhitespaceTokenizer().span_tokenize(text)]
-    tokens_and_idx = [(text[start:end], start) for start, end in token_index_tuples]
+    # tokens_and_idx = tokenize(text) # This function doesn't work properly if text contains multiple whitespaces...
+    token_index_tuples = [
+        token for token in WhitespaceTokenizer().span_tokenize(text)]
+    tokens_and_idx = [(text[start:end], start)
+                      for start, end in token_index_tuples]
     if spans:
         spans = list(sorted(spans, key=itemgetter('start')))
         span = spans.pop(0)
         span_start = span['start']
-        span_end = span['end']-1
+        span_end = span['end'] - 1
         prefix = 'B-'
         tokens, tags = [], []
         for token, token_start in tokens_and_idx:
             tokens.append(token)
-            token_end = token_start + len(token) #"- 1" - This substraction is wrong. token already uses the index E.g. "Hello" is 0-4
-            token_start_ind = token_start  #It seems like the token start is too early.. for whichever reason
+            # "- 1" - This substraction is wrong. token already uses the index E.g. "Hello" is 0-4
+            token_end = token_start + len(token)
+            # It seems like the token start is too early.. for whichever reason
+            token_start_ind = token_start
 
-            #if for some reason end of span is missed.. pop the new span (Which is quite probable due to this method)
-            #Attention it seems like span['end'] is the index of first char afterwards. In case the whitespace is part of the
-            #labell we need to subtract one. Otherwise next token won't trigger the span update.. only the token after next..
+            # if for some reason end of span is missed.. pop the new span (Which is quite probable due to this method)
+            # Attention it seems like span['end'] is the index of first char afterwards. In case the whitespace is part of the
+            # labell we need to subtract one. Otherwise next token won't trigger the span update.. only the token after next..
             if token_start_ind > span_end:
                 while spans:
                     span = spans.pop(0)
@@ -57,7 +67,6 @@ def create_tokens_and_tags(text, spans):
                     prefix = 'B-'
                     if token_start <= span_end:
                         break
-
 
             if not span or token_end < span_start:
                 tags.append('O')
@@ -83,7 +92,8 @@ def _get_upload_dir(project_dir=None, upload_dir=None):
         if not os.path.exists(upload_dir):
             upload_dir = None
     if not upload_dir:
-        raise FileNotFoundError("Can't find upload dir: either LS_UPLOAD_DIR or project should be passed to converter")
+        raise FileNotFoundError(
+            "Can't find upload dir: either LS_UPLOAD_DIR or project should be passed to converter")
     return upload_dir
 
 
@@ -95,7 +105,8 @@ def download(url, output_dir, filename=None, project_dir=None, return_relative_p
         upload_dir = _get_upload_dir(project_dir, upload_dir)
         filename = url.replace('/data/upload/', '')
         filepath = os.path.join(upload_dir, filename)
-        logger.debug('Copy {filepath} to {output_dir}'.format(filepath=filepath, output_dir=output_dir))
+        logger.debug('Copy {filepath} to {output_dir}'.format(
+            filepath=filepath, output_dir=output_dir))
         shutil.copy(filepath, output_dir)
         if return_relative_path:
             return os.path.join(os.path.basename(output_dir), filename)
@@ -113,10 +124,12 @@ def download(url, output_dir, filename=None, project_dir=None, return_relative_p
 
     if filename is None:
         basename, ext = os.path.splitext(os.path.basename(urlparse(url).path))
-        filename = basename + '_' + hashlib.md5(url.encode()).hexdigest()[:4] + ext
+        filename = basename + '_' + \
+            hashlib.md5(url.encode()).hexdigest()[:4] + ext
     filepath = os.path.join(output_dir, filename)
     if not os.path.exists(filepath):
-        logger.info('Download {url} to {filepath}'.format(url=url, filepath=filepath))
+        logger.info('Download {url} to {filepath}'.format(
+            url=url, filepath=filepath))
         r = requests.get(url)
         r.raise_for_status()
         with io.open(filepath, mode='wb') as fout:
@@ -148,31 +161,88 @@ def ensure_dir(dir_path):
 
 
 def parse_config(config_string):
+    """
+    :param config_string: Label config string
+    :return: structured config of the form:
+    {
+        "<ControlTag>.name": {
+            "type": "ControlTag",
+            "to_name": ["<ObjectTag1>.name", "<ObjectTag2>.name"],
+            "inputs: [
+                {"type": "ObjectTag1", "value": "<ObjectTag1>.value"},
+                {"type": "ObjectTag2", "value": "<ObjectTag2>.value"}
+            ],
+            "labels": ["Label1", "Label2", "Label3"] // taken from "alias" if exists or "value"
+    }
+    """
+    print("Enter")
+    if not config_string:
+        return {}
 
     def _is_input_tag(tag):
-        return tag.attrib.get('name') and tag.attrib.get('value', '').startswith('$')
+        return tag.attrib.get('name') and tag.attrib.get('value')
 
     def _is_output_tag(tag):
-        return tag.attrib.get('name') and tag.attrib.get('toName')
+        return tag.attrib.get('name') and tag.attrib.get('toName') and tag.tag not in _NOT_CONTROL_TAGS
 
-    xml_tree = xml.etree.ElementTree.fromstring(config_string)
+    def _get_parent_output_tag_name(tag, outputs):
+        # Find parental <Choices> tag for nested tags like <Choices><View><View><Choice>...
+        parent = tag
+        while True:
+            parent = parent.getparent()
+            if parent is None:
+                return
+            name = parent.attrib.get('name')
+            if name in outputs:
+                return name
 
-    inputs, outputs = {}, {}
+    xml_tree = etree.fromstring(config_string)
+
+    inputs, outputs, labels = {}, {}, defaultdict(dict)
     for tag in xml_tree.iter():
-        if _is_input_tag(tag):
-            inputs[tag.attrib['name']] = {'type': tag.tag, 'value': tag.attrib['value'].lstrip('$')}
-        elif _is_output_tag(tag):
-            outputs[tag.attrib['name']] = {'type': tag.tag, 'to_name': tag.attrib['toName'].split(',')}
-
+        if _is_output_tag(tag):
+            tag_info = {'type': tag.tag,
+                        'to_name': tag.attrib['toName'].split(',')}
+            # Grab conditionals if any
+            conditionals = {}
+            if tag.attrib.get('perRegion') == 'true':
+                if tag.attrib.get('whenTagName'):
+                    conditionals = {'type': 'tag',
+                                    'name': tag.attrib['whenTagName']}
+                elif tag.attrib.get('whenLabelValue'):
+                    conditionals = {'type': 'label',
+                                    'name': tag.attrib['whenLabelValue']}
+                elif tag.attrib.get('whenChoiceValue'):
+                    conditionals = {'type': 'choice',
+                                    'name': tag.attrib['whenChoiceValue']}
+            if conditionals:
+                tag_info['conditionals'] = conditionals
+            outputs[tag.attrib['name']] = tag_info
+        elif _is_input_tag(tag):
+            inputs[tag.attrib['name']] = {
+                'type': tag.tag, 'value': tag.attrib['value'].lstrip('$')}
+        if tag.tag not in _LABEL_TAGS:
+            continue
+        parent_name = _get_parent_output_tag_name(tag, outputs)
+        if parent_name is not None:
+            actual_value = tag.attrib.get('alias') or tag.attrib.get('value')
+            if not actual_value:
+                logger.debug(
+                    'Inspecting tag {tag_name}... found no "value" or "alias" attributes.'.format(
+                        tag_name=etree.tostring(tag, encoding='unicode').strip()[:50]))
+            else:
+                labels[parent_name][actual_value] = dict(tag.attrib)
     for output_tag, tag_info in outputs.items():
         tag_info['inputs'] = []
         for input_tag_name in tag_info['to_name']:
             if input_tag_name not in inputs:
-                raise KeyError(
-                    'to_name={input_tag_name} is specified for output tag name={output_tag}, but we can\'t find it '
-                    'among input tags'.format(input_tag_name=input_tag_name, output_tag=output_tag))
+                logger.error(
+                    f'to_name={input_tag_name} is specified for output tag name={output_tag}, '
+                    'but we can\'t find it among input tags')
+                continue
             tag_info['inputs'].append(inputs[input_tag_name])
-
+        tag_info['labels'] = list(labels[output_tag])
+        tag_info['labels_attrs'] = labels[output_tag]
     return outputs
 
 

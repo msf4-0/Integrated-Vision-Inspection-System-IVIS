@@ -2,6 +2,7 @@ import os
 import json
 import io
 import logging
+from typing import Union, List, Dict
 import pandas as pd
 import xml.dom
 import xml.dom.minidom
@@ -14,12 +15,12 @@ from collections import Mapping, defaultdict
 from operator import itemgetter
 from copy import deepcopy
 
-from label_studio_converter.utils import (
+from .utils import (
     parse_config, create_tokens_and_tags, download, get_image_size, get_image_size_and_channels, ensure_dir,
     get_polygon_area, get_polygon_bounding_box
 )
-from label_studio_converter import brush
-from label_studio_converter.audio import convert_to_asr_json_manifest
+from .brush import *
+from .audio import convert_to_asr_json_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -255,24 +256,65 @@ class Converter(object):
                 if item:
                     yield item
 
-    def iter_from_json_file(self, json_file):
+    def iter_from_json_file(self, json_file: Union[List[Dict], Dict, str], is_string: bool = True):
         """ Extract annotation results from json file
 
         param json_file: path to task list or dict with annotations
         """
-        with io.open(json_file, encoding='utf8') as f:
-            data = json.load(f)
+
+        def get_item(data):
+
             # one task
             if isinstance(data, Mapping):
+                print("Enter single")
                 for item in self.annotation_result_from_task(data):
                     yield item
 
             # many tasks
             elif isinstance(data, list):
+                print("Enter many")
                 for task in data:
                     for item in self.annotation_result_from_task(task):
                         if item is not None:
                             yield item
+
+        if is_string:  # direct parse python dict
+            print("Enter string")
+            data = json_file
+            # one task
+            if isinstance(data, Mapping):
+                print("Enter single")
+                for item in self.annotation_result_from_task(data):
+                    yield item
+
+            # many tasks
+            elif isinstance(data, list):
+                print("Enter many")
+                for task in data:
+                    for item in self.annotation_result_from_task(task):
+                        if item is not None:
+                            yield item
+            print("Done")
+
+        else:
+            with io.open(json_file, encoding='utf8') as f:
+                data = json.load(f)
+
+                # one task
+                if isinstance(data, Mapping):
+                    print("Enter single")
+
+                    for item in self.annotation_result_from_task(data):
+                        yield item
+
+                # many tasks
+                elif isinstance(data, list):
+                    print("Enter many")
+
+                    for task in data:
+                        for item in self.annotation_result_from_task(task):
+                            if item is not None:
+                                yield item
 
     def annotation_result_from_task(self, task):
         has_annotations = 'completions' in task or 'annotations' in task

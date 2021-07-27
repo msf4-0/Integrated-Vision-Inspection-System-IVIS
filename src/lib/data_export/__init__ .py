@@ -1,13 +1,13 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
 
 """
+from .label_studio_converter import brush
+"""__version__ = '0.0.29'
 
-__version__ = '0.0.29'
 
-"""
 Credits to Heartex, Inc. for their open-source annotations export tools. 
 Details are stated in the following:
-"""
+
 name = 'label-studio-converter',
 version = '0.0.29',
 author = 'Heartex',
@@ -27,4 +27,4 @@ entry_points = {
     'console_scripts': [
         'label-studio-converter=label_studio_converter.main:main',
     ],
-}
+}"""
