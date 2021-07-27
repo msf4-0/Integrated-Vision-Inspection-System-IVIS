@@ -38,8 +38,10 @@ from enum import Enum
 import json
 logger = logging.getLogger(__name__)
 _LABEL_TAGS = {'Label', 'Choice'}
-_NOT_CONTROL_TAGS = {'Filter',}
-#%%
+_NOT_CONTROL_TAGS = {'Filter', }
+
+
+
 def parse_config(config_string):
     """
     :param config_string: Label config string
@@ -80,21 +82,26 @@ def parse_config(config_string):
     inputs, outputs, labels = {}, {}, defaultdict(dict)
     for tag in xml_tree.iter():
         if _is_output_tag(tag):
-            tag_info = {'type': tag.tag, 'to_name': tag.attrib['toName'].split(',')}
+            tag_info = {'type': tag.tag,
+                        'to_name': tag.attrib['toName'].split(',')}
             # Grab conditionals if any
             conditionals = {}
             if tag.attrib.get('perRegion') == 'true':
                 if tag.attrib.get('whenTagName'):
-                    conditionals = {'type': 'tag', 'name': tag.attrib['whenTagName']}
+                    conditionals = {'type': 'tag',
+                                    'name': tag.attrib['whenTagName']}
                 elif tag.attrib.get('whenLabelValue'):
-                    conditionals = {'type': 'label', 'name': tag.attrib['whenLabelValue']}
+                    conditionals = {'type': 'label',
+                                    'name': tag.attrib['whenLabelValue']}
                 elif tag.attrib.get('whenChoiceValue'):
-                    conditionals = {'type': 'choice', 'name': tag.attrib['whenChoiceValue']}
+                    conditionals = {'type': 'choice',
+                                    'name': tag.attrib['whenChoiceValue']}
             if conditionals:
                 tag_info['conditionals'] = conditionals
             outputs[tag.attrib['name']] = tag_info
         elif _is_input_tag(tag):
-            inputs[tag.attrib['name']] = {'type': tag.tag, 'value': tag.attrib['value'].lstrip('$')}
+            inputs[tag.attrib['name']] = {
+                'type': tag.tag, 'value': tag.attrib['value'].lstrip('$')}
         if tag.tag not in _LABEL_TAGS:
             continue
         parent_name = _get_parent_output_tag_name(tag, outputs)
@@ -119,11 +126,12 @@ def parse_config(config_string):
         tag_info['labels_attrs'] = labels[output_tag]
     return outputs
 
-# %%
+
+
 OUTPUT_DIR = "/home/rchuzh/programming/image_labelling_shrdc/src/test/extra/test"
 EXPORT_DIR = Path(
     "/home/rchuzh/programming/image_labelling_shrdc/src/test/extra/test").resolve()
-JSON_DIR = "/home/rchuzh/Downloads/project-8-at-2021-06-27-06-19-07396abe.json"
+JSON_DIR = "/home/rchuzh/Downloads/project-10-at-2021-07-27-07-49-62d7c421.json"
 
 editor_config = """<View>
   <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
@@ -139,11 +147,19 @@ editor_config = """<View>
 </View>
 
 """
+editor_config_IC="""<View>
+  <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false"/>
+  <Choices name="choice" toName="image">
+    <Choice value="QR"/>
+    <Choice value="empty"/>
+  </Choices>
+</View>
+"""
 # editor_config=parse_config(editor_config)
 
-converter = Converter(config=editor_config, project_dir=None)
+converter = Converter(config=editor_config_IC, project_dir=None)
 vars(converter)
-# %%
+
 task_json = """{
         "id": 2,
         "annotations": [
@@ -239,7 +255,7 @@ tasks = json.loads(task_json)
 with open(JSON_DIR, 'r') as f:
     json_dict = json.load(f)
 # %%
-iterator = converter.iter_from_json_file(tasks, is_string=True)
+iterator = converter.iter_from_json_file(json_dict, is_string=True)
 # %%
 
 for item in (iterator):
@@ -247,5 +263,13 @@ for item in (iterator):
 
 # %%
 item
+
+# %%
+JSON_DIR.startswith('/home/')
+# %%
+converter.convert_to_json_min(json_dict, OUTPUT_DIR,
+                         is_dir=False)
+# %%
+converter._get_supported_formats()
 
 # %%
