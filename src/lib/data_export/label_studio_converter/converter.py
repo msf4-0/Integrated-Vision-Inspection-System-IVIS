@@ -388,6 +388,7 @@ class Converter(object):
                 out.append(j)
         return out[0] if tag_type == 'Choices' and len(out) == 1 else out
 
+    # ************************** ACCESSED **************************
     def convert_to_json(self, input_data, output_dir, is_dir=True, is_string=True):
         self._check_format(Format.JSON)
         ensure_dir(output_dir)
@@ -397,7 +398,7 @@ class Converter(object):
             if is_string:
                 with open(output_file, mode='w', encoding='utf-8') as f:
                     json.dump(input_data, f, indent=4, ensure_ascii=False)
-            else: #if loaded from file
+            else:  # if loaded from file
                 if is_dir:
                     for json_file in glob(os.path.join(input_data, '*.json')):
                         with io.open(json_file, encoding='utf8') as f:
@@ -407,6 +408,7 @@ class Converter(object):
                 else:
                     copy2(input_data, output_file)
 
+    # ************************** ACCESSED **************************
     def convert_to_json_min(self, input_data, output_dir, is_dir=True):
         self._check_format(Format.JSON_MIN)
         ensure_dir(output_dir)
@@ -427,6 +429,8 @@ class Converter(object):
         with io.open(output_file, mode='w', encoding='utf8') as fout:
             json.dump(records, fout, indent=2, ensure_ascii=False)
 
+# ************************** ACCESSED **************************
+# TODO: Fix BBox dimensions instead of outputting tags only
     def convert_to_csv(self, input_data, output_dir, is_dir=True, **kwargs):
         self._check_format(Format.CSV)
         ensure_dir(output_dir)
@@ -468,6 +472,7 @@ class Converter(object):
                         '{token} -X- _ {tag}\n'.format(token=token, tag=tag))
                 fout.write('\n')
 
+# ************************** ACCESSED **************************
     def convert_to_coco(self, input_data, output_dir, output_image_dir=None, is_dir=True):
         self._check_format(Format.COCO)
         ensure_dir(output_dir)
@@ -488,6 +493,7 @@ class Converter(object):
                     'No annotations found for item #' + str(item_idx))
                 continue
             image_path = item['input'][data_key]
+# TODO: Fix download path
             # if not os.path.exists(image_path):
             #     try:
             #         image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
@@ -618,14 +624,16 @@ class Converter(object):
                     'No completions found for item #' + str(item_idx))
                 continue
             image_path = item['input'][data_key]
-            if not os.path.exists(image_path):
-                try:
-                    image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
-                                          return_relative_path=True, upload_dir=self.upload_dir)
-                except:
-                    logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-                        image_path=image_path, item=item
-                    ), exc_info=True)
+
+# TODO: Fix download
+            # if not os.path.exists(image_path):
+            #     try:
+            #         image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
+            #                               return_relative_path=True, upload_dir=self.upload_dir)
+            #     except:
+            #         logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+            #             image_path=image_path, item=item
+            #         ), exc_info=True)
 
             # concatentate results over all tag names
             labels = []
@@ -684,6 +692,7 @@ class Converter(object):
                 }
             }, fout, indent=2)
 
+# ************************** ACCESSED **************************
     def convert_to_voc(self, input_data, output_dir, output_image_dir=None, is_dir=True):
 
         ensure_dir(output_dir)
@@ -713,14 +722,15 @@ class Converter(object):
             annotations_dir = os.path.join(output_dir, 'Annotations')
             if not os.path.exists(annotations_dir):
                 os.makedirs(annotations_dir)
+# TODO: Fix download path
             if not os.path.exists(image_path):
                 try:
                     image_path = download(
                         image_path, output_image_dir, project_dir=self.project_dir,
                         upload_dir=self.upload_dir, return_relative_path=True)
                 except:
-                    logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-                        image_path=image_path, item=item), exc_info=True)
+                    # logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+                    #     image_path=image_path, item=item), exc_info=True)
                     # On error, use default number of channels
                     channels = 3
                 else:
