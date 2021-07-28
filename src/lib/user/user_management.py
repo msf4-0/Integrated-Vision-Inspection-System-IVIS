@@ -144,6 +144,23 @@ def create_user(user, conn=conn):
 
 
 # >>>> User Login
+
+class User:
+    def __init__(self) -> None:
+        self.id = None
+        self.emp_id = None
+        self.username = None
+        self.first_name = None
+        self.last_name = None
+        self.email = None
+        self.department = None
+        self.position = None
+        self.psd = None
+        self.role = None
+        self.account_status = None
+        self.session_id = None
+
+
 class UserLogin:
     def __init__(self) -> None:
 

@@ -47,10 +47,10 @@ from frontend.streamlit_labelstudio import st_labelstudio
 
 
 class EditorFlag(IntEnum):
-    submit = 1
-    update = 2
-    delete = 3
-    skip = 4
+    SUBMIT = 1
+    UPDATE = 2
+    DELETE = 3
+    SKIP = 4
 
     def __str__(self):
         return self.name

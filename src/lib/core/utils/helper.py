@@ -9,7 +9,9 @@ import sys
 from pathlib import Path
 from typing import Union, List, Dict
 import pandas as pd
-
+import psycopg2
+from psycopg2 import sql
+import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
@@ -24,6 +26,9 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
+from data_manager.database_manager import db_fetchone, init_connection
+
+conn = init_connection(**st.secrets["postgres"])
 
 
 def split_string(string: str) -> List:
@@ -72,4 +77,22 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
             #     [dict(selector='th', props=[('text-align', 'center')])])
 
         return df
-print(get_directory_name("Hello World"))
+
+
+def check_if_exists(table: str, column_name: str, condition, conn):
+    # Separate schema and tablename from 'table'
+    schema, tablename = [i for i in table.split('.')]
+    check_if_exists_SQL = sql.SQL("""
+                        SELECT
+                            EXISTS (
+                                SELECT
+                                    *
+                                FROM
+                                    {}
+                                WHERE
+                                    {} = %s);
+                            """).format(sql.Identifier(schema, tablename), sql.Identifier(column_name))
+    check_if_exists_vars = [condition]
+    exist_flag = db_fetchone(check_if_exists_SQL, conn, check_if_exists_vars)
+
+    return exist_flag

@@ -34,7 +34,8 @@ SET
     (users_id = % s)
 WHERE
     id = % s
-RETURNING *;
+RETURNING
+    *;
 
 --SKIPPING TASK
 -- Update task table skipped
@@ -51,4 +52,14 @@ DELETE FROM public.annotation
 WHERE id = % s
 RETURNING
     *;
+
+-- Check if Task exists
+SELECT
+    EXISTS (
+        SELECT
+            % s
+        FROM
+            {}
+        WHERE
+            % s = % s);
 

@@ -28,7 +28,7 @@ else:
 
 import streamlit as st
 from frontend.streamlit_labelstudio import st_labelstudio
-from annotation.annotation_manager import Results, Annotations
+from annotation.annotation_manager import Result, Annotations
 
 interfaces = [
     "panel",

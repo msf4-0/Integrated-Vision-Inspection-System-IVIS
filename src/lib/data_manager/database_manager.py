@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import psycopg2
 from psycopg2.extras import NamedTupleCursor
+from psycopg2 import sql
 import streamlit as st
 from typing import List, Dict, NamedTuple
 # from config import config
@@ -115,7 +116,7 @@ def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = Fal
                 if fetch_col_name:
                     return return_one, column_names
                 else:
-                    column_names=None
+                    column_names = None
                     return return_one
             except psycopg2.Error as e:
                 log_error(e)

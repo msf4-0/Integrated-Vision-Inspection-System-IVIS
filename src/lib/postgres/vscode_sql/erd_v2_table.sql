@@ -216,7 +216,7 @@ CREATE TABLE IF NOT EXISTS public.predictions (
     MINVALUE 1
     MAXVALUE 9223372036854775807
     CACHE 1),
-    results jsonb[],
+    result jsonb[],
     task_id bigint NOT NULL,
     model_id bigint,
     pre_trained_model_id bigint,
@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS public.annotations (
     MINVALUE 1
     MAXVALUE 9223372036854775807
     CACHE 1),
-    results jsonb[],
+    result jsonb[],
     annotation_type_id integer,
     project_id bigint NOT NULL,
     users_id bigint NOT NULL,
