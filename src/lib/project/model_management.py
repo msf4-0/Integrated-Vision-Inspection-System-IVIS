@@ -20,6 +20,8 @@ from streamlit import session_state as SessionState
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
+DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
+
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
@@ -31,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_fetchall, init_connection, db_fetchone, db_no_fetch
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import split_string, join_string
+from core.utils.helper import get_directory_name
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -51,7 +53,8 @@ class BaseModel:
         self.framework: str = None
         self.training_id: int = None
         self.model_path: Path = None
-        self.labelmap_path:Path=None
+        self.labelmap_path: Path = None
+        self.saved_model_dir:Path=None
 
     @staticmethod
     def query_table(expression: str, column: str):
@@ -79,11 +82,10 @@ class BaseModel:
                     m.id = %s;
                         """
         query_model_project_training_vars = [self.id]
-        query=db_fetchone(query_model_project_training_SQL,conn,query_model_project_training_vars)
-        
+        query = db_fetchone(query_model_project_training_SQL,
+                            conn, query_model_project_training_vars)
+
         return query
-            
-        
 
 
 class Model(BaseModel):
@@ -140,8 +142,21 @@ class Model(BaseModel):
                     m.id = %s;
                         """
         query_model_project_training_vars = [self.id]
-        query=db_fetchone(query_model_project_training_SQL,conn,query_model_project_training_vars)
-        return query
+        query = db_fetchone(query_model_project_training_SQL,
+                            conn, query_model_project_training_vars)
+        if query:
+            project_path, training_name = query
+            self.model_path = DATA_DIR / \
+                project_path / get_directory_name(
+                    training_name) / 'exported_models' / get_directory_name(self.name)
+            return self.model_path
+
+    def get_labelmap_path(self):
+        model_path = self.get_model_path()
+        if model_path:
+            labelmap_path = model_path / 'labelmap.pbtxt'
+            self.labelmap_path = labelmap_path
+            return self.labelmap_path
 
 
 class PreTrainedModel(BaseModel):

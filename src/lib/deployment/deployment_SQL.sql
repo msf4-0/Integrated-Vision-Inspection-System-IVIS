@@ -37,10 +37,23 @@ FROM
     INNER JOIN public.training t ON m.training_id = t.id
     INNER JOIN public.project p ON t.project_id = p.id
 WHERE
-    m.id = %s;
+    m.id = % s;
 
 SELECT
     % s
 FROM
     % s;
+-- query model based on deployment
+SELECT
+    *
+FROM
+    public.pre_trained_models pt
+WHERE
+    deployment_id = (
+        SELECT
+            dt.id
+        FROM
+            public.deployment_type dt
+        WHERE
+            dt.name = 'Object Detection with Bounding Boxes');
 

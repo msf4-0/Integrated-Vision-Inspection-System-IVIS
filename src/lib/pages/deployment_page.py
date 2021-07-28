@@ -134,21 +134,30 @@ def show():
 
         if model_selected:
             session_state.deployment.model_selected.name = model_selected
-            model_ID = model_info[model_list.index(
+            session_state.deployment.model_selected.id = model_info[model_list.index(
                 model_selected) - 1].ID
-            session_state.deployment.model_selected.id = model_ID
-            st.write(model_ID)
+
+            session_state.deployment.model_selected.framework = model_info[model_list.index(
+                model_selected) - 1].Framework
+            st.write(session_state.deployment.model_selected.id,
+                     session_state.deployment.model_selected.framework)
             if model_type == 'Pre-trained Models':
                 session_state.deployment.model_selected.model_path = DATA_DIR / \
                     Path(
                         [model.Model_Path for model in model_info if model.Name == model_selected][0])
                 st.write(session_state.deployment.model_selected.model_path)
             elif model_type == 'Project Models':
-                project_path, training_name = session_state.deployment.model_selected.get_model_path()
-                session_state.deployment.model_selected.model_path = DATA_DIR / \
-                    project_path / get_directory_name(
-                        training_name) / 'exported_models' / get_directory_name(session_state.deployment.model_selected.name)
-                st.write(session_state.deployment.model_selected.model_path)
+                # project_path, training_name = session_state.deployment.model_selected.get_model_path()
+                # session_state.deployment.model_selected.model_path = DATA_DIR / \
+                #     project_path / get_directory_name(
+                #         training_name) / 'exported_models' / get_directory_name(session_state.deployment.model_selected.name)
+                session_state.deployment.model_selected.model_path = session_state.deployment.model_selected.get_model_path()
+                session_state.deployment.model_selected.labelmap_path = session_state.deployment.model_selected.get_labelmap_path()
+                st.write(session_state.deployment.model_selected.model_path,
+                         session_state.deployment.model_selected.labelmap_path)
+
+            if session_state.deployment.model_selected.framework == 'TensorFlow':  # SavedModel directory
+                session_state.deployment.model_selected.saved_model_dir = session_state.deployment.model_selected.model_path / 'saved_model'
 
         # ****** TODO:USER UPLOAD MODELS (KIV)*****************************************
 
