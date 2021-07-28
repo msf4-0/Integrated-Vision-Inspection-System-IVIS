@@ -90,10 +90,14 @@ def show():
     st.markdown("___")
 
 # >>>> SELECT DEPLOYMENT TYPE AND MODEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    # Deployment Type queried from Database so that the name can be easily updated
     DEPLOYMENT_TYPE = [
         ""] + [dt.name for dt in session_state.deployment.deployment_list]
+
     MODEL_TABLE = {"Pre-trained Models": "public.pre_trained_models",
                    "Project Models": "public.models"}
+
     # with st.form(key="deployment_config"):
     _, col1, _, col2, _, col3, _ = st.beta_columns(
         [0.2, 1, 0.2, 1, 0.2, 1, 0.2])
@@ -104,12 +108,19 @@ def show():
         deployment_type_selected = st.selectbox(
             "Deployment Type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select a Deployment Type' if x == "" else x)
         session_state.deployment.name = deployment_type_selected
+        # Deployment Type ID
+        session_state.deployment.id = DEPLOYMENT_TYPE.index(
+            deployment_type_selected)
+
     # ****** MODEL TYPE *****************************************
-    pt_model_info, pt_model_column_names = session_state.pt_model.query_PT_table()
+
+    pt_model_info, pt_model_column_names = session_state.deployment.query_model_table(
+        MODEL_TABLE["Pre-trained Models"])
 
     # pt_model_info = [
     #     [pt.Name,pt.Model_Path] for pt in session_state.pt_model.pt_model_list if session_state.pt_model.pt_model_list]
-    p_model_info, p_model_column_names = session_state.p_model.query_model_table()
+    p_model_info, p_model_column_names = session_state.deployment.query_model_table(
+        MODEL_TABLE["Project Models"])
     with col2:
         model_type = st.selectbox("Model Type", options=[
             "Pre-trained Models", "Project Models", "User Upload (KIV)"])
@@ -118,7 +129,8 @@ def show():
     with col3:
         if model_type == 'Pre-trained Models':
             model_info = pt_model_info
-            model_list = [model.Name for model in model_info]
+            model_list = [
+                model.Name for model in model_info]
             # model_path = [model.Model_Path for model in model_info]
 
     # ****** PROJECT MODELS *****************************************

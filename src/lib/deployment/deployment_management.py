@@ -9,7 +9,7 @@ from collections import namedtuple
 import sys
 from pathlib import Path
 from typing import NamedTuple, Optional, Union, List, Dict
-import psycopg2
+from psycopg2 import sql
 from PIL import Image
 from time import sleep
 from enum import IntEnum
@@ -88,17 +88,26 @@ class Deployment(BaseDeployment):
         return deployment_list if deployment_list else None
 
     @st.cache
-    def query_model_info(self):
-        query_mode_info_sql = """
-                                    SELECT
-
-                                    FROM
-                                        deployment_type
-                                    ORDER BY
-                                        id ASC;
-                                    """
-        deployment_list = db_fetchall(query_deployment_list_sql, conn)
-        return deployment_list if deployment_list else None
+    def query_model_table(self, model_table) -> NamedTuple:
+        schema,table=[x for x in model_table.split('.')]
+        query_model_table_SQL = sql.SQL("""SELECT
+                m.id AS "ID",
+                m.name AS "Name",
+                f.name AS "Framework",
+                m.model_path AS "Model Path"
+            FROM
+                {table} m
+                LEFT JOIN public.framework f ON f.id = m.framework_id
+                where m.deployment_id = (SELECT id from public.deployment_type where name = %s);""").format(table=sql.Identifier(schema,table))
+        query_model_table_vars = [self.name]
+        return_all = db_fetchall(
+            query_model_table_SQL, conn,query_model_table_vars, fetch_col_name=True)
+        if return_all:
+            project_model_list, column_names = return_all
+        else:
+            project_model_list = []
+            column_names = []
+        return project_model_list, column_names
 
 
 def main():
