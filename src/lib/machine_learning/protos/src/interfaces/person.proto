@@ -1,0 +1,17 @@
+syntax="proto3";
+import "protos/src/interfaces/person_info.proto";
+
+package persons; // defines messages that belongs to the same namespace
+
+message Person{
+    PersonInfo info=1;
+
+    repeated Friend friends=2;
+}
+
+message Friend{
+    float friendship_duration=1;
+    repeated string shared_hobbies =2;
+    Person person=3;
+}
+

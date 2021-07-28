@@ -1,0 +1,26 @@
+syntax = "proto2";
+
+package tutorial;
+
+message Person {
+  optional string name = 1;
+  optional int32 id = 2;
+  optional string email = 3;
+
+  enum PhoneType { //Nested inside Person
+    MOBILE = 0; // 0 denotes tag for binary encoding
+    HOME = 1; //leave tag 16 and higher for less commonly used Optional elements
+    WORK = 2;
+  }
+
+  message PhoneNumber {
+    optional string number = 1; 
+    optional PhoneType type = 2 [default = HOME]; //default value
+  }
+
+  repeated PhoneNumber phones = 4; //repeated field requires re-encoding of the tag number
+}
+
+message AddressBook {
+  repeated Person people = 1; //contains Person message
+}

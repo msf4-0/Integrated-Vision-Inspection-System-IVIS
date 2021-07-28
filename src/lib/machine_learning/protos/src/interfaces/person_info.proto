@@ -1,0 +1,13 @@
+syntax= "proto3";
+package persons;
+enum Sex{ //enumeration type
+    M=0;
+    F=1;
+    O=2;
+}
+message PersonInfo{ //message is the information to model in Protobuf
+    int32 age=1;
+    Sex sex=2;
+    int32 height =3;
+
+}

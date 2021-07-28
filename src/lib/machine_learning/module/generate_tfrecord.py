@@ -150,7 +150,7 @@ def create_tf_example(group, path):
 
 def main(_):
 
-    writer = tf.python_io.TFRecordWriter(args.output_path)
+    writer = tf.python_io.TFRecordWriter(args.output_path) # or tf.io.TFRecordWriter?
     path = os.path.join(args.image_dir)
     examples = xml_to_csv(args.xml_dir)
     grouped = split(examples, 'filename')
