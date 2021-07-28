@@ -26,7 +26,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 
 
-def split_string(string):
+def split_string(string: str) -> List:
 
     # Split the string based on space delimiter
     list_string = string.split(' ')
@@ -34,12 +34,17 @@ def split_string(string):
     return list_string
 
 
-def join_string(list_string):
+def join_string(list_string: List) -> str:
 
     # Join the string based on '-' delimiter
     string = '-'.join(list_string)
 
     return string
+
+
+def get_directory_name(name: str) -> str:
+    directory_name = join_string(split_string(str(name))).lower()
+    return directory_name
 
 
 def is_empty(iterable: Union[List, Dict, set]) -> bool:
@@ -67,3 +72,4 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
             #     [dict(selector='th', props=[('text-align', 'center')])])
 
         return df
+print(get_directory_name("Hello World"))

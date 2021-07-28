@@ -38,13 +38,30 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import split_string, join_string
+from core.utils.helper import get_directory_name
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
 
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
+
+
+class DeploymentType(IntEnum):
+    Image_Classification = 1
+    OD = 2
+    Instance = 3
+    Semantic = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return DeploymentType[s]
+        except KeyError:
+            raise ValueError()
 
 
 # <<<< Variable Declaration <<<<
@@ -272,7 +289,7 @@ class NewTraining(BaseTraining):
 
     def initialise_training(self, model: Model, project: Project):
         '''
-        project_dir
+        training_dir
         |
         |-annotations/
         | |-labelmap
@@ -286,11 +303,10 @@ class NewTraining(BaseTraining):
         |-models/
 
         '''
-        directory_name = self.name.lower()
-        directory_name = join_string(split_string(str(directory_name)))
+        directory_name = get_directory_name(self.name)
 
         self.training_path = project.project_path / \
-            str(directory_name)  # user training name
+            str(directory_name)  # use training name
         self.main_model_path = self.training_path / 'models'
         self.dataset_path = self.training_path / 'dataset'
         self.exported_model_path = self.training_path / 'exported_models'

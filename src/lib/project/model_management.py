@@ -51,11 +51,45 @@ class BaseModel:
         self.framework: str = None
         self.training_id: int = None
         self.model_path: Path = None
+        self.labelmap_path:Path=None
+
+    @staticmethod
+    def query_table(expression: str, column: str):
+        query_table_SQL = """
+        SELECT
+            %s
+        FROM
+            %s;
+        """
+        query_table_vars = [expression, column]
+        return_all = db_fetchall(query_table_SQL, conn, query_table_vars)
+        return return_all
+
+    @st.cache
+    def get_model_path(self):
+        query_model_project_training_SQL = """
+                SELECT
+                    p.project_path,
+                    t.name
+                FROM
+                    public.models m
+                    INNER JOIN public.training t ON m.training_id = t.id
+                    INNER JOIN public.project p ON t.project_id = p.id
+                WHERE
+                    m.id = %s;
+                        """
+        query_model_project_training_vars = [self.id]
+        query=db_fetchone(query_model_project_training_SQL,conn,query_model_project_training_vars)
+        
+        return query
+            
+        
 
 
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
+        self.p_model_list, self.p_model_column_names = self.query_model_table()
 
     @st.cache
     def query_model_table(self) -> NamedTuple:
@@ -93,10 +127,27 @@ class Model(BaseModel):
         exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
         return exist_status
 
+    def get_model_path(self):
+        query_model_project_training_SQL = """
+                SELECT
+                    p.project_path,
+                    t.name
+                FROM
+                    public.models m
+                    INNER JOIN public.training t ON m.training_id = t.id
+                    INNER JOIN public.project p ON t.project_id = p.id
+                WHERE
+                    m.id = %s;
+                        """
+        query_model_project_training_vars = [self.id]
+        query=db_fetchone(query_model_project_training_SQL,conn,query_model_project_training_vars)
+        return query
+
 
 class PreTrainedModel(BaseModel):
     def __init__(self) -> None:
         super().__init__()
+        self.pt_model_list, self.pt_model_column_names = self.query_PT_table()
 
     @st.cache
     def query_PT_table(self) -> NamedTuple:
