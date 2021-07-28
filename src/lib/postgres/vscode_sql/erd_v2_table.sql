@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     position text,
     psd text NOT NULL,
     roles_id integer NOT NULL,
-    account_status character varying(30) NOT NULL CHECK (account_status IN ('NEW', 'ACTIVE', 'LOCKED', 'LOGGED_IN', 'LOGGED_OUT')),
+    status_id integer NOT NULL DEFAULT 1,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_activity timestamp with time zone,
@@ -27,6 +27,7 @@ CREATE TRIGGER users_update
 
 ALTER TABLE public.users OWNER TO shrdc;
 
+-- CHECK (account_status IN ('NEW', 'ACTIVE', 'LOCKED', 'LOGGED_IN', 'LOGGED_OUT'))
 --  ROLES table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.roles (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
@@ -450,4 +451,28 @@ CREATE TRIGGER training_dataset_update
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
 ALTER TABLE public.training_dataset OWNER TO shrdc;
+
+-- ACCOUNT_STATUS table ---------------------------
+CREATE TABLE IF NOT EXISTS public.account_status (
+    id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
+    name character varying(50) UNIQUE NOT NULL,
+    PRIMARY KEY (id))
+TABLESPACE image_labelling;
+
+ALTER TABLE public.account_status OWNER TO shrdc;
+
+INSERT INTO public.account_status (
+    name)
+VALUES (
+    'NEW'),
+(
+    'ACTIVE'),
+(
+    'LOCKED'),
+(
+    'LOGGED_IN'),
+(
+    'LOGGED_OUT');
+
+ALTER TABLE public.users RENAME COLUMN account_status TO status_id;
 

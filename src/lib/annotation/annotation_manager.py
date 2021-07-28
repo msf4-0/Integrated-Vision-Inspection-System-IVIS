@@ -7,7 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Union
 from datetime import datetime
 import psycopg2
 import json
@@ -34,13 +34,13 @@ for path in sys.path:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import db_uni_query, init_connection, db_fetchone
+from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
 
-class Results:
+class Result:
     def __init__(self, from_name, to_name, type, value) -> None:
         self.from_name: str = from_name
         self.to_name: str = to_name
@@ -48,25 +48,59 @@ class Results:
         self.value: List[Dict] = value
 
 
-class Annotations:
+class BasePredictions:
     # will then be converted into JSON format
     def __init__(self) -> None:
-        self.id: int = 0
+        self.id: int = None  # predictions_id
+        self.model_version: str = None
+        self.created_ago: datetime = None
+        self.completed_by: Dict = {}  # user_id, email, first_name, last_name
+        self.was_cancelled: bool = False
+        self.ground_truth: bool = True
+        self.result: List[Dict, Result] = []  # or Dict?
+        self.score: float = None
+
+
+class NewPredictions(BasePredictions):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+class Predictions(BasePredictions):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+class BaseAnnotations:
+    # will then be converted into JSON format
+    def __init__(self) -> None:
+        self.id: int = None  # annotations_id
         self.completed_by: Dict = {}  # user_id, email, first_name, last_name
         self.was_cancelled: bool = False
         self.ground_truth: bool = True
         self.created_at: datetime = datetime.now().astimezone()
         self.updated_at: datetime = datetime.now().astimezone()
         self.lead_time: float = 0
-        self.task: int = 0
-        self.results = Results()  # or Dict?
+        self.task: int = 0  # equivalent to 'task_id'
+        self.result: List[Dict, Result] = []  # or Dict?
+        self.predictions: List[Dict, Predictions] = None
 
 
-def submit_annotations(results: Dict, project_id: int, users_id: int, task_id: int, annotation_id: int, is_labelled: bool = True, conn=conn) -> int:
-    """ Submit results for new annotations
+class NewAnnotations(BaseAnnotations):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+class Annotations(BaseAnnotations):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+def submit_annotations(result: Dict, project_id: int, users_id: int, task_id: int, annotation_id: int, is_labelled: bool = True, conn=conn) -> int:
+    """ Submit result for new annotations
 
     Args:
-        results (Dict): [description]
+        result (Dict): [description]
         project_id (int): [description]
         users_id (int): [description]
         task_id (int): [description]
@@ -81,17 +115,17 @@ def submit_annotations(results: Dict, project_id: int, users_id: int, task_id: i
     # TODO is it neccessary to have annotation type id?
     insert_annotations_SQL = """
                                 INSERT INTO public.annotations (
-                                    results,
+                                    result,
                                     project_id,
                                     users_id,
                                     task_id)
                                 VALUES (
                                     %s::jsonb,
                                     %s,
-                                    %s, 
-                                    %s) 
+                                    %s,
+                                    %s)
                                 RETURNING id;
-                            """, [json.dumps(results), project_id, users_id, task_id]
+                            """, [json.dumps(result), project_id, users_id, task_id]
     annotation_id = db_fetchone(insert_annotations_SQL, conn)
 
     update_task_SQL = """
@@ -103,16 +137,16 @@ def submit_annotations(results: Dict, project_id: int, users_id: int, task_id: i
                         WHERE
                             id = %s;
                     """, [annotation_id, is_labelled]
-    db_uni_query(update_task_SQL, conn)
+    db_no_fetch(update_task_SQL, conn)
 
     return annotation_id
 
 
-def update_annotations(results: Dict, users_id: int, annotation_id: int, conn=conn) -> tuple:
-    """Update results for new annotations
+def update_annotations(result: Dict, users_id: int, annotation_id: int, conn=conn) -> tuple:
+    """Update result for new annotations
 
     Args:
-        results (Dict): [description]
+        result (Dict): [description]
         users_id (int): [description]
         annotation_id (int): [description]
         conn (psycopg2 connection object, optional): [description]. Defaults to conn.
@@ -126,12 +160,12 @@ def update_annotations(results: Dict, users_id: int, annotation_id: int, conn=co
                                 UPDATE
                                     public.annotations
                                 SET
-                                    (results = %s::jsonb),
+                                    (result = %s::jsonb),
                                     (users_id = %s)
                                 WHERE
                                     id = %s
                                 RETURNING *;
-                            """, [json.dumps(results), users_id]
+                            """, [json.dumps(result), users_id]
     updated_annotation_return = db_fetchone(update_annotations_SQL, conn)
 
     return updated_annotation_return
@@ -179,3 +213,28 @@ def delete_annotation(annotation_id: int) -> tuple:
     delete_annotation_return = db_fetchone(delete_annotations_SQL, conn)
 
     return delete_annotation_return
+
+
+class BaseTask:
+    def __init__(self) -> None:
+        self.id: int = None
+        self.data: Union[Dict[str], List[Dict]] = None
+        self.meta: Dict = None
+        self.project: int = None  # NOTE: same as 'project_id'
+        self.created_at: datetime = datetime.now().astimezone()
+        self.updated_at: datetime = datetime.now().astimezone()
+        self.is_labelled: bool = None
+        self.overlap: int = None  # number of overlaps
+        # self.file_upload:str=None NOTE: replaced with 'name'
+        self.annotations: List[Dict] = None
+        self.predictions: List[Dict] = None
+
+
+class NewTask(BaseTask):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+class Task(BaseTask):
+    def __init__(self) -> None:
+        super().__init__()

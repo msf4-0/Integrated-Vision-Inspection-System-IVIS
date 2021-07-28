@@ -113,7 +113,7 @@ def show():
             deployment_type_selected)
 
     # ****** MODEL TYPE *****************************************
-
+    # Pre-fetch PRE-TRAINED MODEL and PROJECT MODEL list from database
     pt_model_info, pt_model_column_names = session_state.deployment.query_model_table(
         MODEL_TABLE["Pre-trained Models"])
 
@@ -121,6 +121,7 @@ def show():
     #     [pt.Name,pt.Model_Path] for pt in session_state.pt_model.pt_model_list if session_state.pt_model.pt_model_list]
     p_model_info, p_model_column_names = session_state.deployment.query_model_table(
         MODEL_TABLE["Project Models"])
+
     with col2:
         model_type = st.selectbox("Model Type", options=[
             "Pre-trained Models", "Project Models", "User Upload (KIV)"])
@@ -130,30 +131,39 @@ def show():
         if model_type == 'Pre-trained Models':
             model_info = pt_model_info
             model_list = [
-                model.Name for model in model_info]
+                model.Name for model in model_info]  # TODO: can be clustered?
             # model_path = [model.Model_Path for model in model_info]
 
     # ****** PROJECT MODELS *****************************************
         elif model_type == 'Project Models':
             model_info = p_model_info
+            # TODO: can be clustered?
             model_list = [model.Name for model in model_info]
             # model_path = [model.Model_Path for model in model_info]
         else:
             model_list = []
+
         model_list.insert(0, "")
         model_selected = st.selectbox(
             "Model List", options=model_list, format_func=lambda x: 'Select a Model' if x == "" else x)
 
         if model_selected:
+            # assign model name, ID and Framework to Deployment class object
             session_state.deployment.model_selected.name = model_selected
             session_state.deployment.model_selected.id = model_info[model_list.index(
                 model_selected) - 1].ID
-
             session_state.deployment.model_selected.framework = model_info[model_list.index(
                 model_selected) - 1].Framework
+
             st.write(session_state.deployment.model_selected.id,
                      session_state.deployment.model_selected.framework)
             if model_type == 'Pre-trained Models':
+                # DATA_DIR
+                # |_pre_trained_models/
+                # | |_pt_1/
+                # | | |_saved_model/
+                # | |  |_saved_model.pb
+                #   |_labelmap.pbtxt
                 session_state.deployment.model_selected.model_path = DATA_DIR / \
                     Path(
                         [model.Model_Path for model in model_info if model.Name == model_selected][0])
@@ -168,7 +178,7 @@ def show():
                 st.write(session_state.deployment.model_selected.model_path,
                          session_state.deployment.model_selected.labelmap_path)
 
-            if session_state.deployment.model_selected.framework == 'TensorFlow':  # SavedModel directory
+            if session_state.deployment.model_selected.framework == 'TensorFlow':  # SavedModel directory for TensorFlow
                 session_state.deployment.model_selected.saved_model_dir = session_state.deployment.model_selected.model_path / 'saved_model'
 
         # ****** TODO:USER UPLOAD MODELS (KIV)*****************************************

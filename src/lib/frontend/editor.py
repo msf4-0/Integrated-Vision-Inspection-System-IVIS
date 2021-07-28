@@ -12,7 +12,7 @@ from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
 from PIL import Image
 from base64 import b64encode, decode
-
+from io import BytesIO
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -46,11 +46,21 @@ from enum import IntEnum
 from frontend.streamlit_labelstudio import st_labelstudio
 
 
-class editor_flag(IntEnum):
+class EditorFlag(IntEnum):
     submit = 1
     update = 2
     delete = 3
     skip = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return EditorFlag[s]
+        except KeyError:
+            raise ValueError()
 
 
 @st.cache
@@ -63,10 +73,36 @@ def data_url_encoder(image):
     Returns:
         bytes: UTF-8 encoded base64 bytes
     """
-
+    log_info("Loading sample image")
     bb = image.read()
     b64code = b64encode(bb).decode('utf-8')
     data_url = 'data:' + image.type + ';base64,' + b64code
+
+    return data_url
+
+# NOTE: *************** NOT USED **************************************
+
+
+@st.cache
+def load_sample_image():
+    """Load Image and generate Data URL in base64 bytes
+
+    Args:
+        image (bytes-like): BytesIO object
+
+    Returns:
+        bytes: UTF-8 encoded base64 bytes
+    """
+    chdir_root()  # ./image_labelling
+    log_info("Loading Sample Image")
+    sample_image = "resources/sample.jpg"
+    with Image.open(sample_image) as img:
+        img_byte_arr = BytesIO()
+        img.save(img_byte_arr, format='jpeg')
+
+    bb = img_byte_arr.getvalue()
+    b64code = b64encode(bb).decode('utf-8')
+    data_url = 'data:image/jpeg;base64,' + b64code
     # data_url = f'data:image/jpeg;base64,{b64code}'
     # st.write(f"\"{data_url}\"")
 
@@ -85,6 +121,7 @@ def get_image_size(image_path):
     with Image.open(image_path) as img:
         original_width, original_height = img.size
     return original_width, original_height
+# NOTE: *************** NOT USED **************************************
 
 
 def main():
@@ -146,7 +183,7 @@ def main():
             f"original_width: {original_width}{'|':^8}original_height: {original_height}")
 
     else:
-        data_url = "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
+        data_url = load_sample_image()
 
     pass
 
@@ -279,12 +316,12 @@ def main():
                         }
                     ]
                 }
-        ],
+            ],
         'id': 1,
         'data': {
             # 'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
             'image': f'{data_url}'
-            }
+                }
     }
 
     v = annotation_sel()
@@ -309,17 +346,17 @@ def main():
             pass
 
 # TODO: add required fields
-        if flag and results is not None:
-            if flag == editor_flag.submit:
-                annotation_id = submit_annotations(
-                    results, project_id, users_id, task_id, annotation_id, is_labelled, conn)
-            elif flag == editor_flag.update:
-                update_annotation_return = update_annotations(
-                    results, users_id, annotation_id, conn)
-            elif flag == editor_flag.delete:
-                delete_annotation_return = delete_annotation(annotation_id)
-            elif flag == editor_flag.skip:
-                skipped_task_return = skip_task(task_id, skipped)
+        # if flag and results is not None:
+        #     if flag == EditorFlag.submit:
+        #         annotation_id = submit_annotations(
+        #             results, project_id, users_id, task_id, annotation_id, is_labelled, conn)
+        #     elif flag == EditorFlag.update:
+        #         update_annotation_return = update_annotations(
+        #             results, users_id, annotation_id, conn)
+        #     elif flag == EditorFlag.delete:
+        #         delete_annotation_return = delete_annotation(annotation_id)
+        #     elif flag == EditorFlag.skip:
+        #         skipped_task_return = skip_task(task_id, skipped)
 
 
 if __name__ == "__main__":

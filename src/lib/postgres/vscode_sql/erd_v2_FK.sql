@@ -5,6 +5,11 @@ ALTER TABLE IF EXISTS public.users
 
 ALTER TABLE public.users VALIDATE CONSTRAINT fk_roles_id;
 
+ALTER TABLE IF EXISTS public.users
+    ADD CONSTRAINT fk_status_id FOREIGN KEY (status_id) REFERENCES public.account_status (id) ON DELETE SET NULL ON UPDATE CASCADE NOT VALID;
+
+ALTER TABLE public.users VALIDATE CONSTRAINT fk_status_id;
+
 -- SESSION_LOG
 ALTER TABLE IF EXISTS public.session_log
     ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION NOT VALID;

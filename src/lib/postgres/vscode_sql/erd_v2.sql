@@ -40,12 +40,13 @@ CREATE TABLE IF NOT EXISTS public.users (
     position text,
     psd text NOT NULL,
     roles_id integer NOT NULL,
-    account_status character varying(30) NOT NULL CHECK (account_status IN ('NEW', 'ACTIVE', 'LOCKED', 'LOGGED_IN', 'LOGGED_OUT')),
+    status_id integer NOT NULL DEFAULT 1,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_activity timestamp with time zone,
     PRIMARY KEY (id),
-    CONSTRAINT fk_roles_id FOREIGN KEY (roles_id) REFERENCES public.roles (id) ON DELETE SET NULL)
+    CONSTRAINT fk_roles_id FOREIGN KEY (roles_id) REFERENCES public.roles (id) ON DELETE SET NULL,
+    CONSTRAINT fk_status_id FOREIGN KEY (status_id) REFERENCES public.account_status (id) ON DELETE SET NULL ON UPDATE CASCADE)
 TABLESPACE image_labelling;
 
 CREATE TRIGGER users_update
@@ -55,6 +56,35 @@ CREATE TRIGGER users_update
 
 ALTER TABLE public.users OWNER TO shrdc;
 
+INSERT INTO public.users (
+    emp_id,
+    username,
+    first_name,
+    last_name,
+    email,
+    department,
+    position,
+    psd,
+    roles_id)
+VALUES (
+    'shrdc1',
+    'chuzhenhao_shrdc',
+    'Zhen Hao',
+    'Chu',
+    'chuzhenhao@shrdc.com',
+    'Engineering',
+    'Intern',
+    'shrdc',
+    (
+        SELECT
+            id
+        FROM
+            public.roles
+        WHERE
+            name = 'Administrator'));
+-- ALTER TABLE public.users
+--     DROP CONSTRAINT users_account_status_check;
+-- CHECK (account_status IN ('NEW', 'ACTIVE', 'LOCKED', 'LOGGED_IN', 'LOGGED_OUT'))
 --  ROW table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.roles (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
@@ -474,6 +504,28 @@ CREATE TRIGGER training_dataset_update
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
 ALTER TABLE public.training_dataset OWNER TO shrdc;
+
+-- ACCOUNT_STATUS table ---------------------------
+CREATE TABLE IF NOT EXISTS public.account_status (
+    id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
+    name character varying(50) UNIQUE NOT NULL,
+    PRIMARY KEY (id))
+TABLESPACE image_labelling;
+
+ALTER TABLE public.account_status OWNER TO shrdc;
+
+INSERT INTO public.account_status (
+    name)
+VALUES (
+    'NEW'),
+(
+    'ACTIVE'),
+(
+    'LOCKED'),
+(
+    'LOGGED_IN'),
+(
+    'LOGGED_OUT');
 
 END;
 

@@ -45,15 +45,26 @@ def init_connection():
 conn = init_connection()
 
 
-class ACCOUNT_STATUS(IntEnum):  # User Status
-    NEW = 0  # Pending account activation
-    ACTIVE = 1  # Account activated
-    LOCKED = 2  # Account locked
-    LOGGED_IN = 3  # Account logged-in
-    LOGGED_OUT = 4  # Account logged-out
+class AccountStatus(IntEnum):  # User Status
+    NEW = 1  # Pending account activation
+    ACTIVE = 2  # Account activated
+    LOCKED = 3  # Account locked
+    LOGGED_IN = 4  # Account logged-in
+    LOGGED_OUT = 5  # Account logged-out
 
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return AccountStatus[s]
+        except KeyError:
+            raise ValueError()
 
 # TODO: move to form_manager
+
+
 def check_if_field_empty(new_user, field_placeholder, field_name):
     empty_fields = []
     # all_field_filled = all(new_user)
