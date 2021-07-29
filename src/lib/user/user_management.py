@@ -8,41 +8,27 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from enum import IntEnum
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-TEST_MODULE_PATH_PARENT = SRC / "test" / "test_page"
-
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
-
-    if str(TEST_MODULE_PATH_PARENT) not in sys.path:
-        sys.path.insert(0, str(TEST_MODULE_PATH_PARENT))
-    else:
-        pass
-
-
 import psycopg2
 from passlib.hash import argon2
-from core.utils.log import std_log  # logger
-
-# ------------------TEMP
+from datetime import datetime
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
 
-# conn = psycopg2.connect(
-#     "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
+
+# >>>> User-defined Modules >>>>
+from core.utils.log import log_info  # logger
+from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch
 
 
-@st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
-def init_connection():
-    return psycopg2.connect(**st.secrets["postgres"])
-
-
-conn = init_connection()
+conn = init_connection(**st.secrets["postgres"])
 
 
 class AccountStatus(IntEnum):  # User Status
@@ -114,7 +100,7 @@ def create_user(user, conn=conn):
 
     create_usertable(conn)  # create user table if does not exist
     # Employee Corporate Details
-    std_log("User Entry")
+    log_info("User Entry")
     # new_user["emp_id"] = input("Employee ID: ")
     # new_user["first_name"] = input("First Name: ")
     # new_user["last_name"] = input("Last Name: ")
@@ -126,7 +112,7 @@ def create_user(user, conn=conn):
     # new_user["username"] = input("Username: ")
     # new_user["role"] = input("Role: ")
     psd = argon2.hash(user["psd"])
-    std_log(f'password: {user["psd"]}')
+    log_info()(f'password: {user["psd"]}')
 
     with conn:
         with conn.cursor() as cur:
@@ -139,13 +125,13 @@ def create_user(user, conn=conn):
 
             conn.commit()
             user_create = cur.fetchone()
-            std_log(user_create)
+            log_info(user_create)
             user = {}
 
 
 # >>>> User Login
 
-class User:
+class BaseUser:
     def __init__(self) -> None:
         self.id = None
         self.emp_id = None
@@ -159,10 +145,64 @@ class User:
         self.role = None
         self.account_status = None
         self.session_id = None
+# TODO: load UserLogin into User class
 
 
-class UserLogin:
+class User(BaseUser):
+    def __init__(self, id) -> None:
+        super().__init__()
+        self.id = id  # TODO: To remove this method of init User class object
+        self.query_user()
+
+    def query_user(self):
+        query_user_SQL = """
+                        SELECT
+                            emp_id,
+                            username,
+                            first_name,
+                            last_name,
+                            email,
+                            department,
+                            position,
+                            (
+                                SELECT
+                                    r.name
+                                FROM
+                                    public.roles r
+                                WHERE
+                                    r.id = roles_id) AS "Role",
+                            (
+                                SELECT
+                                    x.name
+                                FROM
+                                    public.account_status x
+                                WHERE
+                                    x.id = status_id) AS "Account Status"
+                        FROM
+                            public.users
+                        WHERE
+                            id = %s;
+                        """
+        query_user_vars = [self.id]
+        query_return = db_fetchone(query_user_SQL, conn, query_user_vars)
+        if query_return:
+            self.emp_id, self.username, self.first_name, self.last_name, self.email, self.department, self.position, self.role, self.account_status = query_return
+            current_timestamp = datetime.now().astimezone()
+            update_last_activity_SQL = """
+                                    UPDATE
+                                        public.users
+                                    SET
+                                        last_activity = %s
+                                    WHERE
+                                        id = %s;"""
+            update_last_activity_vars = [current_timestamp, self.id]
+            db_no_fetch(update_last_activity_SQL, conn,
+                        update_last_activity_vars)
+
+
+class UserLogin(BaseUser):
     def __init__(self) -> None:
+        super().__init__()
 
         # TODO:Temporary
         self.id = None
@@ -193,7 +233,7 @@ class UserLogin:
         # user = {}
         # user["username"] = input("Username: ")
         # user["psd"] = input("Password: ")
-        std_log(f"Login password: {user['psd']}")
+        log_info(f"Login password: {user['psd']}")
         # -----Testing
 
         with conn:  # open connections to Database
@@ -204,7 +244,7 @@ class UserLogin:
 
                 conn.commit()  # commit SELECT query password
                 user_exist = cur.fetchone()
-                std_log(user_exist[0])
+                log_info(user_exist[0])
 
         if user_exist is not None:  # if user exists
             self.id = user_exist[0]

@@ -90,7 +90,7 @@ class BaseProject:
             dataset_tmp = []
 
         return dataset_tmp
-
+    @st.cache
     def get_dataset_name_list(self) -> List:
         dataset_name_tmp = []
         dataset_name_id = {}
@@ -150,6 +150,7 @@ class Project(BaseProject):
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.query_all_fields()
 
+    @st.cache(ttl=600)
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
                             SELECT
@@ -235,6 +236,7 @@ class Project(BaseProject):
             self.dataset_list = dataset_list
             end_time = perf_counter()
             log_info(end_time - start_time)
+            
             return dataset_list
 
 

@@ -33,6 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
 from core.utils.helper import check_if_exists
+from user.user_management import User
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -81,11 +82,14 @@ class NewTask(BaseTask):
 
 
 class Task(BaseTask):
-    def __init__(self, data_name, project_id, dataset_id) -> None:
+    def __init__(self, data, data_name, project_id, dataset_id, annotations=None, predictions=None) -> None:
         super().__init__()
+        self.data = {'image': data}
         self.name = data_name
         self.project_id = project_id
         self.dataset_id = dataset_id
+        self.annotations = annotations
+        self.predictions = predictions
         self.query_task()
 
     # TODO: check if current image exists as a 'task' in DB
@@ -116,9 +120,11 @@ class Task(BaseTask):
         """
         query_task_SQL = """
                         SELECT
-                            id AS "ID",
-                            is_labelled AS "Is Labelled",
-                            skipped AS "Skipped"
+                            id,
+                            is_labelled,
+                            skipped,
+                            created_at,
+                            updated_at
                         FROM
                             public.task
                         WHERE
@@ -128,9 +134,9 @@ class Task(BaseTask):
                                 """
         query_task_vars = [self.name, self.project_id, self.dataset_id]
         query_return = db_fetchone(
-            query_task_SQL, conn, query_task_vars, fetch_col_name=True)
+            query_task_SQL, conn, query_task_vars, fetch_col_name=False)
         try:
-            self.id, self.is_labelled, self.skipped = query_return
+            self.id, self.is_labelled, self.skipped, self.created_at, self.updated_at = query_return
             return query_return
         except TypeError as e:
             log_error(
@@ -244,8 +250,60 @@ class NewAnnotations(BaseAnnotations):
 
 
 class Annotations(BaseAnnotations):
-    def __init__(self, task: Task) -> None:
+    def __init__(self, task: Task, user: User) -> None:
         super().__init__(task)
+        self.task = task  # 'Task' class object
+        self.completed_by = {
+            "id": user.id, "email": user.email, "first_name": user.first_name, "last_name": user.last_name}
+        self.query_annotations()
+
+    # TODO: check if current image exists as a 'task' in DB
+    @staticmethod
+    def check_if_annotation_exists(task_id: int, project_id: int, conn=conn) -> bool:
+        check_if_exists_SQL = """
+                                SELECT
+                                    EXISTS (
+                                        SELECT
+                                            *
+                                        FROM
+                                            public.annotations
+                                        WHERE
+                                            id = %s
+                                            AND project_id = %s
+                                            );"""
+        check_if_exists_vars = [task_id, project_id]
+        exists_flag = db_fetchone(
+            check_if_exists_SQL, conn, check_if_exists_vars).exists
+
+        return exists_flag
+
+    def query_annotations(self):
+        """Query ID and Result
+
+        Returns:
+            [type]: [description]
+        """
+        query_annotation_SQL = """
+                                SELECT
+                                    id,
+                                    result,
+                                    created_at,
+                                    updated_at
+                                FROM
+                                    public.annotations
+                                WHERE
+                                    task_id = %s;
+
+                                """
+        query_annotation_vars = [self.task.id]
+        query_return = db_fetchone(
+            query_annotation_SQL, conn, query_annotation_vars, fetch_col_name=False)
+        try:
+            self.id, self.result, self.created_at, self.updated_at = query_return
+            return query_return
+        except TypeError as e:
+            log_error(
+                f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.project_id}")
 
     def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:
         """Update result for new annotations

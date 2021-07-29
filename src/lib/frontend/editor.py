@@ -254,7 +254,7 @@ def main():
                     ]
                 }
             ],
-        'id': 1,
+        'id': 1, #task id
         'data': {
             # 'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
             'image': f'{data_url}'

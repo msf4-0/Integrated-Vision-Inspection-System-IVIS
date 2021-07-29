@@ -34,10 +34,11 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe, check_if_exists
 from project.project_management import Project
-from frontend.editor_manager import BaseEditor, Editor
+from frontend.editor_manager import Editor
+from user.user_management import User
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
-from annotation.annotation_manager import data_url_encoder, load_sample_image, get_image_size, NewTask, Task
+from annotation.annotation_manager import Annotations, data_url_encoder, load_sample_image, get_image_size, NewTask, Task
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 
 # <<<< User-defined Modules <<<<
@@ -89,6 +90,7 @@ def show():
         # TODO: query all project
         session_state.project = Project(7)
         session_state.editor = Editor(session_state.project.id)
+        session_state.user = User(1)
 
         # set random project ID before getting actual from Database
     session_state.project.query_all_fields()
@@ -126,50 +128,81 @@ def show():
 # **************************DATA SELECTOR ********************************************
     # _, col1, _, col2, _, col3, _ = st.beta_columns(
     #     [0.2, 1, 0.2, 1, 0.2, 1, 0.2])
+
+    
     col1, col2 = st.beta_columns([1, 2])
     dataset_selection = col1.selectbox(
         "Dataset", options=session_state.project.dataset_name_list, key="dataset_sel")
 
-    with col1.form(key='data_sel'):
+    with col1.beta_container():
         project_id = session_state.project.id
         dataset_id = session_state.project.dataset_name_id[dataset_selection]
 
         # >>>> Check if Task exists in 'Task' table >>>>
         def check_if_task_exist(project_id, dataset_id, conn):
+            data = session_state.project.dataset_list[dataset_selection][session_state.data_sel]
             if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
                 # Instantiate task as 'Task' Class object
-                pass
+
+                if 'task' not in session_state:
+                    session_state.task = Task(data,
+                                              session_state.data_sel, project_id, dataset_id)
+                    log_info(
+                        f"Task exists for Task ID: {session_state.task.id} for {session_state.task.name}")
+
+                # >>>> Check if annotations exists
+                if Annotations.check_if_annotation_exists(session_state.task.id, project_id, conn):
+                    # TODO :Add Annotations load
+                    if 'annotation' not in session_state:
+                        session_state.annotation = Annotations(
+                            session_state.task, session_state.user)
+                        log_info(
+                            f"Annotation {session_state.annotation.id} exists for Task ID: {session_state.task.id} for {session_state.task.name}")
+                else:
+                    log_info(
+                        f"Annotation does not exist for Task ID: {session_state.task.id} for {session_state.task.name}")
+                    pass
+
             else:
                 # Insert as new task entry if not exists
                 task_id = NewTask.insert_new_task(
                     session_state.data_sel, project_id, dataset_id)
-                log_info(
-                    f"Created New Task {task_id} for {session_state.data_sel}")
+                if 'task' not in session_state:
+                    session_state.task = Task(data,
+                                              session_state.data_sel, project_id, dataset_id)
+
+                    log_info(
+                        f"Created New Task for ID {session_state.task.id} for {session_state.task.name}")
 
                 # Instantiate task as 'Task' Class object
 
-        if dataset_selection:
+        # if dataset_selection:
+        try:
             data_list = sorted(
                 [k for k, v in session_state.project.dataset_list[dataset_selection].items()])
-        else:
-            data_list = []
+        except ValueError as e:
+            log_error(
+                f"{e}: Dataset Loading error causing list to be non iterable")
+        # else:
+        #     data_list = []
 
-        data_selection = st.selectbox(
+        st.selectbox(
             "Data", options=data_list, key="data_sel")
-        data_sel_button = st.form_submit_button(
-            "Confirm", on_click=check_if_task_exist, args=(project_id, dataset_id, conn,))
+        st.button(
+            "Confirm", key='data_sel_button', on_click=check_if_task_exist, args=(project_id, dataset_id, conn,))
 
 
 # *************************EDITOR**********************************************
     col1, col2 = st.beta_columns([1, 2])
     col1.text_input("Check column", key="column1")
     col2.text_input("Check column", key="column2")
-    col2.write(data_selection)
 
     col1, col2, col3 = st.beta_columns(3)
     col1.write(vars(session_state.project))
     # col1.write(session_state.project.dataset_list['My Third Dataset'])
     col2.write(vars(session_state.editor))
+    col3.write(vars(session_state.task))
+    st.write(vars(session_state.user))
 
 
 def main():

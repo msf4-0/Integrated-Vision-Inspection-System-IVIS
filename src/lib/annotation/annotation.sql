@@ -89,3 +89,12 @@ WHERE
     AND project_id = % s
     AND dataset_id = % s;
 
+-- Query Annotations
+SELECT
+    id,
+    result
+FROM
+    public.annotations
+WHERE
+    task_id = % s;
+
