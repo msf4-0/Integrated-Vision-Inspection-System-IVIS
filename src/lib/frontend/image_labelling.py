@@ -129,18 +129,24 @@ def show():
     col1, col2 = st.beta_columns([1, 2])
     dataset_selection = col1.selectbox(
         "Dataset", options=session_state.project.dataset_name_list, key="dataset_sel")
+
     with col1.form(key='data_sel'):
         project_id = session_state.project.id
         dataset_id = session_state.project.dataset_name_id[dataset_selection]
 
+        # >>>> Check if Task exists in 'Task' table >>>>
         def check_if_task_exist(project_id, dataset_id, conn):
             if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
+                # Instantiate task as 'Task' Class object
                 pass
             else:
+                # Insert as new task entry if not exists
                 task_id = NewTask.insert_new_task(
                     session_state.data_sel, project_id, dataset_id)
                 log_info(
                     f"Created New Task {task_id} for {session_state.data_sel}")
+
+                # Instantiate task as 'Task' Class object
 
         if dataset_selection:
             data_list = sorted(
