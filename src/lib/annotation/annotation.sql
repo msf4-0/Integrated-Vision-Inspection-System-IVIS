@@ -61,5 +61,31 @@ SELECT
         FROM
             {}
         WHERE
-            % s = % s);
+            name = % s
+            AND project_id = % s
+            AND dataset_id = % s);
+
+-- Insert Image into Task (Create Task)
+INSERT INTO public.task (
+    name,
+    project_id,
+    dataset_id)
+VALUES (
+    % s,
+    % s,
+    % s)
+RETURNING
+    id;
+
+-- Query Task details
+SELECT
+    id,
+    is_labelled,
+    skipped
+FROM
+    public.task
+WHERE
+    name = % s
+    AND project_id = % s
+    AND dataset_id = % s;
 

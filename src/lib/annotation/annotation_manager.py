@@ -39,8 +39,8 @@ conn = init_connection(**st.secrets['postgres'])
 
 class BaseTask:
     def __init__(self) -> None:
-        self.id: int = None
-        self.data: Union[Dict[str], List[Dict]] = None
+        self.id: int = None        
+        self.data: Union[Dict[str], List[Dict]] = None #Path to image
         self.meta: Dict = None
         self.project_id: int = None
         self.created_at: datetime = datetime.now().astimezone()
@@ -52,29 +52,61 @@ class BaseTask:
         self.predictions: List[Dict] = None
         self.skipped: bool = False
 
+        #extra
+        self.dataset_id:int=None
+        self.name:str = None
+
 
 class NewTask(BaseTask):
-    def __init__(self) -> None:
-        super().__init__()
+
+    # create new Task
+    @staticmethod
+    def insert_new_task(image_name: str, project_id: int, dataset_id: int)->int:
+        insert_new_task_SQL = """
+                                INSERT INTO public.task (
+                                    name,
+                                    project_id,
+                                    dataset_id)
+                                VALUES (
+                                    %s,
+                                    %s,
+                                    %s)
+                                RETURNING id;
+                                        """
+        insert_new_task_vars = [image_name, project_id, dataset_id]
+        task_id = db_fetchone(insert_new_task_SQL, conn, insert_new_task_vars).id
+
+        return task_id
 
 
 class Task(BaseTask):
-    def __init__(self) -> None:
+    def __init__(self,data_name,project_id,dataset_id) -> None:
         super().__init__()
+        self.name=data_name
+        self.project_id=project_id
+        self.dataset_id=dataset_id
 
     # TODO: check if current image exists as a 'task' in DB
     @staticmethod
-    def check_if_task_exists(table: str, column_name: str, condition, conn=conn):
-        """SELECT
-                EXISTS (
-                    SELECT
-                        *
-                    FROM
-                        {schema,tablename} --from 'table'
-                    WHERE
-                        {column_name} = %s); -- %s=condition
-                """
-        return check_if_exists(table, column_name, condition, conn).exists
+    def check_if_task_exists(image_name: str, project_id:int,dataset_id:int, conn=conn)->bool:
+        check_if_exists_SQL="""
+                                SELECT
+                                    EXISTS (
+                                        SELECT
+                                            *
+                                        FROM
+                                            public.task
+                                        WHERE
+                                            name = %s
+                                            AND project_id = %s
+                                            AND dataset_id = %s);"""
+        check_if_exists_vars=[image_name,project_id,dataset_id]
+        exists_flag=db_fetchone(check_if_exists_SQL,conn,check_if_exists_vars).exists
+       
+        return exists_flag
+    
+    def query_task(self):
+
 
 
 class Result:

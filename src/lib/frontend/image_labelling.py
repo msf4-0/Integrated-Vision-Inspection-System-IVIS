@@ -1,5 +1,5 @@
 """
-Title: Editor 
+Title: Editor
 Date: 15/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
@@ -32,13 +32,14 @@ else:
 
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe
+from core.utils.helper import create_dataframe, check_if_exists
 from project.project_management import Project
 from frontend.editor_manager import BaseEditor, Editor
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
-from annotation.annotation_manager import data_url_encoder, load_sample_image, get_image_size
+from annotation.annotation_manager import data_url_encoder, load_sample_image, get_image_size, NewTask, Task
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
+
 # <<<< User-defined Modules <<<<
 conn = init_connection(**st.secrets["postgres"])
 
@@ -103,6 +104,13 @@ def show():
     # Page title
     st.write(f'# Project Name: {session_state.project.name}')
     st.write("## **Image Labelling**")
+    dt_place, project_id_place = st.beta_columns([3, 1])
+    with dt_place:
+        st.write("### __Deployment Type:__",
+                 f"{session_state.project.deployment_type}")
+    with project_id_place:
+        st.write(f"### **Project ID:** {session_state.project.id}")
+    st.markdown("___")
 
     # get dataset name list
     session_state.project.datasets = session_state.project.query_project_dataset_list()
@@ -112,16 +120,45 @@ def show():
     # load_dataset.start()
     # load_dataset.join()
 
-    session_state.project.dataset_list=session_state.project.load_dataset()
+    session_state.project.dataset_list = session_state.project.load_dataset()
     # print(session_state.project.datasets)
     # st.image( session_state.project.dataset_list['My Third Dataset']["IMG_20210315_184229.jpg"],channels='BGR')
 # **************************DATA SELECTOR ********************************************
+    # _, col1, _, col2, _, col3, _ = st.beta_columns(
+    #     [0.2, 1, 0.2, 1, 0.2, 1, 0.2])
+    col1, col2 = st.beta_columns([1, 2])
+    dataset_selection = col1.selectbox(
+        "Dataset", options=session_state.project.dataset_name_list, key="dataset_sel")
+    with col1.form(key='data_sel'):
+        project_id = session_state.project.id
+        dataset_id = session_state.project.dataset_name_id[dataset_selection]
+
+        def check_if_task_exist(project_id, dataset_id, conn):
+            if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
+                pass
+            else:
+                task_id = NewTask.insert_new_task(
+                    session_state.data_sel, project_id, dataset_id)
+                log_info(
+                    f"Created New Task {task_id} for {session_state.data_sel}")
+
+        if dataset_selection:
+            data_list = sorted(
+                [k for k, v in session_state.project.dataset_list[dataset_selection].items()])
+        else:
+            data_list = []
+
+        data_selection = st.selectbox(
+            "Data", options=data_list, key="data_sel")
+        data_sel_button = st.form_submit_button(
+            "Confirm", on_click=check_if_task_exist, args=(project_id, dataset_id, conn,))
 
 
 # *************************EDITOR**********************************************
     col1, col2 = st.beta_columns([1, 2])
     col1.text_input("Check column", key="column1")
     col2.text_input("Check column", key="column2")
+    col2.write(data_selection)
 
     col1, col2, col3 = st.beta_columns(3)
     col1.write(vars(session_state.project))

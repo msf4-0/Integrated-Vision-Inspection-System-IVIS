@@ -224,8 +224,9 @@ class Project(BaseProject):
                 log_info(f"Dataset {d[0]}:{dataset_path}")
                 dataset_path = dataset_path + "/*"
                 image_list = {}
-                for image_path in sorted(iglob(dataset_path)):  # image loop
-                    image = cv2.imread(image_path) # get data url
+                # image loop with sorted directories
+                for image_path in iglob(dataset_path):
+                    image = cv2.imread(image_path)  # get data url
                     image_name = (Path(image_path).name)
                     image_list[image_name] = image
 
