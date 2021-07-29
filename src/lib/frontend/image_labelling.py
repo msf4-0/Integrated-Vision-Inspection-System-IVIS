@@ -1,0 +1,125 @@
+"""
+Title: Editor 
+Date: 15/7/2021
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+"""
+import sys
+from pathlib import Path
+from enum import IntEnum
+from PIL import Image
+from base64 import b64encode, decode
+from io import BytesIO
+import streamlit as st
+from streamlit import cli as stcli  # Add CLI so can run Python script directly
+from streamlit import session_state as session_state
+# DEFINE Web APP page configuration
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
+# >>>> User-defined Modules >>>>
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+
+
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
+
+
+from path_desc import chdir_root
+from core.utils.log import log_info, log_error  # logger
+from core.utils.helper import create_dataframe
+from project.project_management import Project
+from frontend.editor_manager import BaseEditor, Editor
+from data_manager.database_manager import init_connection
+from data_manager.annotation_type_select import annotation_sel
+from annotation.annotation_manager import data_url_encoder, load_sample_image, get_image_size
+from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
+# <<<< User-defined Modules <<<<
+conn = init_connection(**st.secrets["postgres"])
+
+# NOTE: not used
+from frontend.streamlit_labelstudio import st_labelstudio
+
+
+class EditorFlag(IntEnum):
+    SUBMIT = 1
+    UPDATE = 2
+    DELETE = 3
+    SKIP = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return EditorFlag[s]
+        except KeyError:
+            raise ValueError()
+
+
+def show():
+
+    chdir_root()  # change to root directory
+
+    with st.sidebar.beta_container():
+
+        st.image("resources/MSF-logo.gif", use_column_width=True)
+    # with st.beta_container():
+        st.title("Integrated Vision Inspection System", anchor='title')
+
+        st.header(
+            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+        st.markdown("""___""")
+
+    # ******** SESSION STATE ***********************************************************
+    # TODO
+    # if "current_page" not in session_state:  # KIV
+    #     session_state.current_page = "All Trainings"
+    #     session_state.previous_page = "All Trainings"
+
+    if "project" not in session_state:
+        # TODO: query all project
+        session_state.project = Project(7)
+        session_state.editor = Editor(session_state.project.id)
+
+        # set random project ID before getting actual from Database
+    session_state.project.query_all_fields()
+    # ******** SESSION STATE *********************************************************
+
+    # >>>> TRAINING SIDEBAR >>>>
+    # training_page_options = ("All Trainings", "New Training")
+    # with st.sidebar.beta_expander("Training Page", expanded=True):
+    #     session_state.current_page = st.radio("", options=training_page_options,
+    #                                           index=0)
+    # <<<< TRAINING SIDEBAR <<<<
+
+    # Page title
+    st.write(f'# Project Name: {session_state.project.name}')
+    st.write("## **Image Labelling**")
+
+    # get dataset name list
+    session_state.project.datasets = session_state.project.query_project_dataset_list()
+    session_state.project.dataset_name_list, session_state.project.dataset_name_id = session_state.project.get_dataset_name_list()
+    session_state.project.dataset_list=session_state.project.load_dataset()
+    # print(session_state.project.datasets)
+    col1, col2, col3 = st.beta_columns(3)
+    col1.write(vars(session_state.project))
+    col2.write(vars(session_state.editor))
+
+
+def main():
+    show()
+
+
+if __name__ == "__main__":
+    if st._is_running_with_streamlit:
+
+        main()
+    else:
+        sys.argv = ["streamlit", "run", sys.argv[0]]
+        sys.exit(stcli.main())

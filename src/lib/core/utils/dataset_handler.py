@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import os
 from pathlib import Path, PurePath
+import sys
 import re
 from shutil import Error, copyfile
 import argparse
@@ -16,27 +17,28 @@ import logging
 from glob import glob, iglob
 import streamlit as st
 import psycopg2
-import sys
-
-#--------------------Logger-------------------------#
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
-
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
-# ------------------TEMP
-conn = psycopg2.connect(
-    "host=localhost port=5432 dbname=eye user=shrdc password=shrdc")
-layout = 'centered'
-# ------------------TEMP
+from io import BytesIO
+from PIL import Image
+from mimetypes import guess_type
+from base64 import b64encode
 
 
-HOME = Path.home()
+# >>>> User-defined Modules >>>>
+SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+
+
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
+
+from path_desc import chdir_root
+from core.utils.log import log_info, log_error  # logger
+from data_manager.database_manager import init_connection
+
+
+conn = init_connection(**st.secrets["postgres"])
 
 
 def query_dataset_dir(project_id, conn=conn):
@@ -63,7 +65,7 @@ def query_dataset_dir(project_id, conn=conn):
 
             conn.commit()
             data_path = cur.fetchall()
-            log.info(data_path)
+            log_info(data_path)
 
     return data_path
 
@@ -151,7 +153,7 @@ def dataset_partition(project_id, data_path, project_dir=Path.cwd(), a=0.9, b=0.
             assert len(search_dir_list) > 0, "Dataset directory is missing"
         except OSError as e:
             error_message = f"{e}Missing dataset directory"
-            log.error(error_message)
+            log_error(error_message)
             st.error(error_message)
 
     if output_dir is None:
@@ -189,14 +191,82 @@ def dataset_partition(project_id, data_path, project_dir=Path.cwd(), a=0.9, b=0.
         assert len(train_data_path) > 0
     except Error as e:
         error_message = f"{e}Train dataset empty"
-        log.error(error_message)
+        log_error(error_message)
         st.error(error_message)
 
     return str(data_path), str(output_dir)
 
 
+@st.cache
+def data_url_encoder(image):
+    """Load Image and generate Data URL in base64 bytes
+
+    Args:
+        image (bytes-like): BytesIO object
+
+    Returns:
+        bytes: UTF-8 encoded base64 bytes
+    """
+    log_info("Loading sample image")
+    bb = image.read()
+    b64code = b64encode(bb).decode('utf-8')
+    data_url = 'data:' + image.type + ';base64,' + b64code
+
+    return data_url
+
+
+@st.cache
+def load_image(image_path: Path) -> str:
+    """Load Image and generate Data URL in base64 bytes
+
+    Args:
+        image_path (Path): [description]
+
+    Returns:
+        str: UTF-8 encoded base64 bytes Data URL
+    """
+
+    log_info("Loading Image")
+
+    with Image.open(image_path) as img:
+
+        log_info(f"Loading image:{image_path.name}")
+        img_byte = BytesIO()
+
+        log_info(f"Saving image: {image_path.name}")
+        img.save(img_byte, format=img.format)
+        log_info("Done Saving")
+
+        log_info("Encoding")
+        bb = img_byte.getvalue()
+        b64code = b64encode(bb).decode('utf-8')
+        log_info("Done encoding")
+
+        mime = guess_type(img.filename)[0]
+        image_name = image_path.name
+        log_info(f"{image_name} ; {mime}")
+        data_url = f"data:{mime};base64{b64code}"
+        log_info("Data url generated")
+
+    return data_url
+
+
+def get_image_size(image_path):
+    """get dimension of image
+
+    Args:
+        image_path (str): path to image or byte_like object
+
+    Returns:
+        tuple: original_width and original_height
+    """
+    with Image.open(image_path) as img:
+        original_width, original_height = img.size
+    return original_width, original_height
+
+
 def main():
-    dataset_partition()
+    pass
 
 
 if __name__ == '__main__':

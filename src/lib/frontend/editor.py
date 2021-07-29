@@ -38,8 +38,9 @@ from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, Sem
 from annotation.annotation_manager import submit_annotations, update_annotations, skip_task, delete_annotation
 from enum import IntEnum
 # <<<< User-defined Modules <<<<
+conn = init_connection(**st.secrets["postgres"])
 
-# TODO: not used
+# NOTE: not used
 from frontend.streamlit_labelstudio import st_labelstudio
 
 
@@ -60,17 +61,11 @@ class EditorFlag(IntEnum):
             raise ValueError()
 
 
-# NOTE: *************** NOT USED **************************************
-
-
-# NOTE: *************** NOT USED **************************************
-
-
 def main():
     # >>>> Template >>>>
     chdir_root()  # change to root directory
     # initialise connection to Database
-    conn = init_connection(**st.secrets["postgres"])
+
     with st.sidebar.beta_container():
         st.image("resources/MSF-logo.gif", use_column_width=True)
     # with st.beta_container():
@@ -258,12 +253,12 @@ def main():
                         }
                     ]
                 }
-                ],
+            ],
         'id': 1,
         'data': {
             # 'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
             'image': f'{data_url}'
-        }
+                }
     }
 
     v = annotation_sel()

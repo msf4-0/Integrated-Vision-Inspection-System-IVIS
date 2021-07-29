@@ -14,6 +14,7 @@ from time import sleep
 from enum import IntEnum
 from copy import copy, deepcopy
 import pandas as pd
+from glob import glob, iglob
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -34,6 +35,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import get_directory_name
+from core.utils.dataset_handler import load_image
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -59,6 +61,8 @@ class BaseProject:
         self.project_size: int = None  # Number of files
         self.datasets: List = self.query_dataset_list()
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
+        self.dataset_list: Dict = {}
+        self.image_name_list: List = []
 
     @st.cache
     def query_dataset_list(self) -> List:
@@ -178,7 +182,8 @@ class Project(BaseProject):
                                     d.id AS "ID",
                                     d.name AS "Name",
                                     d.dataset_size AS "Dataset Size",
-                                    pd.updated_at AS "Date/Time"
+                                    pd.updated_at AS "Date/Time",
+                                    d.dataset_path AS "Path"
                                 FROM
                                     public.project_dataset pd
                                     LEFT JOIN public.dataset d ON d.id = pd.dataset_id
@@ -202,6 +207,26 @@ class Project(BaseProject):
             project_dataset_tmp = []
 
         return project_dataset_tmp
+
+    def load_dataset(self) -> List:
+        #args: self.datasets
+        # return: dataset_name_list and image list
+
+        if self.datasets:
+            dataset_name_list = []
+            dataset_list = {}
+            for d in self.datasets:  # dataset loop
+                dataset_name_list.append(d[1])
+                dataset_path = d[4]
+                log_info(f"Dataset {d[0]}:{dataset_path}")
+                dataset_path = dataset_path + "/*"
+                image_list = []
+                for image_path in iglob(dataset_path):  # image loop
+                    # data_url=load_image(Path(image_path))
+                    image_list.append(Path(image_path).name)
+                dataset_list[d[1]] = image_list
+
+            return dataset_list
 
 
 class NewProject(BaseProject):

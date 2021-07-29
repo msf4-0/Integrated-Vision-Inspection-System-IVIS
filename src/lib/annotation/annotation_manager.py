@@ -13,6 +13,7 @@ import psycopg2
 import json
 from base64 import b64encode
 from PIL import Image
+from io import BytesIO
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -264,6 +265,8 @@ class Annotations(BaseAnnotations):
         return skipped_task_return
 
 # ********************** External Function *************************
+
+
 @st.cache
 def data_url_encoder(image):
     """Load Image and generate Data URL in base64 bytes
@@ -280,6 +283,7 @@ def data_url_encoder(image):
     data_url = 'data:' + image.type + ';base64,' + b64code
 
     return data_url
+
 
 @st.cache
 def load_sample_image():
@@ -305,6 +309,7 @@ def load_sample_image():
     # st.write(f"\"{data_url}\"")
 
     return data_url
+
 
 def get_image_size(image_path):
     """get dimension of image

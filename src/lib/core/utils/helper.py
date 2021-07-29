@@ -96,3 +96,4 @@ def check_if_exists(table: str, column_name: str, condition, conn):
     exist_flag = db_fetchone(check_if_exists_SQL, conn, check_if_exists_vars)
 
     return exist_flag
+
