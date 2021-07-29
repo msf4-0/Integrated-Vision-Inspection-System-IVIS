@@ -21,22 +21,19 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 # >>>> User-defined Modules >>>>
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
     pass
 
-# if str(TEST_MODULE_PATH) not in sys.path:
-#     sys.path.insert(0, str(TEST_MODULE_PATH))
-# else:
-#     pass
 
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
+from annotation.annotation_manager import data_url_encoder, load_sample_image, get_image_size
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 from annotation.annotation_manager import submit_annotations, update_annotations, skip_task, delete_annotation
 from enum import IntEnum
@@ -63,64 +60,9 @@ class EditorFlag(IntEnum):
             raise ValueError()
 
 
-@st.cache
-def data_url_encoder(image):
-    """Load Image and generate Data URL in base64 bytes
-
-    Args:
-        image (bytes-like): BytesIO object
-
-    Returns:
-        bytes: UTF-8 encoded base64 bytes
-    """
-    log_info("Loading sample image")
-    bb = image.read()
-    b64code = b64encode(bb).decode('utf-8')
-    data_url = 'data:' + image.type + ';base64,' + b64code
-
-    return data_url
-
 # NOTE: *************** NOT USED **************************************
 
 
-@st.cache
-def load_sample_image():
-    """Load Image and generate Data URL in base64 bytes
-
-    Args:
-        image (bytes-like): BytesIO object
-
-    Returns:
-        bytes: UTF-8 encoded base64 bytes
-    """
-    chdir_root()  # ./image_labelling
-    log_info("Loading Sample Image")
-    sample_image = "resources/sample.jpg"
-    with Image.open(sample_image) as img:
-        img_byte_arr = BytesIO()
-        img.save(img_byte_arr, format='jpeg')
-
-    bb = img_byte_arr.getvalue()
-    b64code = b64encode(bb).decode('utf-8')
-    data_url = 'data:image/jpeg;base64,' + b64code
-    # data_url = f'data:image/jpeg;base64,{b64code}'
-    # st.write(f"\"{data_url}\"")
-
-    return data_url
-
-
-def get_image_size(image_path):
-    """get dimension of image
-
-    Args:
-        image_path (str): path to image or byte_like object
-
-    Returns:
-        tuple: original_width and original_height
-    """
-    with Image.open(image_path) as img:
-        original_width, original_height = img.size
-    return original_width, original_height
 # NOTE: *************** NOT USED **************************************
 
 
@@ -316,12 +258,12 @@ def main():
                         }
                     ]
                 }
-            ],
+                ],
         'id': 1,
         'data': {
             # 'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
             'image': f'{data_url}'
-                }
+        }
     }
 
     v = annotation_sel()

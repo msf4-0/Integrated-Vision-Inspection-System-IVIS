@@ -33,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import split_string, join_string
+from core.utils.helper import get_directory_name
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -317,8 +317,7 @@ class NewProject(BaseProject):
     #                     insert_project_dataset_vars)
 
     def initialise_project(self):
-        directory_name = self.name.lower()
-        directory_name = join_string(split_string(str(directory_name)))
+        directory_name = get_directory_name(self.name)
         self.project_path = Path.home() / '.local' / 'share' / \
             'integrated-vision-inspection-system' / \
             'app_media' / 'project' / str(directory_name)

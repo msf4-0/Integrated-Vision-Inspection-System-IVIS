@@ -30,7 +30,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import split_string, join_string
+from core.utils.helper import get_directory_name
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -180,9 +180,9 @@ class NewDataset(BaseDataset):
             return True
 
     def save_dataset(self) -> bool:
-        directory_name = self.name.lower()  # change name to lowercase
+        directory_name = get_directory_name(
+            self.name)  # change name to lowercase
         # join directory name with '-' dash
-        directory_name = join_string(split_string(str(directory_name)))
         self.dataset_path = Path.home() / '.local' / 'share' / \
             'integrated-vision-inspection-system' / \
             'app_media' / 'dataset' / str(directory_name)

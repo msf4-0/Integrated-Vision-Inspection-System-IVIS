@@ -11,6 +11,8 @@ from typing import List, Dict, Union
 from datetime import datetime
 import psycopg2
 import json
+from base64 import b64encode
+from PIL import Image
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -260,3 +262,59 @@ class Annotations(BaseAnnotations):
         skipped_task_return = db_fetchone(skip_task_SQL, conn, skip_task_vars)
 
         return skipped_task_return
+
+# ********************** External Function *************************
+@st.cache
+def data_url_encoder(image):
+    """Load Image and generate Data URL in base64 bytes
+
+    Args:
+        image (bytes-like): BytesIO object
+
+    Returns:
+        bytes: UTF-8 encoded base64 bytes
+    """
+    log_info("Loading sample image")
+    bb = image.read()
+    b64code = b64encode(bb).decode('utf-8')
+    data_url = 'data:' + image.type + ';base64,' + b64code
+
+    return data_url
+
+@st.cache
+def load_sample_image():
+    """Load Image and generate Data URL in base64 bytes
+
+    Args:
+        image (bytes-like): BytesIO object
+
+    Returns:
+        bytes: UTF-8 encoded base64 bytes
+    """
+    chdir_root()  # ./image_labelling
+    log_info("Loading Sample Image")
+    sample_image = "resources/sample.jpg"
+    with Image.open(sample_image) as img:
+        img_byte_arr = BytesIO()
+        img.save(img_byte_arr, format='jpeg')
+
+    bb = img_byte_arr.getvalue()
+    b64code = b64encode(bb).decode('utf-8')
+    data_url = 'data:image/jpeg;base64,' + b64code
+    # data_url = f'data:image/jpeg;base64,{b64code}'
+    # st.write(f"\"{data_url}\"")
+
+    return data_url
+
+def get_image_size(image_path):
+    """get dimension of image
+
+    Args:
+        image_path (str): path to image or byte_like object
+
+    Returns:
+        tuple: original_width and original_height
+    """
+    with Image.open(image_path) as img:
+        original_width, original_height = img.size
+    return original_width, original_height
