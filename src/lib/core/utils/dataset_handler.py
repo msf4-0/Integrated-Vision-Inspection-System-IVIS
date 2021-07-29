@@ -21,6 +21,8 @@ from io import BytesIO
 from PIL import Image
 from mimetypes import guess_type
 from base64 import b64encode
+import numpy as np
+import cv2
 
 
 # >>>> User-defined Modules >>>>
@@ -196,9 +198,11 @@ def dataset_partition(project_id, data_path, project_dir=Path.cwd(), a=0.9, b=0.
 
     return str(data_path), str(output_dir)
 
+# PIL
+
 
 @st.cache
-def data_url_encoder(image):
+def data_url_encoder_PIL(image: Image):
     """Load Image and generate Data URL in base64 bytes
 
     Args:
@@ -207,48 +211,108 @@ def data_url_encoder(image):
     Returns:
         bytes: UTF-8 encoded base64 bytes
     """
-    log_info("Loading sample image")
-    bb = image.read()
+    img_byte = BytesIO()
+    image_name = Path(image.filename).name  # use Path().name
+    log_info(f"Encoding image into bytes: {str(image_name)}")
+    image.save(img_byte, format=image.format)
+    log_info("Done enconding into bytes")
+
+    log_info("Start B64 Encoding")
+    bb = img_byte.getvalue()
     b64code = b64encode(bb).decode('utf-8')
-    data_url = 'data:' + image.type + ';base64,' + b64code
+    log_info("Done B64 encoding")
+
+    mime = guess_type(image.filename)[0]
+    log_info(f"{image_name} ; {mime}")
+    data_url = f"data:{mime};base64{b64code}"
+    log_info("Data url generated")
 
     return data_url
 
 
 @st.cache
-def load_image(image_path: Path) -> str:
-    """Load Image and generate Data URL in base64 bytes
-
-    Args:
-        image_path (Path): [description]
-
-    Returns:
-        str: UTF-8 encoded base64 bytes Data URL
-    """
+def load_image_PIL(image_path: Path) -> str:
 
     log_info("Loading Image")
 
-    with Image.open(image_path) as img:
+    img = Image.open(image_path)
+    img_RGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img_RGB
 
-        log_info(f"Loading image:{image_path.name}")
-        img_byte = BytesIO()
+# OpenCV
 
-        log_info(f"Saving image: {image_path.name}")
-        img.save(img_byte, format=img.format)
-        log_info("Done Saving")
 
-        log_info("Encoding")
-        bb = img_byte.getvalue()
-        b64code = b64encode(bb).decode('utf-8')
-        log_info("Done encoding")
+@st.cache
+def data_url_encoder_cv2(image: np.ndarray, image_name: str):
+    """Load Image and generate Data URL in base64 bytes
 
-        mime = guess_type(img.filename)[0]
-        image_name = image_path.name
-        log_info(f"{image_name} ; {mime}")
-        data_url = f"data:{mime};base64{b64code}"
-        log_info("Data url generated")
+    Args:
+        image (bytes-like): BytesIO object
+
+    Returns:
+        bytes: UTF-8 encoded base64 bytes
+    """
+
+    log_info(f"Encoding image into bytes: {str(image_name)}")
+    extension = Path(image_name).suffix
+    _, buffer = cv2.imencode(extension, image)
+    log_info("Done enconding into bytes")
+
+    log_info("Start B64 Encoding")
+
+    b64code = b64encode(buffer).decode('utf-8')
+    log_info("Done B64 encoding")
+
+    mime = guess_type(image_name)[0]
+    log_info(f"{image_name} ; {mime}")
+    data_url = f"data:{mime};base64{b64code}"
+    log_info("Data url generated")
 
     return data_url
+
+
+@st.cache
+def load_image_cv2(image_path: str) -> str:
+
+    log_info("Loading Image")
+
+    img = cv2.imread(image_path)
+    return img
+
+# @st.cache
+# def load_image(image_path: Path) -> str:
+#     """Load Image and generate Data URL in base64 bytes
+
+#     Args:
+#         image_path (Path): [description]
+
+#     Returns:
+#         str: UTF-8 encoded base64 bytes Data URL
+#     """
+
+#     log_info("Loading Image")
+
+#     with Image.open(image_path) as img:
+
+#         log_info(f"Loading image:{image_path.name}")
+#         img_byte = BytesIO()
+
+#         log_info(f"Saving image: {image_path.name}")
+#         img.save(img_byte, format=img.format)
+#         log_info("Done Saving")
+
+#         log_info("Encoding")
+#         bb = img_byte.getvalue()
+#         b64code = b64encode(bb).decode('utf-8')
+#         log_info("Done encoding")
+
+#         mime = guess_type(img.filename)[0]
+#         image_name = image_path.name
+#         log_info(f"{image_name} ; {mime}")
+#         data_url = f"data:{mime};base64{b64code}"
+#         log_info("Data url generated")
+
+#     return data_url
 
 
 def get_image_size(image_path):

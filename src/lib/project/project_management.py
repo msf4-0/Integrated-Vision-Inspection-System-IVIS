@@ -10,11 +10,12 @@ from pathlib import Path
 from typing import NamedTuple, Union, List, Dict
 import psycopg2
 from PIL import Image
-from time import sleep
+from time import sleep, perf_counter
 from enum import IntEnum
 from copy import copy, deepcopy
 import pandas as pd
 from glob import glob, iglob
+import cv2
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -35,7 +36,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import get_directory_name
-from core.utils.dataset_handler import load_image
+from core.utils.dataset_handler import load_image_PIL, load_image_cv2, data_url_encoder_cv2, data_url_encoder_PIL
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -208,24 +209,31 @@ class Project(BaseProject):
 
         return project_dataset_tmp
 
+    @st.cache
     def load_dataset(self) -> List:
         #args: self.datasets
         # return: dataset_name_list and image list
 
         if self.datasets:
+            start_time = perf_counter()
             dataset_name_list = []
             dataset_list = {}
             for d in self.datasets:  # dataset loop
-                dataset_name_list.append(d[1])
+                dataset_name_list.append(d[1])  # get name
                 dataset_path = d[4]
                 log_info(f"Dataset {d[0]}:{dataset_path}")
                 dataset_path = dataset_path + "/*"
-                image_list = []
-                for image_path in iglob(dataset_path):  # image loop
-                    # data_url=load_image(Path(image_path))
-                    image_list.append(Path(image_path).name)
-                dataset_list[d[1]] = image_list
+                image_list = {}
+                for image_path in sorted(iglob(dataset_path)):  # image loop
+                    image = cv2.imread(image_path) # get data url
+                    image_name = (Path(image_path).name)
+                    image_list[image_name] = image
 
+                dataset_list[d[1]] = image_list
+            self.dataset_name_list = dataset_name_list
+            self.dataset_list = dataset_list
+            end_time = perf_counter()
+            log_info(end_time - start_time)
             return dataset_list
 
 

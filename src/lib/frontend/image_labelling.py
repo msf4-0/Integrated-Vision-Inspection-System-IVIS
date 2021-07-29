@@ -10,6 +10,7 @@ from enum import IntEnum
 from PIL import Image
 from base64 import b64encode, decode
 from io import BytesIO
+from threading import Thread
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
@@ -43,6 +44,7 @@ conn = init_connection(**st.secrets["postgres"])
 
 # NOTE: not used
 from frontend.streamlit_labelstudio import st_labelstudio
+from streamlit.report_thread import add_report_ctx
 
 
 class EditorFlag(IntEnum):
@@ -105,10 +107,25 @@ def show():
     # get dataset name list
     session_state.project.datasets = session_state.project.query_project_dataset_list()
     session_state.project.dataset_name_list, session_state.project.dataset_name_id = session_state.project.get_dataset_name_list()
+    # load_dataset = Thread(target=session_state.project.load_dataset())
+    # add_report_ctx(load_dataset)
+    # load_dataset.start()
+    # load_dataset.join()
+
     session_state.project.dataset_list=session_state.project.load_dataset()
     # print(session_state.project.datasets)
+    # st.image( session_state.project.dataset_list['My Third Dataset']["IMG_20210315_184229.jpg"],channels='BGR')
+# **************************DATA SELECTOR ********************************************
+
+
+# *************************EDITOR**********************************************
+    col1, col2 = st.beta_columns([1, 2])
+    col1.text_input("Check column", key="column1")
+    col2.text_input("Check column", key="column2")
+
     col1, col2, col3 = st.beta_columns(3)
     col1.write(vars(session_state.project))
+    # col1.write(session_state.project.dataset_list['My Third Dataset'])
     col2.write(vars(session_state.editor))
 
 
