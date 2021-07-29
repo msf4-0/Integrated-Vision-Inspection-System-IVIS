@@ -92,9 +92,14 @@ WHERE
 -- Query Annotations
 SELECT
     id,
-    result
+    result,
+    (u.id,u.email,u.first_name,u.last_name),
+    created_at,
+    updated_at
 FROM
-    public.annotations
+    public.annotations a
+inner join public.users u
+on a.users_id = u.id
 WHERE
     task_id = % s;
 

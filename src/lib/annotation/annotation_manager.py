@@ -250,14 +250,15 @@ class NewAnnotations(BaseAnnotations):
 
 
 class Annotations(BaseAnnotations):
-    def __init__(self, task: Task, user: User) -> None:
+    def __init__(self, task: Task) -> None:
         super().__init__(task)
         self.task = task  # 'Task' class object
-        self.completed_by = {
-            "id": user.id, "email": user.email, "first_name": user.first_name, "last_name": user.last_name}
         self.query_annotations()
+        self.completed_by = {
+            "id": self.user.id, "email": self.user.email, "first_name": self.user.first_name, "last_name": self.user.last_name}
 
     # TODO: check if current image exists as a 'task' in DB
+
     @staticmethod
     def check_if_annotation_exists(task_id: int, project_id: int, conn=conn) -> bool:
         check_if_exists_SQL = """
@@ -285,12 +286,15 @@ class Annotations(BaseAnnotations):
         """
         query_annotation_SQL = """
                                 SELECT
-                                    id,
+                                    a.id,
                                     result,
-                                    created_at,
-                                    updated_at
+                                    (u.id,u.email,u.first_name,u.last_name) as user,
+                                    a.created_at,
+                                    a.updated_at
                                 FROM
-                                    public.annotations
+                                    public.annotations a
+                                inner join public.users u
+                                on a.users_id = u.id
                                 WHERE
                                     task_id = %s;
 
@@ -299,7 +303,7 @@ class Annotations(BaseAnnotations):
         query_return = db_fetchone(
             query_annotation_SQL, conn, query_annotation_vars, fetch_col_name=False)
         try:
-            self.id, self.result, self.created_at, self.updated_at = query_return
+            self.id, self.result, self.user, self.created_at, self.updated_at = query_return #self.user is NamedTuple
             return query_return
         except TypeError as e:
             log_error(
