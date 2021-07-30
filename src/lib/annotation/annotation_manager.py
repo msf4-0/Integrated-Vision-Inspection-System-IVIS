@@ -153,7 +153,7 @@ class Task(BaseTask):
         
         try:
             data_url = data_url_encoder_cv2(self.data_object,self.name)
-            st.image(data_url)
+            
             return data_url
         except Exception as e:
             log_error(f"{e}: Failed to generate data url for {self.name}")
@@ -514,7 +514,7 @@ def data_url_encoder(image):
 
 
 @st.cache
-def load_sample_image():
+def load_buffer_image():
     """Load Image and generate Data URL in base64 bytes
 
     Args:
@@ -525,10 +525,10 @@ def load_sample_image():
     """
     chdir_root()  # ./image_labelling
     log_info("Loading Sample Image")
-    sample_image = "resources/sample.jpg"
+    sample_image = "resources/buffer.png"
     with Image.open(sample_image) as img:
         img_byte_arr = BytesIO()
-        img.save(img_byte_arr, format='jpeg')
+        img.save(img_byte_arr, format=img.format)
 
     bb = img_byte_arr.getvalue()
     b64code = b64encode(bb).decode('utf-8')
@@ -537,7 +537,6 @@ def load_sample_image():
     # st.write(f"\"{data_url}\"")
 
     return data_url
-
 
 def get_image_size(image_path):
     """get dimension of image

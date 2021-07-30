@@ -37,7 +37,7 @@ from project.project_management import Project
 from frontend.editor_manager import Editor
 from user.user_management import User
 from data_manager.database_manager import init_connection
-from annotation.annotation_manager import Annotations, NewAnnotations, NewTask, Task
+from annotation.annotation_manager import Annotations, NewAnnotations, NewTask, Task, load_buffer_image
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 
 # <<<< User-defined Modules <<<<
@@ -207,6 +207,7 @@ def show():
 
 # *************************EDITOR**********************************************
 
+# TODO: REMOVE
     # interfaces = [
     #     "panel",
     #     "update",
@@ -219,32 +220,6 @@ def show():
     #     "predictions:menu",
     #     "skip"
     # ],
-    @st.cache
-    def load_sample_image():
-        """Load Image and generate Data URL in base64 bytes
-
-        Args:
-            image (bytes-like): BytesIO object
-
-        Returns:
-            bytes: UTF-8 encoded base64 bytes
-        """
-        chdir_root()  # ./image_labelling
-        log_info("Loading Sample Image")
-        sample_image = "resources/sample.jpg"
-        with Image.open(sample_image) as img:
-            img_byte_arr = BytesIO()
-            img.save(img_byte_arr, format='jpeg')
-
-        bb = img_byte_arr.getvalue()
-        b64code = b64encode(bb).decode('utf-8')
-        data_url = 'data:image/jpeg;base64,' + b64code
-        # data_url = f'data:image/jpeg;base64,{b64code}'
-        # st.write(f"\"{data_url}\"")
-
-        return data_url
-
-    
 
     user = {
         'pk': session_state.user.id,
@@ -255,24 +230,23 @@ def show():
         annotations_dict = session_state.annotation.generate_annotation_dict()
         task = session_state.task.generate_editor_format(
             annotations_dict=annotations_dict, predictions_dict=None)
-        
-        
+
     except Exception as e:
         log_error(
             f"{e}: No data selected. Could not generate editor format based on task")
+        # Preload blank editor
         task = {
-                "annotations":
-                    [],
+            "annotations":
+            [],
                 'predictions': [],
                 'id': 1,
                 'data': {
                     # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
-                    'image': None
-                        }
+                    'image': load_buffer_image()
             }
+        }
     # st.json(task)
-
-
+# TODO: REMOVE
     # task = {
     #     "annotations":
     #         [],
@@ -284,14 +258,12 @@ def show():
     #             }
     # }
 
-
     st.json(user)
     st.write(f"{session_state.project.deployment_type}")
     if session_state.editor.editor_config:
         with col2:
             results = EDITOR_CONFIG[session_state.project.deployment_type](
                 session_state.editor.editor_config, user, task)
-            st.write(f"Results:{results}")
 
 # NOTE: Load ^ into results.py
 
