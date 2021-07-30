@@ -113,7 +113,7 @@ def show():
     #     session_state.current_page = st.radio("", options=training_page_options,
     #                                           index=0)
     # <<<< TRAINING SIDEBAR <<<<
-
+    session_state.project.query_all_fields()
     # Page title
     st.write(f'# Project Name: {session_state.project.name}')
     st.write("## **Image Labelling**")
@@ -151,13 +151,13 @@ def show():
         # ************************* CALLBACK FUNCTION ************************************
         # >>>> Check if Task exists in 'Task' table >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         def check_if_task_exist(project_id, dataset_id, conn):
-            data = session_state.project.dataset_list[dataset_selection][data_selection]
-            if Task.check_if_task_exists(data_selection, project_id, dataset_id, conn):
+            data = session_state.project.dataset_list[dataset_selection][session_state.data_sel]
+            if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
 
                 # NOTE: LOAD TASK
                 # if 'task' not in session_state:
                 session_state.task = Task(data,
-                                          data_selection, project_id, dataset_id)
+                                          session_state.data_sel, project_id, dataset_id)
                 log_info(
                     f"Task exists for Task ID: {session_state.task.id} for {session_state.task.name}")
 
@@ -182,11 +182,11 @@ def show():
                 # NOTE: CREATE TASK
                 # Insert as new task entry if not exists
                 task_id = NewTask.insert_new_task(
-                    data_selection, project_id, dataset_id)
+                    session_state.data_sel, project_id, dataset_id)
 # NOTE                # if 'task' not in session_state:
                 # Instantiate task as 'Task' Class object
                 session_state.task = Task(data,
-                                          data_selection, project_id, dataset_id)
+                                          session_state.data_sel, project_id, dataset_id)
                 session_state.annotation = NewAnnotations(
                     session_state.task)
                 log_info(
@@ -274,7 +274,7 @@ def show():
     if session_state.editor.editor_config:
         with col2:
             try:
-                result, flag = EDITOR_CONFIG.get(session_state.project.deployment_type)(
+                result, flag = EDITOR_CONFIG.get(session_state.project.deployment_type, DetectionBBOX)(
                     session_state.editor.editor_config, user, task)
                 log_info(f"Flag: {flag}")
             except KeyError as e:

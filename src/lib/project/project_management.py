@@ -153,7 +153,7 @@ class Project(BaseProject):
         self.query_all_fields()
         self.dataset_list = self.load_dataset()
 
-    @st.cache(ttl=600)
+    
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
                             SELECT
