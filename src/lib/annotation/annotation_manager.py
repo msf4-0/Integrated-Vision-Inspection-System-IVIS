@@ -321,33 +321,33 @@ class BaseAnnotations:
         Returns:
             tuple: [description]
         """
-
+        result_serialised = [json.dumps(x) for x in result]
         # TODO is it neccessary to have annotation type id?
         update_annotations_SQL = """
                                     UPDATE
                                         public.annotations
                                     SET
-                                        result = %s::jsonb,
+                                        result = %s::JSONB[],
                                         users_id = %s
                                     WHERE
                                         id = %s
                                     RETURNING *;
                                 """
-        update_annotations_vars = [json.dumps(
-            result), users_id, self.id]
+
+        update_annotations_vars = [result_serialised, users_id, self.id]
         updated_annotation_return = db_fetchone(
             update_annotations_SQL, conn, update_annotations_vars)
 
         return updated_annotation_return
 
-    def delete_annotation(self) -> tuple:
+    def delete_annotation(self, conn=conn) -> tuple:
         """Delete annotations
 
         Returns:
             tuple: [description]
         """
         delete_annotations_SQL = """
-                                DELETE FROM public.annotation
+                                DELETE FROM public.annotations
                                 WHERE id = %s
                                 RETURNING *;
                                 """
@@ -358,7 +358,7 @@ class BaseAnnotations:
 
         return delete_annotation_return
 
-    def skip_task(self, skipped: bool = True) -> tuple:
+    def skip_task(self, skipped: bool = True, conn=conn) -> tuple:
         """Skip task
 
         Args:
@@ -374,11 +374,12 @@ class BaseAnnotations:
                         SET
                             skipped = %s
                         WHERE
-                            id = %s;
+                            id = %s
+                        RETURNING *;
                     """
         skip_task_vars = [
             skipped, self.task.id]  # should set 'skipped' as True
-
+        log_info(self.task.id)
         skipped_task_return = db_fetchone(skip_task_SQL, conn, skip_task_vars)
 
         return skipped_task_return
@@ -387,16 +388,16 @@ class BaseAnnotations:
         try:
             annotation_dict = [{"id": self.id,
                                "completed_by": self.completed_by,
-                               "result": self.result,
-                               "was_cancelled": self.was_cancelled,
-                               "ground_truth": self.ground_truth,
-                               "created_at": str(self.created_at),
-                               "updated_at": str(self.updated_at),
-                               "lead_time": str(self.updated_at - self.created_at),
-                               "prediction": {},
-                               "result_count": 0,
-                               "task": self.task.id
-                               }]
+                                "result": self.result,
+                                "was_cancelled": self.was_cancelled,
+                                "ground_truth": self.ground_truth,
+                                "created_at": str(self.created_at),
+                                "updated_at": str(self.updated_at),
+                                "lead_time": str(self.updated_at - self.created_at),
+                                "prediction": {},
+                                "result_count": 0,
+                                "task": self.task.id
+                                }]
             return annotation_dict
         except Exception as e:
             log_error(
@@ -441,7 +442,7 @@ class Annotations(BaseAnnotations):
                                         FROM
                                             public.annotations
                                         WHERE
-                                            id = %s
+                                            task_id = %s
                                             AND project_id = %s
                                             );"""
         check_if_exists_vars = [task_id, project_id]

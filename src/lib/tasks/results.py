@@ -18,6 +18,7 @@ else:
 import streamlit as st
 from frontend.streamlit_labelstudio import st_labelstudio
 from annotation.annotation_manager import Result, Annotations
+from core.utils.log import log_info
 
 interfaces = [
     "panel",
@@ -129,52 +130,54 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
         Dict: Annotation ID, x, y, width, height, rectanglelabels
     """
     results_raw = st_labelstudio(config, interfaces, user, task, key)
-    # st.write(results_raw)
+    st.write(results_raw)
 
-    if results_raw is not None:
-        areas = [v for k, v in results_raw[0]['areas'].items()]
-        canvas_width, canvas_height = [
-            canvas_dim for canvas_dim in results_raw[1]]
-        # st.write(canvas_width, canvas_height)
-        original_width, original_height = [
-            img_dim for img_dim in results_raw[2]]
-        # st.write(original_width, original_height)
-        results = []  # array to hold dictionary of 'result'
-        results_display = []
-        for a in areas:
-            relative_x = (a['x'] / canvas_width) * 100
-            relative_y = (a['y'] / canvas_height) * 100
-            relative_width = (a['width'] / canvas_width) * 100
-            relative_height = (a['height'] / canvas_height) * 100
+    if results_raw:  # if results_raw is None at launch
+        if results_raw[0]:  # for skipped task -> no annotation results return from LS world
+            areas = [v for k, v in results_raw[0]['areas'].items()]
+            canvas_width, canvas_height = [
+                canvas_dim for canvas_dim in results_raw[1]]
+            # st.write(canvas_width, canvas_height)
+            original_width, original_height = [
+                img_dim for img_dim in results_raw[2]]
+            # st.write(original_width, original_height)
+            results = []  # array to hold dictionary of 'result'
+            results_display = []
+            for a in areas:
+                relative_x = (a['x'] / canvas_width) * 100
+                relative_y = (a['y'] / canvas_height) * 100
+                relative_width = (a['width'] / canvas_width) * 100
+                relative_height = (a['height'] / canvas_height) * 100
 
-            results_display.append({'id': a['id'], 'x': relative_x, 'y': relative_y, 'width': relative_width,
-                                    'height': relative_height, 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
-            bbox_results = {'x': relative_x, 'y': relative_y, 'width': relative_width,
-                            'height': relative_height}  # store current bbox results:x,y,w,h
-            results_temp = a['results'][0]  # incomplete results dictionary
-            # include bbox results into key:'value'
-            results_temp['value'].update(bbox_results)
-            results_temp.update(original_width=original_width,
-                                original_height=original_height)
+                results_display.append({'id': a['id'], 'x': relative_x, 'y': relative_y, 'width': relative_width,
+                                        'height': relative_height, 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
+                bbox_results = {'x': relative_x, 'y': relative_y, 'width': relative_width,
+                                'height': relative_height}  # store current bbox results:x,y,w,h
+                results_temp = a['results'][0]  # incomplete results dictionary
+                # include bbox results into key:'value'
+                results_temp['value'].update(bbox_results)
+                results_temp.update(original_width=original_width,
+                                    original_height=original_height)
 
-            results.append(results_temp)
+                results.append(results_temp)
 
-        with st.beta_expander('Show Annotation Log'):
+            with st.beta_expander('Show Annotation Log'):
 
-            st.table(results_display)
-            st.write("### Results")
-            # st.write(results_raw[0]['areas'])
-            st.write(results)
+                st.table(results_display)
+                st.write("### Results")
+                # st.write(results_raw[0]['areas'])
+                st.write(results)
 
-        flag = results_raw[3]
-        st.write(type(results))
-        if not results:
+            flag = results_raw[3]
+            st.write(type(results))
+            log_info(f"Flag:{flag}")
+        else:
             results = []
-            flag = 0
-
+            flag = results_raw[3]
     else:
+
         results = []
-        flag = 0
+        flag = 10
 
     return results, flag
 

@@ -277,21 +277,64 @@ def show():
                 result, flag = EDITOR_CONFIG.get(session_state.project.deployment_type, DetectionBBOX)(
                     session_state.editor.editor_config, user, task)
                 log_info(f"Flag: {flag}")
-            except KeyError as e:
-                log_error(f"{e}")
 
-    if result:
-        if flag == 0:
-            log_info("Editor Loaded")
-            pass
-        elif flag == EditorFlag.SUBMIT:
-            try:
-                log_info(
-                    f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
-                session_state.annotation.submit_annotations(
-                    result, session_state.user.id, conn)
-            except Exception as e:
-                log_error(e)
+                if result:
+                    if flag == EditorFlag.START:  # LOAD EDITOR
+                        log_info("Editor Loaded")
+                        pass
+
+                    elif flag == EditorFlag.SUBMIT:  # NEW ANNOTATION
+                        try:
+
+                            session_state.annotation.submit_annotations(
+                                result, session_state.user.id, conn)
+
+                            log_info(
+                                f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+                        except Exception as e:
+                            log_error(f"{e}: New Annotation error")
+
+                    elif flag == EditorFlag.UPDATE:  # UPDATE ANNOTATION
+                        try:
+
+                            session_state.annotation.update_annotations(
+                                result, session_state.user.id, conn)
+
+                            log_info(
+                                f"Update annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+
+                        except Exception as e:
+                            log_error(f"{e}: Update annotation error")
+
+                    elif flag == EditorFlag.DELETE:  # DELETE ANNOTATION
+                        try:
+
+                            session_state.annotation.delete_annotation(conn)
+
+                            log_info(
+                                f"Delete annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+
+                        except Exception as e:
+                            log_error(f"{e}: Delete annotaiton error")
+
+                    else:
+                        pass
+                else:
+                    if flag == EditorFlag.SKIP:  # NEW ANNOTATION
+                        try:
+
+                            skip_return = session_state.annotation.skip_task(
+                                skipped=True, conn=conn)
+
+                            log_info(
+                                f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
+                        except Exception as e:
+                            log_error(e)
+                    else:
+                        pass
+
+            except KeyError as e:
+                log_error(f"Editor {e}")
 
 # NOTE: Load ^ into results.py
 
