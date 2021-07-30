@@ -7,22 +7,11 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 import sys
 from pathlib import Path
-SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
-LS_PATH = Path(__file__).resolve().parent
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
-
-if str(TEST_MODULE_PATH) not in sys.path:
-    sys.path.insert(0, str(TEST_MODULE_PATH))
-else:
-    pass
-if str(LS_PATH) not in sys.path:
-    sys.path.insert(0, str(LS_PATH))
 else:
     pass
 
@@ -40,6 +29,7 @@ interfaces = [
     "annotations:add-new",
     "annotations:delete",
     "predictions:menu",
+    "skip"
 ],
 
 #----------Image Classification----------------#

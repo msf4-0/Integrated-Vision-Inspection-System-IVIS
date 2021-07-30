@@ -265,7 +265,7 @@ def data_url_encoder_cv2(image: np.ndarray, image_name: str):
 
     mime = guess_type(image_name)[0]
     log_info(f"{image_name} ; {mime}")
-    data_url = f"data:{mime};base64{b64code}"
+    data_url = f"data:{mime};base64,{b64code}"
     log_info("Data url generated")
 
     return data_url

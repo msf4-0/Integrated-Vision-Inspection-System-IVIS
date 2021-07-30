@@ -34,6 +34,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
 from core.utils.helper import check_if_exists
 from user.user_management import User
+from core.utils.dataset_handler import data_url_encoder_cv2
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -82,14 +83,15 @@ class NewTask(BaseTask):
 
 
 class Task(BaseTask):
-    def __init__(self, data, data_name, project_id, dataset_id, annotations=None, predictions=None) -> None:
+    def __init__(self, data_object, data_name, project_id, dataset_id, annotations=None, predictions=None) -> None:
         super().__init__()
-        self.data = {'image': data}
+        self.data = {'image': None}  # generate when call LS format generator
         self.name = data_name
         self.project_id = project_id
         self.dataset_id = dataset_id
         self.annotations = annotations
         self.predictions = predictions
+        self.data_object = data_object
         self.query_task()
 
     # TODO: check if current image exists as a 'task' in DB
@@ -142,6 +144,62 @@ class Task(BaseTask):
             log_error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
+    def generate_data_url(self):
+        """Generate data url from OpenCV numpy array
+
+        Returns:
+            str: Data URl with base64 bytes encoded in UTF-8
+        """
+        
+        try:
+            data_url = data_url_encoder_cv2(self.data_object,self.name)
+            st.image(data_url)
+            return data_url
+        except Exception as e:
+            log_error(f"{e}: Failed to generate data url for {self.name}")
+            return None
+
+    def generate_editor_format(self, annotations_dict, predictions_dict=None):
+        """Generate editor format based on Label Studio Frontend requirements
+
+        Args:
+            annotations_dict ([type]): [description]
+            predictions_dict ([type], optional): [description]. Defaults to None.
+
+        Returns:
+            [type]: [description]
+        """
+        try:
+            # task = {
+            #     'id': self.id,
+            #     'annotations': [annotations_dict],
+            #     'predictions': [predictions_dict],
+            #     'file_upload': self.name,
+            #     # "data": {"image": self.generate_data_url()},
+            #     'data': {'image': None},
+            #     'meta': {},
+            #     'created_at': str(self.created_at),
+            #     'updated_at': str(self.updated_at),
+            #     'project': self.project_id
+            # }
+            task = {
+                'id': self.id,
+                'annotations': annotations_dict,
+                'predictions': [],
+                # 'file_upload': self.name,
+                "data": {"image": self.generate_data_url()},
+                # 'data': {'image': None}
+                # 'meta': {},
+                # 'created_at': str(self.created_at),
+                # 'updated_at': str(self.updated_at),
+                # 'project': self.project_id
+            }
+            return task
+        except Exception as e:
+            log_error(f"{e}: Failed to generate editor format for editor")
+            task = {}
+            return task
+
 
 class Result:
     def __init__(self, from_name, to_name, type, value) -> None:
@@ -182,18 +240,13 @@ class BaseAnnotations:
         self.completed_by: Dict = {
             "id": None, "email": None, "first_name": None, "last_name": None}
         self.was_cancelled: bool = False
-        self.ground_truth: bool = True
+        self.ground_truth: bool = False
         self.created_at: datetime = datetime.now().astimezone()
         self.updated_at: datetime = datetime.now().astimezone()
         self.lead_time: float = 0
         self.task: Task = task  # equivalent to 'task_id'
         self.result: List[Dict, Result] = []  # or Dict?
         self.predictions: List[Dict, Predictions] = None
-
-
-class NewAnnotations(BaseAnnotations):
-    def __init__(self, task: Task) -> None:
-        super().__init__(task)
 
     def submit_annotations(self, result: Dict, project_id: int, users_id: int, conn=conn) -> int:
         """ Submit result for new annotations
@@ -229,7 +282,7 @@ class NewAnnotations(BaseAnnotations):
                                 """
         insert_annotations_vars = [json.dumps(
             result), project_id, users_id, self.task.id]
-        self.annotation_id = db_fetchone(
+        self.id = db_fetchone(
             insert_annotations_SQL, conn, insert_annotations_vars, insert_annotations_vars).id
 
         # NOTE: Update 'task' table with annotation id and set is_labelled flag as True
@@ -242,11 +295,120 @@ class NewAnnotations(BaseAnnotations):
                             WHERE
                                 id = %s;
                         """
-        update_task_vars = [self.annotation_id,
+        update_task_vars = [self.id,
                             self.task.is_labelled, self.task.id]
         db_no_fetch(update_task_SQL, conn, update_task_vars)
 
-        return self.annotation_id
+        return self.id
+
+    def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:
+        """Update result for new annotations
+
+        Args:
+            result (Dict): [description]
+            users_id (int): [description]
+            conn (psycopg2 connection object, optional): [description]. Defaults to conn.
+
+        Returns:
+            tuple: [description]
+        """
+
+        # TODO is it neccessary to have annotation type id?
+        update_annotations_SQL = """
+                                    UPDATE
+                                        public.annotations
+                                    SET
+                                        (result = %s::jsonb),
+                                        (users_id = %s)
+                                    WHERE
+                                        id = %s
+                                    RETURNING *;
+                                """
+        update_annotations_vars = [json.dumps(
+            result), users_id, self.id]
+        updated_annotation_return = db_fetchone(
+            update_annotations_SQL, conn, update_annotations_vars)
+
+        return updated_annotation_return
+
+    def delete_annotation(self) -> tuple:
+        """Delete annotations
+
+        Returns:
+            tuple: [description]
+        """
+        delete_annotations_SQL = """
+                                DELETE FROM public.annotation
+                                WHERE id = %s
+                                RETURNING *;
+                                """
+        delete_annotations_vars = [self.id]
+
+        delete_annotation_return = db_fetchone(
+            delete_annotations_SQL, conn, delete_annotations_vars)
+
+        return delete_annotation_return
+
+    def skip_task(self, skipped: bool = True) -> tuple:
+        """Skip task
+
+        Args:
+            task_id (int): [description]
+            skipped (bool): [description]
+
+        Returns:
+            tuple: [description]
+        """
+        skip_task_SQL = """
+                        UPDATE
+                            public.task
+                        SET
+                            (skipped = %s)
+                        WHERE
+                            id = %s;
+                    """
+        skip_task_vars = [
+            skipped, self.task.id]  # should set 'skipped' as True
+
+        skipped_task_return = db_fetchone(skip_task_SQL, conn, skip_task_vars)
+
+        return skipped_task_return
+
+    def generate_annotation_dict(self) -> Union[Dict, List]:
+        try:
+            annotation_dict = {"id": self.id,
+                               "completed_by": self.completed_by,
+                               "result": self.result,
+                               "was_cancelled": self.was_cancelled,
+                               "ground_truth": self.ground_truth,
+                               "created_at": str(self.created_at),
+                               "updated_at": str(self.updated_at),
+                               "lead_time": str(self.updated_at - self.created_at),
+                               "prediction": {},
+                               "result_count": 0,
+                               "task": self.task.id
+                               }
+            return annotation_dict
+        except Exception as e:
+            log_error(
+                f"{e}: Failed to generate annotation dict for Annotation {self.id}")
+            annotation_dict = {}
+            return annotation_dict
+
+
+class NewAnnotations(BaseAnnotations):
+    def __init__(self, task: Task) -> None:
+        super().__init__(task)
+
+    def generate_annotation_dict(self) -> Union[Dict, List]:
+        try:
+            annotation_dict = []
+            return annotation_dict
+        except Exception as e:
+            log_error(
+                f"{e}: Failed to generate annotation dict for Annotation {self.id}")
+            annotation_dict = {}
+            return annotation_dict
 
 
 class Annotations(BaseAnnotations):
@@ -303,89 +465,33 @@ class Annotations(BaseAnnotations):
         query_return = db_fetchone(
             query_annotation_SQL, conn, query_annotation_vars, fetch_col_name=False)
         try:
-            self.id, self.result, self.user, self.created_at, self.updated_at = query_return #self.user is NamedTuple
+            # self.user is NamedTuple
+            self.id, self.result, self.user, self.created_at, self.updated_at = query_return
             return query_return
         except TypeError as e:
             log_error(
                 f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.project_id}")
 
-    def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:
-        """Update result for new annotations
-
-        Args:
-            result (Dict): [description]
-            users_id (int): [description]
-            annotation_id (int): [description]
-            conn (psycopg2 connection object, optional): [description]. Defaults to conn.
-
-        Returns:
-            tuple: [description]
-        """
-
-        # TODO is it neccessary to have annotation type id?
-        update_annotations_SQL = """
-                                    UPDATE
-                                        public.annotations
-                                    SET
-                                        (result = %s::jsonb),
-                                        (users_id = %s)
-                                    WHERE
-                                        id = %s
-                                    RETURNING *;
-                                """
-        update_annotations_vars = [json.dumps(
-            result), users_id, self.id]
-        updated_annotation_return = db_fetchone(
-            update_annotations_SQL, conn, update_annotations_vars)
-
-        return updated_annotation_return
-
-    def delete_annotation(self) -> tuple:
-        """Delete annotations
-
-        Args:
-            annotation_id (int): [description]
-
-        Returns:
-            tuple: [description]
-        """
-        delete_annotations_SQL = """
-                                DELETE FROM public.annotation
-                                WHERE id = %s
-                                RETURNING *;
-                                """
-        delete_annotations_vars = [self.id]
-
-        delete_annotation_return = db_fetchone(
-            delete_annotations_SQL, conn, delete_annotations_vars)
-
-        return delete_annotation_return
-
-    def skip_task(self, skipped: bool = True) -> tuple:
-        """Skip task
-
-        Args:
-            task_id (int): [description]
-            skipped (bool): [description]
-
-        Returns:
-            tuple: [description]
-        """
-        skip_task_SQL = """
-                        UPDATE
-                            public.task
-                        SET
-                            (skipped = %s)
-                        WHERE
-                            id = %s;
-                    """
-        skip_task_vars = [
-            skipped, self.task.id]  # should set 'skipped' as True
-
-        skipped_task_return = db_fetchone(skip_task_SQL, conn, skip_task_vars)
-
-        return skipped_task_return
-
+    # def generate_annotation_dict(self) -> Union[Dict, List]:
+    #     try:
+    #         annotation_dict = {"id": self.id,
+    #                            "completed_by": self.completed_by,
+    #                            "result": [self.result],
+    #                            "was_cancelled": self.was_cancelled,
+    #                            "ground_truth": self.ground_truth,
+    #                            "created_at": str(self.created_at),
+    #                            "updated_at": str(self.updated_at),
+    #                            "lead_time": str(self.updated_at - self.created_at),
+    #                            "prediction": {},
+    #                            "result_count": 0,
+    #                            "task": self.task.id
+    #                            }
+    #         return annotation_dict
+    #     except Exception as e:
+    #         log_error(
+    #             f"{e}: Failed to generate annotation dict for Annotation {self.id}")
+    #         annotation_dict = {}
+    #         return annotation_dict
 # ********************** External Function *************************
 
 

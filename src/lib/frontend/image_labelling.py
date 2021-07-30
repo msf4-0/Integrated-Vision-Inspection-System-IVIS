@@ -37,8 +37,7 @@ from project.project_management import Project
 from frontend.editor_manager import Editor
 from user.user_management import User
 from data_manager.database_manager import init_connection
-from data_manager.annotation_type_select import annotation_sel
-from annotation.annotation_manager import Annotations, data_url_encoder, load_sample_image, get_image_size, NewTask, Task
+from annotation.annotation_manager import Annotations, NewAnnotations, NewTask, Task
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 
 # <<<< User-defined Modules <<<<
@@ -66,6 +65,10 @@ class EditorFlag(IntEnum):
             raise ValueError()
 
 
+EDITOR_CONFIG = {"Image Classification": ImgClassification, "Object Detection with Bounding Boxes": DetectionBBOX,
+                 "Semantic Segmentation with Polygons": SemanticPolygon, "Semantic Segmentation with Masks": SemanticMask}
+
+
 def show():
 
     chdir_root()  # change to root directory
@@ -91,6 +94,9 @@ def show():
         session_state.project = Project(7)
         session_state.editor = Editor(session_state.project.id)
         session_state.user = User(1)
+        session_state.annotation = None
+        session_state.new_annotation = None
+        session_state.task = None
 
         # set random project ID before getting actual from Database
     session_state.project.query_all_fields()
@@ -129,7 +135,6 @@ def show():
     # _, col1, _, col2, _, col3, _ = st.beta_columns(
     #     [0.2, 1, 0.2, 1, 0.2, 1, 0.2])
 
-    
     col1, col2 = st.beta_columns([1, 2])
     dataset_selection = col1.selectbox(
         "Dataset", options=session_state.project.dataset_name_list, key="dataset_sel")
@@ -138,45 +143,53 @@ def show():
         project_id = session_state.project.id
         dataset_id = session_state.project.dataset_name_id[dataset_selection]
 
-        # >>>> Check if Task exists in 'Task' table >>>>
+        # ************************* CALLBACK FUNCTION ************************************
+        # >>>> Check if Task exists in 'Task' table >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         def check_if_task_exist(project_id, dataset_id, conn):
             data = session_state.project.dataset_list[dataset_selection][session_state.data_sel]
             if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
-                # Instantiate task as 'Task' Class object
 
-                if 'task' not in session_state:
-                    session_state.task = Task(data,
-                                              session_state.data_sel, project_id, dataset_id)
-                    log_info(
-                        f"Task exists for Task ID: {session_state.task.id} for {session_state.task.name}")
+                # NOTE: LOAD TASK
+                # if 'task' not in session_state:
+                session_state.task = Task(data,
+                                          session_state.data_sel, project_id, dataset_id)
+                log_info(
+                    f"Task exists for Task ID: {session_state.task.id} for {session_state.task.name}")
 
                 # >>>> Check if annotations exists
                 if Annotations.check_if_annotation_exists(session_state.task.id, project_id, conn):
-                    # TODO :Add Annotations load
-                    if 'annotation' not in session_state:
-                        session_state.annotation = Annotations(
-                            session_state.task, session_state.user)
-                        log_info(
-                            f"Annotation {session_state.annotation.id} exists for Task ID: {session_state.task.id} for {session_state.task.name}")
+
+                    # NOTE: LOAD ANNOTATIONS
+                    # if 'annotation' not in session_state:
+                    session_state.annotation = Annotations(
+                        session_state.task)
+                    log_info(
+                        f"Annotation {session_state.annotation.id} exists for Task ID: {session_state.task.id} for {session_state.task.name}")
                 else:
+                    # NOTE: LOAD TASK
+                    session_state.annotation = NewAnnotations(
+                        session_state.task)
                     log_info(
                         f"Annotation does not exist for Task ID: {session_state.task.id} for {session_state.task.name}")
                     pass
 
             else:
+                # NOTE: CREATE TASK
                 # Insert as new task entry if not exists
                 task_id = NewTask.insert_new_task(
                     session_state.data_sel, project_id, dataset_id)
-                if 'task' not in session_state:
-                    session_state.task = Task(data,
-                                              session_state.data_sel, project_id, dataset_id)
-
-                    log_info(
-                        f"Created New Task for ID {session_state.task.id} for {session_state.task.name}")
-
+# NOTE                # if 'task' not in session_state:
                 # Instantiate task as 'Task' Class object
+                session_state.task = Task(data,
+                                          session_state.data_sel, project_id, dataset_id)
+                session_state.annotation = NewAnnotations(
+                    session_state.task)
+                log_info(
+                    f"Created New Task for ID {session_state.task.id} for {session_state.task.name}")
 
-        # if dataset_selection:
+        # >>>> Check if Task exists in 'Task' table >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+        # ******************* Generate List of Datas ***************************************
         try:
             data_list = sorted(
                 [k for k, v in session_state.project.dataset_list[dataset_selection].items()])
@@ -193,6 +206,97 @@ def show():
 
 
 # *************************EDITOR**********************************************
+
+    # interfaces = [
+    #     "panel",
+    #     "update",
+    #     "submit",
+    #     "controls",
+    #     "side-column",
+    #     "annotations:menu",
+    #     "annotations:add-new",
+    #     "annotations:delete",
+    #     "predictions:menu",
+    #     "skip"
+    # ],
+    @st.cache
+    def load_sample_image():
+        """Load Image and generate Data URL in base64 bytes
+
+        Args:
+            image (bytes-like): BytesIO object
+
+        Returns:
+            bytes: UTF-8 encoded base64 bytes
+        """
+        chdir_root()  # ./image_labelling
+        log_info("Loading Sample Image")
+        sample_image = "resources/sample.jpg"
+        with Image.open(sample_image) as img:
+            img_byte_arr = BytesIO()
+            img.save(img_byte_arr, format='jpeg')
+
+        bb = img_byte_arr.getvalue()
+        b64code = b64encode(bb).decode('utf-8')
+        data_url = 'data:image/jpeg;base64,' + b64code
+        # data_url = f'data:image/jpeg;base64,{b64code}'
+        # st.write(f"\"{data_url}\"")
+
+        return data_url
+
+    
+
+    user = {
+        'pk': session_state.user.id,
+        'firstName': session_state.user.first_name,
+        'lastName': session_state.user.last_name
+    },
+    try:
+        annotations_dict = session_state.annotation.generate_annotation_dict()
+        task = session_state.task.generate_editor_format(
+            annotations_dict=annotations_dict, predictions_dict=None)
+        
+        
+    except Exception as e:
+        log_error(
+            f"{e}: No data selected. Could not generate editor format based on task")
+        task = {
+                "annotations":
+                    [],
+                'predictions': [],
+                'id': 1,
+                'data': {
+                    # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
+                    'image': None
+                        }
+            }
+    # st.json(task)
+
+
+    # task = {
+    #     "annotations":
+    #         [],
+    #     'predictions': [],
+    #     'id': 1,
+    #     'data': {
+    #         # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
+    #         'image': load_sample_image()
+    #             }
+    # }
+
+
+    st.json(user)
+    st.write(f"{session_state.project.deployment_type}")
+    if session_state.editor.editor_config:
+        with col2:
+            results = EDITOR_CONFIG[session_state.project.deployment_type](
+                session_state.editor.editor_config, user, task)
+            st.write(f"Results:{results}")
+
+# NOTE: Load ^ into results.py
+
+# *************************EDITOR**********************************************
+
     col1, col2 = st.beta_columns([1, 2])
     col1.text_input("Check column", key="column1")
     col2.text_input("Check column", key="column2")
@@ -201,7 +305,7 @@ def show():
     col1.write(vars(session_state.project))
     # col1.write(session_state.project.dataset_list['My Third Dataset'])
     col2.write(vars(session_state.editor))
-    col3.write(vars(session_state.task))
+    # col3.write(vars(session_state.task))
     st.write(vars(session_state.user))
 
 
