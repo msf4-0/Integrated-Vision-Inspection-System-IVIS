@@ -129,16 +129,16 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
         Dict: Annotation ID, x, y, width, height, rectanglelabels
     """
     results_raw = st_labelstudio(config, interfaces, user, task, key)
-    st.write(results_raw)
+    # st.write(results_raw)
 
     if results_raw is not None:
         areas = [v for k, v in results_raw[0]['areas'].items()]
         canvas_width, canvas_height = [
             canvas_dim for canvas_dim in results_raw[1]]
-        st.write(canvas_width, canvas_height)
+        # st.write(canvas_width, canvas_height)
         original_width, original_height = [
             img_dim for img_dim in results_raw[2]]
-        st.write(original_width, original_height)
+        # st.write(original_width, original_height)
         results = []  # array to hold dictionary of 'result'
         results_display = []
         for a in areas:
@@ -158,14 +158,25 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
                                 original_height=original_height)
 
             results.append(results_temp)
-            st.write("### Results")
-            st.write(results)
+
         with st.beta_expander('Show Annotation Log'):
 
             st.table(results_display)
-            st.write(results_raw[0]['areas'])
+            st.write("### Results")
+            # st.write(results_raw[0]['areas'])
+            st.write(results)
+
         flag = results_raw[3]
-        return results
+        st.write(type(results))
+        if not results:
+            results = []
+            flag = 0
+
+    else:
+        results = []
+        flag = 0
+
+    return results, flag
 
     # TODO solve NoneType for flags
 

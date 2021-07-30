@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Dict, Union
 from datetime import datetime
 import psycopg2
+from psycopg2.extras import Json
 import json
 from base64 import b64encode
 from PIL import Image
@@ -150,15 +151,16 @@ class Task(BaseTask):
         Returns:
             str: Data URl with base64 bytes encoded in UTF-8
         """
-        
+
         try:
-            data_url = data_url_encoder_cv2(self.data_object,self.name)
-            
+            data_url = data_url_encoder_cv2(self.data_object, self.name)
+
             return data_url
         except Exception as e:
             log_error(f"{e}: Failed to generate data url for {self.name}")
             return None
 
+    @st.cache
     def generate_editor_format(self, annotations_dict, predictions_dict=None):
         """Generate editor format based on Label Studio Frontend requirements
 
@@ -248,7 +250,7 @@ class BaseAnnotations:
         self.result: List[Dict, Result] = []  # or Dict?
         self.predictions: List[Dict, Predictions] = None
 
-    def submit_annotations(self, result: Dict, project_id: int, users_id: int, conn=conn) -> int:
+    def submit_annotations(self, result: Dict, users_id: int, conn=conn) -> int:
         """ Submit result for new annotations
 
         Args:
@@ -256,7 +258,6 @@ class BaseAnnotations:
             project_id (int): [description]
             users_id (int): [description]
             task_id (int): [description]
-            annotation_id (int): [description]
             is_labelled (bool, optional): [description]. Defaults to True.
             conn (psycopg2 connection object, optional): [description]. Defaults to conn.
 
@@ -274,27 +275,35 @@ class BaseAnnotations:
                                         users_id,
                                         task_id)
                                     VALUES (
-                                        %s::jsonb,
+                                        %s::JSONB[],
                                         %s,
                                         %s,
                                         %s)
                                     RETURNING id;
                                 """
-        insert_annotations_vars = [json.dumps(
-            result), project_id, users_id, self.task.id]
-        self.id = db_fetchone(
-            insert_annotations_SQL, conn, insert_annotations_vars, insert_annotations_vars).id
+        # insert_annotations_vars = [json.dumps(
+        #     result), self.task.project_id, users_id, self.task.id]
+        result_serialised = [json.dumps(x) for x in result]
+        insert_annotations_vars = [result_serialised,
+                                   self.task.project_id, users_id, self.task.id]
+        try:
+            self.id = db_fetchone(
+                insert_annotations_SQL, conn, insert_annotations_vars).id
+        except psycopg2.Error as e:
+            error = e.pgcode
+            log_error(f"{error}: Annotations already exist")
 
         # NOTE: Update 'task' table with annotation id and set is_labelled flag as True
         update_task_SQL = """
                             UPDATE
                                 public.task
                             SET
-                                (annotation_id = %s),
-                                (is_labelled = %s)
+                                annotation_id = %s,
+                                is_labelled = %s
                             WHERE
                                 id = %s;
                         """
+        self.task.is_labelled = True
         update_task_vars = [self.id,
                             self.task.is_labelled, self.task.id]
         db_no_fetch(update_task_SQL, conn, update_task_vars)
@@ -318,8 +327,8 @@ class BaseAnnotations:
                                     UPDATE
                                         public.annotations
                                     SET
-                                        (result = %s::jsonb),
-                                        (users_id = %s)
+                                        result = %s::jsonb,
+                                        users_id = %s
                                     WHERE
                                         id = %s
                                     RETURNING *;
@@ -363,7 +372,7 @@ class BaseAnnotations:
                         UPDATE
                             public.task
                         SET
-                            (skipped = %s)
+                            skipped = %s
                         WHERE
                             id = %s;
                     """
@@ -376,7 +385,7 @@ class BaseAnnotations:
 
     def generate_annotation_dict(self) -> Union[Dict, List]:
         try:
-            annotation_dict = {"id": self.id,
+            annotation_dict = [{"id": self.id,
                                "completed_by": self.completed_by,
                                "result": self.result,
                                "was_cancelled": self.was_cancelled,
@@ -387,7 +396,7 @@ class BaseAnnotations:
                                "prediction": {},
                                "result_count": 0,
                                "task": self.task.id
-                               }
+                               }]
             return annotation_dict
         except Exception as e:
             log_error(
@@ -415,9 +424,10 @@ class Annotations(BaseAnnotations):
     def __init__(self, task: Task) -> None:
         super().__init__(task)
         self.task = task  # 'Task' class object
+        self.user = {}
         self.query_annotations()
         self.completed_by = {
-            "id": self.user.id, "email": self.user.email, "first_name": self.user.first_name, "last_name": self.user.last_name}
+            "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
 
     # TODO: check if current image exists as a 'task' in DB
 
@@ -450,7 +460,7 @@ class Annotations(BaseAnnotations):
                                 SELECT
                                     a.id,
                                     result,
-                                    (u.id,u.email,u.first_name,u.last_name) as user,
+                                    u.id as user_id,u.email,u.first_name,u.last_name,
                                     a.created_at,
                                     a.updated_at
                                 FROM
@@ -466,7 +476,8 @@ class Annotations(BaseAnnotations):
             query_annotation_SQL, conn, query_annotation_vars, fetch_col_name=False)
         try:
             # self.user is NamedTuple
-            self.id, self.result, self.user, self.created_at, self.updated_at = query_return
+            self.id, self.result, self.user["id"], self.user["email"], self.user[
+                "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
             return query_return
         except TypeError as e:
             log_error(
@@ -537,6 +548,7 @@ def load_buffer_image():
     # st.write(f"\"{data_url}\"")
 
     return data_url
+
 
 def get_image_size(image_path):
     """get dimension of image

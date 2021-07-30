@@ -11,6 +11,9 @@ from PIL import Image
 from base64 import b64encode, decode
 from io import BytesIO
 from threading import Thread
+import psycopg2
+from time import sleep
+from copy import deepcopy
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
@@ -49,6 +52,7 @@ from streamlit.report_thread import add_report_ctx
 
 
 class EditorFlag(IntEnum):
+    START = 0
     SUBMIT = 1
     UPDATE = 2
     DELETE = 3
@@ -72,7 +76,8 @@ EDITOR_CONFIG = {"Image Classification": ImgClassification, "Object Detection wi
 def show():
 
     chdir_root()  # change to root directory
-
+    if "data_sel" in session_state:
+        del session_state.data_sel
     with st.sidebar.beta_container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -128,7 +133,7 @@ def show():
     # load_dataset.start()
     # load_dataset.join()
 
-    session_state.project.dataset_list = session_state.project.load_dataset()
+    # session_state.project.dataset_list = session_state.project.load_dataset()
     # print(session_state.project.datasets)
     # st.image( session_state.project.dataset_list['My Third Dataset']["IMG_20210315_184229.jpg"],channels='BGR')
 # **************************DATA SELECTOR ********************************************
@@ -146,13 +151,13 @@ def show():
         # ************************* CALLBACK FUNCTION ************************************
         # >>>> Check if Task exists in 'Task' table >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         def check_if_task_exist(project_id, dataset_id, conn):
-            data = session_state.project.dataset_list[dataset_selection][session_state.data_sel]
-            if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
+            data = session_state.project.dataset_list[dataset_selection][data_selection]
+            if Task.check_if_task_exists(data_selection, project_id, dataset_id, conn):
 
                 # NOTE: LOAD TASK
                 # if 'task' not in session_state:
                 session_state.task = Task(data,
-                                          session_state.data_sel, project_id, dataset_id)
+                                          data_selection, project_id, dataset_id)
                 log_info(
                     f"Task exists for Task ID: {session_state.task.id} for {session_state.task.name}")
 
@@ -177,11 +182,11 @@ def show():
                 # NOTE: CREATE TASK
                 # Insert as new task entry if not exists
                 task_id = NewTask.insert_new_task(
-                    session_state.data_sel, project_id, dataset_id)
+                    data_selection, project_id, dataset_id)
 # NOTE                # if 'task' not in session_state:
                 # Instantiate task as 'Task' Class object
                 session_state.task = Task(data,
-                                          session_state.data_sel, project_id, dataset_id)
+                                          data_selection, project_id, dataset_id)
                 session_state.annotation = NewAnnotations(
                     session_state.task)
                 log_info(
@@ -192,18 +197,24 @@ def show():
         # ******************* Generate List of Datas ***************************************
         try:
             data_list = sorted(
-                [k for k, v in session_state.project.dataset_list[dataset_selection].items()])
+                [k for k, v in session_state.project.dataset_list.get(dataset_selection).items()])
+            # data_name_list = deepcopy(session_state.project.data_name_list)
+            # data_name_list = session_state.project.get_data_name_list()
+
+            # data_list = (data_name_list.get(dataset_selection))
         except ValueError as e:
             log_error(
                 f"{e}: Dataset Loading error causing list to be non iterable")
         # else:
         #     data_list = []
-
-        st.selectbox(
-            "Data", options=data_list, key="data_sel")
+        try:
+            data_selection = st.selectbox(
+                "Data", options=data_list, key="data_sel")
+        except ValueError as e:
+            log_error(f"{e}")
         st.button(
             "Confirm", key='data_sel_button', on_click=check_if_task_exist, args=(project_id, dataset_id, conn,))
-
+        # st.write(vars(session_state.annotation))
 
 # *************************EDITOR**********************************************
 
@@ -230,7 +241,7 @@ def show():
         annotations_dict = session_state.annotation.generate_annotation_dict()
         task = session_state.task.generate_editor_format(
             annotations_dict=annotations_dict, predictions_dict=None)
-
+        st.write(annotations_dict)
     except Exception as e:
         log_error(
             f"{e}: No data selected. Could not generate editor format based on task")
@@ -262,8 +273,25 @@ def show():
     st.write(f"{session_state.project.deployment_type}")
     if session_state.editor.editor_config:
         with col2:
-            results = EDITOR_CONFIG[session_state.project.deployment_type](
-                session_state.editor.editor_config, user, task)
+            try:
+                result, flag = EDITOR_CONFIG.get(session_state.project.deployment_type)(
+                    session_state.editor.editor_config, user, task)
+                log_info(f"Flag: {flag}")
+            except KeyError as e:
+                log_error(f"{e}")
+
+    if result:
+        if flag == 0:
+            log_info("Editor Loaded")
+            pass
+        elif flag == EditorFlag.SUBMIT:
+            try:
+                log_info(
+                    f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+                session_state.annotation.submit_annotations(
+                    result, session_state.user.id, conn)
+            except Exception as e:
+                log_error(e)
 
 # NOTE: Load ^ into results.py
 

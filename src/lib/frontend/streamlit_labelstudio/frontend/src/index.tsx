@@ -46,6 +46,10 @@ function onRender(event: Event): void {
     task: data.args["task"],
 
     onLabelStudioLoad: function (LS: any) {
+      let flag = 0 // Skip Task Flag
+      let status = "Load"
+      const annotations = {} as JSON //return nothing
+      return_results(annotations, flag, status)
       var c = LS.annotationStore.addAnnotation({
         userGenerate: true,
       })

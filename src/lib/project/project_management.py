@@ -90,6 +90,7 @@ class BaseProject:
             dataset_tmp = []
 
         return dataset_tmp
+
     @st.cache
     def get_dataset_name_list(self) -> List:
         dataset_name_tmp = []
@@ -148,7 +149,9 @@ class Project(BaseProject):
         super().__init__(project_id)
         self.datasets = self.query_project_dataset_list()
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
+        self.data_name_list = None
         self.query_all_fields()
+        self.dataset_list = self.load_dataset()
 
     @st.cache(ttl=600)
     def query_all_fields(self) -> NamedTuple:
@@ -219,25 +222,45 @@ class Project(BaseProject):
             start_time = perf_counter()
             dataset_name_list = []
             dataset_list = {}
+            data_name_list = {}
             for d in self.datasets:  # dataset loop
                 dataset_name_list.append(d[1])  # get name
                 dataset_path = d[4]
                 log_info(f"Dataset {d[0]}:{dataset_path}")
                 dataset_path = dataset_path + "/*"
                 image_list = {}
+                # data_name_tmp = []
                 # image loop with sorted directories
                 for image_path in iglob(dataset_path):
                     image = cv2.imread(image_path)  # get data url
                     image_name = (Path(image_path).name)
                     image_list[image_name] = image
+                    # data_name_tmp.append(image_name)
 
                 dataset_list[d[1]] = image_list
+                # data_name_list[d[1]] = data_name_tmp
             self.dataset_name_list = dataset_name_list
             self.dataset_list = dataset_list
+            # self.data_name_list = data_name_list
             end_time = perf_counter()
             log_info(end_time - start_time)
-            
+
             return dataset_list
+
+    @st.cache
+    def get_data_name_list(self):
+        if self.datasets:
+            data_name_list = {}
+            for d in self.datasets:
+                data_name_tmp = []
+                dataset_path = d[4]
+                dataset_path = dataset_path + "/*"
+                for data_path in iglob(dataset_path):
+                    data_name = Path(data_path).name
+                    data_name_tmp.append(data_name)
+                data_name_list[d[1]] = data_name_tmp
+
+            return data_name_list
 
 
 class NewProject(BaseProject):
