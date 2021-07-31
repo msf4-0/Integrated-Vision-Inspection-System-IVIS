@@ -61,7 +61,8 @@ def st_labelstudio(config, interfaces, user, task, key=None):
     component_value = _component_func(
         config=config, interfaces=interfaces, user=user, task=task, key=key)
     if component_value:
-        log.info(f"From LS Component: Flag {component_value[3]}")
+        if component_value[0]:
+            log.info(f"From LS Component: Flag {component_value[3]}")
     return component_value
 
 

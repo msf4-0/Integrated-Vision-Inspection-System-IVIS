@@ -164,7 +164,7 @@ class Task(BaseTask):
     @st.cache
     def get_data(self):
 
-        data=self.data_list.get(self.name)
+        data = self.data_list.get(self.name)
 
         if not data:
             data = self.generate_data_url()
@@ -173,7 +173,7 @@ class Task(BaseTask):
 
         else:
             log_info(f"Data {self.name} EXIST")
-            
+
         # if self.name in self.data_list.keys():
         #     data = self.data_list[self.name]
         #     log_info(f"Data {self.name} EXIST")
@@ -421,18 +421,21 @@ class BaseAnnotations:
 
     def generate_annotation_dict(self) -> Union[Dict, List]:
         try:
-            annotation_dict = [{"id": self.id,
-                               "completed_by": self.completed_by,
-                                "result": self.result,
-                                "was_cancelled": self.was_cancelled,
-                                "ground_truth": self.ground_truth,
-                                "created_at": str(self.created_at),
-                                "updated_at": str(self.updated_at),
-                                "lead_time": str(self.updated_at - self.created_at),
-                                "prediction": {},
-                                "result_count": 0,
-                                "task": self.task.id
-                                }]
+            if self.task.is_labelled:
+                annotation_dict = [{"id": self.id,
+                                    "completed_by": self.completed_by,
+                                    "result": self.result,
+                                    "was_cancelled": self.was_cancelled,
+                                    "ground_truth": self.ground_truth,
+                                    "created_at": str(self.created_at),
+                                    "updated_at": str(self.updated_at),
+                                    "lead_time": str(self.updated_at - self.created_at),
+                                    "prediction": {},
+                                    "result_count": 0,
+                                    "task": self.task.id
+                                    }]
+            else:
+                annotation_dict = []
             return annotation_dict
         except Exception as e:
             log_error(
@@ -459,11 +462,15 @@ class NewAnnotations(BaseAnnotations):
 class Annotations(BaseAnnotations):
     def __init__(self, task: Task) -> None:
         super().__init__(task)
+        log_info(f"Initialising New Task {self.task.name}")
         self.task = task  # 'Task' class object
         self.user = {}
-        self.query_annotations()
-        self.completed_by = {
-            "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
+        if self.task.is_labelled:
+            self.query_annotations()
+            self.completed_by = {
+                "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
+        else:
+            pass
 
     # TODO: check if current image exists as a 'task' in DB
 
@@ -514,6 +521,7 @@ class Annotations(BaseAnnotations):
             # self.user is NamedTuple
             self.id, self.result, self.user["id"], self.user["email"], self.user[
                 "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
+            log_info("Query in class")
             return query_return
         except TypeError as e:
             log_error(
