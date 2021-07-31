@@ -34,9 +34,8 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
-from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
+from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.helper import get_directory_name
-from core.utils.dataset_handler import load_image_PIL, load_image_cv2, data_url_encoder_cv2, data_url_encoder_PIL
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -149,11 +148,11 @@ class Project(BaseProject):
         super().__init__(project_id)
         self.datasets = self.query_project_dataset_list()
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
-        self.data_name_list = None
+        self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
         self.dataset_list = self.load_dataset()
 
-    
+    @st.cache
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
                             SELECT

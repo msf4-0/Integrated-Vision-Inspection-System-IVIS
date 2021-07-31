@@ -7,11 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from enum import IntEnum
-from PIL import Image
-from base64 import b64encode, decode
-from io import BytesIO
 from threading import Thread
-import psycopg2
 from time import sleep
 from copy import deepcopy
 import streamlit as st
@@ -35,7 +31,7 @@ else:
 
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe, check_if_exists
+from core.utils.helper import create_dataframe
 from project.project_management import Project
 from frontend.editor_manager import Editor
 from user.user_management import User
@@ -46,7 +42,7 @@ from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, Sem
 # <<<< User-defined Modules <<<<
 conn = init_connection(**st.secrets["postgres"])
 
-# NOTE: not used
+# NOTE: not used********************************************
 from frontend.streamlit_labelstudio import st_labelstudio
 from streamlit.report_thread import add_report_ctx
 
@@ -76,12 +72,13 @@ EDITOR_CONFIG = {"Image Classification": ImgClassification, "Object Detection wi
 def show():
 
     chdir_root()  # change to root directory
+
     if "data_sel" in session_state:
         del session_state.data_sel
+
     with st.sidebar.beta_container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.beta_container():
         st.title("Integrated Vision Inspection System", anchor='title')
 
         st.header(
@@ -103,7 +100,6 @@ def show():
         session_state.new_annotation = None
         session_state.task = None
 
-        # set random project ID before getting actual from Database
     session_state.project.query_all_fields()
     # ******** SESSION STATE *********************************************************
 
@@ -113,7 +109,6 @@ def show():
     #     session_state.current_page = st.radio("", options=training_page_options,
     #                                           index=0)
     # <<<< TRAINING SIDEBAR <<<<
-    session_state.project.query_all_fields()
     # Page title
     st.write(f'# Project Name: {session_state.project.name}')
     st.write("## **Image Labelling**")
@@ -125,112 +120,103 @@ def show():
         st.write(f"### **Project ID:** {session_state.project.id}")
     st.markdown("___")
 
+    # NOTE: Is this neccesary? Already loaded at Init
     # get dataset name list
     session_state.project.datasets = session_state.project.query_project_dataset_list()
     session_state.project.dataset_name_list, session_state.project.dataset_name_id = session_state.project.get_dataset_name_list()
+
+    # TODO: Require threading?
+
     # load_dataset = Thread(target=session_state.project.load_dataset())
     # add_report_ctx(load_dataset)
     # load_dataset.start()
     # load_dataset.join()
 
-    # session_state.project.dataset_list = session_state.project.load_dataset()
-    # print(session_state.project.datasets)
-    # st.image( session_state.project.dataset_list['My Third Dataset']["IMG_20210315_184229.jpg"],channels='BGR')
-# **************************DATA SELECTOR ********************************************
+# **************************DATASET SELECTOR ********************************************
     # _, col1, _, col2, _, col3, _ = st.beta_columns(
     #     [0.2, 1, 0.2, 1, 0.2, 1, 0.2])
 
     col1, col2 = st.beta_columns([1, 2])
     dataset_selection = col1.selectbox(
         "Dataset", options=session_state.project.dataset_name_list, key="dataset_sel")
+    project_id = session_state.project.id
+    # get dataset_id
+    dataset_id = session_state.project.dataset_name_id[dataset_selection]
 
-    with col1.beta_container():
-        project_id = session_state.project.id
-        dataset_id = session_state.project.dataset_name_id[dataset_selection]
+    # ************************* CALLBACK FUNCTION ************************************
+    # >>>> Check if Task exists in 'Task' table >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    def check_if_task_exist(project_id, dataset_id, conn):
+        data = session_state.project.dataset_list[dataset_selection][session_state.data_sel]
+        if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
 
-        # ************************* CALLBACK FUNCTION ************************************
-        # >>>> Check if Task exists in 'Task' table >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        def check_if_task_exist(project_id, dataset_id, conn):
-            data = session_state.project.dataset_list[dataset_selection][session_state.data_sel]
-            if Task.check_if_task_exists(session_state.data_sel, project_id, dataset_id, conn):
+            # NOTE: LOAD TASK
+            # if 'task' not in session_state:
+            session_state.task = Task(data,
+                                      session_state.data_sel, project_id, dataset_id)
+            log_info(
+                f"Task exists for Task ID: {session_state.task.id} for {session_state.task.name}")
 
-                # NOTE: LOAD TASK
-                # if 'task' not in session_state:
-                session_state.task = Task(data,
-                                          session_state.data_sel, project_id, dataset_id)
+            # >>>> Check if annotations exists
+            if Annotations.check_if_annotation_exists(session_state.task.id, project_id, conn):
+
+                # NOTE: LOAD ANNOTATIONS
+                # if 'annotation' not in session_state:
+                session_state.annotation = Annotations(
+                    session_state.task)
                 log_info(
-                    f"Task exists for Task ID: {session_state.task.id} for {session_state.task.name}")
-
-                # >>>> Check if annotations exists
-                if Annotations.check_if_annotation_exists(session_state.task.id, project_id, conn):
-
-                    # NOTE: LOAD ANNOTATIONS
-                    # if 'annotation' not in session_state:
-                    session_state.annotation = Annotations(
-                        session_state.task)
-                    log_info(
-                        f"Annotation {session_state.annotation.id} exists for Task ID: {session_state.task.id} for {session_state.task.name}")
-                else:
-                    # NOTE: LOAD TASK
-                    session_state.annotation = NewAnnotations(
-                        session_state.task)
-                    log_info(
-                        f"Annotation does not exist for Task ID: {session_state.task.id} for {session_state.task.name}")
-                    pass
-
+                    f"Annotation {session_state.annotation.id} exists for Task ID: {session_state.task.id} for {session_state.task.name}")
             else:
-                # NOTE: CREATE TASK
-                # Insert as new task entry if not exists
-                task_id = NewTask.insert_new_task(
-                    session_state.data_sel, project_id, dataset_id)
-# NOTE                # if 'task' not in session_state:
-                # Instantiate task as 'Task' Class object
-                session_state.task = Task(data,
-                                          session_state.data_sel, project_id, dataset_id)
+                # NOTE: LOAD TASK
                 session_state.annotation = NewAnnotations(
                     session_state.task)
                 log_info(
-                    f"Created New Task for ID {session_state.task.id} for {session_state.task.name}")
+                    f"Annotation does not exist for Task ID: {session_state.task.id} for {session_state.task.name}")
+                pass
 
-        # >>>> Check if Task exists in 'Task' table >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        else:
+            # NOTE: CREATE TASK
+            # Insert as new task entry if not exists
+            task_id = NewTask.insert_new_task(
+                session_state.data_sel, project_id, dataset_id)
+# NOTE
+            # Instantiate task as 'Task' Class object
+            session_state.task = Task(data,
+                                      session_state.data_sel, project_id, dataset_id)
+            session_state.annotation = NewAnnotations(
+                session_state.task)
+            log_info(
+                f"Created New Task for ID {session_state.task.id} for {session_state.task.name}")
 
-        # ******************* Generate List of Datas ***************************************
+# **************************DATA SELECTOR ********************************************
+
+    with col1.form(key="data_select"):
+
+        # TODO ******************* Generate List of Datas ***************************************
         try:
-            data_list = sorted(
-                [k for k, v in session_state.project.dataset_list.get(dataset_selection).items()])
+            # data_list = sorted(
+            #     [k for k, v in session_state.project.dataset_list.get(dataset_selection).items()])
             # data_name_list = deepcopy(session_state.project.data_name_list)
             # data_name_list = session_state.project.get_data_name_list()
 
-            # data_list = (data_name_list.get(dataset_selection))
+            data_list = (
+                session_state.project.data_name_list.get(dataset_selection))
+
         except ValueError as e:
             log_error(
                 f"{e}: Dataset Loading error causing list to be non iterable")
-        # else:
-        #     data_list = []
+
         try:
             data_selection = st.selectbox(
                 "Data", options=data_list, key="data_sel")
+
         except ValueError as e:
             log_error(f"{e}")
-        st.button(
-            "Confirm", key='data_sel_button', on_click=check_if_task_exist, args=(project_id, dataset_id, conn,))
+
+        st.form_submit_button(
+            "Confirm", on_click=check_if_task_exist, args=(project_id, dataset_id, conn,))
         # st.write(vars(session_state.annotation))
 
 # *************************EDITOR**********************************************
-
-# TODO: REMOVE
-    # interfaces = [
-    #     "panel",
-    #     "update",
-    #     "submit",
-    #     "controls",
-    #     "side-column",
-    #     "annotations:menu",
-    #     "annotations:add-new",
-    #     "annotations:delete",
-    #     "predictions:menu",
-    #     "skip"
-    # ],
 
     user = {
         'pk': session_state.user.id,
@@ -242,6 +228,8 @@ def show():
         task = session_state.task.generate_editor_format(
             annotations_dict=annotations_dict, predictions_dict=None)
         st.write(annotations_dict)
+
+    # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
     except Exception as e:
         log_error(
             f"{e}: No data selected. Could not generate editor format based on task")
@@ -335,7 +323,14 @@ def show():
 
             except KeyError as e:
                 log_error(f"Editor {e}")
+            finally:
+                flag = 0
 
+    # >>>> IF editor XML config fails to be loaded into Editor Class / not available in DB
+    else:
+        editor_no_load_warning = f"Image Labelling Interface failed to load"
+        log_error(editor_no_load_warning)
+        st.error(editor_no_load_warning)
 # NOTE: Load ^ into results.py
 
 # *************************EDITOR**********************************************

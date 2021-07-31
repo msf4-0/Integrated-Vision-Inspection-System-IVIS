@@ -279,7 +279,7 @@ class BaseAnnotations:
                                         %s,
                                         %s,
                                         %s)
-                                    RETURNING id;
+                                    RETURNING id,result;
                                 """
         # insert_annotations_vars = [json.dumps(
         #     result), self.task.project_id, users_id, self.task.id]
@@ -287,8 +287,8 @@ class BaseAnnotations:
         insert_annotations_vars = [result_serialised,
                                    self.task.project_id, users_id, self.task.id]
         try:
-            self.id = db_fetchone(
-                insert_annotations_SQL, conn, insert_annotations_vars).id
+            self.id, self.result = db_fetchone(
+                insert_annotations_SQL, conn, insert_annotations_vars)
         except psycopg2.Error as e:
             error = e.pgcode
             log_error(f"{error}: Annotations already exist")
@@ -331,12 +331,19 @@ class BaseAnnotations:
                                         users_id = %s
                                     WHERE
                                         id = %s
-                                    RETURNING *;
+                                    RETURNING id,result;
                                 """
 
         update_annotations_vars = [result_serialised, users_id, self.id]
-        updated_annotation_return = db_fetchone(
-            update_annotations_SQL, conn, update_annotations_vars)
+        # updated_annotation_return = db_fetchone(
+        #     update_annotations_SQL, conn, update_annotations_vars)
+        try:
+            updated_annotation_return = db_fetchone(
+                update_annotations_SQL, conn, update_annotations_vars)
+            self.id, self.result = updated_annotation_return
+        except psycopg2.Error as e:
+            error = e.pgcode
+            log_error(f"{error}: Annotations already exist")
 
         return updated_annotation_return
 
@@ -355,7 +362,7 @@ class BaseAnnotations:
 
         delete_annotation_return = db_fetchone(
             delete_annotations_SQL, conn, delete_annotations_vars)
-
+        self.result = []
         return delete_annotation_return
 
     def skip_task(self, skipped: bool = True, conn=conn) -> tuple:
@@ -417,7 +424,7 @@ class NewAnnotations(BaseAnnotations):
         except Exception as e:
             log_error(
                 f"{e}: Failed to generate annotation dict for Annotation {self.id}")
-            annotation_dict = {}
+            annotation_dict = []
             return annotation_dict
 
 
