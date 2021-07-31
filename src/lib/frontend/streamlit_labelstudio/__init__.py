@@ -2,6 +2,20 @@ import os
 import streamlit.components.v1 as components
 import streamlit as st
 
+# >>>>>>> TEMP for Logging >>>>>>>>
+import logging
+import sys
+FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
+DATEFMT = '%d-%b-%y %H:%M:%S'
+
+# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.INFO)
+logging.basicConfig(format=FORMAT, level=logging.INFO,
+                    stream=sys.stdout, datefmt=DATEFMT)
+
+log = logging.getLogger()
+# >>>>>>> TEMP for Logging >>>>>>>>
+
+
 # st.set_page_config(layout='wide')
 # Create a _RELEASE constant. We'll set this to False while we're developing
 # the component, and True when we're ready to package and distribute it.
@@ -46,6 +60,8 @@ else:
 def st_labelstudio(config, interfaces, user, task, key=None):
     component_value = _component_func(
         config=config, interfaces=interfaces, user=user, task=task, key=key)
+    if component_value:
+        log.info(f"From LS Component: Flag {component_value[3]}")
     return component_value
 
 

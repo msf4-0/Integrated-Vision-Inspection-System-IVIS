@@ -75,6 +75,8 @@ def show():
 
     if "data_sel" in session_state:
         del session_state.data_sel
+    # if "temp" in session_state:
+    #     del session_state.temp
 
     with st.sidebar.beta_container():
 
@@ -99,6 +101,8 @@ def show():
         session_state.annotation = None
         session_state.new_annotation = None
         session_state.task = None
+    if 'data_list' not in session_state:
+        session_state.data_list = {}
 
     session_state.project.query_all_fields()
     # ******** SESSION STATE *********************************************************
@@ -190,6 +194,7 @@ def show():
 # **************************DATA SELECTOR ********************************************
 
     with col1.form(key="data_select"):
+        # with col1.beta_container():
 
         # TODO ******************* Generate List of Datas ***************************************
         try:
@@ -218,6 +223,20 @@ def show():
 
 # *************************EDITOR**********************************************
 
+# ***************TEMP**********************
+    interfaces = [
+        "panel",
+        "update",
+        "submit",
+        "controls",
+        "side-column",
+        "annotations:menu",
+        "annotations:add-new",
+        "annotations:delete",
+        "predictions:menu",
+        "skip"
+    ],
+# ***************TEMP**********************
     user = {
         'pk': session_state.user.id,
         'firstName': session_state.user.first_name,
@@ -228,6 +247,7 @@ def show():
         task = session_state.task.generate_editor_format(
             annotations_dict=annotations_dict, predictions_dict=None)
         st.write(annotations_dict)
+        st.write(f"Before result: {session_state.annotation.result}")
 
     # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
     except Exception as e:
@@ -262,69 +282,96 @@ def show():
     if session_state.editor.editor_config:
         with col2:
             try:
-                result, flag = EDITOR_CONFIG.get(session_state.project.deployment_type, DetectionBBOX)(
-                    session_state.editor.editor_config, user, task)
-                log_info(f"Flag: {flag}")
+                # result, flag = EDITOR_CONFIG.get(session_state.project.deployment_type, DetectionBBOX)(
+                #     session_state.editor.editor_config, user, task)
+                result_raw = st_labelstudio(
+                    session_state.editor.editor_config, interfaces, user, task, key="temp")
 
-                if result:
-                    if flag == EditorFlag.START:  # LOAD EDITOR
-                        log_info("Editor Loaded")
-                        pass
+                # flag = result_raw[3]
+                # if result_raw:
 
-                    elif flag == EditorFlag.SUBMIT:  # NEW ANNOTATION
-                        try:
+                #     result, flag = DetectionBBOX(result_raw)
+                #     log_info(f"Flag: {flag}")
 
-                            session_state.annotation.submit_annotations(
-                                result, session_state.user.id, conn)
+                # log_info(f"Flag: {flag}")
+# ********************************************************************************************************
+                #     if result:
+                #         if flag == EditorFlag.START:  # LOAD EDITOR
+                #             log_info("Editor Loaded (In result)")
+                #             pass
 
-                            log_info(
-                                f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
-                        except Exception as e:
-                            log_error(f"{e}: New Annotation error")
+                #         elif flag == EditorFlag.SUBMIT:  # NEW ANNOTATION
+                #             try:
 
-                    elif flag == EditorFlag.UPDATE:  # UPDATE ANNOTATION
-                        try:
+                #                 session_state.annotation.submit_annotations(
+                #                     result, session_state.user.id, conn)
 
-                            session_state.annotation.update_annotations(
-                                result, session_state.user.id, conn)
+                #                 log_info(
+                #                     f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+                #                 # st.json(session_state.annotation.result)
+                #                 # st.experimental_rerun()
 
-                            log_info(
-                                f"Update annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+                #             except Exception as e:
+                #                 log_error(f"{e}: New Annotation error")
 
-                        except Exception as e:
-                            log_error(f"{e}: Update annotation error")
+                #         elif flag == EditorFlag.UPDATE:  # UPDATE ANNOTATION
+                #             try:
 
-                    elif flag == EditorFlag.DELETE:  # DELETE ANNOTATION
-                        try:
+                #                 session_state.annotation.result = session_state.annotation.update_annotations(
+                #                     result, session_state.user.id, conn).result
 
-                            session_state.annotation.delete_annotation(conn)
+                #                 # log_info(
+                #                 #     f"Update annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+                #                 # st.json(session_state.annotation.result)
+                #                 # st.experimental_rerun()
+                #             except Exception as e:
+                #                 log_error(f"{e}: Update annotation error")
 
-                            log_info(
-                                f"Delete annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+                #         elif flag == EditorFlag.DELETE:  # DELETE ANNOTATION
+                #             try:
 
-                        except Exception as e:
-                            log_error(f"{e}: Delete annotaiton error")
+                #                 session_state.annotation.result = session_state.annotation.delete_annotation(
+                #                     conn).result
 
-                    else:
-                        pass
-                else:
-                    if flag == EditorFlag.SKIP:  # NEW ANNOTATION
-                        try:
+                #                 log_info(
+                #                     f"Delete annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
+                #                 # st.json(session_state.annotation.result)
+                #             except Exception as e:
+                #                 log_error(f"{e}: Delete annotation error")
 
-                            skip_return = session_state.annotation.skip_task(
-                                skipped=True, conn=conn)
+                #         else:
+                #             pass
+                #         st.write(
+                #             f"After result: {session_state.annotation.result}")
+                #     else:
+                #         if flag == EditorFlag.START:  # LOAD EDITOR
+                #             log_info("Editor Loaded")
+                #             pass
 
-                            log_info(
-                                f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
-                        except Exception as e:
-                            log_error(e)
-                    else:
-                        pass
+                #         elif flag == EditorFlag.SKIP:  # NEW ANNOTATION
+                #             try:
 
+                #                 skip_return = session_state.annotation.skip_task(
+                #                     skipped=True, conn=conn)
+
+                #                 log_info(
+                #                     f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
+                #             except Exception as e:
+                #                 log_error(e)
+                #         else:
+                #             pass
+                # else:  # to results_raw
+                #     log_error("No results")
+                #     pass
+# ********************************************************************************************************
             except KeyError as e:
                 log_error(f"Editor {e}")
             finally:
+                result = []
                 flag = 0
+                # annotations_dict = session_state.annotation.generate_annotation_dict()
+                # task = session_state.task.generate_editor_format(
+                #     annotations_dict=annotations_dict, predictions_dict=None)
 
     # >>>> IF editor XML config fails to be loaded into Editor Class / not available in DB
     else:

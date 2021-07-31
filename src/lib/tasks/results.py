@@ -102,7 +102,8 @@ def ImgClassification(config, user, task, interfaces=interfaces, key="ImgClassif
 #----------Object Detection with Bounding Boxes----------------#
 
 
-def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
+# def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
+def DetectionBBOX(results_raw):
     """Obtain annotation results for Object Detection with Bounding Boxes
 
     Args:
@@ -129,8 +130,9 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
     Returns:
         Dict: Annotation ID, x, y, width, height, rectanglelabels
     """
-    results_raw = st_labelstudio(config, interfaces, user, task, key)
-    st.write(results_raw)
+    # results_raw = []
+    # results_raw = st_labelstudio(config, interfaces, user, task, key)
+    # st.write(results_raw)
 
     if results_raw:  # if results_raw is None at launch
         if results_raw[0]:  # for skipped task -> no annotation results return from LS world
@@ -170,14 +172,14 @@ def DetectionBBOX(config, user, task, interfaces=interfaces, key="BBox"):
 
             flag = results_raw[3]
             st.write(type(results))
-            log_info(f"Flag:{flag}")
+            log_info(f"Result Flag:{flag}")
         else:
             results = []
             flag = results_raw[3]
     else:
 
         results = []
-        flag = 10
+        flag = 0
 
     return results, flag
 
