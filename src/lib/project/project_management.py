@@ -257,7 +257,7 @@ class Project(BaseProject):
                 for data_path in iglob(dataset_path):
                     data_name = Path(data_path).name
                     data_name_tmp.append(data_name)
-                data_name_list[d[1]] = data_name_tmp
+                data_name_list[d[1]] = sorted(data_name_tmp)
 
             return data_name_list
 

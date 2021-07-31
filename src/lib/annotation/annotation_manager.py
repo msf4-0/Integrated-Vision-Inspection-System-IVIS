@@ -58,6 +58,7 @@ class BaseTask:
         # extra
         self.dataset_id: int = None
         self.name: str = None
+        self.data_list: Dict = {}
 
 
 class NewTask(BaseTask):
@@ -161,6 +162,27 @@ class Task(BaseTask):
             return None
 
     @st.cache
+    def get_data(self):
+
+        data = self.data_list.get(self.name)
+
+        if not data:
+            data = self.generate_data_url()
+            # add encoded image into dictionary
+            self.data_list[self.name] = data
+
+        else:
+            log_info(f"Data {self.name} EXIST")
+
+        # if self.name in self.data_list.keys():
+        #     data = self.data_list[self.name]
+        #     log_info(f"Data {self.name} EXIST")
+        # else:
+        #     data = self.generate_data_url()
+        #     # add encoded image into dictionary
+        #     self.data_list[self.name] = data
+        return data
+
     def generate_editor_format(self, annotations_dict, predictions_dict=None):
         """Generate editor format based on Label Studio Frontend requirements
 
@@ -184,12 +206,14 @@ class Task(BaseTask):
             #     'updated_at': str(self.updated_at),
             #     'project': self.project_id
             # }
+            # data = self.get_data()
+
             task = {
                 'id': self.id,
                 'annotations': annotations_dict,
                 'predictions': [],
                 # 'file_upload': self.name,
-                "data": {"image": self.generate_data_url()},
+                "data": {"image": self.get_data()},
                 # 'data': {'image': None}
                 # 'meta': {},
                 # 'created_at': str(self.created_at),
@@ -321,6 +345,7 @@ class BaseAnnotations:
         Returns:
             tuple: [description]
         """
+        self.result = result if result else None  # update result attribute
         result_serialised = [json.dumps(x) for x in result]
         # TODO is it neccessary to have annotation type id?
         update_annotations_SQL = """
@@ -341,11 +366,14 @@ class BaseAnnotations:
             updated_annotation_return = db_fetchone(
                 update_annotations_SQL, conn, update_annotations_vars)
             self.id, self.result = updated_annotation_return
+
+# NEW************************************
+            log_info(
+                f"Update annotations for Task {self.task.name} with Annotation ID: {self.id}")
+            return updated_annotation_return
         except psycopg2.Error as e:
             error = e.pgcode
             log_error(f"{error}: Annotations already exist")
-
-        return updated_annotation_return
 
     def delete_annotation(self, conn=conn) -> tuple:
         """Delete annotations
@@ -393,18 +421,21 @@ class BaseAnnotations:
 
     def generate_annotation_dict(self) -> Union[Dict, List]:
         try:
-            annotation_dict = [{"id": self.id,
-                               "completed_by": self.completed_by,
-                                "result": self.result,
-                                "was_cancelled": self.was_cancelled,
-                                "ground_truth": self.ground_truth,
-                                "created_at": str(self.created_at),
-                                "updated_at": str(self.updated_at),
-                                "lead_time": str(self.updated_at - self.created_at),
-                                "prediction": {},
-                                "result_count": 0,
-                                "task": self.task.id
-                                }]
+            if self.task.is_labelled:
+                annotation_dict = [{"id": self.id,
+                                    "completed_by": self.completed_by,
+                                    "result": self.result,
+                                    "was_cancelled": self.was_cancelled,
+                                    "ground_truth": self.ground_truth,
+                                    "created_at": str(self.created_at),
+                                    "updated_at": str(self.updated_at),
+                                    "lead_time": str(self.updated_at - self.created_at),
+                                    "prediction": {},
+                                    "result_count": 0,
+                                    "task": self.task.id
+                                    }]
+            else:
+                annotation_dict = []
             return annotation_dict
         except Exception as e:
             log_error(
@@ -431,11 +462,15 @@ class NewAnnotations(BaseAnnotations):
 class Annotations(BaseAnnotations):
     def __init__(self, task: Task) -> None:
         super().__init__(task)
+        log_info(f"Initialising New Task {self.task.name}")
         self.task = task  # 'Task' class object
         self.user = {}
-        self.query_annotations()
-        self.completed_by = {
-            "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
+        if self.task.is_labelled:
+            self.query_annotations()
+            self.completed_by = {
+                "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
+        else:
+            pass
 
     # TODO: check if current image exists as a 'task' in DB
 
@@ -486,6 +521,7 @@ class Annotations(BaseAnnotations):
             # self.user is NamedTuple
             self.id, self.result, self.user["id"], self.user["email"], self.user[
                 "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
+            log_info("Query in class")
             return query_return
         except TypeError as e:
             log_error(
