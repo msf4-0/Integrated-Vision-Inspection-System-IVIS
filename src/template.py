@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -22,16 +22,16 @@ SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
 
-    if str(TEST_MODULE_PATH) not in sys.path:
-        sys.path.insert(0, str(TEST_MODULE_PATH))
-    else:
-        pass
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
+
+if str(TEST_MODULE_PATH) not in sys.path:
+    sys.path.insert(0, str(TEST_MODULE_PATH))
+else:
+    pass
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
