@@ -7,7 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict
+from typing import Union, List, Dict,Optional
 import pandas as pd
 import psycopg2
 from psycopg2 import sql
@@ -55,8 +55,8 @@ def get_directory_name(name: str) -> str:
 def is_empty(iterable: Union[List, Dict, set]) -> bool:
     return not bool(iterable)
 
-
-def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort_by_ID: bool = False, date_time_format: bool = False) -> pd.DataFrame:
+@st.cache
+def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort: bool = False, sort_by: Optional[str] = None, asc:bool=True,date_time_format: bool = False) -> pd.DataFrame:
     if data:
 
         df = pd.DataFrame(data, columns=column_names)
@@ -65,12 +65,12 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
             df['Date/Time'] = pd.to_datetime(df['Date/Time'],
                                              format='%Y-%m-%d %H:%M:%S')
 
-            df.sort_values(by=['Date/Time'], inplace=True,
-                           ascending=False, ignore_index=True)
-        elif sort_by_ID:
+            # df.sort_values(by=['Date/Time'], inplace=True,
+            #                ascending=False, ignore_index=True)
+        if sort:
 
-            df.sort_values(by=['ID'], inplace=True,
-                           ascending=True, ignore_index=True)
+            df.sort_values(by=[sort_by], inplace=True,
+                           ascending=asc, ignore_index=True)
 
             # dfStyler = df.style.set_properties(**{'text-align': 'center'})
             # dfStyler.set_table_styles(
@@ -96,4 +96,3 @@ def check_if_exists(table: str, column_name: str, condition, conn):
     exist_flag = db_fetchone(check_if_exists_SQL, conn, check_if_exists_vars)
 
     return exist_flag
-

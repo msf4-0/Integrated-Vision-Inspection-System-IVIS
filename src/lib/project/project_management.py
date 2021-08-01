@@ -63,6 +63,7 @@ class BaseProject:
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.dataset_list: Dict = {}
         self.image_name_list: List = []
+        self.annotation_task_join = []
 
     @st.cache
     def query_dataset_list(self) -> List:
@@ -123,6 +124,44 @@ class BaseProject:
             #     [dict(selector='th', props=[('text-align', 'center')])])
 
         return df
+
+    
+    def get_annotation_task_list(self):
+        query_annotation_task_JOIN_SQL = """
+            SELECT
+                t.id AS "Task ID",
+                t.name AS "Task Name",
+                d.name AS "Dataset Name",
+                t.is_labelled AS "Is Labelled",
+                t.skipped AS "Skipped",
+                a.updated_at AS "Date/Time"
+            FROM
+                annotations a
+                INNER JOIN public.task t ON a.task_id = t.id
+                INNER JOIN public.dataset d ON d.id = t.dataset_id
+            WHERE
+                t.project_id = %s
+            ORDER BY
+                d.name DESC;"""
+
+        annotation_task_join,column_names = db_fetchall(query_annotation_task_JOIN_SQL, conn, [
+            self.id], fetch_col_name=True)
+        annotation_task_join_tmp = []
+        if annotation_task_join:
+            for annotation_task in annotation_task_join:
+
+                # convert datetime with TZ to (2021-07-30 12:12:12) format
+                converted_datetime = annotation_task.Date_Time.strftime(
+                    '%Y-%m-%d %H:%M:%S')
+                annotation_task = annotation_task._replace(
+                    Date_Time=converted_datetime)
+                annotation_task_join_tmp.append(annotation_task)
+
+            self.annotation_task_join = annotation_task_join_tmp
+        else:
+            self.annotation_task_join = []
+
+        return column_names
 
     @st.cache(ttl=600)
     def query_all_projects(self) -> List[NamedTuple]:

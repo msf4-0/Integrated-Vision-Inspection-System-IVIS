@@ -284,6 +284,7 @@ def show():
             field, field_placeholder=place)
 
         if session_state.new_project.has_submitted:
+            # TODO #13 Load Task into DB after creation of project
             if session_state.new_project.initialise_project():
                 session_state.new_editor.project_id = session_state.new_project.id
                 if session_state.new_editor.init_editor():

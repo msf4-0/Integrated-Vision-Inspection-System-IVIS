@@ -105,6 +105,8 @@ def show():
         session_state.labelling_interface = ([], [], [], 0)
     if "new_annotation_flag" not in session_state:
         session_state.new_annotation_flag = 0
+    if "data_selection" not in session_state:
+        session_state.data_selection = None
 
     session_state.project.query_all_fields()
     # ******** SESSION STATE *********************************************************
@@ -142,7 +144,7 @@ def show():
     # _, col1, _, col2, _, col3, _ = st.beta_columns(
     #     [0.2, 1, 0.2, 1, 0.2, 1, 0.2])
 
-    col1, col2 = st.beta_columns([1, 2])
+    col1, col2 = st.beta_columns([1, 1])
     dataset_selection = col1.selectbox(
         "Dataset", options=session_state.project.dataset_name_list, key="dataset_sel")
     project_id = session_state.project.id
@@ -216,7 +218,7 @@ def show():
                 f"{e}: Dataset Loading error causing list to be non iterable")
 
         try:
-            data_selection = st.selectbox(
+            session_state.data_selection = st.selectbox(
                 "Data", options=data_list, key="data_sel")
 
         except ValueError as e:
@@ -225,6 +227,74 @@ def show():
         st.form_submit_button(
             "Confirm", on_click=check_if_task_exist, args=(project_id, dataset_id, conn,))
         # st.write(vars(session_state.annotation))
+
+# >>>>>>>> TABLE OF DATA LIST >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+# TODO: #11 Add Table to show list of data
+    col1.write("### Table of Data")
+    annotation_task_column_names = session_state.project.get_annotation_task_list()
+
+    if "annotation_task_page" not in session_state:
+        session_state.annotation_task_page = 0
+
+    def next_page():
+        session_state.annotation_task_page += 1
+
+    def prev_page():
+        session_state.annotation_task_page -= 1
+
+    # if session_state.project.annotation_task_join:
+    with col1:
+        start = 10 * session_state.annotation_task_page
+        end = start + 10
+
+        df = create_dataframe(session_state.project.annotation_task_join, column_names=annotation_task_column_names,
+                              sort=True, sort_by='Dataset Name', asc=False, date_time_format=True)
+        df_slice = df.iloc[start:end]
+        # if data_selection:
+        # TODO #14 Data Selection not updated
+
+        def highlight_row(x, selections):
+
+            if x["Task Name"] in selections:
+
+                return ['background-color: #90a4ae'] * len(x)
+            else:
+                return ['background-color: '] * len(x)
+
+        styler = df_slice.style.apply(
+            highlight_row, selections=session_state.data_sel, axis=1)
+        st.write(session_state.data_sel)
+        # else:
+        #     styler = df_slice.style
+
+        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+            [dict(selector='th', props=[('text-align', 'center')])]))
+
+    _,button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
+        [0.2,0.15, 0.5, 0.45, 0.5, 0.15, 2])
+
+    num_data_per_page = 10
+    num_data_page = len([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]
+        ) // num_data_per_page
+        # df["Task Name"]
+    if num_data_page > 1:
+        if session_state.annotation_task_page < num_data_page:
+            button_col3.button(">", on_click=next_page)
+        else:
+            # this makes the empty column show up on mobile
+            button_col3.write("")
+
+        if session_state.annotation_task_page > 0:
+            button_col1.button("<", on_click=prev_page)
+        else:
+            # this makes the empty column show up on mobile
+            button_col1.write("")
+
+        button_col2.write(f"Page {1+session_state.annotation_task_page} of {num_data_page}")
+
+# >>>>>>>> TABLE OF DATA LIST >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 
 # *************************EDITOR**********************************************
 
@@ -331,8 +401,8 @@ def show():
         annotations_dict = session_state.annotation.generate_annotation_dict()
         task = session_state.task.generate_editor_format(
             annotations_dict=annotations_dict, predictions_dict=None)
-        st.write(annotations_dict)
-        st.write(f"Before result: {session_state.annotation.result}")
+        # st.write(annotations_dict)
+        # st.write(f"Before result: {session_state.annotation.result}")
 
     # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
     except Exception as e:
@@ -350,17 +420,7 @@ def show():
             }
         }
     # st.json(task)
-# TODO: REMOVE
-    # task = {
-    #     "annotations":
-    #         [],
-    #     'predictions': [],
-    #     'id': 1,
-    #     'data': {
-    #         # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
-    #         'image': load_sample_image()
-    #             }
-    # }
+
     if "labelling_interface" in session_state:
         del session_state.labelling_interface
 
@@ -374,85 +434,11 @@ def show():
                 # result, flag = EDITOR_CONFIG.get(session_state.project.deployment_type, DetectionBBOX)(
                 #     session_state.editor.editor_config, user, task)
                 session_state.new_annotation_flag = 1  # UNLOCK for changes
+
+# TODO: #12 Component doesn't load on second run -> only in incognito (no caching)
                 result_raw = st_labelstudio(
                     session_state.editor.editor_config, interfaces, user, task, key="labelling_interface")
 
-                # if result_raw:
-
-                #     result, flag = EDITOR_CONFIG.get(
-                #         session_state.project.deployment_type, DetectionBBOX)(result_raw)
-                #     log_info(f"Flag at main: {flag}")
-
-# ********************************************************************************************************
-                # if result:
-                #     if flag == EditorFlag.START:  # LOAD EDITOR
-                #         log_info("Editor Loaded (In result)")
-                #         pass
-
-                #     elif flag == EditorFlag.SUBMIT:  # NEW ANNOTATION
-                #         try:
-
-                #             session_state.annotation.submit_annotations(
-                #                 result, session_state.user.id, conn)
-
-                #             log_info(
-                #                 f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
-                #             # st.json(session_state.annotation.result)
-                #             # st.experimental_rerun()
-
-                #         except Exception as e:
-                #             log_error(f"{e}: New Annotation error")
-
-                #     elif flag == EditorFlag.UPDATE:  # UPDATE ANNOTATION
-                #         try:
-
-                #             session_state.annotation.result = session_state.annotation.update_annotations(
-                #                 result, session_state.user.id, conn).result
-
-                #             # log_info(
-                #             #     f"Update annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
-                #             # st.json(session_state.annotation.result)
-                #             # st.experimental_rerun()
-                #         except Exception as e:
-                #             log_error(f"{e}: Update annotation error")
-
-                #     elif flag == EditorFlag.DELETE:  # DELETE ANNOTATION
-                #         try:
-
-                #             session_state.annotation.result = session_state.annotation.delete_annotation(
-                #                 conn).result
-
-                #             log_info(
-                #                 f"Delete annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
-                #             # st.json(session_state.annotation.result)
-                #         except Exception as e:
-                #             log_error(f"{e}: Delete annotation error")
-
-                #     else:
-                #         pass
-                #     # session_state.labelling_interface = None
-                #     # st.write(
-                #     #     f"After result: {session_state.annotation.result}")
-                # else:
-                #     if flag == EditorFlag.START:  # LOAD EDITOR
-                #         log_info("Editor Loaded")
-                #         pass
-
-                #     elif flag == EditorFlag.SKIP:  # NEW ANNOTATION
-                #         try:
-
-                #             skip_return = session_state.annotation.skip_task(
-                #                 skipped=True, conn=conn)
-
-                #             log_info(
-                #                 f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
-                #         except Exception as e:
-                #             log_error(e)
-                #     else:
-                #         pass
-                # else:  # to results_raw
-                #     log_error("No results")
-                #     pass
 # ********************************************************************************************************
             except KeyError as e:
                 log_error(f"Editor {e}")
@@ -472,16 +458,12 @@ def show():
 
 # *************************EDITOR**********************************************
 
-    col1, col2 = st.beta_columns([1, 2])
-    col1.text_input("Check column", key="column1")
-    col2.text_input("Check column", key="column2")
-
     col1, col2, col3 = st.beta_columns(3)
-    col1.write(vars(session_state.project))
-    # col1.write(session_state.project.dataset_list['My Third Dataset'])
-    col2.write(vars(session_state.editor))
-    # col3.write(vars(session_state.task))
-    st.write(vars(session_state.user))
+    # col1.write(vars(session_state.project))
+    # # col1.write(session_state.project.dataset_list['My Third Dataset'])
+    # col2.write(vars(session_state.editor))
+    # # col3.write(vars(session_state.task))
+    # st.write(vars(session_state.user))
 
 
 def main():

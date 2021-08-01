@@ -209,3 +209,20 @@ SET
 WHERE
     project_id = % s;
 
+-- Query Project Annotation Task List
+SELECT
+    t.id AS "Task ID",
+    t.name AS "Task Name",
+    d.name AS "Dataset Name",
+    t.is_labelled AS "Is Labelled",
+    t.skipped AS "Skipped",
+    a.updated_at AS "Date/Time"
+FROM
+    annotations a
+    INNER JOIN public.task t ON a.task_id = t.id
+    INNER JOIN public.dataset d ON d.id = t.dataset_id
+WHERE
+    t.project_id = % s
+ORDER BY
+    d.name DESC;
+
