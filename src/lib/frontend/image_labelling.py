@@ -230,7 +230,6 @@ def show():
 
 # >>>>>>>> TABLE OF DATA LIST >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-# TODO: #11 Add Table to show list of data
     col1.write("### Table of Data")
     annotation_task_column_names = session_state.project.get_annotation_task_list()
 
@@ -263,21 +262,22 @@ def show():
                 return ['background-color: '] * len(x)
 
         styler = df_slice.style.apply(
-            highlight_row, selections=session_state.data_sel, axis=1)
-        st.write(session_state.data_sel)
+            highlight_row, selections=session_state.data_selection, axis=1)
+
         # else:
         #     styler = df_slice.style
 
         st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
             [dict(selector='th', props=[('text-align', 'center')])]))
 
-    _,button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
-        [0.2,0.15, 0.5, 0.45, 0.5, 0.15, 2])
+    # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    _, button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
+        [0.2, 0.15, 0.5, 0.45, 0.5, 0.15, 2])
 
     num_data_per_page = 10
-    num_data_page = len([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]
-        ) // num_data_per_page
-        # df["Task Name"]
+    num_data_page = len(session_state.project.annotation_task_join
+                        ) // num_data_per_page
+    # df["Task Name"]
     if num_data_page > 1:
         if session_state.annotation_task_page < num_data_page:
             button_col3.button(">", on_click=next_page)
@@ -291,8 +291,9 @@ def show():
             # this makes the empty column show up on mobile
             button_col1.write("")
 
-        button_col2.write(f"Page {1+session_state.annotation_task_page} of {num_data_page}")
-
+        button_col2.write(
+            f"Page {1+session_state.annotation_task_page} of {num_data_page}")
+    # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # >>>>>>>> TABLE OF DATA LIST >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 

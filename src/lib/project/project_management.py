@@ -62,8 +62,8 @@ class BaseProject:
         self.datasets: List = self.query_dataset_list()
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.dataset_list: Dict = {}
-        self.image_name_list: List = []
-        self.annotation_task_join = []
+        self.image_name_list: List = []  # for image_labelling
+        self.annotation_task_join = []  # for image_labelling
 
     @st.cache
     def query_dataset_list(self) -> List:
@@ -125,7 +125,6 @@ class BaseProject:
 
         return df
 
-    
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
             SELECT
@@ -144,7 +143,7 @@ class BaseProject:
             ORDER BY
                 d.name DESC;"""
 
-        annotation_task_join,column_names = db_fetchall(query_annotation_task_JOIN_SQL, conn, [
+        annotation_task_join, column_names = db_fetchall(query_annotation_task_JOIN_SQL, conn, [
             self.id], fetch_col_name=True)
         annotation_task_join_tmp = []
         if annotation_task_join:

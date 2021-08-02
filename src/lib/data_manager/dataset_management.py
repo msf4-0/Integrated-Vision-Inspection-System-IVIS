@@ -5,9 +5,10 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+from collections import namedtuple
 import sys
 from pathlib import Path
-from typing import Union, List
+from typing import NamedTuple, Union, List
 import psycopg2
 from PIL import Image
 from time import sleep
@@ -28,7 +29,7 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection, db_fetchone
+from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import get_directory_name
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -49,7 +50,8 @@ class BaseDataset:
         self.dataset_path: Path = None
         self.deployment_id: Union[str, int] = None
         self.deployment_type: str = None
-        self.dataset = []
+        self.dataset = []  # to hold new data from upload
+        self.dataset_list = []  # List of existing dataset
 
 
 class NewDataset(BaseDataset):
@@ -191,6 +193,67 @@ class NewDataset(BaseDataset):
         if self.dataset_PNG_encoding():
             # st.success(f"Successfully created **{self.name}** dataset")
             return self.dataset_path
+
+
+class Dataset(BaseDataset):
+    def __init__(self, dataset_id=None) -> None:
+        super().__init__(dataset_id)
+
+
+@st.cache
+def query_dataset_list() -> namedtuple:
+    """Query list of dataset from DB, Column Names: TRUE
+
+    Returns:
+        namedtuple: List of datasets
+    """
+
+    query_dataset_SQL = """
+        SELECT
+            id AS "ID",
+            name AS "Name",
+            dataset_size AS "Dataset Size",
+            updated_at AS "Date/Time",
+            description AS "Description",
+            dataset_path AS "Dataset Path",
+            (SELECT dt.name AS "Deployment Type" from public.deployment_type dt where dt.id = d.deployment_id)
+        FROM
+            public.dataset d;"""
+
+    datasets, column_names = db_fetchall(
+        query_dataset_SQL, conn, fetch_col_name=True)
+    log_info("Querying dataset from database......")
+    dataset_tmp = []
+    if datasets:
+        for dataset in datasets:
+
+            # convert datetime with TZ to (2021-07-30 12:12:12) format
+            converted_datetime = dataset.Date_Time.strftime(
+                '%Y-%m-%d %H:%M:%S')
+
+            dataset = dataset._replace(
+                Date_Time=converted_datetime)
+            dataset_tmp.append(dataset)
+
+        # self.dataset_list = dataset_tmp
+    else:
+        dataset_tmp = []
+
+    return dataset_tmp, column_names
+
+
+@st.cache
+def get_dataset_name_list(dataset_list: List[namedtuple]):
+
+    dataset_name_list = {}  # list of dataset name for selectbox
+    dataset_dict = {}  # use to store named tuples as value to dataset name as key
+
+    if dataset_list:
+        for dataset in dataset_list:
+            dataset_name_list[dataset.Name] = dataset.ID
+            dataset_dict[dataset.Name] = dataset
+        log_info("Generating list of dataset names and ID......")
+    return dataset_name_list, dataset_dict
 
 
 def main():

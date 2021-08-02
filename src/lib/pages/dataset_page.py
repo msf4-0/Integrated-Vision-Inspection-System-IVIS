@@ -1,0 +1,186 @@
+"""
+Title:Dataset Dashboard Page
+Date: 1/8/2021
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+"""
+
+import sys
+from pathlib import Path
+import streamlit as st
+from collections import namedtuple
+from streamlit import cli as stcli  # Add CLI so can run Python script directly
+from streamlit import session_state as session_state
+
+# DEFINE Web APP page configuration
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
+
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
+
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
+
+# >>>> User-defined Modules >>>>
+from path_desc import chdir_root
+from core.utils.log import log_info, log_error  # logger
+from core.utils.helper import create_dataframe
+from data_manager.database_manager import init_connection
+from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
+# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
+
+# >>>> Variable Declaration <<<<
+conn = init_connection(**st.secrets["postgres"])
+PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
+# <<<< Variable Declaration <<<<
+# >>>> Template >>>>
+chdir_root()  # change to root directory
+# initialise connection to Database
+
+with st.sidebar.beta_container():
+    st.image("resources/MSF-logo.gif", use_column_width=True)
+# with st.beta_container():
+    st.title("Integrated Vision Inspection System", anchor='title')
+    st.header(
+        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    st.markdown("""___""")
+    st.radio("", options=PAGE_OPTIONS, key="all_pages")
+
+
+# <<<< Template <<<<
+
+
+def main():
+    # Page title
+    st.write("# **Dataset**")
+    st.markdown("___")
+
+    # >>>> Dataset SIDEBAR >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    DATASET_PAGE = ("All Datasets", "New Dataset")
+    with st.sidebar.beta_expander("Dataset Page", expanded=True):
+        session_state.current_page = st.radio("", options=DATASET_PAGE,
+                                              index=0)
+
+    # <<<< Dataset SIDEBAR <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    if "existing_dataset" not in session_state:
+        # session_state.existing_dataset = []
+        session_state.dataset_data = {}
+
+    # ********* QUERY DATASET ********************************************
+    existing_dataset, dataset_table_column_names = query_dataset_list()
+    dataset_name_list, dataset_dict = get_dataset_name_list(existing_dataset)
+    # ********* QUERY DATASET ********************************************
+
+    # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    top_col1, _, topcol2, _, _ = st.beta_columns([0.15, 0.3, 2, 3.5, 0.5])
+
+    with top_col1:
+        st.write("## ")
+        st.button("➕️", key="new_dataset", help="Create new dataset")
+
+    with topcol2:
+        dataset_selection = st.selectbox("Select Dataset", options=dataset_name_list,
+                                         key="dataset_sel", help="Select dataset to view details")
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TABLE OF DATA>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>> COLUMNS for BUTTONS
+    _, button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
+        [0.45, 0.15, 0.5, 0.45, 0.5, 0.15, 3.5])
+
+    _, outercol1, outercol2, outercol3 = st.beta_columns([0.4, 2, 3.5, 0.15])
+
+    # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    # ****** PAGINATION CALLBACK ********
+    if "dataset_table_page" not in session_state:
+        session_state.dataset_table_page = 0
+
+    def next_dataset_table_page():
+        session_state.dataset_table_page += 1
+        log_info("Increment")
+
+    def prev_dataset_table_page():
+        session_state.dataset_table_page -= 1
+        log_info("Decrement")
+
+    num_data_per_page = 25
+    num_data_page = len(dataset_name_list) // num_data_per_page
+    # df["Task Name"]
+    # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    log_info("Dataframe zone")
+    with outercol1:
+
+        start = num_data_per_page * session_state.dataset_table_page
+        end = start + num_data_per_page
+
+        df = create_dataframe(existing_dataset, column_names=dataset_table_column_names,
+                              sort=True, sort_by='ID', asc=True, date_time_format=True)
+        # Loc columns from ID to Date/Time
+        df_loc = df.loc[:, "ID":"Date/Time"]
+        df_slice = df_loc.iloc[start:end]
+        # if data_selection:
+
+        def highlight_row(x, selections):
+
+            if x.Name in selections:
+
+                return ['background-color: #90a4ae'] * len(x)
+            else:
+                return ['background-color: '] * len(x)
+
+        styler = df_slice.style.apply(
+            highlight_row, selections=session_state.dataset_sel, axis=1)
+
+        # else:
+        #     styler = df_slice.style
+
+        st.dataframe(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+            [dict(selector='th', props=[('text-align', 'center')])]))
+    # <<<<<<<<<<PANDAS DATAFRAME <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    if num_data_page > 1:
+        if session_state.dataset_table_page < num_data_page:
+            button_col3.button(">", on_click=next_dataset_table_page)
+        else:
+            # this makes the empty column show up on mobile
+            button_col3.write("")
+
+        if session_state.dataset_table_page > 0:
+            button_col1.button("<", on_click=prev_dataset_table_page)
+        else:
+            # this makes the empty column show up on mobile
+            button_col1.write("")
+
+        button_col2.write(
+            f"Page {1+session_state.dataset_table_page} of {num_data_page}")
+
+    # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<TABLE OF DATA<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    # TODO #17 Load details of existing dataset
+    with outercol2:
+        log_info("Outercol2 Zone")
+        # TODO: ADD show() function to load existing dataset and new dataset page?
+        st.write(dataset_dict)
+        pass
+
+    # TODO #18 show gallery of data and allow modification/deletion
+    # <<<< CREATE NEW DATASET AND SELECT DATASET <<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+if __name__ == "__main__":
+    if st._is_running_with_streamlit:
+        main()
+    else:
+        sys.argv = ["streamlit", "run", sys.argv[0]]
+        sys.exit(stcli.main())
