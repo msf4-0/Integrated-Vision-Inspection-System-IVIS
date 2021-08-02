@@ -1,6 +1,6 @@
 """
-Title: New Dataset Page
-Date: 7/7/2021
+Title: Existing Dataset Page
+Date: 2/8/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
@@ -13,6 +13,7 @@ import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from copy import deepcopy
 from time import sleep
+from typing import Dict, List, Union, Optional
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -29,11 +30,10 @@ SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 # TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
     # if str(TEST_MODULE_PATH) not in sys.path:
     #     sys.path.insert(0, str(TEST_MODULE_PATH))
@@ -47,7 +47,6 @@ from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.dataset_management import NewDataset
 from core.utils.file_handler import bytes_divisor
-from data_export.label_studio_converter.converter import Converter
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -59,26 +58,36 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-class AnnotationType(IntEnum):
+class DeploymentType(IntEnum):
     Image_Classification = 1
-    BBox = 2
-    Polygons = 3
-    Masks = 4
+    OD = 2
+    Instance = 3
+    Semantic = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return DeploymentType[s]
+        except KeyError:
+            raise ValueError()
 
 
-def show():
+def show(dataset_info: Dict = None):
 
     chdir_root()  # change to root directory
 
-    with st.sidebar.beta_container():
+    # with st.sidebar.beta_container():
 
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.beta_container():
-        st.title("Integrated Vision Inspection System", anchor='title')
+    #     st.image("resources/MSF-logo.gif", use_column_width=True)
+    # # with st.beta_container():
+    #     st.title("Integrated Vision Inspection System", anchor='title')
 
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-        st.markdown("""___""")
+    #     st.header(
+    #         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    #     st.markdown("""___""")
 
     # ******** SESSION STATE ********
     if "current_page" not in session_state:
@@ -86,8 +95,7 @@ def show():
 
     if "new_dataset" not in session_state:
         # set random dataset ID before getting actual from Database
-        session_state.new_dataset = NewDataset(get_random_string(length=8))
-        session_state.data_source = "File Upload 📂"
+        session_state.data_source = "File Upload 📂"  # for Dataset upload
     # ******** SESSION STATE ********
 
     # >>>> Dataset SIDEBAR >>>>
@@ -99,13 +107,16 @@ def show():
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
-    st.write("# __Add New Dataset__")
-    st.markdown("___")
-
+    # st.write("# __Add New Dataset__")
+    # st.markdown("___")
+    dt_place, project_id_place = st.beta_columns([3, 1])
+    
+    
     # right-align the dataset ID relative to the page
     id_blank, id_right = st.beta_columns([3, 1])
-    id_right.write(
-        f"### __Dataset ID:__ {session_state.new_dataset.dataset_id}")
+    if dataset_info:
+        id_right.write(
+            f"### __Dataset ID:__ {dataset_info.ID}")
 
     create_dataset_place = st.empty()
     # if layout == 'wide':
