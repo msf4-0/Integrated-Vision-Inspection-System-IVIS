@@ -49,11 +49,14 @@ class BaseDataset:
         self.dataset_size: int = None  # Number of files
         self.dataset_path: Path = None
         self.deployment_id: Union[str, int] = None
+        self.filetype:str=None
         self.deployment_type: str = None
         self.dataset = []  # to hold new data from upload
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
-
+        
+# TODO #20
+# NOTE DEPRECATED *************************
     def query_deployment_id(self) -> int:
         query_id_SQL = """
                         SELECT
@@ -70,9 +73,13 @@ class BaseDataset:
         else:
             self.deployment_id = None
 
+# NOTE DEPRECATED *************************
+
+# TODO #20
+# Removed Deployment Type
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
-        keys = ["name", "deployment_type", "upload"]
+        keys = ["name", "upload"]
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
         for i in field:
             if i and i != "":
@@ -150,6 +157,7 @@ class NewDataset(BaseDataset):
         self.dataset_total_filesize = 0  # in byte-size
         self.has_submitted = False
 
+    #removed deployment type and insert filetype_id select from public.filetype table
     def insert_dataset(self):
         insert_dataset_SQL = """
                                 INSERT INTO public.dataset (
@@ -158,14 +166,14 @@ class NewDataset(BaseDataset):
                                     file_type,
                                     dataset_path,
                                     dataset_size,
-                                    deployment_id)
+                                    filetype)
                                 VALUES (
                                     %s,
                                     %s,
                                     %s,
                                     %s,
                                     %s,
-                                    %s)
+                                    (SELECT ft.id from public.filetype ft where ft.name = %s))
                                 RETURNING id;
                             """
         insert_dataset_vars = [self.name, self.desc, self.file_type,
@@ -196,7 +204,7 @@ class Dataset(BaseDataset):
         self.desc = dataset.Description
         self.dataset_size = dataset.Dataset_Size
         self.dataset_path = dataset.Dataset_Path
-        self.deployment_type = dataset.Deployment_Type
+        self.file_type = dataset.File_Type
 
 
 @st.cache
@@ -206,7 +214,7 @@ def query_dataset_list() -> List[namedtuple]:
     Returns:
         namedtuple: List of datasets
     """
-
+# TODO #20
     query_dataset_SQL = """
         SELECT
             id AS "ID",
@@ -215,7 +223,7 @@ def query_dataset_list() -> List[namedtuple]:
             updated_at AS "Date/Time",
             description AS "Description",
             dataset_path AS "Dataset Path",
-            (SELECT dt.name AS "Deployment Type" from public.deployment_type dt where dt.id = d.deployment_id)
+            (SELECT ft.name AS "File Type" from public.file_type ft where ft.id = d.filetype_id)
         FROM
             public.dataset d;"""
 

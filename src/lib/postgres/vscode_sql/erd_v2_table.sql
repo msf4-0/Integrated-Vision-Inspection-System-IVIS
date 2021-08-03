@@ -241,10 +241,9 @@ CREATE TABLE IF NOT EXISTS public.dataset (
     CACHE 1),
     name text NOT NULL UNIQUE,
     description text,
-    file_type character varying(100) NOT NULL,
     dataset_path text NOT NULL,
     dataset_size integer,
-    deployment_id integer,
+    filetype_id integer,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))

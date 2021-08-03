@@ -104,9 +104,9 @@ ALTER TABLE public.predictions VALIDATE CONSTRAINT fk_task_id;
 
 -- DATASET
 ALTER TABLE IF EXISTS public.dataset
-    ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
+    ADD CONSTRAINT fk_filetype_id FOREIGN KEY (filetype_id) REFERENCES public.filetype (id) ON DELETE SET NULL NOT VALID;
 
-ALTER TABLE public.dataset VALIDATE CONSTRAINT fk_deployment_id;
+ALTER TABLE public.dataset VALIDATE CONSTRAINT fk_filetype_id;
 
 --TASK
 ALTER TABLE IF EXISTS public.task

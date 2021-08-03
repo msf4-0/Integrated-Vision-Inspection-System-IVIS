@@ -136,17 +136,17 @@ def show(dataset_info: Dict = None):
     else:
         pass
 
-    deployment_type = outercol2.selectbox(
-        "Deployment Type", key="deployment_type", index=DEPLOYMENT_TYPE.index(dataset.deployment_type), options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
+#     deployment_type = outercol2.selectbox(
+#         "Deployment Type", key="deployment_type", index=DEPLOYMENT_TYPE.index(dataset.deployment_type), options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
+# # TODO #20
+#     if deployment_type is not None:
+#         dataset.deployment_type = deployment_type
+#         dataset.query_deployment_id()
 
-    if deployment_type is not None:
-        dataset.deployment_type = deployment_type
-        dataset.query_deployment_id()
+#     else:
+#         pass
 
-    else:
-        pass
-
-    place["deployment_type"] = outercol2.empty()
+#     place["deployment_type"] = outercol2.empty()
 
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
@@ -225,8 +225,7 @@ def show(dataset_info: Dict = None):
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # **** Submit Button ****
     success_place = st.empty()
-    field = [dataset.name,
-             dataset.deployment_id, dataset.dataset]
+    field = [dataset.name,dataset.dataset]
     st.write(field)
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
     submit_button = submit_col2.button("Update", key="update")
