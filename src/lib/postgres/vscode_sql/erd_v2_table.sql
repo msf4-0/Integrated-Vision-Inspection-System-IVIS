@@ -475,3 +475,24 @@ VALUES (
 
 ALTER TABLE public.users RENAME COLUMN account_status TO status_id;
 
+-- FILETYPE table ---------------------------
+CREATE TABLE IF NOT EXISTS public.filetype (
+    id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
+    name character varying(50) UNIQUE NOT NULL,
+    PRIMARY KEY (id))
+TABLESPACE image_labelling;
+
+ALTER TABLE public.filetype OWNER TO shrdc;
+
+INSERT INTO public.filetype (
+    name)
+VALUES (
+    'Image'), --jpeg,jpg,png
+(
+    'Video'), -- mp4,mpeg,webm*,ogg*
+(
+    'Audio'), --* wav, aiff, mp3, au, flac, m4a, ogg
+(
+    'Text') -- txt,csv,tsv,json*,html*
+;
+
