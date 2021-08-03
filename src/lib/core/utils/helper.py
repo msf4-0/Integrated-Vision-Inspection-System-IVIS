@@ -11,6 +11,8 @@ from typing import Union, List, Dict,Optional
 import pandas as pd
 import psycopg2
 from psycopg2 import sql
+import mimetypes
+from streamlit.uploaded_file_manager import UploadedFile
 import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -96,3 +98,25 @@ def check_if_exists(table: str, column_name: str, condition, conn):
     exist_flag = db_fetchone(check_if_exists_SQL, conn, check_if_exists_vars)
 
     return exist_flag
+
+# MIME: type/subtype
+#get filetype 
+def get_filetype(file:Union[str,Path,UploadedFile]):
+    if isinstance(file,(str,Path)):
+        mime_type=mimetypes.guess_type(file)[0]
+        filetype=str(Path(mime_type).parent)
+    elif isinstance(file,UploadedFile):
+        mime_type=file.type
+        
+    filetype=str(Path(mime_type).parent)
+    return filetype
+
+
+def compare_filetypes(file_tuple:tuple):
+    filetype1,filetype2=file_tuple
+    print(file_tuple)
+    if filetype1==filetype2:
+        return True
+    else:
+        
+        return False
