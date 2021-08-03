@@ -252,15 +252,16 @@ def get_dataset_name_list(dataset_list: List[namedtuple]):
         Dict: Dictionary of namedtuple
     """
 
-    dataset_name_list = {}  # list of dataset name for selectbox
+    # dataset_name_list = {}  # list of dataset name for selectbox
     dataset_dict = {}  # use to store named tuples as value to dataset name as key
 
     if dataset_list:
         for dataset in dataset_list:
-            dataset_name_list[dataset.Name] = dataset.ID
+            # DEPRECATED -> dataset info can be accessed through namedtuple of dataset_dict
+            # dataset_name_list[dataset.Name] = dataset.ID
             dataset_dict[dataset.Name] = dataset
         log_info("Generating list of dataset names and ID......")
-    return dataset_name_list, dataset_dict
+    return dataset_dict
 
 
 def main():

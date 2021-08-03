@@ -71,33 +71,55 @@ def show():
                                               index=0)
 
     # <<<< Dataset SIDEBAR <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    if "existing_dataset" not in session_state:
+    if "dataset_data" not in session_state:
         # session_state.existing_dataset = []
         session_state.dataset_data = {}
 
     # ********* QUERY DATASET ********************************************
     existing_dataset, dataset_table_column_names = query_dataset_list()
-    dataset_name_list, dataset_dict = get_dataset_name_list(existing_dataset)
+    dataset_dict = get_dataset_name_list(existing_dataset)
     # ********* QUERY DATASET ********************************************
 
-    # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # ************COLUMN PLACEHOLDERS *****************************************************
+    # >>>> Column for Create New button and Dataset selectbox
+    topcol1, _, topcol2, _, _ = st.beta_columns([0.15, 0.3, 2, 3.5, 0.5])
 
-    top_col1, _, topcol2, _, _ = st.beta_columns([0.15, 0.3, 2, 3.5, 0.5])
-
-    with top_col1:
-        st.write("## ")
-        st.button("➕️", key="new_dataset", help="Create new dataset")
-
-    with topcol2:
-        dataset_selection = st.selectbox("Select Dataset", options=dataset_name_list,
-                                         key="dataset_sel", help="Select dataset to view details")
-
-    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TABLE OF DATA>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>> COLUMNS for BUTTONS
     _, button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
         [0.45, 0.15, 0.5, 0.45, 0.5, 0.15, 3.5])
 
-    _, outercol1, outercol2, outercol3 = st.beta_columns([0.4, 2, 3.5, 0.15])
+    # >>>> Main placeholders
+    _, outercol1, outercol2, outercol3 = st.beta_columns(
+        [0.4, 2, 3.5, 0.15])
+
+    # column placeholder for variable/class objects
+    _, varscol1, varscol2, varscol3 = st.beta_columns([0.4, 2, 3.5, 0.15])
+    # ************COLUMN PLACEHOLDERS *****************************************************
+
+    # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    with topcol1:
+        st.write("## ")
+        st.button("➕️", key="new_dataset", help="Create new dataset")
+
+    # >>>>>>>>> INSTATIATE DATASET CLASS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    # def instantiate_dataset_class(dataset_dict):
+    if "dataset" not in session_state:
+        session_state.dataset = Dataset(
+            dataset_dict[session_state.dataset_sel])
+    else:
+        session_state.dataset = Dataset(
+            dataset_dict[session_state.dataset_sel])
+    varscol1.write(vars(session_state.dataset))
+
+    # <<<<<<<< INSTATIATE DATASET CLASS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    # TODO: removed 'dataset selection'????
+    with topcol2:
+        dataset_selection = st.selectbox("Select Dataset", options=dataset_dict,
+                                         key="dataset_sel", help="Select dataset to view details")
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TABLE OF DATA>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -114,7 +136,8 @@ def show():
         log_info("Decrement")
 
     num_data_per_page = 25
-    num_data_page = len(dataset_name_list) // num_data_per_page
+    dataset_length = len(dataset_dict)
+    num_data_page = dataset_length // num_data_per_page
     # df["Task Name"]
     # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -148,6 +171,7 @@ def show():
 
         st.dataframe(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
             [dict(selector='th', props=[('text-align', 'center')])]))
+
     # <<<<<<<<<<PANDAS DATAFRAME <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     if num_data_page > 1:
@@ -163,9 +187,10 @@ def show():
             # this makes the empty column show up on mobile
             button_col1.write("")
 
-        button_col2.write(
-            f"Page {1+session_state.dataset_table_page} of {num_data_page}")
-
+        # button_col2.write(
+        #     f"Page {1+session_state.dataset_table_page} of {num_data_page}")
+    button_col2.write(
+        f"### Data **{1+start}-{len(df_slice)}** of **{dataset_length}**")  # Example <Data 1-3 of 3>
     # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<TABLE OF DATA<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # TODO #17 Load details of existing dataset
     with outercol2:
@@ -174,12 +199,12 @@ def show():
         st.write(dataset_dict)
         pass
 
-    # TODO #18 show gallery of data and allow modification/deletion
     # <<<< CREATE NEW DATASET AND SELECT DATASET <<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
 def main():
     show()
+
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

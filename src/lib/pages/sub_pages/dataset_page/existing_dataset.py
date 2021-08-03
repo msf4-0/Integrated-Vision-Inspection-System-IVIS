@@ -99,8 +99,6 @@ def show(dataset_info: Dict = None):
                                               index=0)
     # <<<< Dataset SIDEBAR <<<<
 
-# TODO #17 Load details of existing dataset
-
     # right-align the dataset ID relative to the page
     id_blank, id_right = st.beta_columns([3, 1])
     if dataset_info:
@@ -231,7 +229,7 @@ def show(dataset_info: Dict = None):
              dataset.deployment_id, dataset.dataset]
     st.write(field)
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
-    submit_button = submit_col2.button("Submit", key="submit")
+    submit_button = submit_col2.button("Update", key="update")
 
     if submit_button:
         dataset.has_submitted = dataset.check_if_field_empty(
@@ -262,6 +260,8 @@ def show(dataset_info: Dict = None):
             else:
                 st.error(
                     f"Failed to created **{dataset.name}** dataset")
+
+    # TODO #18 show gallery of data and allow modification/deletion
 
     st.write(vars(dataset))
     # for img in session_state.new_dataset.dataset:
