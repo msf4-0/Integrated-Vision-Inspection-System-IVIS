@@ -82,6 +82,7 @@ VALUES (
             public.roles
         WHERE
             name = 'Administrator'));
+
 -- ALTER TABLE public.users
 --     DROP CONSTRAINT users_account_status_check;
 -- CHECK (account_status IN ('NEW', 'ACTIVE', 'LOCKED', 'LOGGED_IN', 'LOGGED_OUT'))
@@ -297,11 +298,11 @@ CREATE TABLE IF NOT EXISTS public.dataset (
     file_type character varying(100) NOT NULL,
     dataset_path text NOT NULL,
     dataset_size integer,
-    deployment_id integer,
+    filetype_id integer,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL)
+    CONSTRAINT fk_filetype_id FOREIGN KEY (filetype_id) REFERENCES public.filetype (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
 
 CREATE TRIGGER dataset_update
@@ -526,6 +527,27 @@ VALUES (
     'LOGGED_IN'),
 (
     'LOGGED_OUT');
+
+-- FILETYPE table ---------------------------
+CREATE TABLE IF NOT EXISTS public.filetype (
+    id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
+    name character varying(50) UNIQUE NOT NULL,
+    PRIMARY KEY (id))
+TABLESPACE image_labelling;
+
+ALTER TABLE public.filetype OWNER TO shrdc;
+
+INSERT INTO public.filetype (
+    name)
+VALUES (
+    'Image'), --jpeg,jpg,png
+(
+    'Video'), -- mp4,mpeg,webm*,ogg*
+(
+    'Audio'), --* wav, aiff, mp3, au, flac, m4a, ogg
+(
+    'Text') -- txt,csv,tsv,json*,html*
+;
 
 END;
 

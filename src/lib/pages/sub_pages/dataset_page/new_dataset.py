@@ -141,18 +141,20 @@ def show():
     else:
         pass
 
-    deployment_type = outercol2.selectbox(
-        "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
 
-    if deployment_type is not None:
-        session_state.new_dataset.deployment_type = deployment_type
-        session_state.new_dataset.query_deployment_id()
-        # st.write(session_state.new_dataset.deployment_id)
+# NOTE: Deployment Type removed
+#     deployment_type = outercol2.selectbox(
+#         "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
+# # TODO #20
+#     if deployment_type is not None:
+#         session_state.new_dataset.deployment_type = deployment_type
+#         session_state.new_dataset.query_deployment_id()
+#         # st.write(session_state.new_dataset.deployment_id)
 
-    else:
-        pass
-    outercol2.warning("Deployment Type cannot be modified after submission of the dataset")
-    place["deployment_type"] = outercol2.empty()
+#     else:
+#         pass
+#     outercol2.warning("Deployment Type cannot be modified after submission of the dataset")
+#     place["deployment_type"] = outercol2.empty()
 
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
@@ -230,9 +232,9 @@ def show():
 
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # **** Submit Button ****
+# TODO #20
     success_place = st.empty()
-    field = [session_state.new_dataset.name,
-             session_state.new_dataset.deployment_id, session_state.new_dataset.dataset]
+    field = [session_state.new_dataset.name, session_state.new_dataset.dataset]
     st.write(field)
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
