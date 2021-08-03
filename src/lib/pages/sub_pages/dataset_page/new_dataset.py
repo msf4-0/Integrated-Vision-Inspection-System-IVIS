@@ -13,9 +13,11 @@ import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from copy import deepcopy
 from time import sleep
+from typing import Union
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+from streamlit.uploaded_file_manager import UploadedFile
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -44,6 +46,7 @@ from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 from core.webcam import webcam_webrtc
+from core.utils.helper import get_filetype,compare_filetypes
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.dataset_management import NewDataset
 from core.utils.file_handler import bytes_divisor
@@ -198,9 +201,42 @@ def show():
             webcam_webrtc.app_loopback()
 
     # >>>> FILE UPLOAD >>>>
+    #TODO #24 Add other filetypes based on filetype table
+
+    
+
     elif data_source == 1:
+        def check_filetype_category(uploaded_files:Union[str,Path,UploadedFile]):
+            if uploaded_files:
+                if len(uploaded_files)==1:
+                    filetype=get_filetype(uploaded_files)
+
+                else:
+                    filetypes=map(compare_filetypes,zip(uploaded_files[:],uploaded_files[1:]))
+                    for filetype in filetypes:
+                        if filetype:
+                            log_info("Filetype passed")
+                            pass
+                        else:
+                            log_error("Filetype different")
+                            break
+
+
+
+
         uploaded_files_multi = outercol2.file_uploader(
-            label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload_widget")
+            label="Upload Image", type=['jpg', "png", "jpeg","mp4","mpeg","wav","mp3","m4a","txt","csv","tsv"], accept_multiple_files=True, key="upload_widget")
+        
+        # ******** INFO for FILE FORMAT **************************************
+        with outercol1.beta_expander("File Format Infomation",expanded=True):
+            file_format_info="""
+            1. Image: .jpg, .png, .jpeg
+            2. Video: .mp4, .mpeg
+            3. Audio: .wav, .mp3, .m4a
+            4. Text: .txt, .csv
+            """
+            st.info(file_format_info)
+
 
         if uploaded_files_multi:
             session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
@@ -244,7 +280,6 @@ def show():
             field, field_placeholder=place)
 
         if session_state.new_dataset.has_submitted:
-            # TODO: Upload to database
             # st.success(""" Successfully created new dataset: {0}.
             #                 """.format(session_state.new_dataset.name))
 
