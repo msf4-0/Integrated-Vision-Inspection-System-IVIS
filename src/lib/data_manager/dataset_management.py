@@ -8,7 +8,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 from collections import namedtuple
 import sys
 from pathlib import Path
-from typing import NamedTuple, Union, List
+from typing import Dict, Tuple, Union, List
 import psycopg2
 from PIL import Image
 from time import sleep
@@ -52,14 +52,7 @@ class BaseDataset:
         self.deployment_type: str = None
         self.dataset = []  # to hold new data from upload
         self.dataset_list = []  # List of existing dataset
-
-
-class NewDataset(BaseDataset):
-    def __init__(self, dataset_id) -> None:
-        # init BaseDataset -> Temporary dataset ID from random gen
-        super().__init__(dataset_id)
         self.dataset_total_filesize = 0  # in byte-size
-        self.has_submitted = False
 
     def query_deployment_id(self) -> int:
         query_id_SQL = """
@@ -100,27 +93,9 @@ class NewDataset(BaseDataset):
                 field_placeholder[keys[idx]].error(
                     f"Please do not leave field blank")
                 empty_fields.append(keys[idx])
-        # check if dataset title exist: field[0]
-        # if field[0]:
-        #     context = ['name', field[0]]
-        #     if self.check_if_exist(context, conn):
-        #         field_placeholder[keys[0]].error(
-        #             f"Dataset name used. Please enter a new name")
-        #         log_error(f"Dataset name used. Please enter a new name")
-        #         empty_fields.append(keys[0])
 
         # if empty_fields not empty -> return False, else -> return True
         return not empty_fields
-
-    def calc_total_filesize(self):
-        if self.dataset:
-            self.dataset_total_filesize = 0
-            for data in self.dataset:
-                self.dataset_total_filesize += data.size
-            # To get size in MB
-            self.dataset_total_filesize = bytes_divisor(
-                self.dataset_total_filesize, -2)
-        return self.dataset_total_filesize
 
     def check_if_exist(self, context: List, conn) -> bool:
         check_exist_SQL = """
@@ -135,6 +110,45 @@ class NewDataset(BaseDataset):
                         """
         exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
         return exist_status
+
+    def dataset_PNG_encoding(self):
+        if self.dataset:
+            for img in self.dataset:
+                img_name = img.name
+                log_info(img.name)
+                save_path = Path(self.dataset_path) / str(img_name)
+                st.title(img.name)
+                try:
+                    with Image.open(img) as pil_img:
+                        pil_img.save(save_path)
+                except ValueError as e:
+                    log_error(
+                        f"{e}: Could not reolve output format for '{str(img_name)}'")
+                except OSError as e:
+                    log_error(
+                        f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")
+                else:
+                    log_info(
+                        f"Successfully stored '{str(img_name)}' in '{str(self.dataset_path)}' ")
+            return True
+
+    def calc_total_filesize(self):
+        if self.dataset:
+            self.dataset_total_filesize = 0
+            for data in self.dataset:
+                self.dataset_total_filesize += data.size
+            # To get size in MB
+            self.dataset_total_filesize = bytes_divisor(
+                self.dataset_total_filesize, -2)
+        return self.dataset_total_filesize
+
+
+class NewDataset(BaseDataset):
+    def __init__(self, dataset_id) -> None:
+        # init BaseDataset -> Temporary dataset ID from random gen
+        super().__init__(dataset_id)
+        self.dataset_total_filesize = 0  # in byte-size
+        self.has_submitted = False
 
     def insert_dataset(self):
         insert_dataset_SQL = """
@@ -160,27 +174,6 @@ class NewDataset(BaseDataset):
             insert_dataset_SQL, conn, insert_dataset_vars)[0]
         return self.dataset_id
 
-    def dataset_PNG_encoding(self):
-        if self.dataset:
-            for img in self.dataset:
-                img_name = img.name
-                log_info(img.name)
-                save_path = Path(self.dataset_path) / str(img_name)
-                st.title(img.name)
-                try:
-                    with Image.open(img) as pil_img:
-                        pil_img.save(save_path)
-                except ValueError as e:
-                    log_error(
-                        f"{e}: Could not reolve output format for '{str(img_name)}'")
-                except OSError as e:
-                    log_error(
-                        f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")
-                else:
-                    log_info(
-                        f"Successfully stored '{str(img_name)}' in '{str(self.dataset_path)}' ")
-            return True
-
     def save_dataset(self) -> bool:
         directory_name = get_directory_name(
             self.name)  # change name to lowercase
@@ -196,12 +189,18 @@ class NewDataset(BaseDataset):
 
 
 class Dataset(BaseDataset):
-    def __init__(self, dataset_id=None) -> None:
-        super().__init__(dataset_id)
+    def __init__(self, dataset) -> None:
+        super(). __init__(dataset.ID)
+        self.id = dataset.ID
+        self.name = dataset.Name
+        self.desc = dataset.Description
+        self.dataset_size = dataset.Dataset_Size
+        self.dataset_path = dataset.Dataset_Path
+        self.deployment_type = dataset.Deployment_Type
 
 
 @st.cache
-def query_dataset_list() -> namedtuple:
+def query_dataset_list() -> List[namedtuple]:
     """Query list of dataset from DB, Column Names: TRUE
 
     Returns:
@@ -244,6 +243,14 @@ def query_dataset_list() -> namedtuple:
 
 @st.cache
 def get_dataset_name_list(dataset_list: List[namedtuple]):
+    """Generate Dictionary of namedtuple
+
+    Args:
+        dataset_list (List[namedtuple]): [description]
+
+    Returns:
+        Dict: Dictionary of namedtuple
+    """
 
     dataset_name_list = {}  # list of dataset name for selectbox
     dataset_dict = {}  # use to store named tuples as value to dataset name as key

@@ -171,7 +171,7 @@ def show():
 
     # >>>> Right Column to select dataset >>>>
     with outercol3:
-        session_state.project.datasets = session_state.project.query_project_dataset_list()
+        session_state.project.datasets, session_state.project.column_names = session_state.project.query_project_dataset_list()
         session_state.project.dataset_name_list, session_state.project.dataset_name_id = session_state.project.get_dataset_name_list()
 
         session_state.new_training.dataset_chosen = st.multiselect(
@@ -212,7 +212,11 @@ def show():
         start = 10 * session_state.dataset_page
         end = start + 10
 
-        df = session_state.project.create_dataset_dataframe()
+        df = create_dataframe(session_state.project.datasets, column_names=session_state.project.column_names,
+                              sort=True, sort_by='ID', asc=True, date_time_format=True)
+
+        df_loc = df.loc[:, "ID":"Date/Time"]
+        df_slice = df_loc.iloc[start:end]
 
         def highlight_row(x, selections):
 
@@ -221,18 +225,19 @@ def show():
                 return ['background-color: #90a4ae'] * len(x)
             else:
                 return ['background-color: '] * len(x)
-        df_slice = df.iloc[start:end]
-        styler = df_slice.style.format(
-            {
-                "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
 
-            }
-        )
+        # styler = df_slice.style.format(
+        #     {
+        #         "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
+
+        #     }
+        # )
+        styler = df_slice.style.apply(
+            highlight_row, selections=session_state.new_training.dataset_chosen, axis=1)
 
         # >>>>DATAFRAME
-        st.table(styler.apply(
-            highlight_row, selections=session_state.new_training.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
-                [dict(selector='th', props=[('text-align', 'center')])]))
+        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+            [dict(selector='th', props=[('text-align', 'center')])]))
     # <<<< Left Column to show full list of dataset and selection <<<<
 
     # >>>> Dataset Pagination >>>>

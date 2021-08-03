@@ -151,7 +151,7 @@ def show():
 
     else:
         pass
-
+    outercol2.warning("Deployment Type cannot be modified after submission of the dataset")
     place["deployment_type"] = outercol2.empty()
 
     # <<<<<<<< New Dataset INFO <<<<<<<<

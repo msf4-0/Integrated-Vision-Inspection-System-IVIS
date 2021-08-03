@@ -107,23 +107,22 @@ class BaseProject:
 
         return dataset_name_tmp, dataset_name_id
 
-    @st.cache
-    def create_dataset_dataframe(self) -> pd.DataFrame:
+    # @st.cache
+    # def create_dataset_dataframe(self) -> pd.DataFrame:
 
-        if self.datasets:
-            df = pd.DataFrame(self.datasets, columns=[
-                'ID', 'Name', 'Dataset Size', 'Date/Time'])
-            df['Date/Time'] = pd.to_datetime(df['Date/Time'],
-                                             format='%Y-%m-%d %H:%M:%S')
-            df.sort_values(by=['Date/Time'], inplace=True,
-                           ascending=False, ignore_index=True)
-            df.index.name = ('No.')
+    #     if self.datasets:
+    #         df = pd.DataFrame(self.datasets, columns=)
+    #         df['Date/Time'] = pd.to_datetime(df['Date/Time'],
+    #                                          format='%Y-%m-%d %H:%M:%S')
+    #         df.sort_values(by=['Date/Time'], inplace=True,
+    #                        ascending=False, ignore_index=True)
+    #         df.index.name = ('No.')
 
-            # dfStyler = df.style.set_properties(**{'text-align': 'center'})
-            # dfStyler.set_table_styles(
-            #     [dict(selector='th', props=[('text-align', 'center')])])
+    #         # dfStyler = df.style.set_properties(**{'text-align': 'center'})
+    #         # dfStyler.set_table_styles(
+    #         #     [dict(selector='th', props=[('text-align', 'center')])])
 
-        return df
+    #     return df
 
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
@@ -184,11 +183,11 @@ class BaseProject:
 class Project(BaseProject):
     def __init__(self, project_id: int) -> None:
         super().__init__(project_id)
-        self.datasets = self.query_project_dataset_list()
+        self.datasets, self.column_names = self.query_project_dataset_list()
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
-        self.dataset_list = self.load_dataset()
+        # self.dataset_list = self.load_dataset()
 
     @st.cache
     def query_all_fields(self) -> NamedTuple:
@@ -233,22 +232,23 @@ class Project(BaseProject):
                                     pd.project_id = %s;
                                     """
         query_project_dataset_vars = [self.id]
-        project_datasets = db_fetchall(
-            query_project_dataset_SQL, conn, query_project_dataset_vars)
+        project_datasets, column_names = db_fetchall(
+            query_project_dataset_SQL, conn, query_project_dataset_vars, fetch_col_name=True)
         project_dataset_tmp = []
         if project_datasets:
             for dataset in project_datasets:
-                dataset = list(dataset)  # convert tuples to List
-
                 # convert datetime with TZ to (2021-07-30 12:12:12) format
-                dataset[3] = dataset[3].strftime('%Y-%m-%d %H:%M:%S')
+                converted_datetime = dataset.Date_Time.strftime(
+                    '%Y-%m-%d %H:%M:%S')
+                dataset = dataset._replace(
+                    Date_Time=converted_datetime)
                 project_dataset_tmp.append(dataset)
 
-            self.datasets = project_dataset_tmp
+            # self.datasets = project_dataset_tmp
         else:
             project_dataset_tmp = []
 
-        return project_dataset_tmp
+        return project_dataset_tmp, column_names
 
     @st.cache
     def load_dataset(self) -> List:
@@ -290,12 +290,12 @@ class Project(BaseProject):
             data_name_list = {}
             for d in self.datasets:
                 data_name_tmp = []
-                dataset_path = d[4]
+                dataset_path = d.Path
                 dataset_path = dataset_path + "/*"
                 for data_path in iglob(dataset_path):
                     data_name = Path(data_path).name
                     data_name_tmp.append(data_name)
-                data_name_list[d[1]] = sorted(data_name_tmp)
+                data_name_list[d.Name] = sorted(data_name_tmp)
 
             return data_name_list
 

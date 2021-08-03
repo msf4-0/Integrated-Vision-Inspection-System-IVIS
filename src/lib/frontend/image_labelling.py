@@ -109,6 +109,7 @@ def show():
         session_state.data_selection = None
 
     session_state.project.query_all_fields()
+    session_state.project.dataset_list = session_state.project.load_dataset()
     # ******** SESSION STATE *********************************************************
 
     # >>>> TRAINING SIDEBAR >>>>

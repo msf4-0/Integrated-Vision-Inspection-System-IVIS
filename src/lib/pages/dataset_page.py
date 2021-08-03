@@ -58,7 +58,7 @@ with st.sidebar.beta_container():
 # <<<< Template <<<<
 
 
-def main():
+def show():
     # Page title
     st.write("# **Dataset**")
     st.markdown("___")
@@ -177,6 +177,9 @@ def main():
     # TODO #18 show gallery of data and allow modification/deletion
     # <<<< CREATE NEW DATASET AND SELECT DATASET <<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+
+def main():
+    show()
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

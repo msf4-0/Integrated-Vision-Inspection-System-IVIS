@@ -89,7 +89,7 @@ class Deployment(BaseDeployment):
 
     @st.cache
     def query_model_table(self, model_table) -> NamedTuple:
-        schema,table=[x for x in model_table.split('.')]
+        schema, table = [x for x in model_table.split('.')]
         query_model_table_SQL = sql.SQL("""SELECT
                 m.id AS "ID",
                 m.name AS "Name",
@@ -98,10 +98,10 @@ class Deployment(BaseDeployment):
             FROM
                 {table} m
                 LEFT JOIN public.framework f ON f.id = m.framework_id
-                where m.deployment_id = (SELECT id from public.deployment_type where name = %s);""").format(table=sql.Identifier(schema,table))
+                where m.deployment_id = (SELECT id from public.deployment_type where name = %s);""").format(table=sql.Identifier(schema, table))
         query_model_table_vars = [self.name]
         return_all = db_fetchall(
-            query_model_table_SQL, conn,query_model_table_vars, fetch_col_name=True)
+            query_model_table_SQL, conn, query_model_table_vars, fetch_col_name=True)
         if return_all:
             project_model_list, column_names = return_all
         else:
