@@ -199,6 +199,7 @@ def show():
 
     # >>>> FILE UPLOAD >>>>
     # TODO #24 Add other filetypes based on filetype table
+    # Done #24
 
     elif data_source == 1:
 
