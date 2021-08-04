@@ -7,7 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict,Optional
+from typing import Union, List, Dict, Optional
 import pandas as pd
 import psycopg2
 from psycopg2 import sql
@@ -57,8 +57,9 @@ def get_directory_name(name: str) -> str:
 def is_empty(iterable: Union[List, Dict, set]) -> bool:
     return not bool(iterable)
 
+
 @st.cache
-def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort: bool = False, sort_by: Optional[str] = None, asc:bool=True,date_time_format: bool = False) -> pd.DataFrame:
+def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort: bool = False, sort_by: Optional[str] = None, asc: bool = True, date_time_format: bool = False) -> pd.DataFrame:
     if data:
 
         df = pd.DataFrame(data, columns=column_names)
@@ -100,23 +101,42 @@ def check_if_exists(table: str, column_name: str, condition, conn):
     return exist_flag
 
 # MIME: type/subtype
-#get filetype 
-def get_filetype(file:Union[str,Path,UploadedFile]):
-    if isinstance(file,(str,Path)):
-        mime_type=mimetypes.guess_type(file)[0]
-        filetype=str(Path(mime_type).parent)
-    elif isinstance(file,UploadedFile):
-        mime_type=file.type
-        
-    filetype=str(Path(mime_type).parent)
+# get filetype
+
+
+def get_filetype(file: Union[str, Path, UploadedFile]):
+    """Get filetype from MIME of the file <type/subtype>
+        Eg. image,video,audio,text
+
+    Args:
+        file (Union[str,Path,UploadedFile]): File can be string path or Path-like object or Streamlit's UploadedFile object
+
+    Returns:
+        string: filetype
+    """
+    if isinstance(file, (str, Path)):
+        mime_type = mimetypes.guess_type(file)[0]
+        filetype = str(Path(mime_type).parent)
+    elif isinstance(file, UploadedFile):
+        mime_type = file.type
+
+    filetype = str(Path(mime_type).parent)
     return filetype
 
 
-def compare_filetypes(file_tuple:tuple):
-    filetype1,filetype2=file_tuple
+def compare_filetypes(file_tuple: tuple):
+    """Compare if 2 instances are equal, else break loop 
+
+    Args:
+        file_tuple (tuple): A pair of elements to be compared -> 2 elements zip of a List or Dict
+
+    Returns:
+        bool: True is if equal, else False
+    """
+    filetype1, filetype2 = file_tuple
     print(file_tuple)
-    if filetype1==filetype2:
+    if filetype1 == filetype2:
         return True
     else:
-        
+
         return False
