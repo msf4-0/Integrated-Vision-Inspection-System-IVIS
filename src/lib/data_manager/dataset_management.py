@@ -45,16 +45,15 @@ class BaseDataset:
         self.dataset_id = dataset_id
         self.name: str = None
         self.desc: str = None
-        self.file_type: str = None
         self.dataset_size: int = None  # Number of files
         self.dataset_path: Path = None
         self.deployment_id: Union[str, int] = None
-        self.filetype:str=None
+        self.filetype: str = None
         self.deployment_type: str = None
         self.dataset = []  # to hold new data from upload
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
-        
+
 # TODO #20
 # NOTE DEPRECATED *************************
     def query_deployment_id(self) -> int:
@@ -157,16 +156,15 @@ class NewDataset(BaseDataset):
         self.dataset_total_filesize = 0  # in byte-size
         self.has_submitted = False
 
-    #removed deployment type and insert filetype_id select from public.filetype table
+    # removed deployment type and insert filetype_id select from public.filetype table
     def insert_dataset(self):
         insert_dataset_SQL = """
                                 INSERT INTO public.dataset (
                                     name,
                                     description,
-                                    file_type,
                                     dataset_path,
                                     dataset_size,
-                                    filetype)
+                                    filetype_id)
                                 VALUES (
                                     %s,
                                     %s,
@@ -176,8 +174,8 @@ class NewDataset(BaseDataset):
                                     (SELECT ft.id from public.filetype ft where ft.name = %s))
                                 RETURNING id;
                             """
-        insert_dataset_vars = [self.name, self.desc, self.file_type,
-                               str(self.dataset_path), self.dataset_size, self.deployment_id]
+        insert_dataset_vars = [self.name, self.desc,
+                               str(self.dataset_path), self.dataset_size, self.filetype]
         self.dataset_id = db_fetchone(
             insert_dataset_SQL, conn, insert_dataset_vars)[0]
         return self.dataset_id

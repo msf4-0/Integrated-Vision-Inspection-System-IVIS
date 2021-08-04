@@ -7,15 +7,14 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-import psycopg2
-import pandas as pd
-import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from copy import deepcopy
-from time import sleep
+from time import sleep, perf_counter
+from typing import Union, Dict
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+from streamlit.uploaded_file_manager import UploadedFile
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -44,6 +43,7 @@ from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 from core.webcam import webcam_webrtc
+from core.utils.helper import check_filetype
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.dataset_management import NewDataset
 from core.utils.file_handler import bytes_divisor
@@ -198,24 +198,47 @@ def show():
             webcam_webrtc.app_loopback()
 
     # >>>> FILE UPLOAD >>>>
-    elif data_source == 1:
-        uploaded_files_multi = outercol2.file_uploader(
-            label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key="upload_widget")
+    # TODO #24 Add other filetypes based on filetype table
+    # Done #24
 
+    elif data_source == 1:
+
+        # uploaded_files_multi = outercol2.file_uploader(
+        #     label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget", on_change=check_filetype_category, args=(place,))
+        uploaded_files_multi = outercol2.file_uploader(
+            label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget")
+        # ******** INFO for FILE FORMAT **************************************
+        with outercol1.beta_expander("File Format Infomation", expanded=True):
+            file_format_info = """
+            1. Image: .jpg, .png, .jpeg
+            2. Video: .mp4, .mpeg
+            3. Audio: .wav, .mp3, .m4a
+            4. Text: .txt, .csv
+            """
+            st.info(file_format_info)
+        place["upload"] = outercol2.empty()
         if uploaded_files_multi:
+            # outercol2.write(uploaded_files_multi) # TODO Remove
+            check_filetype(
+                uploaded_files_multi, session_state.new_dataset, place)
+
             session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
 
             session_state.new_dataset.dataset_size = len(
                 uploaded_files_multi)  # length of uploaded files
+        else:
+            session_state.new_dataset.filetype = None
+            session_state.new_dataset.dataset_size = 0  # length of uploaded files
+            session_state.new_dataset.dataset = None
+        dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
+        dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
 
-            dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
-            dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
+        # outercol2.write(uploaded_files_multi[0]) # TODO: Remove
+        dataset_size_place.write(dataset_size_string)
+        dataset_filesize_place.write(dataset_filesize_string)
 
-            outercol2.write(uploaded_files_multi[0])
-            dataset_size_place.write(dataset_size_string)
-            dataset_filesize_place.write(dataset_filesize_string)
+    # Placeholder for WARNING messages of File Upload widget
 
-    place["upload"] = outercol2.empty()
     # with st.beta_expander("Data Viewer", expanded=False):
     #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
     #     imgcol1.checkbox("img1", key="img1")
@@ -244,7 +267,6 @@ def show():
             field, field_placeholder=place)
 
         if session_state.new_dataset.has_submitted:
-            # TODO: Upload to database
             # st.success(""" Successfully created new dataset: {0}.
             #                 """.format(session_state.new_dataset.name))
 
