@@ -1,10 +1,13 @@
 import React from "react"
 import ReactDOM from "react-dom"
-import MyComponent from "./MyComponent"
+import DataTable from "./DataTable"
+import Table from "./Table"
 
 ReactDOM.render(
   <React.StrictMode>
-    <MyComponent />
+    <DataTable />
+    <li></li>
+    <Table/>
   </React.StrictMode>,
   document.getElementById("root")
 )
