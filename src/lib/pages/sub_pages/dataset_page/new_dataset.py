@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from enum import IntEnum
 from copy import deepcopy
-from time import sleep,perf_counter
+from time import sleep, perf_counter
 from typing import Union, Dict
 import streamlit as st
 from streamlit import cli as stcli
@@ -43,7 +43,7 @@ from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 from core.webcam import webcam_webrtc
-from core.utils.helper import get_filetype, compare_filetypes
+from core.utils.helper import check_filetype
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.dataset_management import NewDataset
 from core.utils.file_handler import bytes_divisor
@@ -201,41 +201,6 @@ def show():
     # TODO #24 Add other filetypes based on filetype table
 
     elif data_source == 1:
-        def check_filetype_category(uploaded_files, field_placeholder: Dict):
-            """Constraint for only one type of files (Image, Video, Audio, Text)
-
-            1. Image: .jpg, .png, .jpeg
-            2. Video: .mp4, .mpeg
-            3. Audio: .wav, .mp3, .m4a
-            4. Text: .txt, .csv
-
-            Args:
-                uploaded_files (Union[str,Path,UploadedFile], optional): [description]. Defaults to session_state.upload_widget.
-            """
-            uploaded_files: Union[str, Path, UploadedFile] = uploaded_files
-            if uploaded_files:
-                start_time=perf_counter()
-                if len(uploaded_files) == 1:
-                    filetype = get_filetype(uploaded_files[0].type)
-
-                else:
-                    filetypes = map(compare_filetypes, zip(
-                        uploaded_files[:], uploaded_files[1:]))
-                    for filetype in filetypes:
-                        if filetype:
-                            log_info("Filetype passed")
-                            pass
-                        else:
-                            filetype_error_msg = "Filetype different"
-                            log_error(filetype_error_msg)
-                            field_placeholder["upload"].error(
-                                filetype_error_msg)
-                            break
-                end_time=perf_counter()
-                time_elapsed=end_time-start_time
-                number_of_files=len(uploaded_files)
-                average_time=time_elapsed/number_of_files
-                log_info(f"Time taken to compare filetypes {time_elapsed}s with average of {average_time}s for {number_of_files}")
 
         # uploaded_files_multi = outercol2.file_uploader(
         #     label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget", on_change=check_filetype_category, args=(place,))
@@ -252,22 +217,26 @@ def show():
             st.info(file_format_info)
         place["upload"] = outercol2.empty()
         if uploaded_files_multi:
-            outercol2.write(uploaded_files_multi)
-            check_filetype_category(uploaded_files_multi,place)
+            # outercol2.write(uploaded_files_multi) # TODO Remove
+            check_filetype(
+                uploaded_files_multi, session_state.new_dataset, place)
+
             session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
 
             session_state.new_dataset.dataset_size = len(
                 uploaded_files_multi)  # length of uploaded files
+        else:
+            session_state.new_dataset.filetype = None
+            session_state.new_dataset.dataset_size = 0  # length of uploaded files
+            session_state.new_dataset.dataset = None
+        dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
+        dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
 
-            dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
-            dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
-
-            outercol2.write(uploaded_files_multi[0])
-            dataset_size_place.write(dataset_size_string)
-            dataset_filesize_place.write(dataset_filesize_string)
+        # outercol2.write(uploaded_files_multi[0]) # TODO: Remove
+        dataset_size_place.write(dataset_size_string)
+        dataset_filesize_place.write(dataset_filesize_string)
 
     # Placeholder for WARNING messages of File Upload widget
-    
 
     # with st.beta_expander("Data Viewer", expanded=False):
     #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)

@@ -8,6 +8,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from typing import Union, List, Dict, Optional
+from time import perf_counter
 import pandas as pd
 import psycopg2
 from psycopg2 import sql
@@ -140,7 +141,54 @@ def compare_filetypes(file_tuple: tuple):
     log_info(f"File tuple:{file_tuple}")
     if filetype1 == filetype2:
         log_info(f"File types:{filetype1,filetype2}")
-        return True
+        return True, filetype1, file_tuple[0].name, file_tuple[1].name
     else:
 
-        return False
+        return False, filetype1, file_tuple[0].name, file_tuple[1].name
+
+
+def check_filetype(uploaded_files, dataset,field_placeholder: Dict = None):
+            """Constraint for only one type of files (Image, Video, Audio, Text)
+
+            1. Image: .jpg, .png, .jpeg
+            2. Video: .mp4, .mpeg
+            3. Audio: .wav, .mp3, .m4a
+            4. Text: .txt, .csv
+
+            Args:
+                uploaded_files (Union[str,Path,UploadedFile], optional): [description]. Defaults to session_state.upload_widget.
+            """
+            uploaded_files: Union[str, Path, UploadedFile] = uploaded_files
+            if uploaded_files:
+                start_time = perf_counter()
+                if len(uploaded_files) == 1:
+                    filetype = get_filetype(uploaded_files[0])
+                    log_info("Enter single")
+                    log_info(filetype)
+                    dataset.filetype = filetype
+
+                else:
+                    log_info("Enter multi")
+                    filetypes = map(compare_filetypes, zip(
+                        uploaded_files[:], uploaded_files[1:]))
+                    for check_result, filetype, file1, file2 in filetypes:
+                        if check_result:
+                            log_info("Filetype passed")
+                            pass
+                        else:
+                            filetype_error_msg = f"Filetype different for {file1} and {file2}"
+                            log_error(filetype_error_msg)
+                            if field_placeholder:
+                                field_placeholder["upload"].error(
+                                    filetype_error_msg)
+                            break
+
+                                        # GET Filetype
+                    dataset.filetype = filetype
+
+                end_time = perf_counter()
+                time_elapsed = end_time - start_time
+                number_of_files = len(uploaded_files)
+                average_time = time_elapsed / number_of_files
+                log_info(
+                    f"Time taken to compare filetypes {time_elapsed}s with average of {average_time}s for {number_of_files}")
