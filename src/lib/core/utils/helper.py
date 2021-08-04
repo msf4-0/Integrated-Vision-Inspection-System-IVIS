@@ -116,11 +116,14 @@ def get_filetype(file: Union[str, Path, UploadedFile]):
     """
     if isinstance(file, (str, Path)):
         mime_type = mimetypes.guess_type(file)[0]
-        filetype = str(Path(mime_type).parent)
+        # filetype = str(Path(mime_type).parent)
     elif isinstance(file, UploadedFile):
+        log_info(f"File: {file}")
         mime_type = file.type
-
-    filetype = str(Path(mime_type).parent)
+    if mime_type:
+        filetype = str(Path(mime_type).parent)
+    else:
+        filetype = None
     return filetype
 
 
@@ -133,9 +136,10 @@ def compare_filetypes(file_tuple: tuple):
     Returns:
         bool: True is if equal, else False
     """
-    filetype1, filetype2 = file_tuple
-    print(file_tuple)
+    filetype1, filetype2 = list(map(get_filetype, file_tuple))  # updated
+    log_info(f"File tuple:{file_tuple}")
     if filetype1 == filetype2:
+        log_info(f"File types:{filetype1,filetype2}")
         return True
     else:
 

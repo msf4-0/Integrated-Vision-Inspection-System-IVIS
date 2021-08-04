@@ -7,13 +7,10 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-import psycopg2
-import pandas as pd
-import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from copy import deepcopy
-from time import sleep
-from typing import Union
+from time import sleep,perf_counter
+from typing import Union, Dict
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -46,7 +43,7 @@ from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 from core.webcam import webcam_webrtc
-from core.utils.helper import get_filetype,compare_filetypes
+from core.utils.helper import get_filetype, compare_filetypes
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.dataset_management import NewDataset
 from core.utils.file_handler import bytes_divisor
@@ -201,44 +198,62 @@ def show():
             webcam_webrtc.app_loopback()
 
     # >>>> FILE UPLOAD >>>>
-    #TODO #24 Add other filetypes based on filetype table
-
-    
+    # TODO #24 Add other filetypes based on filetype table
 
     elif data_source == 1:
-        def check_filetype_category(uploaded_files:Union[str,Path,UploadedFile]):
+        def check_filetype_category(uploaded_files, field_placeholder: Dict):
+            """Constraint for only one type of files (Image, Video, Audio, Text)
+
+            1. Image: .jpg, .png, .jpeg
+            2. Video: .mp4, .mpeg
+            3. Audio: .wav, .mp3, .m4a
+            4. Text: .txt, .csv
+
+            Args:
+                uploaded_files (Union[str,Path,UploadedFile], optional): [description]. Defaults to session_state.upload_widget.
+            """
+            uploaded_files: Union[str, Path, UploadedFile] = uploaded_files
             if uploaded_files:
-                if len(uploaded_files)==1:
-                    filetype=get_filetype(uploaded_files)
+                start_time=perf_counter()
+                if len(uploaded_files) == 1:
+                    filetype = get_filetype(uploaded_files[0].type)
 
                 else:
-                    filetypes=map(compare_filetypes,zip(uploaded_files[:],uploaded_files[1:]))
+                    filetypes = map(compare_filetypes, zip(
+                        uploaded_files[:], uploaded_files[1:]))
                     for filetype in filetypes:
                         if filetype:
                             log_info("Filetype passed")
                             pass
                         else:
-                            log_error("Filetype different")
+                            filetype_error_msg = "Filetype different"
+                            log_error(filetype_error_msg)
+                            field_placeholder["upload"].error(
+                                filetype_error_msg)
                             break
+                end_time=perf_counter()
+                time_elapsed=end_time-start_time
+                number_of_files=len(uploaded_files)
+                average_time=time_elapsed/number_of_files
+                log_info(f"Time taken to compare filetypes {time_elapsed}s with average of {average_time}s for {number_of_files}")
 
-
-
-
+        # uploaded_files_multi = outercol2.file_uploader(
+        #     label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget", on_change=check_filetype_category, args=(place,))
         uploaded_files_multi = outercol2.file_uploader(
-            label="Upload Image", type=['jpg', "png", "jpeg","mp4","mpeg","wav","mp3","m4a","txt","csv","tsv"], accept_multiple_files=True, key="upload_widget")
-        
+            label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget")
         # ******** INFO for FILE FORMAT **************************************
-        with outercol1.beta_expander("File Format Infomation",expanded=True):
-            file_format_info="""
+        with outercol1.beta_expander("File Format Infomation", expanded=True):
+            file_format_info = """
             1. Image: .jpg, .png, .jpeg
             2. Video: .mp4, .mpeg
             3. Audio: .wav, .mp3, .m4a
             4. Text: .txt, .csv
             """
             st.info(file_format_info)
-
-
+        place["upload"] = outercol2.empty()
         if uploaded_files_multi:
+            outercol2.write(uploaded_files_multi)
+            check_filetype_category(uploaded_files_multi,place)
             session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
 
             session_state.new_dataset.dataset_size = len(
@@ -251,7 +266,9 @@ def show():
             dataset_size_place.write(dataset_size_string)
             dataset_filesize_place.write(dataset_filesize_string)
 
-    place["upload"] = outercol2.empty()
+    # Placeholder for WARNING messages of File Upload widget
+    
+
     # with st.beta_expander("Data Viewer", expanded=False):
     #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
     #     imgcol1.checkbox("img1", key="img1")
