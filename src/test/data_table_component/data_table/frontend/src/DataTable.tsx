@@ -8,13 +8,13 @@ import {
   DataGrid,
   GridRowsProp,
   GridColDef,
-  GridValueGetterParams,
   GridRowId,
 } from "@material-ui/data-grid"
 import { makeStyles } from "@material-ui/styles"
+import { Float } from "apache-arrow"
 
 //Define Rows and Columns
-const rows: GridRowsProp = [
+/* const rows: GridRowsProp = [
   { id: 1, lastName: "Snow", firstName: "Jon", age: 35 },
   { id: 2, lastName: "Lannister", firstName: "Cersei", age: 42 },
   { id: 3, lastName: "Lannister", firstName: "Jaime", age: 45 },
@@ -32,10 +32,11 @@ const rows: GridRowsProp = [
   { id: 15, lastName: "Roxie", firstName: "Harvey", age: 65 },
   { id: 16, lastName: "Roxie", firstName: "Harvey", age: 65 },
   { id: 17, lastName: "Roxie", firstName: "Harvey", age: 65 },
-]
-
+] */
+// const rows: GridRowsProp =[]
+// const columns: GridColDef[] = []
 //Define Columns
-const columns: GridColDef[] = [
+/* const columns: GridColDef[] = [
   {
     field: "id",
     headerName: "ID",
@@ -89,7 +90,7 @@ const columns: GridColDef[] = [
       }`,
   },
 ]
-
+ */
 //To store object of Streamlit Theme props
 interface ComponentTheme {
   primaryColor: string | undefined
@@ -100,9 +101,13 @@ interface ComponentTheme {
 }
 
 function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
-  useEffect(() => Streamlit.setFrameHeight())
-
   // TODO #28 Get data from Streamlit Python
+
+  //Define Rows and Columns
+  const rows: GridRowsProp = args.rows
+
+  //Define Columns
+  const columns: GridColDef[] = args.columns
 
   // Declare theme from Streamlit Component
   let myTheme: ComponentTheme = {
@@ -160,8 +165,11 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
 
   const useStyles = makeStyles({
     root: {
-      border: 0,
+      border: `1px solid ${
+        myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "#98989A"
+      }`,
 
+      height: "auto",
       color:
         myTheme.backgroundColor === "#ffffff"
           ? "rgba(0,0,0,1)"
@@ -198,6 +206,7 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
             : myTheme.secondaryBackgroundColor
         }`,
       },
+
       // "& .MuiDataGrid-columnsContainer, .MuiDataGrid-cell": {
       //   borderBottom: `1px solid ${
       //     myTheme.backgroundColor === "#ffffff"
@@ -220,47 +229,78 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState<number>(5)
   const [selectionModel, setSelectionModel] = useState<GridRowId[]>([])
+  const headerHeight: number = 56
+  const rowHeight: number = 52
+  const footerHeight: number = 55
 
+  // var frameHeight: number = headerHeight + rowHeight * pageSize + footerHeight
+
+  function frameHeightCalc(size: number) {
+    let totalPage = Math.floor(rows.length / size)
+
+    // add the last page, ugly
+    if (rows.length % size != 0) {
+      totalPage++
+      if (page == totalPage - 1) {
+        let remainder = rows.length % size
+        let frameHeight: number =
+          headerHeight + rowHeight * remainder + footerHeight
+        return frameHeight
+      } else {
+        let frameHeight: number =
+          headerHeight + rowHeight * pageSize + footerHeight
+        return frameHeight
+      }
+    } else {
+      let frameHeight: number = headerHeight + rowHeight * size + footerHeight
+      return frameHeight
+    }
+  }
+  const frameHeight = frameHeightCalc(pageSize)
+  console.log("frame height", frameHeight)
+  useEffect(() => Streamlit.setFrameHeight(frameHeight))
   /********CALLBACK FUNCTIONS********/
 
   //Callback to change page
-  const onPageChange = (newPage: number) => setPage(newPage)
+  const onPageChange = (newPage: number) => {
+    setPage(newPage)
+    Streamlit.setFrameHeight()
+  }
   //Callback to modify page size
-  const onPageSizeChange = (newPageSize: number) => setPageSize(newPageSize)
+  const onPageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize)
+    Streamlit.setFrameHeight()
+  }
   //Callback when row is selected via Checkbox
   const onSelectionModelChange = (newSelectionModel: GridRowId[]) => {
     setSelectionModel(newSelectionModel)
-    Streamlit.setComponentValue(newSelectionModel)
+    Streamlit.setComponentValue(newSelectionModel) //Return Selected Row ID back to Python land
     console.log(newSelectionModel)
   }
 
-  console.log(selectionModel)
   return (
-    <span>
-      <div style={{ height: 500, width: "100%" }}>
-        <DataGrid
-          classes={{ root: classes.root }}
-          autoPageSize
-          pagination
-          // components={{
-          //   Pagination: CustomPagination,
-          // }}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
-          rows={rows}
-          columns={columns}
-          rowsPerPageOptions={[5, 10, 20]}
-          checkboxSelection
-          disableSelectionOnClick
-          onSelectionModelChange={onSelectionModelChange}
-          selectionModel={selectionModel}
-          // onSelectionModelChange={(e) => console.log(e.rows)}
-          // classes={{ columnHeader: classes.header, root: classes.root }}
-        />
-      </div>
-    </span>
+    // <TableContainer component={Paper}>
+    <DataGrid
+      classes={{ root: classes.root }}
+      autoPageSize
+      autoHeight={true}
+      pagination
+      // components={{
+      //   Pagination: CustomPagination,
+      // }}
+      page={page}
+      pageSize={pageSize}
+      onPageChange={onPageChange}
+      onPageSizeChange={onPageSizeChange}
+      rows={rows}
+      columns={columns}
+      rowsPerPageOptions={[5, 10, 20]}
+      checkboxSelection
+      disableSelectionOnClick
+      onSelectionModelChange={onSelectionModelChange}
+      selectionModel={selectionModel}
+    />
+    // </TableContainer>
   )
 }
 
