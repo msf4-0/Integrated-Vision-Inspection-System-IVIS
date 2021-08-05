@@ -5,7 +5,7 @@ import {
 } from "streamlit-component-lib"
 
 import React, { ReactNode } from "react"
-import PropTypes from "prop-types"
+import PropTypes from 'prop-types';
 import {
   DataGrid,
   GridRowsProp,
@@ -55,7 +55,6 @@ const columns: GridColDef[] = [
   {
     field: "firstName",
     headerName: "First name",
-    headerClassName: "super-app-theme--header",
     headerAlign: "center",
     align: "center",
     flex: 150,
@@ -97,38 +96,74 @@ const columns: GridColDef[] = [
       }`,
   },
 ]
-const useStyles = makeStyles({
-  root: {
-    "& .super-app-theme--header": {
-      backgroundColor: "rgba(255, 7, 0, 0.55)",
-    },
-  },
-})
-const StyledTable = withStyles({
-  cell: {
-    background: "linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)",
-    color:'white',
-    border:'white',
-  },
 
-})(DataGrid)
 
 /**
  * This is a React-based component template. The `render()` function is called
  * automatically when your component should be re-rendered.
  */
 
-export default function Table() {
-  //   const classes = useStyles()
-  return (
-    <div style={{ height: 400, width: "100%" }}>
-      <StyledTable
-        rows={rows}
-        columns={columns}
-        pageSize={5}
-        checkboxSelection
-        disableSelectionOnClick
-      />
-    </div>
-  )
+class DataTable extends StreamlitComponentBase<State> {
+  public state = { numClicks: 0, isFocused: false, page: 0, pageSize: 10 }
+
+  public render = (): ReactNode => {
+    const data = this.props.args["data"]
+   
+    // Streamlit sends us a theme object via props that we can use to ensure
+    // that our component has visuals that match the active theme in a
+    // streamlit app.
+    const { theme } = this.props
+    console.log({ theme })
+    const style: React.CSSProperties = {}
+
+    if (theme) {
+      // Use the theme object to style our button border. Alternatively, the
+      // theme style is defined in CSS vars.
+      // const borderStyling = `1px solid ${
+      //   this.state.isFocused ? theme.primaryColor : "gray"
+      // }`
+      // style.border = borderStyling
+      // style.outline = borderStyling
+    }
+
+
+    return (
+      <span>
+        <div style={{ height: 500, width: "100%" }}>
+          <DataGrid 
+            autoPageSize
+            pagination
+            page={this.state.page}
+            pageSize={this.state.pageSize}
+            onPageChange={this.onPageChange}
+            onPageSizeChange={this.onPageSizeChange}
+            rows={rows}
+            columns={columns}
+            rowsPerPageOptions={[5, 10, 20]}
+            checkboxSelection
+            disableSelectionOnClick
+          />
+        </div>
+      </span>
+    )
+  }
+
+  private onPageChange = (newPage: number): void => {
+    this.setState({ page: newPage })
+  }
+
+  private onPageSizeChange = (newPageSize: number) =>
+    this.setState({ pageSize: newPageSize })
+
+  /** Click handler for our "Click Me!" button. */
+  private onClicked = (): void => {
+    // Increment state.numClicks, and pass the new value back to
+    // Streamlit via `Streamlit.setComponentValue`.
+    this.setState(
+      (prevState) => ({ numClicks: prevState.numClicks + 1 }),
+      () => Streamlit.setComponentValue(this.state.numClicks)
+    )
+  }
 }
+
+export default withStreamlitConnection(DataTable)

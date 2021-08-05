@@ -102,6 +102,8 @@ interface ComponentTheme {
 function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
   useEffect(() => Streamlit.setFrameHeight())
 
+  // TODO #28 Get data from Streamlit Python
+
   // Declare theme from Streamlit Component
   let myTheme: ComponentTheme = {
     primaryColor: theme?.primaryColor,
@@ -213,10 +215,24 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
     },
   })
 
+  // TODO #27
   const classes = useStyles()
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState<number>(5)
   const [selectionModel, setSelectionModel] = useState<GridRowId[]>([])
+
+  /********CALLBACK FUNCTIONS********/
+
+  //Callback to change page
+  const onPageChange = (newPage: number) => setPage(newPage)
+  //Callback to modify page size
+  const onPageSizeChange = (newPageSize: number) => setPageSize(newPageSize)
+  //Callback when row is selected via Checkbox
+  const onSelectionModelChange = (newSelectionModel: GridRowId[]) => {
+    setSelectionModel(newSelectionModel)
+    Streamlit.setComponentValue(newSelectionModel)
+    console.log(newSelectionModel)
+  }
 
   console.log(selectionModel)
   return (
@@ -231,18 +247,14 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
           // }}
           page={page}
           pageSize={pageSize}
-          onPageChange={(newPage) => setPage(newPage)}
-          onPageSizeChange={(newPageSize) => setPageSize(newPageSize)}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
           rows={rows}
           columns={columns}
           rowsPerPageOptions={[5, 10, 20]}
           checkboxSelection
           disableSelectionOnClick
-          onSelectionModelChange={(newSelectionModel) => {
-            setSelectionModel(newSelectionModel)
-            Streamlit.setComponentValue(newSelectionModel)
-            console.log(newSelectionModel)
-          }}
+          onSelectionModelChange={onSelectionModelChange}
           selectionModel={selectionModel}
           // onSelectionModelChange={(e) => console.log(e.rows)}
           // classes={{ columnHeader: classes.header, root: classes.root }}
