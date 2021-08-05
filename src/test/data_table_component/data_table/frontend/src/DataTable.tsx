@@ -1,27 +1,19 @@
+import { ReactElement, useEffect, useState } from "react"
 import {
   Streamlit,
-  StreamlitComponentBase,
   withStreamlitConnection,
+  ComponentProps,
 } from "streamlit-component-lib"
-
-import React, { ReactNode } from "react"
-import PropTypes from 'prop-types';
 import {
   DataGrid,
   GridRowsProp,
   GridColDef,
   GridValueGetterParams,
+  GridRowId,
 } from "@material-ui/data-grid"
+import { makeStyles } from "@material-ui/styles"
 
-import { makeStyles, styled, withStyles } from "@material-ui/styles"
-import { classicNameResolver, isPropertyAccessExpression } from "typescript"
-
-interface State {
-  numClicks: number
-  isFocused: boolean
-  page: number
-  pageSize: number
-}
+//Define Rows and Columns
 const rows: GridRowsProp = [
   { id: 1, lastName: "Snow", firstName: "Jon", age: 35 },
   { id: 2, lastName: "Lannister", firstName: "Cersei", age: 42 },
@@ -42,6 +34,7 @@ const rows: GridRowsProp = [
   { id: 17, lastName: "Roxie", firstName: "Harvey", age: 65 },
 ]
 
+//Define Columns
 const columns: GridColDef[] = [
   {
     field: "id",
@@ -97,77 +90,166 @@ const columns: GridColDef[] = [
   },
 ]
 
+//To store object of Streamlit Theme props
+interface ComponentTheme {
+  primaryColor: string | undefined
+  secondaryBackgroundColor: string | undefined
+  textColor: string | undefined
+  backgroundColor: string | undefined
+  font: string | undefined
+}
 
-/**
- * This is a React-based component template. The `render()` function is called
- * automatically when your component should be re-rendered.
- */
+function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
+  useEffect(() => Streamlit.setFrameHeight())
 
-class DataTable extends StreamlitComponentBase<State> {
-  public state = { numClicks: 0, isFocused: false, page: 0, pageSize: 10 }
+  // Declare theme from Streamlit Component
+  let myTheme: ComponentTheme = {
+    primaryColor: theme?.primaryColor,
+    secondaryBackgroundColor: theme?.secondaryBackgroundColor,
+    textColor: theme?.textColor,
+    backgroundColor: theme?.backgroundColor,
+    font: theme?.font,
+  }
 
-  public render = (): ReactNode => {
-    const data = this.props.args["data"]
-   
-    // Streamlit sends us a theme object via props that we can use to ensure
-    // that our component has visuals that match the active theme in a
-    // streamlit app.
-    const { theme } = this.props
-    console.log({ theme })
-    const style: React.CSSProperties = {}
-
-    if (theme) {
-      // Use the theme object to style our button border. Alternatively, the
-      // theme style is defined in CSS vars.
-      // const borderStyling = `1px solid ${
-      //   this.state.isFocused ? theme.primaryColor : "gray"
-      // }`
-      // style.border = borderStyling
-      // style.outline = borderStyling
+  function customCheckbox() {
+    return {
+      "& .MuiCheckbox-root svg": {
+        width: 16,
+        height: 16,
+        backgroundColor: "transparent",
+        border: `1px solid ${
+          myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "#98989A"
+        }`,
+        borderRadius: 2,
+      },
+      "& .MuiCheckbox-root svg path": {
+        display: "none",
+      },
+      "& .MuiCheckbox-root.Mui-checked:not(.MuiCheckbox-indeterminate) svg": {
+        backgroundColor: "#1890ff",
+        borderColor: "#1890ff",
+      },
+      "& .MuiCheckbox-root.Mui-checked .MuiIconButton-label:after": {
+        position: "absolute",
+        display: "table",
+        border: "2px solid #fff",
+        borderTop: 0,
+        borderLeft: 0,
+        transform: "rotate(45deg) translate(-50%,-50%)",
+        opacity: 1,
+        transition: "all .2s cubic-bezier(.12,.4,.29,1.46) .1s",
+        content: '""',
+        top: "50%",
+        left: "39%",
+        width: 5.71428571,
+        height: 9.14285714,
+      },
+      "& .MuiCheckbox-root.MuiCheckbox-indeterminate .MuiIconButton-label:after":
+        {
+          width: 8,
+          height: 8,
+          backgroundColor: "#1890ff",
+          transform: "none",
+          top: "39%",
+          border: 0,
+        },
     }
-
-    // const StyledDataGrid = styled(DataGrid)({
-    //   backgroundColor:`${theme?.secondaryBackgroundColor}`,
-    //   color:`${theme?.textColor}`,
-    // })
-
-    return (
-      <span>
-        <div style={{ height: 500, width: "100%" }}>
-          <DataGrid 
-            autoPageSize
-            pagination
-            page={this.state.page}
-            pageSize={this.state.pageSize}
-            onPageChange={this.onPageChange}
-            onPageSizeChange={this.onPageSizeChange}
-            rows={rows}
-            columns={columns}
-            rowsPerPageOptions={[5, 10, 20]}
-            checkboxSelection
-            disableSelectionOnClick
-          />
-        </div>
-      </span>
-    )
   }
 
-  private onPageChange = (newPage: number): void => {
-    this.setState({ page: newPage })
-  }
+  const useStyles = makeStyles({
+    root: {
+      border: 0,
 
-  private onPageSizeChange = (newPageSize: number) =>
-    this.setState({ pageSize: newPageSize })
+      color:
+        myTheme.backgroundColor === "#ffffff"
+          ? "rgba(0,0,0,1)"
+          : "rgba(255,255,255,1)",
+      fontFamily: [
+        myTheme.font,
+        "-apple-system",
+        "BlinkMacSystemFont",
+        '"Segoe UI"',
+        "Roboto",
+        '"Helvetica Neue"',
+        "Arial",
+        "sans-serif",
+        '"Apple Color Emoji"',
+        '"Segoe UI Emoji"',
+        '"Segoe UI Symbol"',
+      ].join(","),
+      WebkitFontSmoothing: "auto",
+      letterSpacing: "normal",
+      "& .MuiDataGrid-columnsContainer": {
+        backgroundColor:
+          myTheme.backgroundColor === "#ffffff"
+            ? "#fafafa"
+            : myTheme.secondaryBackgroundColor, //working
+      },
+      "& .MuiDataGrid-iconSeparator": {
+        display: "none",
+      },
+      "& .MuiDataGrid-columnHeader, .MuiDataGrid-cell": {
+        //working
+        borderRight: `1px solid ${
+          myTheme.backgroundColor === "#ffffff"
+            ? "#f0f0f0"
+            : myTheme.secondaryBackgroundColor
+        }`,
+      },
+      // "& .MuiDataGrid-columnsContainer, .MuiDataGrid-cell": {
+      //   borderBottom: `1px solid ${
+      //     myTheme.backgroundColor === "#ffffff"
+      //       ? "#f0f0f0"
+      //       : myTheme.secondaryBackgroundColor
+      //   }`,
+      // },
+      // "& .MuiDataGrid-cell": {
+      //   color: myTheme.textColor,
+      // },
+      "& .MuiPagination-root": {
+        color: "secondary",
+      },
+      ...customCheckbox(), // Custom Checkbox
+    },
+  })
 
-  /** Click handler for our "Click Me!" button. */
-  private onClicked = (): void => {
-    // Increment state.numClicks, and pass the new value back to
-    // Streamlit via `Streamlit.setComponentValue`.
-    this.setState(
-      (prevState) => ({ numClicks: prevState.numClicks + 1 }),
-      () => Streamlit.setComponentValue(this.state.numClicks)
-    )
-  }
+  const classes = useStyles()
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState<number>(5)
+  const [selectionModel, setSelectionModel] = useState<GridRowId[]>([])
+
+  console.log(selectionModel)
+  return (
+    <span>
+      <div style={{ height: 500, width: "100%" }}>
+        <DataGrid
+          classes={{ root: classes.root }}
+          autoPageSize
+          pagination
+          // components={{
+          //   Pagination: CustomPagination,
+          // }}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={(newPage) => setPage(newPage)}
+          onPageSizeChange={(newPageSize) => setPageSize(newPageSize)}
+          rows={rows}
+          columns={columns}
+          rowsPerPageOptions={[5, 10, 20]}
+          checkboxSelection
+          disableSelectionOnClick
+          onSelectionModelChange={(newSelectionModel) => {
+            setSelectionModel(newSelectionModel)
+            Streamlit.setComponentValue(newSelectionModel)
+            console.log(newSelectionModel)
+          }}
+          selectionModel={selectionModel}
+          // onSelectionModelChange={(e) => console.log(e.rows)}
+          // classes={{ columnHeader: classes.header, root: classes.root }}
+        />
+      </div>
+    </span>
+  )
 }
 
 export default withStreamlitConnection(DataTable)
