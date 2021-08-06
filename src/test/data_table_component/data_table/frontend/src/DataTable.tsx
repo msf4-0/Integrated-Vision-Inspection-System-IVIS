@@ -99,7 +99,7 @@ interface ComponentTheme {
   font: string | undefined
 }
 
-function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
+function DataTable({ args, theme }: ComponentProps): ReactElement {
   // TODO #28 Get data from Streamlit Python
 
   //Define Rows and Columns
@@ -236,20 +236,24 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
 
   // var frameHeight: number = headerHeight + rowHeight * pageSize + footerHeight
 
+  /* Function to calculate the frame height to render the frame dynamically */
   function frameHeightCalc(size: number) {
     let totalPage = Math.floor(rows.length / size) //calculate the floor divisor to obtain number of pages
 
-    // add the last page, ugly
+    //Number of rows at the last page not equal to pageSize
     if (rows.length % size !== 0) {
       totalPage++
+
+      //For last page -> frame height is the number of remainder rows
       if (page === totalPage - 1) {
         let remainder = rows.length % size
         let frameHeight: number =
           headerHeight + rowHeight * remainder + footerHeight
         return frameHeight
-      } else {
-        let frameHeight: number =
-          headerHeight + rowHeight * pageSize + footerHeight
+      }
+      // frame height is pageSize
+      else {
+        let frameHeight: number = headerHeight + rowHeight * size + footerHeight
         return frameHeight
       }
     } else {
