@@ -263,7 +263,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
   }
   const frameHeight = frameHeightCalc(pageSize)
   console.log("frame height", frameHeight)
-  useEffect(() => Streamlit.setFrameHeight(frameHeight))
+  useEffect(() => Streamlit.setFrameHeight(frameHeight)) // TODO
   /********CALLBACK FUNCTIONS********/
 
   //Callback to change page
@@ -284,6 +284,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
   }
 
   return (
+    // <div style={{ height: 500, width: "100%" }}>
     <DataGrid
       classes={{ root: classes.root }}
       autoPageSize
@@ -304,6 +305,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
       onSelectionModelChange={onSelectionModelChange}
       selectionModel={selectionModel}
     />
+    // </div>
   )
 }
 

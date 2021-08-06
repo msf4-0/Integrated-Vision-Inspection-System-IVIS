@@ -234,7 +234,7 @@ class Dataset(BaseDataset):
                 # Glob through dataset directory
                 for data_path in iglob(dataset_path):
                     log_info(f"Globbing {data_path}......")
-                    data_info['id'] = Path(data_path.name)
+                    data_info['id'] = Path(data_path).name
                     data_info['filetype'] = self.filetype
 
                     # Get File Modified Time
@@ -257,16 +257,15 @@ def query_dataset_list() -> List[namedtuple]:
     Returns:
         namedtuple: List of datasets
     """
-# TODO #20
     query_dataset_SQL = """
         SELECT
             id AS "ID",
             name AS "Name",
             dataset_size AS "Dataset Size",
+            (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
             updated_at AS "Date/Time",
             description AS "Description",
-            dataset_path AS "Dataset Path",
-            (SELECT ft.name AS "File Type" from public.file_type ft where ft.id = d.filetype_id)
+            dataset_path AS "Dataset Path"
         FROM
             public.dataset d;"""
 

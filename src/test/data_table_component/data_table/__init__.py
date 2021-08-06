@@ -60,12 +60,7 @@ if not _RELEASE:
 
     st.subheader("Dev Data Table with Material-UI")
 
-    # raw_data = {
-    #     "First Name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
-    #     "Last Name": ["Miller", "Jacobson", "Ali", "Milner", "Smith"],
-    #     "Age": [42, 52, 36, 24, 73],
-    # }
-    # df = pd.DataFrame(raw_data, columns=["First Name", "Last Name", "Age"])
+# Row format
     rows = [
         {'id': 'sfsd', 'lastName': "Snow", 'firstName': "Jon", 'age': 35},
         {'id': 2, 'lastName': "Lannister", 'firstName': "Cersei", 'age': 42},
@@ -87,6 +82,7 @@ if not _RELEASE:
         {'id': 18, 'lastName': "Chae", 'firstName': "Rose", 'age': 26}
     ]
 
+# Column format
 columns = [
     {
         'field': "id",
@@ -95,7 +91,7 @@ columns = [
         'align': "center",
         'flex': 20,
         'hideSortIcons': True,
-        
+
     },
     {
         'field': "firstName",
