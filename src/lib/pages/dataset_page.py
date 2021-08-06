@@ -21,7 +21,7 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+TEST_MODULE_PATH = SRC / "test" / "data_table_component" / "data_table"
 DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 if str(LIB_PATH) not in sys.path:
@@ -29,6 +29,10 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+if str(TEST_MODULE_PATH) not in sys.path:
+    sys.path.insert(0, str(TEST_MODULE_PATH))  # ./lib
+else:
+    pass
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
@@ -74,6 +78,8 @@ def show():
     if "dataset_data" not in session_state:
         # session_state.existing_dataset = []
         session_state.dataset_data = {}
+    if "data_name_list" not in session_state:
+        session_state.data_name_list = {}
 
     # ********* QUERY DATASET ********************************************
     existing_dataset, dataset_table_column_names = query_dataset_list()
@@ -101,6 +107,13 @@ def show():
         st.write("## ")
         st.button("➕️", key="new_dataset", help="Create new dataset")
 
+    # TODO: removed 'dataset selection'????
+    with topcol2:
+        dataset_selection = st.selectbox("Select Dataset", options=dataset_dict,
+                                         key="dataset_sel", help="Select dataset to view details")
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TABLE OF DATA>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     # >>>>>>>>> INSTATIATE DATASET CLASS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     # def instantiate_dataset_class(dataset_dict):
@@ -112,14 +125,10 @@ def show():
             dataset_dict[session_state.dataset_sel])
     varscol1.write(vars(session_state.dataset))
 
+    session_state.data_name_list = session_state.dataset.get_data_name_list(
+        session_state.data_name_list)
+    st.write(session_state.data_name_list)
     # <<<<<<<< INSTATIATE DATASET CLASS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-    # TODO: removed 'dataset selection'????
-    with topcol2:
-        dataset_selection = st.selectbox("Select Dataset", options=dataset_dict,
-                                         key="dataset_sel", help="Select dataset to view details")
-
-    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TABLE OF DATA>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 

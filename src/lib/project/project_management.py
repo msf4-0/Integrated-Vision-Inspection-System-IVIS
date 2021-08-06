@@ -252,6 +252,11 @@ class Project(BaseProject):
 
     @st.cache
     def load_dataset(self) -> List:
+        """Loads data from the dataset directory and stored as Numpy arrays using OpenCV. 
+
+        Returns:
+            List: Dictionary with dataname as key to the respective numpy object
+        """
         #args: self.datasets
         # return: dataset_name_list and image list
 
@@ -286,15 +291,26 @@ class Project(BaseProject):
 
     @st.cache
     def get_data_name_list(self):
+        """Obtain list of data in the dataset 
+            - Iterative glob through the dataset directory
+            - Obtain filename using pathlib.Path(<'filepath/*'>).name
+
+        Returns:
+            Dict[dict]: Dataset name as key to a List of data in the dataset directory
+        """
         if self.datasets:
             data_name_list = {}
             for d in self.datasets:
                 data_name_tmp = []
                 dataset_path = d.Path
                 dataset_path = dataset_path + "/*"
-                for data_path in iglob(dataset_path):
-                    data_name = Path(data_path).name
-                    data_name_tmp.append(data_name)
+                # for data_path in iglob(dataset_path):
+                #     data_name = Path(data_path).name
+                #     data_name_tmp.append(data_name)
+
+                data_name_tmp = [Path(data_path.name)
+                                 for data_path in iglob(dataset_path)]  # UPDATED with List comprehension
+
                 data_name_list[d.Name] = sorted(data_name_tmp)
 
             return data_name_list

@@ -9,7 +9,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 import psycopg2
-from psycopg2.extras import NamedTupleCursor
+from psycopg2.extras import DictCursor, NamedTupleCursor
 from psycopg2 import sql
 import streamlit as st
 from typing import List, Dict, NamedTuple
@@ -97,10 +97,14 @@ def db_no_fetch(sql_message, conn, vars: List = None) -> None:
                 log_error(e)
 
 
-def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = False) -> NamedTuple:
+def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> NamedTuple:
 
     with conn:
-        with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
+        if return_dict:
+            cursor_factory = DictCursor
+        else:
+            cursor_factory = NamedTupleCursor
+        with conn.cursor(cursor_factory=cursor_factory) as cur:
 
             try:
 
@@ -122,9 +126,13 @@ def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = Fal
                 log_error(e)
 
 
-def db_fetchall(sql_message, conn, vars: List = None, fetch_col_name: bool = False) -> NamedTuple:
+def db_fetchall(sql_message, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> NamedTuple:
     with conn:
-        with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
+        if return_dict:
+            cursor_factory = DictCursor
+        else:
+            cursor_factory = NamedTupleCursor
+        with conn.cursor(cursor_factory=cursor_factory) as cur:
             try:
                 if vars:
                     cur.execute(sql_message, vars)

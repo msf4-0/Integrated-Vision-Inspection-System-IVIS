@@ -8,10 +8,13 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 from collections import namedtuple
 import sys
 from pathlib import Path
+import os
 from typing import Dict, Tuple, Union, List
 import psycopg2
 from PIL import Image
-from time import sleep
+from time import sleep, perf_counter
+from glob import glob, iglob
+from datetime import datetime
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -54,7 +57,6 @@ class BaseDataset:
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
 
-# TODO #20
 # NOTE DEPRECATED *************************
     def query_deployment_id(self) -> int:
         query_id_SQL = """
@@ -195,7 +197,7 @@ class NewDataset(BaseDataset):
 
 
 class Dataset(BaseDataset):
-    def __init__(self, dataset) -> None:
+    def __init__(self, dataset, data_name_list: Dict = {}) -> None:
         super(). __init__(dataset.ID)
         self.id = dataset.ID
         self.name = dataset.Name
@@ -203,6 +205,49 @@ class Dataset(BaseDataset):
         self.dataset_size = dataset.Dataset_Size
         self.dataset_path = dataset.Dataset_Path
         self.file_type = dataset.File_Type
+        self.data_name_list = {}
+
+    @st.cache
+    def get_data_name_list(self, data_name_list_full: Dict = {}):
+        """Obtain list of data in the dataset 
+            - Iterative glob through the dataset directory
+            - Obtain filename using pathlib.Path(<'filepath/*'>).name
+
+        Returns:
+            Dict[dict]: Dataset name as key to a List of data in the dataset directory
+        """
+        # IF dataset info already exist and len of data same as number of files in folder -> get from Dict
+        if data_name_list_full.get(self.name) and (len(data_name_list_full.get(self.name))) == len([file for file in Path(self.dataset_path).iterdir() if file.is_file()]):
+
+            self.data_name_list = data_name_list_full.get(self.name)
+
+        else:
+            if self.dataset_path:
+
+                dataset_path = self.dataset_path + "/*"
+                data_info = {}
+                data_info_tmp = []
+
+# i need
+# {'id':data_name,'filetype':self.filetype,'created_at':os.stat().st_mtime}
+
+                # Glob through dataset directory
+                for data_path in iglob(dataset_path):
+                    log_info(f"Globbing {data_path}......")
+                    data_info['id'] = Path(data_path).name
+                    data_info['filetype'] = self.filetype
+
+                    # Get File Modified Time
+                    data_modified_time_epoch = os.stat(str(data_path)).st_mtime
+                    data_modified_time = datetime.fromtimestamp(data_modified_time_epoch
+                                                                ).strftime('%Y-%m-%d')
+                    data_info['created'] = data_modified_time
+                    data_info_tmp.append(data_info)
+
+                data_name_list_full[self.name] = data_info_tmp
+                self.data_name_list = data_info_tmp
+
+            return data_name_list_full
 
 
 @st.cache
@@ -212,16 +257,15 @@ def query_dataset_list() -> List[namedtuple]:
     Returns:
         namedtuple: List of datasets
     """
-# TODO #20
     query_dataset_SQL = """
         SELECT
             id AS "ID",
             name AS "Name",
             dataset_size AS "Dataset Size",
+            (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
             updated_at AS "Date/Time",
             description AS "Description",
-            dataset_path AS "Dataset Path",
-            (SELECT ft.name AS "File Type" from public.file_type ft where ft.id = d.filetype_id)
+            dataset_path AS "Dataset Path"
         FROM
             public.dataset d;"""
 
@@ -252,7 +296,7 @@ def get_dataset_name_list(dataset_list: List[namedtuple]):
     """Generate Dictionary of namedtuple
 
     Args:
-        dataset_list (List[namedtuple]): [description]
+        dataset_list (List[namedtuple]): Query from database
 
     Returns:
         Dict: Dictionary of namedtuple
