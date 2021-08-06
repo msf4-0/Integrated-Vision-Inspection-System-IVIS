@@ -205,7 +205,6 @@ class Dataset(BaseDataset):
         self.filetype = dataset.File_Type
         self.data_name_list = {}
 
-    @st.cache
     def get_data_name_list(self, data_name_list_full: Dict):
         """Obtain list of data in the dataset 
             - Iterative glob through the dataset directory
@@ -235,14 +234,16 @@ class Dataset(BaseDataset):
         if self.dataset_path:
 
             dataset_path = self.dataset_path + "/*"
-            data_info = {}
+
             data_info_tmp = []
 
-# i need
-# {'id':data_name,'filetype':self.filetype,'created_at':os.stat().st_mtime}
+            # i need
+            # {'id':data_name,'filetype':self.filetype,'created_at':os.stat().st_mtime}
 
             # Glob through dataset directory
             for data_path in iglob(dataset_path):
+                data_info = {}
+
                 log_info(f"Globbing {data_path}......")
                 data_info['id'] = Path(data_path).name
                 data_info['filetype'] = self.filetype

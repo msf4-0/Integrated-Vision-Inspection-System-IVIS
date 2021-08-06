@@ -89,15 +89,17 @@ def show():
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # >>>> Column for Create New button and Dataset selectbox
-    topcol1, _, topcol2, _, _ = st.beta_columns([0.15, 0.3, 2, 3.5, 0.5])
+    topcol1, _, topcol2, _, top_col3 = st.beta_columns(
+        [0.15, 0.3, 2, 0.1, 3.5])
+    # topcol3 for dataset ID
 
     # >>>> COLUMNS for BUTTONS
-    _, button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
-        [0.115, 0.375, 0.3, 0.75, 0.3, 0.375, 3.5])
+    _, button_col1, _, button_col2, _, button_col3, _,desc_col4 = st.beta_columns(
+        [0.115, 0.375, 0.3, 0.75, 0.3, 0.375,0.1, 3.15])
 
     # >>>> Main placeholders
-    outercol1, outercol2, _ = st.beta_columns(
-        [2.5, 3.5, 0.15])
+    outercol1, _, outercol2 = st.beta_columns(
+        [2.5, 0.1, 3.5])
 
     # column placeholder for variable/class objects
     _, varscol1, varscol2, varscol3 = st.beta_columns([0.4, 2, 3.5, 0.15])
@@ -124,11 +126,11 @@ def show():
     else:
         session_state.dataset = Dataset(
             dataset_dict[session_state.dataset_sel])
-    varscol1.write(vars(session_state.dataset))
+    # varscol1.write(vars(session_state.dataset))
 
     session_state.data_name_list = session_state.dataset.get_data_name_list(
         session_state.data_name_list)
-    st.write(session_state.data_name_list)
+    # st.write(session_state.data_name_list)
     # <<<<<<<< INSTATIATE DATASET CLASS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -202,14 +204,67 @@ def show():
     button_col2.write(
         f"### Data **{1+start}-{len(df_slice)}** of **{dataset_length}**")  # Example <Data 1-3 of 3>
     # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<TABLE OF DATA<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    # TODO #17 Load details of existing dataset
-    with outercol2:
-        log_info("Outercol2 Zone")
-        # TODO: ADD show() function to load existing dataset and new dataset page?
-        st.write(dataset_dict)
-        pass
 
-    # <<<< CREATE NEW DATASET AND SELECT DATASET <<<<<<<<<<<<<<<<<<<<<<<<<<<
+    # >>>>>>>>>>>>>>>>>>>>>>> LOAD EXISTING DATASET >>>>>>>>>>>>>>>>>>>>>>>>#
+    # TODO #17 Load details of existing dataset
+
+    log_info("Outercol2 Zone")
+    with top_col3:
+        # DATASET ID
+        st.write(
+            f"### __Dataset ID:__ {session_state.dataset.dataset_id}")
+        # TITLE
+        st.write(f"# {session_state.dataset.name}")
+
+    with outercol2:
+
+        # DESCRIPTION
+        desc_col4.write("### **Description:**")
+        if session_state.dataset.desc:
+            st.write(f"{session_state.dataset.desc}")
+        else:
+            st.write(f"No description")
+
+        # DATA TABLE
+
+    # **************** DATA TABLE COLUMN CONFIG ****************************
+        dataset_columns = [
+            {
+                'field': "id",
+                'headerName': "ID / Name",
+                'headerAlign': "center",
+                'align': "center",
+                'flex': 150,
+                'hideSortIcons': True,
+
+            },
+            {
+                'field': "filetype",
+                'headerName': "File Type",
+                'headerAlign': "center",
+                'align': "center",
+                'flex': 150,
+                'hideSortIcons': True,
+            },
+            {
+                'field': "created",
+                'headerName': "Created At",
+                'headerAlign': "center",
+                'align': "center",
+                'flex': 150,
+                'hideSortIcons': True,
+                'type': 'date',
+            },
+
+        ]
+    # **************** DATA TABLE COLUMN CONFIG ****************************
+
+        selection = data_table(
+            session_state.dataset.data_name_list, dataset_columns, key="data_table")
+    # <<<<<<<<<<<<<<<<<<<<<<<<<< LOAD EXISTING DATASET <<<<<<<<<<<<<<<<<<<<<#
+    # TODO: ADD show() function to load existing dataset and new dataset page?
+    # st.write(dataset_dict)
+    pass
 
 
 def main():
