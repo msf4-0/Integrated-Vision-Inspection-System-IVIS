@@ -11,7 +11,6 @@ import {
   GridRowId,
 } from "@material-ui/data-grid"
 import { makeStyles } from "@material-ui/styles"
-import { Float } from "apache-arrow"
 
 //Define Rows and Columns
 /* const rows: GridRowsProp = [
@@ -165,6 +164,8 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
 
   const useStyles = makeStyles({
     root: {
+      //set border colour based on active background color from Streamlit
+      //supports Light and Dark mode
       border: `1px solid ${
         myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "#98989A"
       }`,
@@ -224,7 +225,7 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
     },
   })
 
-  // TODO #27
+  // TODO #27 Add dark mode for Pagination
   const classes = useStyles()
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState<number>(5)
@@ -236,12 +237,12 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
   // var frameHeight: number = headerHeight + rowHeight * pageSize + footerHeight
 
   function frameHeightCalc(size: number) {
-    let totalPage = Math.floor(rows.length / size)
+    let totalPage = Math.floor(rows.length / size) //calculate the floor divisor to obtain number of pages
 
     // add the last page, ugly
-    if (rows.length % size != 0) {
+    if (rows.length % size !== 0) {
       totalPage++
-      if (page == totalPage - 1) {
+      if (page === totalPage - 1) {
         let remainder = rows.length % size
         let frameHeight: number =
           headerHeight + rowHeight * remainder + footerHeight
@@ -279,7 +280,6 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
   }
 
   return (
-    // <TableContainer component={Paper}>
     <DataGrid
       classes={{ root: classes.root }}
       autoPageSize
@@ -300,7 +300,6 @@ function DataTable({ args, disabled, theme }: ComponentProps): ReactElement {
       onSelectionModelChange={onSelectionModelChange}
       selectionModel={selectionModel}
     />
-    // </TableContainer>
   )
 }
 
