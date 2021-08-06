@@ -104,7 +104,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
 
   //Define Rows and Columns
   const rows: GridRowsProp = args.rows
-
+  console.log(rows)
   //Define Columns
   const columns: GridColDef[] = args.columns
 

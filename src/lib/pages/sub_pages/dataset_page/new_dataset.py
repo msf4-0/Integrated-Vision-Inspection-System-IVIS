@@ -103,17 +103,13 @@ def show():
     st.markdown("___")
 
     # right-align the dataset ID relative to the page
-    id_blank, id_right = st.beta_columns([3, 1])
+    _, id_right = st.beta_columns([3, 1])
     id_right.write(
         f"### __Dataset ID:__ {session_state.new_dataset.dataset_id}")
 
-    create_dataset_place = st.empty()
-    # if layout == 'wide':
     outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
-    # else:
-    #     outercol2 = st.beta_columns(1)
 
-    # with st.beta_container():
+    # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     outercol1.write("## __Dataset Information :__")
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>

@@ -136,25 +136,6 @@ def show(dataset_info: Dict = None):
     else:
         pass
 
-#     deployment_type = outercol2.selectbox(
-#         "Deployment Type", key="deployment_type", index=DEPLOYMENT_TYPE.index(dataset.deployment_type), options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
-# # TODO #20
-#     if deployment_type is not None:
-#         dataset.deployment_type = deployment_type
-#         dataset.query_deployment_id()
-
-#     else:
-#         pass
-
-#     place["deployment_type"] = outercol2.empty()
-
-    # <<<<<<<< New Dataset INFO <<<<<<<<
-
-    # >>>>>>>> New Dataset Upload >>>>>>>>
-    # with st.beta_container():
-
-    # upload_dataset_place = st.empty()
-    # if layout == 'wide':
     outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
     # else:
     # pass
@@ -272,7 +253,7 @@ def main():
     # ****************** TESTING ***********************
     existing_dataset, dataset_table_column_names = query_dataset_list()
     # st.write(existing_dataset)
-    dataset_name_list, dataset_dict = get_dataset_name_list(existing_dataset)
+    dataset_dict = get_dataset_name_list(existing_dataset)
 
     show(dataset_dict["My Second Dataset"])
     # ****************** TESTING ***********************
