@@ -76,8 +76,6 @@ class BaseDataset:
 
 # NOTE DEPRECATED *************************
 
-# TODO #20
-# Removed Deployment Type
     def check_if_field_empty(self, field: List, field_placeholder):
         empty_fields = []
         keys = ["name", "upload"]
@@ -204,11 +202,11 @@ class Dataset(BaseDataset):
         self.desc = dataset.Description
         self.dataset_size = dataset.Dataset_Size
         self.dataset_path = dataset.Dataset_Path
-        self.file_type = dataset.File_Type
+        self.filetype = dataset.File_Type
         self.data_name_list = {}
 
     @st.cache
-    def get_data_name_list(self, data_name_list_full: Dict = {}):
+    def get_data_name_list(self, data_name_list_full: Dict):
         """Obtain list of data in the dataset 
             - Iterative glob through the dataset directory
             - Obtain filename using pathlib.Path(<'filepath/*'>).name
@@ -216,36 +214,48 @@ class Dataset(BaseDataset):
         Returns:
             Dict[dict]: Dataset name as key to a List of data in the dataset directory
         """
-        # IF dataset info already exist and len of data same as number of files in folder -> get from Dict
-        if data_name_list_full.get(self.name) and (len(data_name_list_full.get(self.name))) == len([file for file in Path(self.dataset_path).iterdir() if file.is_file()]):
+        try:
+            # IF dataset info already exist and len of data same as number of files in folder -> get from Dict
+            if data_name_list_full.get(self.name) and (len(data_name_list_full.get(self.name))) == len([file for file in Path(self.dataset_path).iterdir() if file.is_file()]):
 
-            self.data_name_list = data_name_list_full.get(self.name)
+                self.data_name_list = data_name_list_full.get(self.name)
 
-        else:
-            if self.dataset_path:
+            else:
+                data_name_list_full = self.glob_folder_data_list(
+                    data_name_list_full)
 
-                dataset_path = self.dataset_path + "/*"
-                data_info = {}
-                data_info_tmp = []
+        except AttributeError as e:
+            log_error(f"{e}: NoneType error for data_name_list dictionary")
+            data_name_list_full = {}
+
+        return data_name_list_full
+
+    @st.cache
+    def glob_folder_data_list(self, data_name_list_full: Dict):
+        if self.dataset_path:
+
+            dataset_path = self.dataset_path + "/*"
+            data_info = {}
+            data_info_tmp = []
 
 # i need
 # {'id':data_name,'filetype':self.filetype,'created_at':os.stat().st_mtime}
 
-                # Glob through dataset directory
-                for data_path in iglob(dataset_path):
-                    log_info(f"Globbing {data_path}......")
-                    data_info['id'] = Path(data_path).name
-                    data_info['filetype'] = self.filetype
+            # Glob through dataset directory
+            for data_path in iglob(dataset_path):
+                log_info(f"Globbing {data_path}......")
+                data_info['id'] = Path(data_path).name
+                data_info['filetype'] = self.filetype
 
-                    # Get File Modified Time
-                    data_modified_time_epoch = os.stat(str(data_path)).st_mtime
-                    data_modified_time = datetime.fromtimestamp(data_modified_time_epoch
-                                                                ).strftime('%Y-%m-%d')
-                    data_info['created'] = data_modified_time
-                    data_info_tmp.append(data_info)
+                # Get File Modified Time
+                data_modified_time_epoch = os.stat(str(data_path)).st_mtime
+                data_modified_time = datetime.fromtimestamp(data_modified_time_epoch
+                                                            ).strftime('%Y-%m-%d')
+                data_info['created'] = data_modified_time
+                data_info_tmp.append(data_info)
 
-                data_name_list_full[self.name] = data_info_tmp
-                self.data_name_list = data_info_tmp
+            data_name_list_full[self.name] = data_info_tmp
+            self.data_name_list = data_info_tmp
 
             return data_name_list_full
 

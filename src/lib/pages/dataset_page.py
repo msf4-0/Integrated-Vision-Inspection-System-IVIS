@@ -39,6 +39,7 @@ from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
+from data_table import data_table
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
@@ -92,11 +93,11 @@ def show():
 
     # >>>> COLUMNS for BUTTONS
     _, button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
-        [0.45, 0.15, 0.5, 0.45, 0.5, 0.15, 3.5])
+        [0.115, 0.375, 0.3, 0.75, 0.3, 0.375, 3.5])
 
     # >>>> Main placeholders
-    _, outercol1, outercol2, outercol3 = st.beta_columns(
-        [0.4, 2, 3.5, 0.15])
+    outercol1, outercol2, _ = st.beta_columns(
+        [2.5, 3.5, 0.15])
 
     # column placeholder for variable/class objects
     _, varscol1, varscol2, varscol3 = st.beta_columns([0.4, 2, 3.5, 0.15])
