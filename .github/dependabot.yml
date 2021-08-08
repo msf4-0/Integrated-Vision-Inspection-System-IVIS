@@ -6,19 +6,19 @@
 version: 2
 updates:
 # Enable version updates for npm
-  - package-ecosystem: "npm"
-    # Look for `package.json` and `lock` files in the `root` directory
-    directory: "/src/test/data_table_component/data_table/frontend"
-    # Check the npm registry for updates every day (weekdays)
-    schedule:
-      interval: "daily"# Enable version updates for npm
-  - package-ecosystem: "npm"
-    # Look for `package.json` and `lock` files in the `root` directory
-    directory: "/src/lib/frontend/streamlit_labelstudio/frontend"
-    # Check the npm registry for updates every day (weekdays)
-    schedule:
-      interval: "daily"
-   - package-ecosystem: pip
+- package-ecosystem: "npm"
+  # Look for `package.json` and `lock` files in the `root` directory
+  directory: "/src/test/data_table_component/data_table/frontend"
+  # Check the npm registry for updates every day (weekdays)
+  schedule:
+    interval: "daily"# Enable version updates for npm
+- package-ecosystem: "npm"
+  # Look for `package.json` and `lock` files in the `root` directory
+  directory: "/src/lib/frontend/streamlit_labelstudio/frontend"
+  # Check the npm registry for updates every day (weekdays)
+  schedule:
+    interval: "daily"
+- package-ecosystem: pip
   directory: "/src"
   schedule:
     interval: daily
