@@ -229,7 +229,7 @@ class Dataset(BaseDataset):
 
         return data_name_list_full
 
-    @st.cache
+    
     def glob_folder_data_list(self, data_name_list_full: Dict):
         if self.dataset_path:
 

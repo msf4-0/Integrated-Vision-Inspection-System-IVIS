@@ -94,8 +94,8 @@ def show():
     # topcol3 for dataset ID
 
     # >>>> COLUMNS for BUTTONS
-    _, button_col1, _, button_col2, _, button_col3, _,desc_col4 = st.beta_columns(
-        [0.115, 0.375, 0.3, 0.75, 0.3, 0.375,0.1, 3.15])
+    _, button_col1, _, button_col2, _, button_col3, _, desc_col4 = st.beta_columns(
+        [0.115, 0.375, 0.3, 0.75, 0.3, 0.375, 0.1, 3.15])
 
     # >>>> Main placeholders
     outercol1, _, outercol2 = st.beta_columns(
@@ -261,6 +261,8 @@ def show():
 
         selection = data_table(
             session_state.dataset.data_name_list, dataset_columns, key="data_table")
+        st.write(f"Selection")
+        st.write(selection)
     # <<<<<<<<<<<<<<<<<<<<<<<<<< LOAD EXISTING DATASET <<<<<<<<<<<<<<<<<<<<<#
     # TODO: ADD show() function to load existing dataset and new dataset page?
     # st.write(dataset_dict)
