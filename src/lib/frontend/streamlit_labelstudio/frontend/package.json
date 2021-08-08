@@ -6,7 +6,7 @@
     "@testing-library/jest-dom": "^5.14",
     "@testing-library/react": "^11.2.7",
     "@testing-library/user-event": "^13.1.9",
-    "@types/jest": "^26.0.23",
+    "@types/jest": "^26.0.24",
     "@types/node": "^15.12.2",
     "label-studio": "^1.0.0",
     "react-scripts": "^4.0.3",
