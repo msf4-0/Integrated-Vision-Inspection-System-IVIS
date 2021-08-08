@@ -263,6 +263,15 @@ def show():
             session_state.dataset.data_name_list, dataset_columns, key="data_table")
         st.write(f"Selection")
         st.write(selection)
+
+    # TODO #44 Image viewer and data control features to List view and Gallery
+    # Add deletion
+    # Add view image
+    #Add Edit callback
+    
+
+    # TODO #18
+
     # <<<<<<<<<<<<<<<<<<<<<<<<<< LOAD EXISTING DATASET <<<<<<<<<<<<<<<<<<<<<#
     # TODO: ADD show() function to load existing dataset and new dataset page?
     # st.write(dataset_dict)
