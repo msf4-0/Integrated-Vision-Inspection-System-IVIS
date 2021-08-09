@@ -37,8 +37,10 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
+from core.utils.file_handler import delete_file_directory
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
+from annotation.annotation_manager import Task
 from data_table import data_table
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -272,7 +274,30 @@ def show():
         st.write(f"Selection")
         st.write(data_selection)
 
-        # Appear 'Delete' button
+        # >>>>>>>>>>>>> DELETE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
+        def delete_file_callback(file_selection_list: str, dataset_path: Path):
+            if file_selection_list:
+                if not dataset_path:
+                    log_error(f"Missing dataset path")
+                    return
+
+                for filename in file_selection_list:
+
+                    if filename:
+                        filepath = Path(dataset_path) / filename
+
+                        # delete file
+                        if delete_file_directory(filepath):
+
+                            # remove from Task from DB
+                            if Task.delete_task(filename):
+
+                                # update dataset size in database
+                                session_state.dataset.update_dataset_size()
+                                log_info(
+                                    f"{filename} has been removed from dataset {session_state.dataset.name} and all its associated task, annotations and predictions")
+                    
+                # Appear 'Delete' button
         if data_selection:
             num_data_selection = len(data_selection)
             with place['delete']:
@@ -286,10 +311,11 @@ def show():
                         st.error(
                             f"Confirm deletion of {num_data_selection} data from {session_state.dataset.name}")
                         confirm_delete_state = st.form_submit_button(
-                            f"Confirm delete")
+                            f"Confirm delete", on_click=delete_file_callback, args=(data_selection,session_state.dataset.dataset_path,))
                         st.write(data_selection)
                     # st.button("Cancel", key='cancel_delete')
-                    place['cancel_delete'].button("Cancel", key='cancel_delete')
+                    place['cancel_delete'].button(
+                        "Cancel", key='cancel_delete')
 
                     # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
 

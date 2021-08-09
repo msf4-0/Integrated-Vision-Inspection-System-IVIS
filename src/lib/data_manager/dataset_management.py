@@ -229,7 +229,6 @@ class Dataset(BaseDataset):
 
         return data_name_list_full
 
-    
     def glob_folder_data_list(self, data_name_list_full: Dict):
         if self.dataset_path:
 
@@ -260,8 +259,28 @@ class Dataset(BaseDataset):
 
             return data_name_list_full
 
+    def update_dataset_size(self):
+        new_dataset_size = len([file for file in Path(
+            self.dataset_path).iterdir() if file.is_file()])
 
-@st.cache
+        update_dataset_size_SQL = """
+                                    UPDATE
+                                        public.dataset
+                                    SET
+                                        dataset_size = %s
+                                    WHERE
+                                        id = %s
+                                    RETURNING dataset_size;
+        
+                                    """
+        update_dataset_size_vars = [new_dataset_size, self.id]
+        new_dataset_size_return = db_fetchone(
+            update_dataset_size_SQL, conn, update_dataset_size_vars)
+        self.dataset_size = new_dataset_size_return if new_dataset_size_return else self.dataset_size
+
+
+# TODO Observe query dataset list caching performance
+# @st.cache(ttl=100)
 def query_dataset_list() -> List[namedtuple]:
     """Query list of dataset from DB, Column Names: TRUE
 
