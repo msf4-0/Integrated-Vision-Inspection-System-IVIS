@@ -74,17 +74,18 @@ def multi_file_open(path):
     return file_list
 
 
-def delete_file(path: Union[Path, str]):
-    # uses os.remove
-    if isinstance(path, str):
-        # convert path string into path-like object
-        path = Path(path)
+def delete_file_directory(path: Union[Path, str]):
+
+    # convert path string into path-like object
+    path = Path(path) if isinstance(path, str) else path
+    log_info(path)
 
     if path.is_dir():
 
         # remove all contents if path is a folder directory
         try:
             shutil.rmtree(path)
+            log_info(f"Successfully deleted {path.name} folder")
         except Exception as e:
             error_msg = f"{e}: Failed to remove directory"
     elif path.is_file():
@@ -320,7 +321,7 @@ def file_unarchiver(filename, extract_dir):
 
 def single_file_archiver(archive_filename, target_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
     archive_filename = Path(archive_filename).with_suffix(archive_extension)
-    if archive_extension is ".zip":  # zip file
+    if archive_extension == ".zip":  # zip file
         with ZipFile(file=archive_filename, mode='w') as zip:
             zip.write(target_filename,
                       arcname=target_base_dir)
