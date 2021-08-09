@@ -1,131 +1,184 @@
-absl-py==0.12.0
-apache-beam==2.30.0
-astunparse==1.6.3
-attrs==21.2.0
-autopep8 @ file:///tmp/build/80754af9/autopep8_1620866417880/work
-avro-python3==1.9.2.1
-backcall @ file:///home/ktietz/src/ci/backcall_1611930011877/work
-cachetools==4.2.2
-certifi==2021.5.30
-cffi==1.14.5
-chardet==4.0.0
-contextlib2==21.6.0
-crcmod==1.7
-cycler==0.10.0
-Cython==0.29.23
-decorator @ file:///tmp/build/80754af9/decorator_1621259047763/work
-dill==0.3.1.1
-dm-tree==0.1.6
-docopt==0.6.2
-fastavro==1.4.2
-flatbuffers==1.12
-future==0.18.2
-gast==0.4.0
-gin-config==0.4.0
-google-api-core==1.30.0
-google-api-python-client==2.10.0
-google-auth==1.32.0
-google-auth-httplib2==0.1.0
-google-auth-oauthlib==0.4.4
-google-cloud-bigquery==2.20.0
-google-cloud-core==1.7.1
-google-crc32c==1.1.2
-google-pasta==0.2.0
-google-resumable-media==1.3.1
-googleapis-common-protos==1.53.0
-grpcio==1.34.1
-h5py==3.1.0
-hdfs==2.6.0
-httplib2==0.19.1
-idna==2.10
-importlib-resources==5.2.0
-ipykernel @ file:///tmp/build/80754af9/ipykernel_1596207638929/work/dist/ipykernel-5.3.4-py3-none-any.whl
-ipython @ file:///tmp/build/80754af9/ipython_1617120885885/work
-ipython-genutils @ file:///tmp/build/80754af9/ipython_genutils_1606773439826/work
-jedi==0.17.0
-joblib==1.0.1
-jupyter-client @ file:///tmp/build/80754af9/jupyter_client_1616770841739/work
-jupyter-core @ file:///tmp/build/80754af9/jupyter_core_1612213311222/work
-kaggle==1.5.12
-keras-nightly==2.5.0.dev2021032900
-Keras-Preprocessing==1.1.2
-kiwisolver==1.3.1
-lvis==0.5.3
-lxml==4.6.3
-Markdown==3.3.4
-matplotlib==3.4.2
-numpy==1.19.5
-oauth2client==4.1.3
-oauthlib==3.1.1
-object-detection @ file:///home/rchuzh/Documents/models/research
-opencv-python==4.5.2.54
-opencv-python-headless==4.5.2.54
-opt-einsum==3.3.0
-packaging==20.9
-pandas==1.2.5
-parso @ file:///tmp/build/80754af9/parso_1617223946239/work
-pexpect @ file:///tmp/build/80754af9/pexpect_1605563209008/work
-pickleshare @ file:///tmp/build/80754af9/pickleshare_1606932040724/work
-Pillow==8.2.0
-portalocker==2.0.0
-promise==2.3
-prompt-toolkit @ file:///tmp/build/80754af9/prompt-toolkit_1616415428029/work
-proto-plus==1.18.1
-protobuf==3.17.3
-psutil==5.8.0
-ptyprocess @ file:///tmp/build/80754af9/ptyprocess_1609355006118/work/dist/ptyprocess-0.7.0-py2.py3-none-any.whl
-py-cpuinfo==8.0.0
-pyarrow==3.0.0
-pyasn1==0.4.8
-pyasn1-modules==0.2.8
-pycocotools @ git+https://github.com/philferriere/cocoapi.git@2929bd2ef6b451054755dfd7ceb09278f935f7ad#subdirectory=PythonAPI
-pycodestyle @ file:///tmp/build/80754af9/pycodestyle_1615748559966/work
-pycparser==2.20
-pydot==1.4.2
-Pygments @ file:///tmp/build/80754af9/pygments_1621606182707/work
-pymongo==3.11.4
-pyparsing==2.4.7
-python-dateutil @ file:///home/ktietz/src/ci/python-dateutil_1611928101742/work
-python-slugify==5.0.2
-pytz==2021.1
-pyudev==0.22.0
-PyYAML==5.4.1
-pyzmq==20.0.0
-requests==2.25.1
-requests-oauthlib==1.3.0
-rsa==4.7.2
-sacrebleu==1.5.1
-scikit-learn==0.24.2
-scipy==1.7.0
-sentencepiece==0.1.96
-seqeval==1.2.2
-six @ file:///tmp/build/80754af9/six_1623709665295/work
-style==1.1.0
-tensorboard==2.5.0
-tensorboard-data-server==0.6.1
-tensorboard-plugin-wit==1.8.0
-tensorflow==2.5.0
-tensorflow-addons==0.13.0
-tensorflow-datasets==4.3.0
-tensorflow-estimator==2.5.0
-tensorflow-hub==0.12.0
-tensorflow-metadata==1.1.0
-tensorflow-model-optimization==0.6.0
-termcolor==1.1.0
-text-unidecode==1.3
-tf-models-official==2.5.0
-tf-slim==1.1.0
-threadpoolctl==2.1.0
-toml @ file:///tmp/build/80754af9/toml_1616166611790/work
-tornado @ file:///tmp/build/80754af9/tornado_1606942300299/work
-tqdm==4.61.1
-traitlets @ file:///home/ktietz/src/ci/traitlets_1611929699868/work
-typeguard==2.12.1
-typing-extensions==3.7.4.3
-update==0.0.1
-uritemplate==3.0.1
-urllib3==1.26.6
-wcwidth @ file:///tmp/build/80754af9/wcwidth_1593447189090/work
-Werkzeug==2.0.1
-wrapt==1.12.1
-zipp==3.4.1
+# packages in environment at /home/rchuzh/anaconda3/envs/shrdc:
+#
+# Name                    Version                   Build  Channel
+_libgcc_mutex             0.1                        main  
+_openmp_mutex             4.5                       1_gnu  
+absl-py                   0.12.0                   pypi_0    pypi
+altair                    4.1.0                    pypi_0    pypi
+apache-beam               2.31.0                   pypi_0    pypi
+argon2-cffi               20.1.0                   pypi_0    pypi
+argon2_cffi               19.1.0           py38h7b6447c_0  
+astor                     0.8.1                    pypi_0    pypi
+astunparse                1.6.3                    pypi_0    pypi
+async-generator           1.10                     pypi_0    pypi
+attrs                     21.2.0                   pypi_0    pypi
+autopep8                  1.5.7              pyhd3eb1b0_0  
+avro-python3              1.9.2.1                  pypi_0    pypi
+backcall                  0.2.0                    pypi_0    pypi
+base58                    2.1.0                    pypi_0    pypi
+bcrypt                    3.2.0            py38h7b6447c_0  
+bleach                    4.0.0                    pypi_0    pypi
+blinker                   1.4                      pypi_0    pypi
+ca-certificates           2021.7.5             h06a4308_1  
+cachetools                4.2.2                    pypi_0    pypi
+certifi                   2021.5.30        py38h06a4308_0  
+cffi                      1.14.6           py38h400218f_0  
+charset-normalizer        2.0.4                    pypi_0    pypi
+click                     7.1.2                    pypi_0    pypi
+contextlib2               21.6.0                   pypi_0    pypi
+crcmod                    1.7                      pypi_0    pypi
+cryptography              3.4.7            py38hd23ed53_0  
+data-table                0.0.1                     dev_0    <develop>
+debugpy                   1.4.1                    pypi_0    pypi
+decorator                 5.0.9                    pypi_0    pypi
+defusedxml                0.7.1                    pypi_0    pypi
+dill                      0.3.1.1                  pypi_0    pypi
+dm-tree                   0.1.6                    pypi_0    pypi
+docopt                    0.6.2                    pypi_0    pypi
+entrypoints               0.3                      pypi_0    pypi
+fastavro                  1.4.4                    pypi_0    pypi
+flatbuffers               1.12                     pypi_0    pypi
+future                    0.18.2                   pypi_0    pypi
+gin-config                0.4.0                    pypi_0    pypi
+gitdb                     4.0.7                    pypi_0    pypi
+gitpython                 3.1.18                   pypi_0    pypi
+google-api-core           1.31.1                   pypi_0    pypi
+google-api-python-client  2.15.0                   pypi_0    pypi
+google-auth               1.34.0                   pypi_0    pypi
+google-auth-httplib2      0.1.0                    pypi_0    pypi
+google-auth-oauthlib      0.4.5                    pypi_0    pypi
+google-pasta              0.2.0                    pypi_0    pypi
+googleapis-common-protos  1.53.0                   pypi_0    pypi
+hdfs                      2.6.0                    pypi_0    pypi
+httplib2                  0.19.1                   pypi_0    pypi
+idna                      3.2                      pypi_0    pypi
+importlib-resources       5.2.2                    pypi_0    pypi
+ipykernel                 6.0.3                    pypi_0    pypi
+ipython                   7.26.0                   pypi_0    pypi
+ipython-genutils          0.2.0                    pypi_0    pypi
+ipywidgets                7.6.3                    pypi_0    pypi
+jedi                      0.18.0                   pypi_0    pypi
+jinja2                    3.0.1                    pypi_0    pypi
+joblib                    1.0.1                    pypi_0    pypi
+jsonschema                3.2.0                    pypi_0    pypi
+jupyter-client            6.1.12                   pypi_0    pypi
+jupyter-core              4.7.1                    pypi_0    pypi
+jupyterlab-pygments       0.1.2                    pypi_0    pypi
+jupyterlab-widgets        1.0.0                    pypi_0    pypi
+kaggle                    1.5.12                   pypi_0    pypi
+keras-preprocessing       1.1.2                    pypi_0    pypi
+krb5                      1.19.2               hac12032_0  
+ld_impl_linux-64          2.35.1               h7274673_9  
+libedit                   3.1.20210216         h27cfd23_1  
+libffi                    3.3                  he6710b0_2  
+libgcc-ng                 9.3.0               h5101ec6_17  
+libgomp                   9.3.0               h5101ec6_17  
+libpq                     12.2                 h553bfba_1  
+libstdcxx-ng              9.3.0               hd4cf53a_17  
+lvis                      0.5.3                    pypi_0    pypi
+lxml                      4.6.3                    pypi_0    pypi
+markdown                  3.3.4                    pypi_0    pypi
+markupsafe                2.0.1                    pypi_0    pypi
+matplotlib-inline         0.1.2                    pypi_0    pypi
+mistune                   0.8.4                    pypi_0    pypi
+nbclient                  0.5.3                    pypi_0    pypi
+nbconvert                 6.1.0                    pypi_0    pypi
+nbformat                  5.1.3                    pypi_0    pypi
+ncurses                   6.2                  he6710b0_1  
+nest-asyncio              1.5.1                    pypi_0    pypi
+notebook                  6.4.2                    pypi_0    pypi
+numpy                     1.19.5                   pypi_0    pypi
+oauth2client              4.1.3                    pypi_0    pypi
+oauthlib                  3.1.1                    pypi_0    pypi
+object-detection          0.1                      pypi_0    pypi
+opencv-python             4.5.3.56                 pypi_0    pypi
+opencv-python-headless    4.5.3.56                 pypi_0    pypi
+openssl                   1.1.1k               h27cfd23_0  
+opt-einsum                3.3.0                    pypi_0    pypi
+packaging                 21.0                     pypi_0    pypi
+pandas                    1.3.1                    pypi_0    pypi
+pandocfilters             1.4.3                    pypi_0    pypi
+parso                     0.8.2                    pypi_0    pypi
+passlib                   1.7.4                      py_0  
+pexpect                   4.8.0                    pypi_0    pypi
+pickleshare               0.7.5                    pypi_0    pypi
+pillow                    8.3.1                    pypi_0    pypi
+pip                       21.2.2           py38h06a4308_0  
+portalocker               2.0.0                    pypi_0    pypi
+prometheus-client         0.11.0                   pypi_0    pypi
+promise                   2.3                      pypi_0    pypi
+prompt-toolkit            3.0.19                   pypi_0    pypi
+protobuf                  3.17.3                   pypi_0    pypi
+psutil                    5.8.0                    pypi_0    pypi
+psycopg2                  2.8.6            py38h3c74f83_1  
+ptyprocess                0.7.0                    pypi_0    pypi
+py-cpuinfo                8.0.0                    pypi_0    pypi
+pyarrow                   4.0.1                    pypi_0    pypi
+pyasn1                    0.4.8                    pypi_0    pypi
+pyasn1-modules            0.2.8                    pypi_0    pypi
+pycocotools               2.0.2                    pypi_0    pypi
+pycodestyle               2.7.0              pyhd3eb1b0_0  
+pycparser                 2.20                       py_2  
+pydeck                    0.6.2                    pypi_0    pypi
+pydot                     1.4.2                    pypi_0    pypi
+pygments                  2.9.0                    pypi_0    pypi
+pymongo                   3.12.0                   pypi_0    pypi
+pyrsistent                0.18.0                   pypi_0    pypi
+python                    3.8.11          h12debd9_0_cpython  
+python-dateutil           2.8.2                    pypi_0    pypi
+python-slugify            5.0.2                    pypi_0    pypi
+pytz                      2021.1                   pypi_0    pypi
+pyyaml                    5.4.1                    pypi_0    pypi
+pyzmq                     22.2.1                   pypi_0    pypi
+readline                  8.1                  h27cfd23_0  
+requests                  2.26.0                   pypi_0    pypi
+requests-oauthlib         1.3.0                    pypi_0    pypi
+rsa                       4.7.2                    pypi_0    pypi
+sacrebleu                 1.5.1                    pypi_0    pypi
+scikit-learn              0.24.2                   pypi_0    pypi
+scipy                     1.7.1                    pypi_0    pypi
+send2trash                1.7.1                    pypi_0    pypi
+sentencepiece             0.1.96                   pypi_0    pypi
+seqeval                   1.2.2                    pypi_0    pypi
+setuptools                52.0.0           py38h06a4308_0  
+six                       1.15.0                   pypi_0    pypi
+smmap                     4.0.0                    pypi_0    pypi
+sqlite                    3.36.0               hc218d9a_0  
+stqdm                     0.0.4                    pypi_0    pypi
+streamlit                 0.86.0                   pypi_0    pypi
+tensorboard-plugin-wit    1.8.0                    pypi_0    pypi
+tensorflow                2.5.0                    pypi_0    pypi
+tensorflow-addons         0.13.0                   pypi_0    pypi
+tensorflow-datasets       4.4.0                    pypi_0    pypi
+tensorflow-hub            0.12.0                   pypi_0    pypi
+tensorflow-metadata       1.2.0                    pypi_0    pypi
+tensorflow-model-optimization 0.6.0                    pypi_0    pypi
+termcolor                 1.1.0                    pypi_0    pypi
+terminado                 0.10.1                   pypi_0    pypi
+testpath                  0.5.0                    pypi_0    pypi
+text-unidecode            1.3                      pypi_0    pypi
+tf-models-official        2.5.1                    pypi_0    pypi
+tf-slim                   1.1.0                    pypi_0    pypi
+threadpoolctl             2.2.0                    pypi_0    pypi
+tk                        8.6.10               hbc83047_0  
+toml                      0.10.2             pyhd3eb1b0_0  
+toolz                     0.11.1                   pypi_0    pypi
+tornado                   6.1                      pypi_0    pypi
+tqdm                      4.62.0                   pypi_0    pypi
+traitlets                 5.0.5                    pypi_0    pypi
+typeguard                 2.12.1                   pypi_0    pypi
+typing-extensions         3.7.4.3                  pypi_0    pypi
+tzlocal                   2.1                      pypi_0    pypi
+uritemplate               3.0.1                    pypi_0    pypi
+urllib3                   1.26.6                   pypi_0    pypi
+validators                0.18.2                   pypi_0    pypi
+watchdog                  2.1.3                    pypi_0    pypi
+wcwidth                   0.2.5                    pypi_0    pypi
+webencodings              0.5.1                    pypi_0    pypi
+werkzeug                  2.0.1                    pypi_0    pypi
+wheel                     0.36.2             pyhd3eb1b0_0  
+widgetsnbextension        3.5.1                    pypi_0    pypi
+wrapt                     1.12.1                   pypi_0    pypi
+xz                        5.2.5                h7b6447c_0  
+zipp                      3.5.0                    pypi_0    pypi
+zlib                      1.2.11               h7b6447c_3  
