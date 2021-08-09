@@ -37,22 +37,28 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
+from core.utils.file_handler import delete_file_directory
+from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
+from annotation.annotation_manager import Task
 from data_table import data_table
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
 conn = init_connection(**st.secrets["postgres"])
 PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
+place = {}  # dictionary to store placeholders
+
+
 # <<<< Variable Declaration <<<<
 # >>>> Template >>>>
 chdir_root()  # change to root directory
 # initialise connection to Database
 
-with st.sidebar.beta_container():
+with st.sidebar.container():
     st.image("resources/MSF-logo.gif", use_column_width=True)
-# with st.beta_container():
+# with st.container():
     st.title("Integrated Vision Inspection System", anchor='title')
     st.header(
         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
@@ -71,7 +77,7 @@ def show():
     # >>>> Dataset SIDEBAR >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     DATASET_PAGE = ("All Datasets", "New Dataset")
-    with st.sidebar.beta_expander("Dataset Page", expanded=True):
+    with st.sidebar.expander("Dataset Page", expanded=True):
         session_state.current_page = st.radio("", options=DATASET_PAGE,
                                               index=0)
 
@@ -89,20 +95,20 @@ def show():
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # >>>> Column for Create New button and Dataset selectbox
-    topcol1, _, topcol2, _, top_col3 = st.beta_columns(
+    topcol1, _, topcol2, _, top_col3 = st.columns(
         [0.15, 0.3, 2, 0.1, 3.5])
     # topcol3 for dataset ID
 
     # >>>> COLUMNS for BUTTONS
-    _, button_col1, _, button_col2, _, button_col3, _, desc_col4 = st.beta_columns(
+    _, button_col1, _, button_col2, _, button_col3, _, desc_col4 = st.columns(
         [0.115, 0.375, 0.3, 0.75, 0.3, 0.375, 0.1, 3.15])
 
     # >>>> Main placeholders
-    outercol1, _, outercol2 = st.beta_columns(
+    outercol1, _, outercol2 = st.columns(
         [2.5, 0.1, 3.5])
 
     # column placeholder for variable/class objects
-    _, varscol1, varscol2, varscol3 = st.beta_columns([0.4, 2, 3.5, 0.15])
+    _, varscol1, varscol2, varscol3 = st.columns([0.4, 2, 3.5, 0.15])
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -225,7 +231,12 @@ def show():
         else:
             st.write(f"No description")
 
-        # DATA TABLE
+        # TODO Add edit button -- CALLBACK?
+        # st.button("Edit dataset", key="edit_dataset")
+        # TODO Add delete button
+        place["delete"] = st.empty()
+        place["delete"].button("Edit dataset", key="edit_dataset2")
+        place['cancel_delete'] = st.empty()
 
     # **************** DATA TABLE COLUMN CONFIG ****************************
         dataset_columns = [
@@ -259,16 +270,60 @@ def show():
         ]
     # **************** DATA TABLE COLUMN CONFIG ****************************
 
-        selection = data_table(
+        data_selection = data_table(
             session_state.dataset.data_name_list, dataset_columns, key="data_table")
         st.write(f"Selection")
-        st.write(selection)
+        st.write(data_selection)
+
+        # >>>>>>>>>>>>> DELETE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
+        def delete_file_callback(file_selection_list: str, dataset_path: Path):
+            if file_selection_list:
+                if not dataset_path:
+                    log_error(f"Missing dataset path")
+                    return
+
+                for filename in file_selection_list:
+
+                    if filename:
+                        filepath = Path(dataset_path) / filename
+
+                        # delete file
+                        if delete_file_directory(filepath):
+
+                            # remove from Task from DB
+                            if Task.delete_task(filename):
+
+                                # update dataset size in database
+                                session_state.dataset.update_dataset_size()
+                                log_info(
+                                    f"{filename} has been removed from dataset {session_state.dataset.name} and all its associated task, annotations and predictions")
+                    
+                # Appear 'Delete' button
+        if data_selection:
+            num_data_selection = len(data_selection)
+            with place['delete']:
+
+                delete_state = st.button(
+                    f"Delete {num_data_selection} selected")
+
+                # Ask user to confirm deletion of selected data from current dataset
+                if delete_state:
+                    with st.form(key="confirm _delete_data"):
+                        st.error(
+                            f"Confirm deletion of {num_data_selection} data from {session_state.dataset.name}")
+                        confirm_delete_state = st.form_submit_button(
+                            f"Confirm delete", on_click=delete_file_callback, args=(data_selection,session_state.dataset.dataset_path,))
+                        st.write(data_selection)
+                    # st.button("Cancel", key='cancel_delete')
+                    place['cancel_delete'].button(
+                        "Cancel", key='cancel_delete')
+
+                    # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
 
     # TODO #44 Image viewer and data control features to List view and Gallery
-    # Add deletion
-    # Add view image
-    #Add Edit callback
     
+    # Add view image
+    # Add Edit callback
 
     # TODO #18
 

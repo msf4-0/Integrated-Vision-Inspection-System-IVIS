@@ -76,10 +76,10 @@ def show():
 
     chdir_root()  # change to root directory
 
-    with st.sidebar.beta_container():
+    with st.sidebar.container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.beta_container():
+    # with st.container():
         st.title("Integrated Vision Inspection System", anchor='title')
 
         st.header(
@@ -103,7 +103,7 @@ def show():
 
     # >>>> TRAINING SIDEBAR >>>>
     training_page_options = ("All Trainings", "New Training")
-    with st.sidebar.beta_expander("Training Page", expanded=True):
+    with st.sidebar.expander("Training Page", expanded=True):
         session_state.current_page = st.radio("", options=training_page_options,
                                               index=0)
     # <<<< TRAINING SIDEBAR <<<<
@@ -112,7 +112,7 @@ def show():
     # Page title
     st.write(f'# Project Name: {session_state.project.name}')
     st.write("## __Add New Training__")
-    dt_place, project_id_place = st.beta_columns([3, 1])
+    dt_place, project_id_place = st.columns([3, 1])
     with dt_place:
         st.write("### __Deployment Type:__",
                  f"{session_state.project.deployment_type}")
@@ -121,16 +121,16 @@ def show():
     st.markdown("___")
 
     # right-align the project ID relative to the page
-    id_blank, id_right = st.beta_columns([3, 1])
+    id_blank, id_right = st.columns([3, 1])
     id_right.write(
         f"### __Training ID:__ {session_state.new_training.id}")
 
     create_training_place = st.empty()
     # if layout == 'wide':
-    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
+    outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
     # else:
     #     col2 = create_project_place
-    # with create_project_place.beta_container():
+    # with create_project_place.container():
     outercol1.write("## __Training Information :__")
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
@@ -164,7 +164,7 @@ def show():
     st.write("___")
     # include options to create new dataset on this page
     # create 2 columns for "New Data Button"
-    outercol1, outercol2, outercol3, _ = st.beta_columns(
+    outercol1, outercol2, outercol3, _ = st.columns(
         [1.5, 1.75, 1.75, 0.5])
 
     outercol1.write("## __Dataset :__")
@@ -188,7 +188,7 @@ def show():
             # st.write("### Dataset Partition Ratio")
             session_state.new_training.partition_ratio = outercol3.number_input(
                 "Dataset Partition Ratio", min_value=0.5, max_value=1.0, value=0.8, step=0.1, key="partition_ratio")
-            with outercol3.beta_expander("Partition info"):
+            with outercol3.expander("Partition info"):
                 st.info("Ratio of Training datasets to Evaluation datasets. Example: '0.5' means the dataset are split randomly and equally into training and evaluation datasets.")
 
             st.write("### Dataset choosen:")
@@ -241,7 +241,7 @@ def show():
     # <<<< Left Column to show full list of dataset and selection <<<<
 
     # >>>> Dataset Pagination >>>>
-    _, col1, _, col2, _, col3, _ = st.beta_columns(
+    _, col1, _, col2, _, col3, _ = st.columns(
         [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
     num_dataset_per_page = 10
     num_dataset_page = len(
@@ -265,7 +265,7 @@ def show():
 
 # >>>>>>>> Model >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     st.write("___")
-    outercol1, outercol2, outercol3, _ = st.beta_columns(
+    outercol1, outercol2, outercol3, _ = st.columns(
         [1.5, 1.75, 1.75, 0.5])
 
     if 'pt_model' not in session_state:
@@ -350,7 +350,7 @@ def show():
 
         # >>>> Dataset Pagination >>>>
 
-        _, _, col1, _, col2, _, col3, _ = st.beta_columns(
+        _, _, col1, _, col2, _, col3, _ = st.columns(
             [1.5, 1.75, 0.15, 0.5, 0.45, 0.5, 0.15, 0.5])
         num_data_per_page = 10
         num_data_page = len(
@@ -434,7 +434,7 @@ def show():
 
         # >>>> Dataset Pagination >>>>
         if project_models:
-            _, _, col1, _, col2, _, col3, _ = st.beta_columns(
+            _, _, col1, _, col2, _, col3, _ = st.columns(
                 [1.5, 1.75, 0.15, 0.5, 0.45, 0.5, 0.15, 0.5])
             num_data_per_page = 10
             num_data_page = len(
@@ -487,7 +487,7 @@ def show():
     st.write("___")
     DATASET_LIST = []
     # **** Image Augmentation (Optional) ****
-    outercol1, outercol2, outercol3, _ = st.beta_columns(
+    outercol1, outercol2, outercol3, _ = st.columns(
         [1.5, 1.75, 1.75, 0.5])
     outercol1.write("## __Image Augmentation (Optional) :__")
     augmentation_activate = outercol1.checkbox("Image Augmentation", value=False,
@@ -505,7 +505,7 @@ def show():
     training_param = session_state.new_training.training_param
 
     st.write("___")
-    outercol1, outercol2, outercol3, _ = st.beta_columns(
+    outercol1, outercol2, outercol3, _ = st.columns(
         [1.5, 1.75, 1.75, 0.5])
     outercol1.write("## __Training Parameters :__")
     training_param.training_param_optional = outercol2.multiselect(
@@ -529,7 +529,7 @@ def show():
     field = [session_state.new_training.name,
              session_state.new_training.dataset_chosen, session_state.new_training.model_selected]
     st.write(field)
-    col1, col2 = st.beta_columns([3, 0.5])
+    col1, col2 = st.columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
 
     if submit_button:
@@ -545,7 +545,7 @@ def show():
                 success_place.error(
                     f"Failed to stored **{session_state.new_training.name}** training information in database")
 
-    col1, col2 = st.beta_columns(2)
+    col1, col2 = st.columns(2)
     col1.write("Project Class")
     col1.write(vars(session_state.project))
     col2.write("New Training Class")

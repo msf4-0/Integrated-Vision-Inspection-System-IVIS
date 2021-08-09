@@ -34,3 +34,17 @@ VALUES (
 RETURNING
     id;
 
+--Remove Task
+DELETE FROM public.task
+WHERE task.name = % s
+RETURNING
+    *;
+
+--Update Dataset Size
+UPDATE
+    public.dataset
+SET
+    (dataset_size = % s)
+WHERE
+    dataset_id = % s;
+

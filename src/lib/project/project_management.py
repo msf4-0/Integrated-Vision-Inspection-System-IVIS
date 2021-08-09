@@ -46,7 +46,7 @@ conn = init_connection(**st.secrets["postgres"])
 
 # <<<< Variable Declaration <<<<
 class BaseProject:
-    def __init__(self, project_id) -> None:
+    def __init__(self, project_id=None) -> None:
         self.id = project_id
         self.name: str = None
         self.desc: str = None
@@ -59,7 +59,7 @@ class BaseProject:
         self.dataset_chosen: List = []
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
-        self.datasets: List = self.query_dataset_list()
+        self.datasets, self.column_names = self.query_dataset_list()
         self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.dataset_list: Dict = {}
         self.image_name_list: List = []  # for image_labelling
@@ -67,31 +67,34 @@ class BaseProject:
 
     @st.cache
     def query_dataset_list(self) -> List:
-        query_dataset_SQL = """SELECT
-                                id,
-                                name,
-                                dataset_size,
-                                updated_at
+        query_dataset_SQL = """
+                            SELECT
+                                id AS "ID",
+                                name AS "Name",
+                                dataset_size AS "Dataset Size",
+                                updated_at AS "Date/Time"
                             FROM
                                 public.dataset;"""
 
-        datasets = db_fetchall(query_dataset_SQL, conn)
+        datasets, column_names = db_fetchall(
+            query_dataset_SQL, conn, fetch_col_name=True)
         dataset_tmp = []
         if datasets:
             for dataset in datasets:
-                dataset = list(dataset)  # convert tuples to List
 
                 # convert datetime with TZ to (2021-07-30 12:12:12) format
-                dataset[3] = dataset[3].strftime('%Y-%m-%d %H:%M:%S')
+                converted_datetime = dataset.Date_Time.strftime(
+                    '%Y-%m-%d %H:%M:%S')
+                dataset = dataset._replace(
+                    Date_Time=converted_datetime)
                 dataset_tmp.append(dataset)
 
             self.datasets = dataset_tmp
         else:
             dataset_tmp = []
 
-        return dataset_tmp
+        return dataset_tmp, column_names
 
-    @st.cache
     def get_dataset_name_list(self) -> List:
         dataset_name_tmp = []
         dataset_name_id = {}
@@ -188,6 +191,7 @@ class Project(BaseProject):
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
         # self.dataset_list = self.load_dataset()
+# TODO #45 I want IU
 
     @st.cache
     def query_all_fields(self) -> NamedTuple:
@@ -308,7 +312,7 @@ class Project(BaseProject):
                 #     data_name = Path(data_path).name
                 #     data_name_tmp.append(data_name)
 
-                data_name_tmp = [Path(data_path.name)
+                data_name_tmp = [Path(data_path).name
                                  for data_path in iglob(dataset_path)]  # UPDATED with List comprehension
 
                 data_name_list[d.Name] = sorted(data_name_tmp)

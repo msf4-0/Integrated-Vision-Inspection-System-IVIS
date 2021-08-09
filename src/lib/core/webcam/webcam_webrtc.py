@@ -13,7 +13,6 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
 # NEW
-from webcam import webcam
 from streamlit_webrtc import (
     ClientSettings,
     VideoProcessorBase,
@@ -58,7 +57,8 @@ def app_loopback():
     webrtc_streamer(
         key="loopback",
         mode=WebRtcMode.SENDRECV,
-        client_settings=WEBRTC_CLIENT_SETTINGS,
+        rtc_configuration=WEBRTC_CLIENT_SETTINGS['rtc_configuration'],
+        media_stream_constraints=WEBRTC_CLIENT_SETTINGS['media_stream_constraints'],
         video_processor_factory=None,  # NoOp
     )
 

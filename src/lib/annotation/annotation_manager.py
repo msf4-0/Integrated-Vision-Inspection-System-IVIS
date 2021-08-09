@@ -226,6 +226,21 @@ class Task(BaseTask):
             task = {}
             return task
 
+    @staticmethod
+    def delete_task(taskname: str):
+        delete_task_SQL = """
+                            DELETE FROM public.task
+                            WHERE task.name = %s
+                            RETURNING
+                                *;
+                                """
+        delete_task_vars = [taskname]
+        query_delete_return = db_fetchone(
+            delete_task_SQL, conn, delete_task_vars)
+
+        # return to confirm task is deleted
+        return query_delete_return
+
 
 class Result:
     def __init__(self, from_name, to_name, type, value) -> None:
