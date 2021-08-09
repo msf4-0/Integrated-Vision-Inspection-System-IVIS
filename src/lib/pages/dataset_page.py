@@ -320,7 +320,7 @@ def show():
                     # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
 
     # TODO #44 Image viewer and data control features to List view and Gallery
-    # Add deletion
+    
     # Add view image
     # Add Edit callback
 

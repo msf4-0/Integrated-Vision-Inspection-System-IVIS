@@ -13,7 +13,6 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
 # NEW
-from webcam import webcam
 from streamlit_webrtc import (
     ClientSettings,
     VideoProcessorBase,
