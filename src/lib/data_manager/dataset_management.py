@@ -74,15 +74,15 @@ class BaseDataset:
         else:
             self.deployment_id = None
 
-# NOTE DEPRECATED *************************
-
-    def check_if_field_empty(self, field: List, field_placeholder):
+    def check_if_field_empty(self, field: List, field_placeholder, keys=["name", "upload"]):
         empty_fields = []
-        keys = ["name", "upload"]
+
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
         for i in field:
             if i and i != "":
-                if field.index(i) == 0:
+
+                # Double check if Dataset name exists in DB
+                if (field.index(i) == 0) and ('name' in keys):
                     context = ['name', field[0]]
                     if self.check_if_exist(context, conn):
                         field_placeholder[keys[0]].error(
@@ -146,6 +146,8 @@ class BaseDataset:
             # To get size in MB
             self.dataset_total_filesize = bytes_divisor(
                 self.dataset_total_filesize, -2)
+        else:
+            self.dataset_total_filesize = 0
         return self.dataset_total_filesize
 
 
@@ -278,9 +280,19 @@ class Dataset(BaseDataset):
             update_dataset_size_SQL, conn, update_dataset_size_vars)
         self.dataset_size = new_dataset_size_return if new_dataset_size_return else self.dataset_size
 
+# TODO REMOVE
+    def update_data_name_list(self, new_name_list: List):
+        current_data_name_only_list = [x['id'] for x in self.data_name_list]
+        new_data_name_only_list = list(
+            set(current_data_name_only_list + new_name_list))
+        # NOT NEEDED
+        # Image Previewer
+
 
 # TODO Observe query dataset list caching performance
 # @st.cache(ttl=100)
+
+
 def query_dataset_list() -> List[namedtuple]:
     """Query list of dataset from DB, Column Names: TRUE
 

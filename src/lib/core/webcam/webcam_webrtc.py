@@ -57,7 +57,8 @@ def app_loopback():
     webrtc_streamer(
         key="loopback",
         mode=WebRtcMode.SENDRECV,
-        client_settings=WEBRTC_CLIENT_SETTINGS,
+        rtc_configuration=WEBRTC_CLIENT_SETTINGS['rtc_configuration'],
+        media_stream_constraints=WEBRTC_CLIENT_SETTINGS['media_stream_constraints'],
         video_processor_factory=None,  # NoOp
     )
 

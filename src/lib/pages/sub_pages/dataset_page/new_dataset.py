@@ -61,10 +61,10 @@ def show():
 
     chdir_root()  # change to root directory
 
-    with st.sidebar.beta_container():
+    with st.sidebar.container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.beta_container():
+    # with st.container():
         st.title("Integrated Vision Inspection System", anchor='title')
 
         st.header(
@@ -83,7 +83,7 @@ def show():
 
     # >>>> Dataset SIDEBAR >>>>
     project_page_options = ("All Datasets", "New Dataset")
-    with st.sidebar.beta_expander("Dataset Page", expanded=True):
+    with st.sidebar.expander("Dataset Page", expanded=True):
         session_state.current_page = st.radio("", options=project_page_options,
                                               index=0)
     # <<<< Dataset SIDEBAR <<<<
@@ -94,11 +94,11 @@ def show():
     st.markdown("___")
 
     # right-align the dataset ID relative to the page
-    _, id_right = st.beta_columns([3, 1])
+    _, id_right = st.columns([3, 1])
     id_right.write(
         f"### __Dataset ID:__ {session_state.new_dataset.dataset_id}")
 
-    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
+    outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
 
     # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     outercol1.write("## __Dataset Information :__")
@@ -145,11 +145,11 @@ def show():
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
     # >>>>>>>> New Dataset Upload >>>>>>>>
-    # with st.beta_container():
+    # with st.container():
 
     # upload_dataset_place = st.empty()
     # if layout == 'wide':
-    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
+    outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
     # else:
     # pass
     # if 'webcam_flag' not in session_state:
@@ -159,13 +159,13 @@ def show():
 
     outercol1.write("## __Dataset Upload:__")
     data_source_options = ["Webcam 📷", "File Upload 📂"]
-    # col1, col2 = st.beta_columns(2)
+    # col1, col2 = st.columns(2)
 
     data_source = outercol2.radio(
         "Data Source", options=data_source_options, key="data_source_radio")
     data_source = data_source_options.index(data_source)
 
-    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 2, 2])
+    outercol1, outercol2, outercol3 = st.columns([1.5, 2, 2])
     dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
     dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
     outercol3.markdown(" ____ ")
@@ -194,7 +194,7 @@ def show():
         uploaded_files_multi = outercol2.file_uploader(
             label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget")
         # ******** INFO for FILE FORMAT **************************************
-        with outercol1.beta_expander("File Format Infomation", expanded=True):
+        with outercol1.expander("File Format Infomation", expanded=True):
             file_format_info = """
             1. Image: .jpg, .png, .jpeg
             2. Video: .mp4, .mpeg
@@ -215,7 +215,7 @@ def show():
         else:
             session_state.new_dataset.filetype = None
             session_state.new_dataset.dataset_size = 0  # length of uploaded files
-            session_state.new_dataset.dataset = None
+            session_state.new_dataset.dataset = []
         dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
         dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
 
@@ -225,15 +225,15 @@ def show():
 
     # Placeholder for WARNING messages of File Upload widget
 
-    # with st.beta_expander("Data Viewer", expanded=False):
-    #     imgcol1, imgcol2, imgcol3 = st.beta_columns(3)
+    # with st.expander("Data Viewer", expanded=False):
+    #     imgcol1, imgcol2, imgcol3 = st.columns(3)
     #     imgcol1.checkbox("img1", key="img1")
     #     for image in uploaded_files_multi:
     #         imgcol1.image(uploaded_files_multi[1])
 
     # TODO: KIV
 
-    # col1, col2, col3 = st.beta_columns([1, 1, 7])
+    # col1, col2, col3 = st.columns([1, 1, 7])
     # webcam_button = col1.button(
     #     "Webcam 📷", key="webcam_button", on_click=update_webcam_flag)
     # file_upload_button = col2.button(
@@ -245,7 +245,7 @@ def show():
     success_place = st.empty()
     field = [session_state.new_dataset.name, session_state.new_dataset.dataset]
     st.write(field)
-    submit_col1, submit_col2 = st.beta_columns([3, 0.5])
+    submit_col1, submit_col2 = st.columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
 
     if submit_button:

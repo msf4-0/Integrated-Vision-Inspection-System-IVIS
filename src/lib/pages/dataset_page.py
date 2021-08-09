@@ -38,6 +38,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
 from core.utils.file_handler import delete_file_directory
+from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
 from annotation.annotation_manager import Task
