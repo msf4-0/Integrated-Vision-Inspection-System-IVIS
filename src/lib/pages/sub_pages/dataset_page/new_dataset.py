@@ -78,7 +78,7 @@ def show():
     if "new_dataset" not in session_state:
         # set random dataset ID before getting actual from Database
         session_state.new_dataset = NewDataset(get_random_string(length=8))
-        session_state.data_source = "File Upload 📂"
+        session_state.data_source_radio = "File Upload 📂"
     # ******** SESSION STATE ********
 
     # >>>> Dataset SIDEBAR >>>>

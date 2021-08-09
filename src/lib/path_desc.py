@@ -14,6 +14,7 @@ from core.utils.log import log_info, log_error  # logger
 
 # ./image_labelling_shrdc
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 
 def chdir_root():
@@ -39,6 +40,3 @@ def add_path(node: str, parent_node: int = 0) -> None:
             log_info(
                 f"\'{PATH.relative_to(PROJECT_ROOT.parent)} \'added into Python PATH")
             pass
-
-
-

@@ -121,10 +121,13 @@ def get_filetype(file: Union[str, Path, UploadedFile]):
     elif isinstance(file, UploadedFile):
         log_info(f"File: {file}")
         mime_type = file.type
+        file.seek(0)
+
     if mime_type:
         filetype = str(Path(mime_type).parent)
     else:
         filetype = None
+        
     return filetype
 
 

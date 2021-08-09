@@ -46,12 +46,6 @@ def data_uploader(dataset: Dataset, key: str = None):
 
     chdir_root()  # change to root directory
 
-    # ******** SESSION STATE ********
-    if "new_dataset" not in session_state:
-        # set random dataset ID before getting actual from Database
-        session_state.data_source = "File Upload 📂"
-    # ******** SESSION STATE ********
-
 
 # TODO
     # >>>>>>>> New Dataset Upload >>>>>>>>
@@ -65,6 +59,12 @@ def data_uploader(dataset: Dataset, key: str = None):
     st.write("## __Dataset Upload:__")
     data_source_options = ["Webcam 📷", "File Upload 📂"]
     # col1, col2 = st.columns(2)
+
+    # ******** SESSION STATE ********
+    # if "data_source_radio " not in session_state:
+    #     # set random dataset ID before getting actual from Database
+    #     session_state.data_source_radio = "File Upload 📂"
+    # # ******** SESSION STATE ********
 
     data_source = st.radio(
         "Data Source", options=data_source_options, key="data_source_radio")
@@ -88,7 +88,7 @@ def data_uploader(dataset: Dataset, key: str = None):
         # uploaded_files_multi = st.file_uploader(
         #     label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget", on_change=check_filetype_category, args=(place,))
         uploaded_files_multi = st.file_uploader(
-            label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget")
+            label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key='upload_widget')
 
         place["upload"] = st.empty()
 
@@ -104,23 +104,25 @@ def data_uploader(dataset: Dataset, key: str = None):
         """
         st.info(file_format_info)
 
+        # NOTE !!!!!!!!!!!!!!
         if uploaded_files_multi and (len(session_state.upload_widget) != 0):
+            # if uploaded_files_multi:
 
             # >>>> CHECK FILETYPE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            check_filetype(
-                uploaded_files_multi, dataset, place)
 
             dataset.dataset = deepcopy(uploaded_files_multi)
+            check_filetype(
+                dataset.dataset, dataset, place)
 
             dataset.dataset_size = len(
-                uploaded_files_multi)  # length of uploaded files
+                dataset.dataset)  # length of uploaded files
             log_info("Enter data exist")
         else:
             log_info("Enter else")
             dataset.filetype = None
             dataset.dataset_size = 0  # length of uploaded files
             dataset.dataset = None
-            
+
         dataset_size_string = f"- ### Number of datas: **{dataset.dataset_size}**"
         dataset_filesize_string = f"- ### Total size of data: **{(dataset.calc_total_filesize()):.2f} MB**"
 
@@ -160,7 +162,7 @@ def data_uploader(dataset: Dataset, key: str = None):
     field = [dataset.dataset]
 
     submit_button = st.button("Submit", key="submit")
-    st.write(field)
+    # st.write(field)
 
     if submit_button:
         dataset.has_submitted = dataset.check_if_field_empty(
@@ -170,28 +172,12 @@ def data_uploader(dataset: Dataset, key: str = None):
             # st.success(""" Successfully created new dataset: {0}.
             #                 """.format(dataset.name))
 
-            if dataset.save_dataset():
+            # set FLAG to 0
+            session_state.append_data_flag = dataset.update_pipeline(
+                success_place)
+            # return session_state.append_data_flag
 
-                success_place.success(
-                    f"Successfully created **{dataset.name}** dataset")
-
-                if dataset.insert_dataset():
-
-                    success_place.success(
-                        f"Successfully stored **{dataset.name}** dataset information in database")
-
-                    # reset NewDataset class object
-                    dataset = NewDataset(
-                        get_random_string(length=8))
-
-                else:
-                    st.error(
-                        f"Failed to stored **{dataset.name}** dataset information in database")
-            else:
-                st.error(
-                    f"Failed to created **{dataset.name}** dataset")
-
-    st.write(vars(dataset))
+    # st.write(vars(dataset))
     # for img in dataset.dataset:
     #     st.image(img)
 
@@ -202,39 +188,48 @@ def main():
     # ****************** TEST ******************************
     if TEST_FLAG:
 
-        place = {}
-        place['test'] = st.empty()
+        if 'place' not in session_state:
+            session_state.place = {}
+        # place = {}
+        session_state.place['test'] = st.empty()
+
         existing_dataset, _ = query_dataset_list()
         dataset_dict = get_dataset_name_list(existing_dataset)
+
         if 'dataset' not in session_state:
             session_state.dataset = Dataset(dataset_dict['My Third Dataset'])
         if 'append_data_flag' not in session_state:
             session_state.append_data_flag = 0
+
         st.write(session_state.append_data_flag)
+
         # with place['test'].expander(label='Append dataset', expanded=False):
-        if session_state.append_data_flag == 0:
-            with place['test'].container():
-                st.write("Normal")
-                st.table([1, 2, 3, 4, 5])
 
-        elif session_state.append_data_flag == 1:
-            with place['test'].container():
+        # if session_state.append_data_flag == 0:
+        #     with session_state.place['test'].container():
+        #         st.write("Normal")
+        #         st.table([1, 2, 3, 4, 5])
 
-                data_uploader(session_state.dataset)
+        # elif session_state.append_data_flag == 1:
+        #     with session_state.place['test'].container():
+        with st.expander("", expanded=False):
+            data_uploader(session_state.dataset, key='upload_widget')
 
         submit = st.button("Test", key="testing")
         if submit:
-            with place['test'].container():
+            with session_state.place['test'].container():
                 st.success("Can")
                 st.success("Yea")
 
         def flag_1():
             session_state.append_data_flag = 1
+            log_info("Flag 1")
 
         def flag_0():
             session_state.append_data_flag = 0
-            if 'upload_widget' in session_state:
-                del session_state.upload_widget
+            log_info("Flag 0")
+            # if 'upload_widget' in session_state:
+            #     del session_state.upload_widget
 
         st.button("Flag 0", key='flag0', on_click=flag_0)
         st.button("Flag 1", key='flag1', on_click=flag_1)

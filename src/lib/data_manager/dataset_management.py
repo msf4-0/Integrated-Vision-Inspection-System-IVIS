@@ -15,6 +15,7 @@ from PIL import Image
 from time import sleep, perf_counter
 from glob import glob, iglob
 from datetime import datetime
+from stqdm import stqdm
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -24,13 +25,14 @@ from streamlit import session_state as SessionState
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
+
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
+from path_desc import chdir_root, DATA_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
@@ -56,6 +58,7 @@ class BaseDataset:
         self.dataset = []  # to hold new data from upload
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
+        self.has_submitted = False
 
 # NOTE DEPRECATED *************************
     def query_deployment_id(self) -> int:
@@ -119,7 +122,7 @@ class BaseDataset:
 
     def dataset_PNG_encoding(self):
         if self.dataset:
-            for img in self.dataset:
+            for img in stqdm(self.dataset,unit=self.filetype,ascii='123456789#'):
                 img_name = img.name
                 log_info(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
@@ -150,15 +153,36 @@ class BaseDataset:
             self.dataset_total_filesize = 0
         return self.dataset_total_filesize
 
+    def save_dataset(self) -> bool:
+        if self.dataset_path:
+            directory_name = self.dataset_path
+        else:  # if somehow dataset path Did Not Exist
+            directory_name = get_directory_name(
+                self.name)  # change name to lowercase
+            # join directory name with '-' dash
+            self.dataset_path = DATA_DIR / 'dataset' / str(directory_name)
+
+        # directory_name = get_directory_name(
+        #     self.name)
+        # self.dataset_path = Path.home() / '.local' / 'share' / \
+        #     'integrated-vision-inspection-system' / \
+        #     'app_media' / 'dataset' / str(directory_name)
+        # self.dataset_path = Path(self.dataset_path)
+
+        create_folder_if_not_exist(self.dataset_path)
+        if self.dataset_PNG_encoding():
+            # st.success(f"Successfully created **{self.name}** dataset")
+            return self.dataset_path
+
 
 class NewDataset(BaseDataset):
     def __init__(self, dataset_id) -> None:
         # init BaseDataset -> Temporary dataset ID from random gen
         super().__init__(dataset_id)
         self.dataset_total_filesize = 0  # in byte-size
-        self.has_submitted = False
 
     # removed deployment type and insert filetype_id select from public.filetype table
+
     def insert_dataset(self):
         insert_dataset_SQL = """
                                 INSERT INTO public.dataset (
@@ -181,19 +205,6 @@ class NewDataset(BaseDataset):
         self.dataset_id = db_fetchone(
             insert_dataset_SQL, conn, insert_dataset_vars)[0]
         return self.dataset_id
-
-    def save_dataset(self) -> bool:
-        directory_name = get_directory_name(
-            self.name)  # change name to lowercase
-        # join directory name with '-' dash
-        self.dataset_path = Path.home() / '.local' / 'share' / \
-            'integrated-vision-inspection-system' / \
-            'app_media' / 'dataset' / str(directory_name)
-        # self.dataset_path = Path(self.dataset_path)
-        create_folder_if_not_exist(self.dataset_path)
-        if self.dataset_PNG_encoding():
-            # st.success(f"Successfully created **{self.name}** dataset")
-            return self.dataset_path
 
 
 class Dataset(BaseDataset):
@@ -280,7 +291,49 @@ class Dataset(BaseDataset):
             update_dataset_size_SQL, conn, update_dataset_size_vars)
         self.dataset_size = new_dataset_size_return if new_dataset_size_return else self.dataset_size
 
+    def update_dataset(self):
+        """Wrapper function to update existing dataset
+        """
+        # save added data into file-directory
+        return self.save_dataset()
+
+    def update_pipeline(self, success_place) -> int:
+        """ Pipeline to update dataset
+
+        Args:
+            success_place (EmptyMixin): Placeholder to display dataset update progress and info
+
+        Returns:
+            int: Return append_data_flag as 0 to leave *data_upload_module*
+        """
+
+        if self.update_dataset():
+
+            success_place.success(
+                f"Successfully appended **{self.name}** dataset")
+
+            sleep(1)
+
+            success_place.empty()
+
+            self.update_dataset_size()
+
+            log_info(
+                f"Successfully updated **{self.name}** size in database")
+
+            append_data_flag = 0
+
+        else:
+            success_place.error(
+                f"Failed to append **{self.name}** dataset")
+            append_data_flag = 1
+
+        return append_data_flag
+
+
 # TODO REMOVE
+
+
     def update_data_name_list(self, new_name_list: List):
         current_data_name_only_list = [x['id'] for x in self.data_name_list]
         new_data_name_only_list = list(
