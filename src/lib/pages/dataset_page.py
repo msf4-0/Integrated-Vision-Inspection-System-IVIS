@@ -233,6 +233,7 @@ def show():
         # TODO Add delete button
         place["delete"] = st.empty()
         place["delete"].button("Edit dataset", key="edit_dataset2")
+        place['cancel_delete'] = st.empty()
 
     # **************** DATA TABLE COLUMN CONFIG ****************************
         dataset_columns = [
@@ -286,8 +287,11 @@ def show():
                             f"Confirm deletion of {num_data_selection} data from {session_state.dataset.name}")
                         confirm_delete_state = st.form_submit_button(
                             f"Confirm delete")
+                        st.write(data_selection)
+                    # st.button("Cancel", key='cancel_delete')
+                    place['cancel_delete'].button("Cancel", key='cancel_delete')
 
-                        # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
+                    # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
 
     # TODO #44 Image viewer and data control features to List view and Gallery
     # Add deletion

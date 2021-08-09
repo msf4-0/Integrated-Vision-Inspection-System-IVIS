@@ -38,7 +38,7 @@ from core.utils.log import log_info, log_error  # logger
 
 
 def bytes_divisor(value: Union[int, float], power: int = 1) -> Union[int, float]:
-    """Convert bytes size 
+    """Convert bytes size
 
     Args:
         value (Union[int,float]): bytes size value
@@ -72,6 +72,35 @@ def multi_file_open(path):
     with open(path, mode='r') as files:
         file_list = files
     return file_list
+
+
+def delete_file(path: Union[Path, str]):
+    # uses os.remove
+    if isinstance(path, str):
+        # convert path string into path-like object
+        path = Path(path)
+
+    if path.is_dir():
+
+        # remove all contents if path is a folder directory
+        try:
+            shutil.rmtree(path)
+        except Exception as e:
+            error_msg = f"{e}: Failed to remove directory"
+    elif path.is_file():
+
+        # remove file if path is filepath
+
+        try:
+            path.unlink()
+            log_info(f"Successfully deleted {path.name}")
+
+        except FileNotFoundError as e:
+            error_msg = f"{e}: {path.name} does not exists"
+            log_error(error_msg)
+    else:
+        not_path_error_msg = f"Invalid path given......"
+        log_error(not_path_error_msg)
 
 
 def file_search(path=str(Path.home())):
