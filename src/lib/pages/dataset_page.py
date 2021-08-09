@@ -45,14 +45,17 @@ from data_table import data_table
 # >>>> Variable Declaration <<<<
 conn = init_connection(**st.secrets["postgres"])
 PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
+place = {}  # dictionary to store placeholders
+
+
 # <<<< Variable Declaration <<<<
 # >>>> Template >>>>
 chdir_root()  # change to root directory
 # initialise connection to Database
 
-with st.sidebar.beta_container():
+with st.sidebar.container():
     st.image("resources/MSF-logo.gif", use_column_width=True)
-# with st.beta_container():
+# with st.container():
     st.title("Integrated Vision Inspection System", anchor='title')
     st.header(
         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
@@ -71,7 +74,7 @@ def show():
     # >>>> Dataset SIDEBAR >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     DATASET_PAGE = ("All Datasets", "New Dataset")
-    with st.sidebar.beta_expander("Dataset Page", expanded=True):
+    with st.sidebar.expander("Dataset Page", expanded=True):
         session_state.current_page = st.radio("", options=DATASET_PAGE,
                                               index=0)
 
@@ -89,20 +92,20 @@ def show():
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # >>>> Column for Create New button and Dataset selectbox
-    topcol1, _, topcol2, _, top_col3 = st.beta_columns(
+    topcol1, _, topcol2, _, top_col3 = st.columns(
         [0.15, 0.3, 2, 0.1, 3.5])
     # topcol3 for dataset ID
 
     # >>>> COLUMNS for BUTTONS
-    _, button_col1, _, button_col2, _, button_col3, _, desc_col4 = st.beta_columns(
+    _, button_col1, _, button_col2, _, button_col3, _, desc_col4 = st.columns(
         [0.115, 0.375, 0.3, 0.75, 0.3, 0.375, 0.1, 3.15])
 
     # >>>> Main placeholders
-    outercol1, _, outercol2 = st.beta_columns(
+    outercol1, _, outercol2 = st.columns(
         [2.5, 0.1, 3.5])
 
     # column placeholder for variable/class objects
-    _, varscol1, varscol2, varscol3 = st.beta_columns([0.4, 2, 3.5, 0.15])
+    _, varscol1, varscol2, varscol3 = st.columns([0.4, 2, 3.5, 0.15])
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -225,7 +228,11 @@ def show():
         else:
             st.write(f"No description")
 
-        # DATA TABLE
+        # TODO Add edit button -- CALLBACK?
+        # st.button("Edit dataset", key="edit_dataset")
+        # TODO Add delete button
+        place["delete"] = st.empty()
+        place["delete"].button("Edit dataset", key="edit_dataset2")
 
     # **************** DATA TABLE COLUMN CONFIG ****************************
         dataset_columns = [
@@ -259,16 +266,33 @@ def show():
         ]
     # **************** DATA TABLE COLUMN CONFIG ****************************
 
-        selection = data_table(
+        data_selection = data_table(
             session_state.dataset.data_name_list, dataset_columns, key="data_table")
         st.write(f"Selection")
-        st.write(selection)
+        st.write(data_selection)
+
+        # Appear 'Delete' button
+        if data_selection:
+            num_data_selection = len(data_selection)
+            with place['delete']:
+
+                delete_state = st.button(
+                    f"Delete {num_data_selection} selected")
+
+                # Ask user to confirm deletion of selected data from current dataset
+                if delete_state:
+                    with st.form(key="confirm _delete_data"):
+                        st.error(
+                            f"Confirm deletion of {num_data_selection} data from {session_state.dataset.name}")
+                        confirm_delete_state = st.form_submit_button(
+                            f"Confirm delete")
+
+                        # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
 
     # TODO #44 Image viewer and data control features to List view and Gallery
     # Add deletion
     # Add view image
-    #Add Edit callback
-    
+    # Add Edit callback
 
     # TODO #18
 

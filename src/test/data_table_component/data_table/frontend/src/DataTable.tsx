@@ -301,7 +301,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
       columns={columns}
       rowsPerPageOptions={[5, 10, 20]}
       checkboxSelection
-      disableSelectionOnClick
+      // disableSelectionOnClick
       onSelectionModelChange={onSelectionModelChange}
       selectionModel={selectionModel}
     />
