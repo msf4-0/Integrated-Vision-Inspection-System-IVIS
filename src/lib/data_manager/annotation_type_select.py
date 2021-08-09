@@ -24,7 +24,7 @@ def annotation_sel():
     if annotationType is not " ":
         annotationConfig_template = loadAnnotationTemplate(
             annotationType_list.index(annotationType) - 1)
-        with st.beta_expander(label="template", expanded=False):
+        with st.expander(label="template", expanded=False):
             st.write(annotationConfig_template)  # annotation config template
         return annotationType, annotationConfig_template
     else:

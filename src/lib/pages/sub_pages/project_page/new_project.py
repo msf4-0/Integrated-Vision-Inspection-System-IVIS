@@ -41,6 +41,7 @@ from project.project_management import NewProject
 from frontend.editor_manager import NewEditor
 from data_manager.database_manager import init_connection, db_fetchone
 from data_manager.annotation_type_select import annotation_sel
+from core.utils.helper import create_dataframe
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -74,10 +75,10 @@ def show():
 
     chdir_root()  # change to root directory
 
-    with st.sidebar.beta_container():
+    with st.sidebar.container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.beta_container():
+    # with st.container():
         st.title("Integrated Vision Inspection System", anchor='title')
 
         st.header(
@@ -99,7 +100,7 @@ def show():
 
     # >>>> PROJECT SIDEBAR >>>>
     project_page_options = ("All Projects", "New Project")
-    with st.sidebar.beta_expander("Project Page", expanded=True):
+    with st.sidebar.expander("Project Page", expanded=True):
         session_state.current_page = st.radio("project_page_select", options=project_page_options,
                                               index=0)
     # <<<< PROJECT SIDEBAR <<<<
@@ -110,16 +111,16 @@ def show():
     st.markdown("___")
 
     # right-align the project ID relative to the page
-    id_blank, id_right = st.beta_columns([3, 1])
+    id_blank, id_right = st.columns([3, 1])
     id_right.write(
         f"### __Project ID:__ {session_state.new_project.id}")
 
     create_project_place = st.empty()
     # if layout == 'wide':
-    outercol1, outercol2, outercol3 = st.beta_columns([1.5, 3.5, 0.5])
+    outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
     # else:
     #     col2 = create_project_place
-    # with create_project_place.beta_container():
+    # with create_project_place.container():
     outercol1.write("## __Project Information :__")
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
@@ -164,7 +165,7 @@ def show():
             else:
                 pass
 
-    place["deployment_type"] = outercol2.empty()
+        place["deployment_type"] = outercol2.empty()
 
 # <<<<<<<< New Project INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -172,21 +173,21 @@ def show():
 
     # include options to create new dataset on this page
     # create 2 columns for "New Data Button"
-    outercol1, outercol2, outercol3, _ = st.beta_columns(
+    outercol1, outercol2, outercol3, _ = st.columns(
         [1.5, 1.75, 1.75, 0.5])
 
     outercol1.write("## __Dataset :__")
-    # outercol1, outercol2, outercol3 = st.beta_columns([1, 2, 2])
+    # outercol1, outercol2, outercol3 = st.columns([1, 2, 2])
 
-    data_left, data_right = st.beta_columns(2)
+    data_left, data_right = st.columns(2)
     # >>>> Right Column to select dataset >>>>
     with outercol3:
-        session_state.new_project.datasets = session_state.new_project.query_dataset_list()
+        session_state.new_project.datasets, dataset_column_names = session_state.new_project.query_dataset_list()
         session_state.new_project.dataset_name_list, session_state.new_project.dataset_name_id = session_state.new_project.get_dataset_name_list()
 
         session_state.new_project.dataset_chosen = st.multiselect(
             "Dataset List", key="dataset", options=session_state.new_project.dataset_name_list, help="Assign dataset to the project")
-        place["dataset_chosen"] = outercol2.empty()
+        place["dataset_chosen"] = st.empty()
         # Button to create new dataset
         new_data_button = st.button("Create New Dataset")
 
@@ -213,7 +214,8 @@ def show():
         start = 10 * session_state.dataset_page
         end = start + 10
 
-        df = session_state.new_project.create_dataset_dataframe()
+        df = create_dataframe(session_state.new_project.datasets,
+                              column_names=dataset_column_names, date_time_format=True)
 
         def highlight_row(x, selections):
 
@@ -234,10 +236,11 @@ def show():
         st.table(styler.apply(
             highlight_row, selections=session_state.new_project.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
                 [dict(selector='th', props=[('text-align', 'center')])]))
+
     # <<<< Left Column to show full list of dataset and selection <<<<
 
     # >>>> Dataset Pagination >>>>
-    _, col1, _, col2, _, col3, _ = st.beta_columns(
+    _, col1, _, col2, _, col3, _ = st.columns(
         [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
     num_dataset_per_page = 10
     num_dataset_page = len(
@@ -257,7 +260,6 @@ def show():
         col2.write(
             f"Page {1+session_state.dataset_page} of {num_dataset_page}")
     # <<<< Dataset Pagination <<<<
-    place["dataset"] = st.empty()  # TODO :KIV
 
     # # **** Image Augmentation (Optional) ****
     # st.write("## __Image Augmentation :__")
@@ -276,7 +278,7 @@ def show():
     field = [session_state.new_project.name,
              session_state.new_project.deployment_id, session_state.new_project.dataset_chosen]
     st.write(field)
-    col1, col2 = st.beta_columns([3, 0.5])
+    col1, col2 = st.columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
 
     if submit_button:
@@ -298,7 +300,7 @@ def show():
                 success_place.error(
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
 
-    col1, col2 = st.beta_columns(2)
+    col1, col2 = st.columns(2)
     col1.write(vars(session_state.new_project))
     col2.write(vars(session_state.new_editor))
 

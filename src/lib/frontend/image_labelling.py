@@ -76,7 +76,7 @@ def show():
     if "data_sel" in session_state:
         del session_state.data_sel
 
-    with st.sidebar.beta_container():
+    with st.sidebar.container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
         st.title("Integrated Vision Inspection System", anchor='title')
@@ -114,14 +114,14 @@ def show():
 
     # >>>> TRAINING SIDEBAR >>>>
     # training_page_options = ("All Trainings", "New Training")
-    # with st.sidebar.beta_expander("Training Page", expanded=True):
+    # with st.sidebar.expander("Training Page", expanded=True):
     #     session_state.current_page = st.radio("", options=training_page_options,
     #                                           index=0)
     # <<<< TRAINING SIDEBAR <<<<
     # Page title
     st.write(f'# Project Name: {session_state.project.name}')
     st.write("## **Image Labelling**")
-    dt_place, project_id_place = st.beta_columns([3, 1])
+    dt_place, project_id_place = st.columns([3, 1])
     with dt_place:
         st.write("### __Deployment Type:__",
                  f"{session_state.project.deployment_type}")
@@ -142,10 +142,10 @@ def show():
     # load_dataset.join()
 
 # **************************DATASET SELECTOR ********************************************
-    # _, col1, _, col2, _, col3, _ = st.beta_columns(
+    # _, col1, _, col2, _, col3, _ = st.columns(
     #     [0.2, 1, 0.2, 1, 0.2, 1, 0.2])
 
-    col1, col2 = st.beta_columns([1, 1])
+    col1, col2 = st.columns([1, 1])
     dataset_selection = col1.selectbox(
         "Dataset", options=session_state.project.dataset_name_list, key="dataset_sel")
     project_id = session_state.project.id
@@ -201,7 +201,7 @@ def show():
 # **************************DATA SELECTOR ********************************************
 
     with col1.form(key="data_select"):
-        # with col1.beta_container():
+        # with col1.container():
 
         # TODO ******************* Generate List of Datas ***************************************
         try:
@@ -272,7 +272,7 @@ def show():
             [dict(selector='th', props=[('text-align', 'center')])]))
 
     # >>>>>>>> BUTTON >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    _, button_col1, _, button_col2, _, button_col3, _ = st.beta_columns(
+    _, button_col1, _, button_col2, _, button_col3, _ = st.columns(
         [0.2, 0.15, 0.5, 0.45, 0.5, 0.15, 2])
 
     num_data_per_page = 10
@@ -460,7 +460,7 @@ def show():
 
 # *************************EDITOR**********************************************
 
-    col1, col2, col3 = st.beta_columns(3)
+    col1, col2, col3 = st.columns(3)
     # col1.write(vars(session_state.project))
     # # col1.write(session_state.project.dataset_list['My Third Dataset'])
     # col2.write(vars(session_state.editor))
