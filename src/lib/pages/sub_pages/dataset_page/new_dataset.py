@@ -14,11 +14,10 @@ from typing import Union, Dict
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
-
 # DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -39,7 +38,7 @@ from core.webcam import webcam_webrtc
 from core.utils.helper import check_filetype
 from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset
+from data_manager.dataset_management import NewDataset, DataPermission, DatasetPagination
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -51,26 +50,36 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-class AnnotationType(IntEnum):
+class DeploymentType(IntEnum):
     Image_Classification = 1
-    BBox = 2
-    Polygons = 3
-    Masks = 4
+    OD = 2
+    Instance = 3
+    Semantic = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return DeploymentType[s]
+        except KeyError:
+            raise ValueError()
 
 
 def show():
 
     chdir_root()  # change to root directory
 
-    with st.sidebar.container():
+    # with st.sidebar.container():
 
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.container():
-        st.title("Integrated Vision Inspection System", anchor='title')
+    #     st.image("resources/MSF-logo.gif", use_column_width=True)
+    # # with st.container():
+    #     st.title("Integrated Vision Inspection System", anchor='title')
 
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-        st.markdown("""___""")
+    #     st.header(
+    #         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    #     st.markdown("""___""")
 
     # ******** SESSION STATE ********
     if "current_page" not in session_state:
@@ -78,16 +87,17 @@ def show():
 
     if "new_dataset" not in session_state:
         # set random dataset ID before getting actual from Database
+        log_info("Enter new dataset")
         session_state.new_dataset = NewDataset(get_random_string(length=8))
         session_state.data_source_radio = "File Upload 📂"
     # ******** SESSION STATE ********
 
     # >>>> Dataset SIDEBAR >>>>
-    project_page_options = ("All Datasets", "New Dataset")
-    with st.sidebar.expander("Dataset Page", expanded=True):
-        session_state.current_page = st.radio("", options=project_page_options,
-                                              index=0)
-    # <<<< Dataset SIDEBAR <<<<
+    # project_page_options = ("All Datasets", "New Dataset")
+    # with st.sidebar.expander("Dataset Page", expanded=True):
+    #     session_state.current_page = st.radio("", options=project_page_options,
+    #                                           index=0)
+    # # <<<< Dataset SIDEBAR <<<<
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
@@ -242,7 +252,6 @@ def show():
 
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # **** Submit Button ****
-# TODO #20
     success_place = st.empty()
     field = [session_state.new_dataset.name, session_state.new_dataset.dataset]
     st.write(field)
@@ -277,6 +286,12 @@ def show():
             else:
                 st.error(
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
+
+    def to_dataset_dashboard_page():
+        session_state.dataset_pagination = DatasetPagination.Dashboard
+
+    st.button("Back", key='back_to_dataset_dashboard',
+              on_click=to_dataset_dashboard_page)
 
     st.write(vars(session_state.new_dataset))
     # for img in session_state.new_dataset.dataset:

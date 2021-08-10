@@ -13,25 +13,17 @@ import logging
 import psycopg2
 # -------------
 
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-sys.path.insert(0, str(Path(SRC, 'lib')))  # ./lib
-# print(sys.path[0])
-sys.path.insert(0, str(Path(Path(__file__).parent, 'module')))
+SRC = Path(__file__).resolve().parents[1]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+# TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
-#--------------------Logger-------------------------#
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
-
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
-from user_management import create_user, check_if_field_empty
-from code_generator import make_random_password
+from user.user_management import create_user, check_if_field_empty
+from core.utils.code_generator import make_random_password
 
 # >>>> Variable declaration >>>>
 ROLES = ["Annotator", "Developer (Model Training)",

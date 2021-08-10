@@ -91,6 +91,7 @@ import { makeStyles } from "@material-ui/styles"
 ]
  */
 //To store object of Streamlit Theme props
+//To store object of Streamlit Theme props
 interface ComponentTheme {
   primaryColor: string | undefined
   secondaryBackgroundColor: string | undefined
@@ -236,34 +237,29 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
   const offset: number = 15
 
   console.log(pageSize)
-  // var frameHeight: number = headerHeight + rowHeight * pageSize + footerHeight
 
   /* Function to calculate the frame height to render the frame dynamically */
   function frameHeightCalc(size: number) {
     let totalPage = Math.floor(rows.length / size) //calculate the floor divisor to obtain number of pages
+    let rows_length = rows.length
+    let frameHeight = 215 /* default height when there is no data */
 
     //Number of rows at the last page not equal to pageSize
-    if (rows.length % size !== 0) {
-      totalPage++
-
-      //For last page -> frame height is the number of remainder rows
-      if (page === totalPage - 1) {
+    if (rows_length > 0) {
+      if (rows_length % size !== 0 && page === totalPage) {
+        //For last page -> frame height is the number of remainder rows
         let remainder = rows.length % size
-        let frameHeight: number =
-          headerHeight + rowHeight * remainder + footerHeight
-        return frameHeight
+        frameHeight = headerHeight + rowHeight * remainder + footerHeight
+      } else {
+        frameHeight = headerHeight + rowHeight * size + footerHeight
       }
-      // frame height is pageSize
-      else {
-        let frameHeight: number = headerHeight + rowHeight * size + footerHeight
-        return frameHeight
-      }
-    } else {
-      let frameHeight: number = headerHeight + rowHeight * size + footerHeight
-      return frameHeight
     }
+    return frameHeight
   }
+
   const frameHeight = frameHeightCalc(pageSize) + offset
+  console.log("Rows length", rows.length)
+
   console.log("frame height", frameHeight)
   useEffect(() => Streamlit.setFrameHeight(frameHeight)) // TODO
   /********CALLBACK FUNCTIONS********/
@@ -287,27 +283,32 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
 
   return (
     // <div style={{ height: 500, width: "100%" }}>
-    <DataGrid
-      classes={{ root: classes.root }}
-      // autoPageSize
-      autoHeight={true}
-      pagination
-      // components={{
-      //   Pagination: CustomPagination,
-      // }}
-      page={page}
-      pageSize={pageSize}
-      onPageChange={onPageChange}
-      onPageSizeChange={onPageSizeChange}
-      rows={rows}
-      columns={columns}
-      rowsPerPageOptions={[5, 10, 20]}
-      checkboxSelection
-      // disableSelectionOnClick
-      onSelectionModelChange={onSelectionModelChange}
-      selectionModel={selectionModel}
-    />
-    // </div>
+    <div style={{ height: 400, width: "100%" }}>
+      <div style={{ display: "flex", height: "100%" }}>
+        <div style={{ flexGrow: 1 }}>
+          <DataGrid
+            classes={{ root: classes.root }}
+            autoPageSize
+            autoHeight={true}
+            pagination
+            // components={{
+            //   Pagination: CustomPagination,
+            // }}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            rows={rows}
+            columns={columns}
+            rowsPerPageOptions={[5, 10, 20]}
+            checkboxSelection
+            // disableSelectionOnClick
+            onSelectionModelChange={onSelectionModelChange}
+            selectionModel={selectionModel}
+          />
+        </div>
+      </div>
+    </div>
   )
 }
 

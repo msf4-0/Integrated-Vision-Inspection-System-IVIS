@@ -1,0 +1,8 @@
+MANIFEST.in
+setup.py
+data_table_test/__init__.py
+data_table_test.egg-info/PKG-INFO
+data_table_test.egg-info/SOURCES.txt
+data_table_test.egg-info/dependency_links.txt
+data_table_test.egg-info/requires.txt
+data_table_test.egg-info/top_level.txt

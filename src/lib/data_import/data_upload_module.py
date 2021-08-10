@@ -42,7 +42,7 @@ place = {}  # PLACEHOLDER
 # TODO #44
 
 
-def data_uploader(dataset: Dataset, key: str = None):
+def data_uploader(dataset: Dataset):
 
     chdir_root()  # change to root directory
 
