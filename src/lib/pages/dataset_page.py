@@ -43,6 +43,7 @@ from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
 from annotation.annotation_manager import Task
 from data_table import data_table
+# from data_table_test import data_table # FOR DEVELOPMENT
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<

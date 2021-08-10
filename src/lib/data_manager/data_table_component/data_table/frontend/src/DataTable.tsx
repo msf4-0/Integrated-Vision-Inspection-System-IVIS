@@ -204,27 +204,32 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
 
   return (
     // <div style={{ height: 500, width: "100%" }}>
-    <DataGrid
-      classes={{ root: classes.root }}
-      autoPageSize
-      autoHeight={true}
-      pagination
-      // components={{
-      //   Pagination: CustomPagination,
-      // }}
-      page={page}
-      pageSize={pageSize}
-      onPageChange={onPageChange}
-      onPageSizeChange={onPageSizeChange}
-      rows={rows}
-      columns={columns}
-      rowsPerPageOptions={[5, 10, 20]}
-      checkboxSelection
-      // disableSelectionOnClick
-      onSelectionModelChange={onSelectionModelChange}
-      selectionModel={selectionModel}
-    />
-    // </div>
+    <div style={{ height: 400, width: "100%" }}>
+      <div style={{ display: "flex", height: "100%" }}>
+        <div style={{ flexGrow: 1 }}>
+          <DataGrid
+            classes={{ root: classes.root }}
+            autoPageSize
+            autoHeight={true}
+            pagination
+            // components={{
+            //   Pagination: CustomPagination,
+            // }}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            rows={rows}
+            columns={columns}
+            rowsPerPageOptions={[5, 10, 20]}
+            checkboxSelection
+            // disableSelectionOnClick
+            onSelectionModelChange={onSelectionModelChange}
+            selectionModel={selectionModel}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
