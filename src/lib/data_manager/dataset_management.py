@@ -292,6 +292,27 @@ class Dataset(BaseDataset):
             update_dataset_size_SQL, conn, update_dataset_size_vars)
         self.dataset_size = new_dataset_size_return if new_dataset_size_return else self.dataset_size
 
+    def update_title_desc(self, new_name: str, new_desc: str):
+        update_title_desc_SQL = """
+                                    UPDATE
+                                        public.dataset
+                                    SET
+                                        name = %s,
+                                        description = %s
+                                    WHERE
+                                        id = %s
+                                    RETURNING name,description;
+        
+                                    """
+        update_title_desc_vars = [new_name, new_desc, self.id]
+        new_title_desc_return = db_fetchone(
+            update_title_desc_SQL, conn, update_title_desc_vars)
+        
+        sleep(1)
+
+        self.name, self.desc = new_title_desc_return if new_title_desc_return else (
+            None, None)
+
     def update_dataset(self):
         """Wrapper function to update existing dataset
         """
@@ -363,7 +384,8 @@ def query_dataset_list() -> List[namedtuple]:
             description AS "Description",
             dataset_path AS "Dataset Path"
         FROM
-            public.dataset d;"""
+            public.dataset d
+        ORDER BY id ASC;"""
 
     datasets, column_names = db_fetchall(
         query_dataset_SQL, conn, fetch_col_name=True)
@@ -387,7 +409,7 @@ def query_dataset_list() -> List[namedtuple]:
     return dataset_tmp, column_names
 
 
-@st.cache
+
 def get_dataset_name_list(dataset_list: List[namedtuple]):
     """Generate Dictionary of namedtuple
 
