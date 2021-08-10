@@ -56,7 +56,7 @@ class DataPermission(IntEnum):
         except KeyError:
             raise ValueError()
 
-
+log_info("top top")
 def test():
 
     log_info("At top")
@@ -216,7 +216,7 @@ def test():
             st.text_input(
                 "Dataset Title", value=session_state.dataset.name, key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(session_state.place, conn,))
             session_state.place['name'] = st.empty()
-            st.write(session_state.name)
+            # st.write(session_state.name)
 
         # ***************************************************outercol2 ***************************************************
         with session_state.place['desc'].container():
@@ -232,7 +232,7 @@ def test():
             st.text_area(
                 "Description (Optional)", value=desc, key="desc", help="Enter the description of the dataset")
 
-            st.write(session_state.desc)
+            # st.write(session_state.desc)
             # TODO Add edit button -- CALLBACK?
             # st.button("Edit dataset", key="edit_dataset")
             # TODO Add delete button
