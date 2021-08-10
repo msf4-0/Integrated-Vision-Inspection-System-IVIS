@@ -307,8 +307,9 @@ class Dataset(BaseDataset):
         update_title_desc_vars = [new_name, new_desc, self.id]
         new_title_desc_return = db_fetchone(
             update_title_desc_SQL, conn, update_title_desc_vars)
-        
+        log_info(f"Updating title and desc {new_title_desc_return}")
         sleep(1)
+
 
         self.name, self.desc = new_title_desc_return if new_title_desc_return else (
             None, None)
