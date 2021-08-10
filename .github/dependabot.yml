@@ -19,9 +19,9 @@ updates:
   schedule:
     interval: "daily"
 
-- package-ecosystem: "pip"
-  # Look for `requirements.txt` files in the `root` directory
-  directory: "/"
-  # Check the npm registry for updates every day (weekdays)
-  schedule:
-    interval: "daily"
+# - package-ecosystem: "pip"
+#   # Look for `requirements.txt` files in the `root` directory
+#   directory: "/"
+#   # Check the npm registry for updates every day (weekdays)
+#   schedule:
+#     interval: "daily"
