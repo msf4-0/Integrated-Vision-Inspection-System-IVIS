@@ -183,7 +183,7 @@ def data_uploader(dataset: Dataset, key: str = None):
 
 
 def main():
-    TEST_FLAG = True
+    TEST_FLAG = False
 
     # ****************** TEST ******************************
     if TEST_FLAG:

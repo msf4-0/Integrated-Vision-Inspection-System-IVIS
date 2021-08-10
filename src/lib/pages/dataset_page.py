@@ -323,7 +323,6 @@ def show():
 
                     # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
 
-    # TODO #44 Image viewer and data control features to List view and Gallery
 
     # Add view image
     # Add Edit callback
@@ -331,13 +330,14 @@ def show():
     # TODO #18
 
     # <<<<<<<<<<<<<<<<<<<<<<<<<< LOAD EXISTING DATASET <<<<<<<<<<<<<<<<<<<<<#
-    # TODO: ADD show() function to load existing dataset and new dataset page?
     # st.write(dataset_dict)
-    pass
+   
 
 
 def main():
     show()
+    # TODO #47 ADD show() function to load existing dataset and new dataset page
+
 
 
 if __name__ == "__main__":

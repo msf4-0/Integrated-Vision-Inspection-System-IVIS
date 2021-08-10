@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 import os
 from typing import Dict, Tuple, Union, List
-import psycopg2
 from PIL import Image
 from time import sleep, perf_counter
 from glob import glob, iglob
