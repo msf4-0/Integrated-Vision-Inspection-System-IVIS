@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import os
 from typing import Dict, Tuple, Union, List
+from enum import IntEnum
 from PIL import Image
 from time import sleep, perf_counter
 from glob import glob, iglob
@@ -40,7 +41,34 @@ from core.utils.helper import get_directory_name
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
 # >>>> Variable Declaration <<<<
+class DataPermission(IntEnum):
+    ViewOnly = 0
+    Edit = 1
 
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return DataPermission[s]
+        except KeyError:
+            raise ValueError()
+
+
+class DatasetPagination(IntEnum):
+    Dashboard = 0
+    New = 1
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return DatasetPagination[s]
+        except KeyError:
+            raise ValueError()
 # <<<< Variable Declaration <<<<
 
 
@@ -125,13 +153,13 @@ class BaseDataset:
                 img_name = img.name
                 log_info(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
-                st.title(img.name)
+                # st.title(img.name)
                 try:
                     with Image.open(img) as pil_img:
                         pil_img.save(save_path)
                 except ValueError as e:
                     log_error(
-                        f"{e}: Could not reolve output format for '{str(img_name)}'")
+                        f"{e}: Could not resolve output format for '{str(img_name)}'")
                 except OSError as e:
                     log_error(
                         f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")

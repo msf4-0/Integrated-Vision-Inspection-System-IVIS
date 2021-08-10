@@ -13,6 +13,7 @@ from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 from streamlit.elements.arrow import Data
 
+
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -32,31 +33,28 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
+from core.utils.code_generator import get_random_string
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import Dataset, query_dataset_list, get_dataset_name_list
-
+from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, query_dataset_list, get_dataset_name_list, NewDataset
+from pages.sub_pages.dataset_page import new_dataset
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
 conn = init_connection(**st.secrets["postgres"])
 # <<<< Variable Declaration <<<<
+with st.sidebar.container():
 
+    st.image("resources/MSF-logo.gif", use_column_width=True)
+    st.title("Integrated Vision Inspection System", anchor='title')
 
-class DataPermission(IntEnum):
-    ViewOnly = 0
-    Edit = 1
+    st.header(
+        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    st.markdown("""___""")
 
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return DataPermission[s]
-        except KeyError:
-            raise ValueError()
 
 log_info("top top")
+
+
 def test():
 
     log_info("At top")
@@ -70,12 +68,18 @@ def test():
     # if 'dataset' not in session_state:
     #     session_state.dataset = Dataset(dataset_dict['My Third Dataset'])
 
+    if "dataset_data" not in session_state:
+        # session_state.existing_dataset = []
+        session_state.dataset_data = {}
+    if "data_name_list" not in session_state:
+        session_state.data_name_list = {}
     if 'append_data_flag' not in session_state:
         session_state.append_data_flag = DataPermission.ViewOnly
-
-    # ***************************** NEW****************************************
-    if 'selectbox_flag' not in session_state:
-        session_state.selectbox_flag = 0
+    if 'temp_name' not in session_state:
+        session_state.temp_name = None
+    if 'dataset_sel' not in session_state:
+        session_state.dataset_sel = session_state.temp_name if session_state.temp_name else existing_dataset[
+            0].Name
 
     # st.write(session_state.append_data_flag)
 
@@ -101,8 +105,13 @@ def test():
     log_info("In selectbox area")
 
     with topcol1:
+
+        def to_new_dataset_page():
+            session_state.dataset_pagination = DatasetPagination.New
+
         st.write("## ")
-        st.button("➕️", key="new_dataset", help="Create new dataset")
+        st.button("➕️", key="create_new_dataset",
+                  on_click=to_new_dataset_page, help="Create new dataset")
 
     # TODO: removed 'dataset selection'????
     with topcol2:
@@ -190,7 +199,7 @@ def test():
                 if session_state.dataset.check_if_exist(context, conn):
                     field_placeholder['name'].error(
                         f"Dataset name used. Please enter a new name")
-                    
+
                     log_error(f"Dataset name used. Please enter a new name")
                     return False
                 else:
@@ -204,7 +213,7 @@ def test():
                 log_error(f"Dataset name field is empty!")
                 field_placeholder['name'].error(
                     f"Dataset name field is empty!")
-                
+
                 return False
 
         # ***************************************************topcol3 ***************************************************
@@ -254,7 +263,7 @@ def test():
             log_info("UPDATING")
             if check_if_name_exist(session_state.place, conn):
                 log_info("START UPDATE")
-                session_state.temp_name = session_state.dataset.name
+                session_state.temp_name = session_state.name
 
                 session_state.dataset.update_title_desc(
                     session_state.name, session_state.desc)
@@ -262,19 +271,19 @@ def test():
                 session_state.append_data_flag = DataPermission.ViewOnly
 
                 def show_update_success():
-                    update_success_place=outercol2.empty()
-                    update_success_place.success(f"Successfully updated fields")
+                    update_success_place = outercol2.empty()
+                    update_success_place.success(
+                        f"Successfully updated fields")
                     log_info("Inside thread")
                     sleep(0.5)
                     log_info("End Sleep in thread")
                     update_success_place.empty()
-                update_success_msg_thread=Thread(target=show_update_success)
+                update_success_msg_thread = Thread(target=show_update_success)
                 add_report_ctx(update_success_msg_thread)
                 update_success_msg_thread.start()
                 # show_update_success()
                 log_info("After thread start")
 
-                
                 # reset values of text input widget
                 if 'name' in session_state:
                     del session_state.name
@@ -303,8 +312,6 @@ def test():
                 st.button(
                     "Submit Changes", key="edit_title_desc_submit", on_click=submit_title_desc_changes)
 
-        session_state.place['cancel_delete'] = st.empty()
-
 
 def main():
     TEST_FLAG = True
@@ -314,8 +321,33 @@ def main():
 
         chdir_root()  # change to root directory
         # initialise connection to Database
+        dataset_page = {
+            DatasetPagination.Dashboard: test,
+            DatasetPagination.New: new_dataset.show
+        }
+        # NEW
+        if 'dataset_pagination' not in session_state:
+            session_state.dataset_pagination = DatasetPagination.Dashboard
 
-        test()
+        # >>>> Dataset SIDEBAR >>>>
+
+        project_page_options = ("Dashboard", "Create New Dataset")
+
+        def dataset_page_navigator():
+            session_state.dataset_pagination = project_page_options.index(
+                session_state.dataset_page_navigator_radio)
+
+        with st.sidebar.expander("Dataset", expanded=True):
+            st.radio("", options=project_page_options,
+                     index=session_state.dataset_pagination, on_change=dataset_page_navigator, key="dataset_page_navigator_radio")
+
+
+        dataset_page[session_state.dataset_pagination]()
+
+
+        # <<<< Dataset SIDEBAR <<<<
+        # new_dataset.show()
+        # st.write(session_state)
 
 
 if __name__ == "__main__":
