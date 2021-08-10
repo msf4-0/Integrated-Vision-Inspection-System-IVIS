@@ -1,0 +1,58 @@
+// NOT USED ********************************************
+/*
+  function CustomPagination() {
+    const { state, apiRef } = useGridSlotComponentProps()
+
+    return (
+      <Pagination
+        color="primary"
+        variant="outlined"
+        shape="rounded"
+        page={state.pagination.page}
+        count={state.pagination.pageCount}
+        // @ts-expect-error
+        renderItem={(props2) => <PaginationItem {...props2} disableRipple />}
+        onChange={(event, value) => apiRef.current.setPage(value)}
+      />
+    )
+  }
+
+  const StyledTable = withStyles({
+    root: {
+      // background: myTheme.backgroundColor,
+      color:
+        myTheme.backgroundColor === "#FFFFFF"
+          ? "rgba(0,0,0,1)"
+          : "rgba(255,255,255,1)",
+      fontFamily: myTheme.font,
+      "& .MuiDataGrid-columnHeaderCheckbox, & .MuiDataGrid-cellCheckbox": {
+        padding: 0,
+        justifyContent: "center",
+        alignItems: "center",
+        width: 16,
+        height: 16,
+
+        backgroundColor: "transparent",
+        borderRight: `1px solid ${
+          myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "white"
+        }`,
+        borderRadius: 2,
+      },
+    },
+    "& .MuiDataGrid-selectedRowCount": {
+      color: myTheme.backgroundColor === "#ffffff" ? "black" : "white",
+      fontFamily: myTheme.font,
+    },
+
+    columnHeader: {
+      backgroundColor: myTheme.secondaryBackgroundColor,
+    },
+    row: {
+      "& .MuiDataGrid-selectedRowCount": {
+        color: myTheme.backgroundColor === "#ffffff" ? "black" : "white",
+        fontFamily: myTheme.font,
+      },
+    },
+  })(DataGrid)*/
+
+// NOT USED ********************************************

@@ -15,13 +15,13 @@ logging.basicConfig(format=FORMAT, level=logging.INFO,
 log = logging.getLogger()
 
 
-_RELEASE = False
+_RELEASE = True
 
 
 if not _RELEASE:
 
     _component_func = components.declare_component(
-        "data_table", url="http://localhost:3001",)
+        "data_table", url="http://localhost:3000",)
 else:
 
     parent_dir = os.path.dirname(os.path.abspath(__file__))

@@ -272,6 +272,9 @@ def show():
 
         data_selection = data_table(
             session_state.dataset.data_name_list, dataset_columns, key="data_table")
+
+        with st.expander("Append dataset", expanded=False):
+            data_uploader(session_state.dataset, key='upload_widget')
         st.write(f"Selection")
         st.write(data_selection)
 
@@ -297,7 +300,7 @@ def show():
                                 session_state.dataset.update_dataset_size()
                                 log_info(
                                     f"{filename} has been removed from dataset {session_state.dataset.name} and all its associated task, annotations and predictions")
-                    
+
                 # Appear 'Delete' button
         if data_selection:
             num_data_selection = len(data_selection)
@@ -312,7 +315,7 @@ def show():
                         st.error(
                             f"Confirm deletion of {num_data_selection} data from {session_state.dataset.name}")
                         confirm_delete_state = st.form_submit_button(
-                            f"Confirm delete", on_click=delete_file_callback, args=(data_selection,session_state.dataset.dataset_path,))
+                            f"Confirm delete", on_click=delete_file_callback, args=(data_selection, session_state.dataset.dataset_path,))
                         st.write(data_selection)
                     # st.button("Cancel", key='cancel_delete')
                     place['cancel_delete'].button(
@@ -321,7 +324,7 @@ def show():
                     # Maybe use callback because script will rerun when pressed and new removed data will still be present on table
 
     # TODO #44 Image viewer and data control features to List view and Gallery
-    
+
     # Add view image
     # Add Edit callback
 

@@ -37,6 +37,7 @@ from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 from core.webcam import webcam_webrtc
 from core.utils.helper import check_filetype
+from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import NewDataset
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<

@@ -17,10 +17,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 
+
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))
     log_info(f"Current working directory: {str(PROJECT_ROOT)} ")
-
+    log_info(f"Data Directory set to \'{DATA_DIR}\'")
 
 def add_path(node: str, parent_node: int = 0) -> None:
     SRC = Path(__file__).resolve().parents[parent_node]  # ROOT folder -> ./src

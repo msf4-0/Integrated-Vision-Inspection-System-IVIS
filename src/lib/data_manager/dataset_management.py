@@ -122,7 +122,7 @@ class BaseDataset:
 
     def dataset_PNG_encoding(self):
         if self.dataset:
-            for img in stqdm(self.dataset,unit=self.filetype,ascii='123456789#'):
+            for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#'):
                 img_name = img.name
                 log_info(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
@@ -137,8 +137,10 @@ class BaseDataset:
                     log_error(
                         f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")
                 else:
+                    relative_dataset_path = str(
+                        Path(self.dataset_path).relative_to(DATA_DIR.parent))
                     log_info(
-                        f"Successfully stored '{str(img_name)}' in '{str(self.dataset_path)}' ")
+                        f"Successfully stored '{str(img_name)}' in \'{relative_dataset_path}\' ")
             return True
 
     def calc_total_filesize(self):
@@ -196,14 +198,14 @@ class NewDataset(BaseDataset):
                                     %s,
                                     %s,
                                     %s,
-                                    %s,
+                                    
                                     (SELECT ft.id from public.filetype ft where ft.name = %s))
                                 RETURNING id;
                             """
         insert_dataset_vars = [self.name, self.desc,
                                str(self.dataset_path), self.dataset_size, self.filetype]
         self.dataset_id = db_fetchone(
-            insert_dataset_SQL, conn, insert_dataset_vars)[0]
+            insert_dataset_SQL, conn, insert_dataset_vars).id
         return self.dataset_id
 
 
