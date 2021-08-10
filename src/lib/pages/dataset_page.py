@@ -44,7 +44,8 @@ from core.utils.helper import create_dataframe
 from core.utils.file_handler import delete_file_directory
 from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
+from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, get_dataset_name_list, query_dataset_list
+from pages.sub_pages.dataset_page import new_dataset
 from annotation.annotation_manager import Task
 from data_table import data_table
 # from data_table_test import data_table # FOR DEVELOPMENT
@@ -54,21 +55,6 @@ from data_table import data_table
 conn = init_connection(**st.secrets["postgres"])
 PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
 place = {}  # dictionary to store placeholders
-
-
-class DataPermission(IntEnum):
-    ViewOnly = 0
-    Edit = 1
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return DataPermission[s]
-        except KeyError:
-            raise ValueError()
 
 
 # <<<< Variable Declaration <<<<
@@ -86,18 +72,10 @@ with st.sidebar.container():
 # <<<< Template <<<<
 
 
-def show():
+def dashboard():
     # Page title
     st.write("# **Dataset**")
     st.markdown("___")
-
-    # >>>> Dataset SIDEBAR >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-    DATASET_PAGE = ("All Datasets", "New Dataset")
-    with st.sidebar.expander("Dataset Page", expanded=True):
-        session_state.current_page = st.radio("", options=DATASET_PAGE,
-                                              index=0)
-    # <<<< Dataset SIDEBAR <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     # ********* QUERY DATASET ********************************************
     existing_dataset, dataset_table_column_names = query_dataset_list()
@@ -114,7 +92,8 @@ def show():
     if 'temp_name' not in session_state:
         session_state.temp_name = None
     if 'dataset_sel' not in session_state:
-        session_state.dataset_sel = session_state.temp_name if session_state.temp_name else existing_dataset[0].Name
+        session_state.dataset_sel = session_state.temp_name if session_state.temp_name else existing_dataset[
+            0].Name
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # >>>> Column for Create New button and Dataset selectbox
@@ -139,8 +118,12 @@ def show():
 
     # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
     with topcol1:
+        def to_new_dataset_page():
+            session_state.dataset_pagination = DatasetPagination.New
+
         st.write("## ")
-        st.button("➕️", key="new_dataset", help="Create new dataset")
+        st.button("➕️", key="create_new_dataset",
+                  on_click=to_new_dataset_page, help="Create new dataset")
 
     # TODO: removed 'dataset selection'????
     with topcol2:
@@ -483,12 +466,26 @@ def show():
 
 
 def main():
-    show()
+
     # TODO #47 ADD show() function to load existing dataset and new dataset page
+    dataset_page = {
+        DatasetPagination.Dashboard: dashboard,
+        DatasetPagination.New: new_dataset.show
+    }
+    if 'dataset_pagination' not in session_state:
+        session_state.dataset_pagination = DatasetPagination.Dashboard
 
-    # Add Existing Dataset
+    project_page_options = ("Dashboard", "Create New Dataset")
 
-    # Add New Dataset
+    def dataset_page_navigator():
+        session_state.dataset_pagination = project_page_options.index(
+            session_state.dataset_page_navigator_radio)
+
+    with st.sidebar.expander("Dataset", expanded=True):
+        st.radio("", options=project_page_options,
+                 index=session_state.dataset_pagination, on_change=dataset_page_navigator, key="dataset_page_navigator_radio")
+
+    dataset_page[session_state.dataset_pagination]()
 
 
 if __name__ == "__main__":
