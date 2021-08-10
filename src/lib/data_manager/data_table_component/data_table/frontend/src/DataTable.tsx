@@ -1,112 +1,34 @@
-import { ReactElement, useEffect, useState } from "react"
+import { ReactElement, useEffect, useState } from "react";
 import {
   Streamlit,
   withStreamlitConnection,
   ComponentProps,
-} from "streamlit-component-lib"
+} from "streamlit-component-lib";
 import {
   DataGrid,
   GridRowsProp,
   GridColDef,
   GridRowId,
-} from "@material-ui/data-grid"
-import { makeStyles } from "@material-ui/styles"
+} from "@material-ui/data-grid";
+import { makeStyles } from "@material-ui/styles";
 
-//Define Rows and Columns
-/* const rows: GridRowsProp = [
-  { id: 1, lastName: "Snow", firstName: "Jon", age: 35 },
-  { id: 2, lastName: "Lannister", firstName: "Cersei", age: 42 },
-  { id: 3, lastName: "Lannister", firstName: "Jaime", age: 45 },
-  { id: 4, lastName: "Stark", firstName: "Arya", age: 16 },
-  { id: 5, lastName: "Targaryen", firstName: "Daenerys", age: null },
-  { id: 6, lastName: "Melisandre", firstName: null, age: 150 },
-  { id: 7, lastName: "Clifford", firstName: "Ferrara", age: 44 },
-  { id: 8, lastName: "Frances", firstName: "Rossini", age: 36 },
-  { id: 9, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 10, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 11, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 12, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 13, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 14, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 15, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 16, lastName: "Roxie", firstName: "Harvey", age: 65 },
-  { id: 17, lastName: "Roxie", firstName: "Harvey", age: 65 },
-] */
-// const rows: GridRowsProp =[]
-// const columns: GridColDef[] = []
-//Define Columns
-/* const columns: GridColDef[] = [
-  {
-    field: "id",
-    headerName: "ID",
-    headerAlign: "center",
-    align: "center",
-    flex: 20,
-    hideSortIcons: true,
-    disableColumnMenu: true,
-  },
-  {
-    field: "firstName",
-    headerName: "First name",
-    headerAlign: "center",
-    align: "center",
-    flex: 150,
-    hideSortIcons: true,
-  },
-  {
-    field: "lastName",
-    headerName: "Last name",
-    headerAlign: "center",
-    align: "center",
-    flex: 150,
-    hideSortIcons: true,
-  },
-  {
-    field: "age",
-    headerName: "Age",
-    headerAlign: "center",
-    align: "center",
-    type: "number",
-    hideSortIcons: true,
-
-    flex: 50,
-    resizable: true,
-  },
-  {
-    field: "fullName",
-    headerName: "Full name",
-    description: "This column has a value getter and is not sortable.",
-    headerAlign: "center",
-    align: "left",
-    hideSortIcons: true,
-    sortable: false,
-    // width: 160,
-    flex: 160,
-    resizable: true,
-    valueGetter: (params: GridValueGetterParams) =>
-      `${params.getValue(params.id, "firstName") || ""} ${
-        params.getValue(params.id, "lastName") || ""
-      }`,
-  },
-]
- */
 //To store object of Streamlit Theme props
 interface ComponentTheme {
-  primaryColor: string | undefined
-  secondaryBackgroundColor: string | undefined
-  textColor: string | undefined
-  backgroundColor: string | undefined
-  font: string | undefined
+  primaryColor: string | undefined;
+  secondaryBackgroundColor: string | undefined;
+  textColor: string | undefined;
+  backgroundColor: string | undefined;
+  font: string | undefined;
 }
 
 function DataTable({ args, theme }: ComponentProps): ReactElement {
   // TODO #28 Get data from Streamlit Python
 
   //Define Rows and Columns
-  const rows: GridRowsProp = args.rows
-  console.log(rows)
+  const rows: GridRowsProp = args.rows;
+  console.log(rows);
   //Define Columns
-  const columns: GridColDef[] = args.columns
+  const columns: GridColDef[] = args.columns;
 
   // Declare theme from Streamlit Component
   let myTheme: ComponentTheme = {
@@ -115,7 +37,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
     textColor: theme?.textColor,
     backgroundColor: theme?.backgroundColor,
     font: theme?.font,
-  }
+  };
 
   function customCheckbox() {
     return {
@@ -159,7 +81,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
           top: "39%",
           border: 0,
         },
-    }
+    };
   }
 
   const useStyles = makeStyles({
@@ -223,73 +145,68 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
       },
       ...customCheckbox(), // Custom Checkbox
     },
-  })
+  });
 
   // TODO #27 Add dark mode for Pagination
-  const classes = useStyles()
-  const [page, setPage] = useState(0)
-  const [pageSize, setPageSize] = useState<number>(10)
-  const [selectionModel, setSelectionModel] = useState<GridRowId[]>([])
-  const headerHeight: number = 56
-  const rowHeight: number = 52
-  const footerHeight: number = 55
-  const offset: number = 15
+  const classes = useStyles();
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [selectionModel, setSelectionModel] = useState<GridRowId[]>([]);
+  const headerHeight: number = 56;
+  const rowHeight: number = 52;
+  const footerHeight: number = 55;
+  const offset: number = 15;
 
-  console.log(pageSize)
-  // var frameHeight: number = headerHeight + rowHeight * pageSize + footerHeight
+  console.log(pageSize);
 
   /* Function to calculate the frame height to render the frame dynamically */
   function frameHeightCalc(size: number) {
-    let totalPage = Math.floor(rows.length / size) //calculate the floor divisor to obtain number of pages
+    let totalPage = Math.floor(rows.length / size); //calculate the floor divisor to obtain number of pages
+    let rows_length = rows.length;
+    let frameHeight = 215; /* default height when there is no data */
 
     //Number of rows at the last page not equal to pageSize
-    if (rows.length % size !== 0) {
-      totalPage++
-
-      //For last page -> frame height is the number of remainder rows
-      if (page === totalPage - 1) {
-        let remainder = rows.length % size
-        let frameHeight: number =
-          headerHeight + rowHeight * remainder + footerHeight
-        return frameHeight
+    if (rows_length > 0) {
+      if (rows_length % size !== 0 && page === totalPage) {
+        //For last page -> frame height is the number of remainder rows
+        let remainder = rows.length % size;
+        frameHeight = headerHeight + rowHeight * remainder + footerHeight;
+      } else {
+        frameHeight = headerHeight + rowHeight * size + footerHeight;
       }
-      // frame height is pageSize
-      else {
-        let frameHeight: number = headerHeight + rowHeight * size + footerHeight
-        return frameHeight
-      }
-    } else {
-      let frameHeight: number = headerHeight + rowHeight * size + footerHeight
-      return frameHeight
     }
+    return frameHeight;
   }
-  const frameHeight = frameHeightCalc(pageSize) + offset
-  console.log("frame height", frameHeight)
-  useEffect(() => Streamlit.setFrameHeight(frameHeight)) // TODO
+
+  const frameHeight = frameHeightCalc(pageSize) + offset;
+  console.log("Rows length", rows.length);
+
+  console.log("frame height", frameHeight);
+  useEffect(() => Streamlit.setFrameHeight(frameHeight)); // TODO
   /********CALLBACK FUNCTIONS********/
 
   //Callback to change page
   const onPageChange = (newPage: number) => {
-    setPage(newPage)
-    Streamlit.setFrameHeight()
-  }
+    setPage(newPage);
+    Streamlit.setFrameHeight();
+  };
   //Callback to modify page size
   const onPageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize)
-    Streamlit.setFrameHeight()
-  }
+    setPageSize(newPageSize);
+    Streamlit.setFrameHeight();
+  };
   //Callback when row is selected via Checkbox
   const onSelectionModelChange = (newSelectionModel: GridRowId[]) => {
-    setSelectionModel(newSelectionModel)
-    Streamlit.setComponentValue(newSelectionModel) //Return Selected Row ID back to Python land
-    console.log(newSelectionModel)
-  }
+    setSelectionModel(newSelectionModel);
+    Streamlit.setComponentValue(newSelectionModel); //Return Selected Row ID back to Python land
+    console.log(newSelectionModel);
+  };
 
   return (
     // <div style={{ height: 500, width: "100%" }}>
     <DataGrid
       classes={{ root: classes.root }}
-      // autoPageSize
+      autoPageSize
       autoHeight={true}
       pagination
       // components={{
@@ -308,7 +225,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
       selectionModel={selectionModel}
     />
     // </div>
-  )
+  );
 }
 
-export default withStreamlitConnection(DataTable)
+export default withStreamlitConnection(DataTable);

@@ -1,8 +1,8 @@
 import setuptools
 
 setuptools.setup(
-    name="data_table",
-    version="0.0.1",
+    name="data_table-test",
+    version="1.0.1-alpha1",
     author="Chu Zhen Hao ",
     author_email="",
     description="Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)",
