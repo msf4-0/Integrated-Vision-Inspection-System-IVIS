@@ -20,6 +20,7 @@ from stqdm import stqdm
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
+from core.utils.dataset_handler import get_image_size
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -37,7 +38,7 @@ from path_desc import chdir_root, MEDIA_ROOT, BASE_DATA_DIR, DATASET_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import get_directory_name
+from core.utils.helper import get_directory_name,get_mime
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -383,9 +384,34 @@ class Dataset(BaseDataset):
 
         return append_data_flag
 
-    @staticmethod
-    def display_data_media_attributes(data_name, data_raw):
-        
+    
+    def display_data_media_attributes(self,data_info:str, data_raw:Image.Image,placeholder=None):
+        if placeholder:
+            placeholder=placeholder
+        else:
+            placeholder=st.empty()
+
+        if data_raw:
+            data_name=data_info['id'] if data_info['id'] else Path(data_raw.filename).name 
+            created=data_info['created'] if data_info['created'] else ""
+            
+            image_width,image_height=get_image_size(data_raw)
+            mimetype=get_mime(data_name)
+
+            with placeholder.container():
+                display_attributes=f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - Width: {image_width}
+                - Height: {image_height}
+                - MIME type: {mimetype}
+                """
+
+                st.info(display_attributes)
 
 
 def query_dataset_list() -> List[namedtuple]:
