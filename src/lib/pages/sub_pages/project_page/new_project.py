@@ -16,6 +16,10 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
+# DEFINE Web APP page configuration
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -35,9 +39,10 @@ from core.utils.log import log_info, log_error  # logger
 import numpy as np  # TEMP for table viz
 from project.project_management import NewProject
 from frontend.editor_manager import NewEditor
-from data_manager.database_manager import init_connection, db_fetchone
+from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from core.utils.helper import create_dataframe
+from data_manager.dataset_management import query_dataset_list,get_dataset_name_list
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -312,8 +317,3 @@ if __name__ == "__main__":
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
-
-    # DEFINE Web APP page configuration
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)

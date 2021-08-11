@@ -44,7 +44,24 @@ from core.utils.helper import get_directory_name
 conn = init_connection(**st.secrets["postgres"])
 
 
+class ProjectPagination(IntEnum):
+    Dashboard = 0
+    New = 1
+    Existing = 2
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ProjectPagination[s]
+        except KeyError:
+            raise ValueError()
+
 # <<<< Variable Declaration <<<<
+
+
 class BaseProject:
     def __init__(self, project_id=None) -> None:
         self.id = project_id
@@ -68,13 +85,17 @@ class BaseProject:
     @st.cache
     def query_dataset_list(self) -> List:
         query_dataset_SQL = """
-                            SELECT
-                                id AS "ID",
-                                name AS "Name",
-                                dataset_size AS "Dataset Size",
-                                updated_at AS "Date/Time"
-                            FROM
-                                public.dataset;"""
+        SELECT
+            id AS "ID",
+            name AS "Name",
+            dataset_size AS "Dataset Size",
+            (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
+            updated_at AS "Date/Time",
+            description AS "Description",
+            dataset_path AS "Dataset Path"
+        FROM
+            public.dataset d
+        ORDER BY id ASC;"""
 
         datasets, column_names = db_fetchall(
             query_dataset_SQL, conn, fetch_col_name=True)

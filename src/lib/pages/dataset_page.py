@@ -471,6 +471,7 @@ def dashboard():
             place["submit_changes"].button(
                 "Edit dataset", key="edit_dataset2", on_click=append_data_flag_1)
 
+    # >>>>>>>>>>>>>>>>>>>IMAGE VIEWER >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             if data_selection:
                 data_path = Path(
                     session_state.dataset.dataset_path, data_selection[0])
@@ -483,11 +484,15 @@ def dashboard():
                         st.image(data, width=500)
 
                         with data_view_right.container():
-                            data_df_query=data_df.loc[data_df["id"]==data_selection[0]]
+                            data_df_query = data_df.loc[data_df["id"]
+                                                        == data_selection[0]]
                             # st.write(data_df_query)
-                            data_info=data_df_query.to_dict(orient='records')[0]
+                            data_info = data_df_query.to_dict(
+                                orient='records')[0]
                             # st.write(data_info)
-                            session_state.dataset.display_data_media_attributes(data_info,data,)
+                            session_state.dataset.display_data_media_attributes(
+                                data_info, data,)
+    # >>>>>>>>>>>>>>>>>>>IMAGE VIEWER >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
         elif (session_state.append_data_flag == DataPermission.Edit):
 
@@ -500,18 +505,11 @@ def dashboard():
                     st.button(
                         "Submit Changes", key="edit_title_desc_submit", on_click=submit_title_desc_changes)
 
-    # Add view image
-    # Add Edit callback
-
-    # TODO #18
-
     # <<<<<<<<<<<<<<<<<<<<<<<<<< LOAD EXISTING DATASET <<<<<<<<<<<<<<<<<<<<<#
-    # st.write(dataset_dict)
 
 
 def main():
 
-    # TODO #47 ADD show() function to load existing dataset and new dataset page
     dataset_page = {
         DatasetPagination.Dashboard: dashboard,
         DatasetPagination.New: new_dataset.show
