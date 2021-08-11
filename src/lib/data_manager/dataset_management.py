@@ -17,6 +17,7 @@ from glob import glob, iglob
 from datetime import datetime
 from numpy import ndarray
 from stqdm import stqdm
+from videoprops import get_audio_properties, get_video_properties, pretty_print
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -38,7 +39,7 @@ from path_desc import chdir_root, MEDIA_ROOT, BASE_DATA_DIR, DATASET_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import get_directory_name,get_mime
+from core.utils.helper import get_directory_name, get_mime
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -73,6 +74,24 @@ class DatasetPagination(IntEnum):
             return DatasetPagination[s]
         except KeyError:
             raise ValueError()
+
+
+class FileTypes(IntEnum):
+    Image = 0
+    Video = 1
+    Audio = 2
+    Text = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return FileTypes[s]
+        except KeyError:
+            raise ValueError()
+
 # <<<< Variable Declaration <<<<
 
 
@@ -384,22 +403,32 @@ class Dataset(BaseDataset):
 
         return append_data_flag
 
-    
-    def display_data_media_attributes(self,data_info:str, data_raw:Image.Image,placeholder=None):
+    def display_data_media_attributes(self, data_info: str, data_raw: Image.Image, filename: str = None, placeholder=None):
         if placeholder:
-            placeholder=placeholder
+            placeholder = placeholder
         else:
-            placeholder=st.empty()
+            placeholder = st.empty()
 
-        if data_raw:
-            data_name=data_info['id'] if data_info['id'] else Path(data_raw.filename).name 
-            created=data_info['created'] if data_info['created'] else ""
-            
-            image_width,image_height=get_image_size(data_raw)
-            mimetype=get_mime(data_name)
+        if data_info:
+            data_name = data_info['id'] if data_info['id'] else Path(
+                data_raw.filename).name
+            created = data_info['created'] if data_info['created'] else ""
+            mimetype = get_mime(data_name)
 
-            with placeholder.container():
-                display_attributes=f"""
+            if not data_raw:
+                filepath = self.dataset_path / data_name
+
+            try:
+                filetype = data_info['filetype']
+            except:
+                filetype = str(Path(mimetype).parent)
+
+            if isinstance(filetype, str):
+                filetype = FileTypes.from_string(filetype)
+            # Image
+            if filetype == FileTypes.Image:
+                image_width, image_height = get_image_size(data_raw)
+                display_attributes = f"""
                 ### **DATA**
                 - Name: {data_name}
                 - Created: {created}
@@ -410,8 +439,60 @@ class Dataset(BaseDataset):
                 - Height: {image_height}
                 - MIME type: {mimetype}
                 """
+            # video
+            elif filetype == FileTypes.Video:
+                props = get_video_properties(filepath)
 
+                display_attributes = f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - Codec:{props['codec_name']}
+                - Width: {props['width']}
+                - Height: {props['height']}
+                - Duration: {float(props['duration']):.2f}s
+                - Frame rate: {props['avg_frame_rate']}
+                - Frame count: {props['nb_frames']}
+                - MIME type: {mimetype}
+                """
+            # Audio
+            elif filetype == FileTypes.Audio:
+
+                props = get_audio_properties(filepath)
+
+                display_attributes = f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - Codec:{props['codec_long_name']}
+                - Channel Layout: {props['channel_layout']}
+                - Channels: {props['channels']}
+                - Duration: {float(props['duration']):.2f}s
+                - Bit rate: {(float(props['bit_rate'])/1000)}kbps
+                - Sampling rate: {(float(props['sample_rate'])/1000):.2f}kHz
+                - MIME type: {mimetype}
+                """
+            # Text
+            elif filetype == FileTypes.Text:
+                display_attributes = f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - MIME type: {mimetype}
+                """
+
+            with placeholder.container():
                 st.info(display_attributes)
+
 
 
 def query_dataset_list() -> List[namedtuple]:
