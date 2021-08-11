@@ -158,13 +158,8 @@ def data_uploader(dataset: Dataset):
     # <<<<<<<< New Dataset Upload <<<<<<<<
 
     # >>>>>>>>>>>>>>>>>>>>>>>> SUBMISSION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    success_place = st.empty()
-    field = [dataset.dataset]
-
-    submit_button = st.button("Submit", key="submit")
-    # st.write(field)
-
-    if submit_button:
+    
+    def update_dataset_callback(field,place):
         dataset.has_submitted = dataset.check_if_field_empty(
             field, field_placeholder=place, keys=['upload'])
 
@@ -175,12 +170,15 @@ def data_uploader(dataset: Dataset):
             # set FLAG to 0
             session_state.append_data_flag = dataset.update_pipeline(
                 success_place)
+            
+            if 'upload_widget' in session_state:
+                del session_state.upload_widget
             # return session_state.append_data_flag
+    
+    success_place = st.empty()
+    field = [dataset.dataset]
 
-    # st.write(vars(dataset))
-    # for img in dataset.dataset:
-    #     st.image(img)
-
+    submit_button = st.button("Submit", key="submit",on_click=update_dataset_callback,args=(field,place,))
 
 def main():
     TEST_FLAG = False
@@ -203,15 +201,6 @@ def main():
 
         st.write(session_state.append_data_flag)
 
-        # with place['test'].expander(label='Append dataset', expanded=False):
-
-        # if session_state.append_data_flag == 0:
-        #     with session_state.place['test'].container():
-        #         st.write("Normal")
-        #         st.table([1, 2, 3, 4, 5])
-
-        # elif session_state.append_data_flag == 1:
-        #     with session_state.place['test'].container():
         with st.expander("", expanded=False):
             data_uploader(session_state.dataset, key='upload_widget')
 

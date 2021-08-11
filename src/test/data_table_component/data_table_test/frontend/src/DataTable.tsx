@@ -109,6 +109,9 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
   //Define Columns
   const columns: GridColDef[] = args.columns
 
+  //Get checkbox boolean
+  const checkbox: boolean = args.checkbox
+  console.log(checkbox)
   // Declare theme from Streamlit Component
   let myTheme: ComponentTheme = {
     primaryColor: theme?.primaryColor,
@@ -301,7 +304,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
             rows={rows}
             columns={columns}
             rowsPerPageOptions={[5, 10, 20]}
-            checkboxSelection
+            checkboxSelection={checkbox}
             // disableSelectionOnClick
             onSelectionModelChange={onSelectionModelChange}
             selectionModel={selectionModel}

@@ -30,9 +30,9 @@ else:
         "data_table", path=build_dir)
 
 
-def data_table(rows, columns, key=None):
+def data_table(rows, columns, checkbox: bool = True, key=None):
     component_value = _component_func(
-        rows=rows, columns=columns, key=key, default=[])
+        rows=rows, columns=columns, checkbox=checkbox, key=key, default=[])
 
     return component_value
 
@@ -136,6 +136,6 @@ def data_table(rows, columns, key=None):
 #         },
 #     ]
 
-#     rows = data_table(rows, columns, key='test_table')
+#     rows = data_table(rows, columns, checkbox=False,key='test_table')
 #     if rows:
 #         st.write("You have selected", rows)

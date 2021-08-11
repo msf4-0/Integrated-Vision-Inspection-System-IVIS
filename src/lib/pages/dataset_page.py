@@ -48,7 +48,7 @@ from data_manager.dataset_management import Dataset, DataPermission, DatasetPagi
 from pages.sub_pages.dataset_page import new_dataset
 from annotation.annotation_manager import Task
 from data_table import data_table
-# from data_table_test import data_table # FOR DEVELOPMENT
+# from data_table_test import data_table  # FOR DEVELOPMENT
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
@@ -94,6 +94,8 @@ def dashboard():
     if 'dataset_sel' not in session_state:
         session_state.dataset_sel = session_state.temp_name if session_state.temp_name else existing_dataset[
             0].Name
+    if 'checkbox' not in session_state:
+        session_state.checkbox = False
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # >>>> Column for Create New button and Dataset selectbox
@@ -240,6 +242,7 @@ def dashboard():
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>VIEW ONLY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if session_state.append_data_flag == DataPermission.ViewOnly:
+        session_state.checkbox = False
         with place['dataset_id'].container():
             # DATASET ID
             st.write(
@@ -258,6 +261,8 @@ def dashboard():
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>EDIT MODE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     elif session_state.append_data_flag == DataPermission.Edit:
+        session_state.checkbox = True
+
         def check_if_name_exist(field_placeholder, conn):
             context = ['name', session_state.name]
 
@@ -310,9 +315,11 @@ def dashboard():
     with outercol2:
         def append_data_flag_1():
             session_state.append_data_flag = DataPermission.Edit
+            session_state.checkbox = True
 
         def back():
             session_state.append_data_flag = DataPermission.ViewOnly
+            session_state.checkbox = False
             # reset values of text input widget
             if 'name' in session_state:
                 del session_state.name
@@ -330,6 +337,7 @@ def dashboard():
                     session_state.name, session_state.desc)
 
                 session_state.append_data_flag = DataPermission.ViewOnly
+                session_state.checkbox = False
 
                 def show_update_success():
                     update_success_place = outercol2.empty()
@@ -356,9 +364,11 @@ def dashboard():
             else:
                 log_info("NO UPDATE")
 
+        place["back"] = st.empty()
+        place['submit_changes'] = st.empty()
         place["delete"] = st.empty()
         # place["delete"].button("Edit dataset", key="edit_dataset2")
-        # place['cancel_delete'] = st.empty()
+        place['cancel_delete'] = st.empty()
 
     # **************** DATA TABLE COLUMN CONFIG ****************************
         dataset_columns = [
@@ -393,7 +403,7 @@ def dashboard():
     # **************** DATA TABLE COLUMN CONFIG ****************************
 
         data_selection = data_table(
-            session_state.dataset.data_name_list, dataset_columns, key="data_table")
+            session_state.dataset.data_name_list, dataset_columns, checkbox=session_state.checkbox, key="data_table")
 
         with st.expander("Append dataset", expanded=False):
             data_uploader(session_state.dataset)
@@ -424,7 +434,9 @@ def dashboard():
                                     f"{filename} has been removed from dataset {session_state.dataset.name} and all its associated task, annotations and predictions")
 
                 # Appear 'Delete' button
-        if data_selection:
+        # <<<<<<<<<< DELETE CALLBACK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        def create_delete_button():
             num_data_selection = len(data_selection)
             with place['delete']:
 
@@ -438,23 +450,24 @@ def dashboard():
                             f"Confirm deletion of {num_data_selection} data from {session_state.dataset.name}")
                         confirm_delete_state = st.form_submit_button(
                             f"Confirm delete", on_click=delete_file_callback, args=(data_selection, session_state.dataset.dataset_path,))
-                        st.write(data_selection)
-                    # st.button("Cancel", key='cancel_delete')
                     place['cancel_delete'].button(
                         "Cancel", key='cancel_delete')
-        # <<<<<<<<<< DELETE CALLBACK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         if session_state.append_data_flag == DataPermission.ViewOnly:
-            place["delete"].button(
+
+            place["submit_changes"].button(
                 "Edit dataset", key="edit_dataset2", on_click=append_data_flag_1)
 
-        elif (session_state.append_data_flag == DataPermission.Edit) and not data_selection:
-            with place["delete"].container():
-                st.button(
-                    "Back", key="back", on_click=back)
-
-                st.button(
-                    "Submit Changes", key="edit_title_desc_submit", on_click=submit_title_desc_changes)
+        elif (session_state.append_data_flag == DataPermission.Edit):
+            
+            place['back'].button('Back', key='back', on_click=back)
+            if data_selection:
+                create_delete_button()
+            else:
+                with place["delete"].container():
+                    # st.button('Back', key='test', on_click=back)
+                    st.button(
+                        "Submit Changes", key="edit_title_desc_submit", on_click=submit_title_desc_changes)
 
     # Add view image
     # Add Edit callback
