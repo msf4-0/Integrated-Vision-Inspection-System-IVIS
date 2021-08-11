@@ -26,7 +26,6 @@ from project.project_management import Project
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
@@ -34,7 +33,7 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
+from path_desc import chdir_root,MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist

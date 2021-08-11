@@ -26,7 +26,7 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
+# DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 # TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
@@ -35,7 +35,7 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-from path_desc import chdir_root
+from path_desc import chdir_root,MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
 import numpy as np  # TEMP for table viz
 from data_manager.database_manager import init_connection, db_fetchone
@@ -164,7 +164,7 @@ def show():
                 # | | |_saved_model/
                 # | |  |_saved_model.pb
                 #   |_labelmap.pbtxt
-                session_state.deployment.model_selected.model_path = DATA_DIR / \
+                session_state.deployment.model_selected.model_path = MEDIA_ROOT / \
                     Path(
                         [model.Model_Path for model in model_info if model.Name == model_selected][0])
                 st.write(session_state.deployment.model_selected.model_path)

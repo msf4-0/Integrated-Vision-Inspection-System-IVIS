@@ -25,7 +25,6 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
 # TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
@@ -34,7 +33,7 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-from path_desc import chdir_root
+from path_desc import chdir_root,MEDIA_ROOT
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe

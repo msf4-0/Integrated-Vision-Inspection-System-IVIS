@@ -21,7 +21,7 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
-SRC = Path(__file__).resolve().parents[1]  # ROOT folder -> ./src
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 # TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 

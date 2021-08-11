@@ -32,7 +32,7 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root, DATA_DIR
+from path_desc import chdir_root, MEDIA_ROOT, BASE_DATA_DIR, DATASET_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
@@ -41,6 +41,8 @@ from core.utils.helper import get_directory_name
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
 # >>>> Variable Declaration <<<<
+
+
 class DataPermission(IntEnum):
     ViewOnly = 0
     Edit = 1
@@ -165,7 +167,7 @@ class BaseDataset:
                         f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")
                 else:
                     relative_dataset_path = str(
-                        Path(self.dataset_path).relative_to(DATA_DIR.parent))
+                        Path(self.dataset_path).relative_to(BASE_DATA_DIR))
                     log_info(
                         f"Successfully stored '{str(img_name)}' in \'{relative_dataset_path}\' ")
             return True
@@ -189,7 +191,7 @@ class BaseDataset:
             directory_name = get_directory_name(
                 self.name)  # change name to lowercase
             # join directory name with '-' dash
-            self.dataset_path = DATA_DIR / 'dataset' / str(directory_name)
+            self.dataset_path = DATASET_DIR / str(directory_name)
 
         # directory_name = get_directory_name(
         #     self.name)
@@ -338,7 +340,6 @@ class Dataset(BaseDataset):
         log_info(f"Updating title and desc {new_title_desc_return}")
         sleep(1)
 
-
         self.name, self.desc = new_title_desc_return if new_title_desc_return else (
             None, None)
 
@@ -436,7 +437,6 @@ def query_dataset_list() -> List[namedtuple]:
         dataset_tmp = []
 
     return dataset_tmp, column_names
-
 
 
 def get_dataset_name_list(dataset_list: List[namedtuple]):

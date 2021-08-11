@@ -10,18 +10,25 @@ Description:
 import sys
 import os
 from pathlib import Path
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import log_info, log_error
+from core.utils.file_handler import get_config_dir, get_data_dir
 
 # ./image_labelling_shrdc
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 
+# DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
+BASE_DATA_DIR = Path(get_data_dir())
+MEDIA_ROOT = BASE_DATA_DIR / 'app_media'
+DATASET_DIR = MEDIA_ROOT / 'dataset'
+PRE_TRAINED_MODEL_DIR = MEDIA_ROOT / 'pre-trained-models'
+PROJECT_DIR = MEDIA_ROOT / 'project'
 
 
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))
     log_info(f"Current working directory: {str(PROJECT_ROOT)} ")
-    log_info(f"Data Directory set to \'{DATA_DIR}\'")
+    log_info(f"Data Directory set to \'{BASE_DATA_DIR}\'")
+
 
 def add_path(node: str, parent_node: int = 0) -> None:
     SRC = Path(__file__).resolve().parents[parent_node]  # ROOT folder -> ./src

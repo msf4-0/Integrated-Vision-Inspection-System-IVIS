@@ -18,6 +18,7 @@ import shutil
 from zipfile import ZipFile
 import tarfile
 import urllib
+from appdirs import user_config_dir, user_data_dir
 
 from typing import Union, List, Dict
 import streamlit as st
@@ -32,9 +33,25 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
+
 from core.utils.log import log_info, log_error  # logger
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
+
+_DIR_APP_NAME = "integrated-vision-inspection-system"
+
+# REFERENCED LS
+
+# TODO #49 utilise this to create App dir during installation
+def get_config_dir():
+    config_dir = user_config_dir(appname=_DIR_APP_NAME)
+    os.makedirs(config_dir, exist_ok=True)
+    return config_dir
+
+
+def get_data_dir():
+    data_dir = user_data_dir(appname=_DIR_APP_NAME)
+    os.makedirs(data_dir, exist_ok=True)
+    return data_dir
 
 
 def bytes_divisor(value: Union[int, float], power: int = 1) -> Union[int, float]:
