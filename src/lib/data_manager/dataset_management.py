@@ -17,9 +17,11 @@ from glob import glob, iglob
 from datetime import datetime
 from numpy import ndarray
 from stqdm import stqdm
+from videoprops import get_audio_properties, get_video_properties, pretty_print
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
+from core.utils.dataset_handler import get_image_size,load_image_PIL
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -37,7 +39,7 @@ from path_desc import chdir_root, MEDIA_ROOT, BASE_DATA_DIR, DATASET_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import get_directory_name
+from core.utils.helper import get_directory_name, get_mime
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -72,6 +74,24 @@ class DatasetPagination(IntEnum):
             return DatasetPagination[s]
         except KeyError:
             raise ValueError()
+
+
+class FileTypes(IntEnum):
+    Image = 0
+    Video = 1
+    Audio = 2
+    Text = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return FileTypes[s]
+        except KeyError:
+            raise ValueError()
+
 # <<<< Variable Declaration <<<<
 
 
@@ -89,6 +109,7 @@ class BaseDataset:
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
         self.has_submitted = False
+        self.raw_data_dict:Dict={} # stores raw data of data
 
 # NOTE DEPRECATED *************************
     def query_deployment_id(self) -> int:
@@ -339,10 +360,37 @@ class Dataset(BaseDataset):
         new_title_desc_return = db_fetchone(
             update_title_desc_SQL, conn, update_title_desc_vars)
         log_info(f"Updating title and desc {new_title_desc_return}")
-        sleep(1)
 
         self.name, self.desc = new_title_desc_return if new_title_desc_return else (
             None, None)
+
+    def update_dataset_path(self, new_dataset_name: str):
+        new_directory_name = get_directory_name(new_dataset_name)
+        new_dataset_path = DATASET_DIR / str(new_directory_name)
+
+        # Rename dataset folder
+        try:
+            old_dataset_path = Path(self.dataset_path)
+            old_dataset_path.rename(Path(new_dataset_path))
+            log_info(f'Renamed dataset path to {new_dataset_path}')
+        except Exception as e:
+            log_error(f'{e}: Could not rename file')
+
+        update_dataset_path_SQL = """
+                                UPDATE
+                                    public.dataset
+                                SET
+                                    dataset_path = %s
+                                WHERE
+                                    id = %s
+                                RETURNING dataset_path;
+        """
+        update_dataset_path_vars = [str(new_dataset_path), self.id]
+        new_dataset_path_return = db_fetchone(
+            update_dataset_path_SQL, conn, update_dataset_path_vars)
+
+        log_info(f"Updating dataset path {new_dataset_path_return}")
+        self.dataset_path = new_dataset_path_return if new_dataset_path_return else self.dataset_path
 
     def update_dataset(self):
         """Wrapper function to update existing dataset
@@ -383,10 +431,104 @@ class Dataset(BaseDataset):
 
         return append_data_flag
 
-    @staticmethod
-    def display_data_media_attributes(data_name, data_raw):
-        
+    def display_data_media_attributes(self, data_info: str, data_raw: Image.Image, filename: str = None, placeholder=None):
+        if placeholder:
+            placeholder = placeholder
+        else:
+            placeholder = st.empty()
 
+        if data_info:
+            data_name = data_info['id'] if data_info['id'] else Path(
+                data_raw.filename).name
+            created = data_info['created'] if data_info['created'] else ""
+            mimetype = get_mime(data_name)
+
+            if not data_raw:
+                filepath = self.dataset_path / data_name
+
+            try:
+                filetype = data_info['filetype']
+            except:
+                filetype = str(Path(mimetype).parent)
+
+            if isinstance(filetype, str):
+                filetype = FileTypes.from_string(filetype)
+            # Image
+            if filetype == FileTypes.Image:
+                image_width, image_height = get_image_size(data_raw)
+                display_attributes = f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - Width: {image_width}
+                - Height: {image_height}
+                - MIME type: {mimetype}
+                """
+            # video
+            elif filetype == FileTypes.Video:
+                props = get_video_properties(filepath)
+
+                display_attributes = f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - Codec:{props['codec_name']}
+                - Width: {props['width']}
+                - Height: {props['height']}
+                - Duration: {float(props['duration']):.2f}s
+                - Frame rate: {props['avg_frame_rate']}
+                - Frame count: {props['nb_frames']}
+                - MIME type: {mimetype}
+                """
+            # Audio
+            elif filetype == FileTypes.Audio:
+
+                props = get_audio_properties(filepath)
+
+                display_attributes = f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - Codec:{props['codec_long_name']}
+                - Channel Layout: {props['channel_layout']}
+                - Channels: {props['channels']}
+                - Duration: {float(props['duration']):.2f}s
+                - Bit rate: {(float(props['bit_rate'])/1000)}kbps
+                - Sampling rate: {(float(props['sample_rate'])/1000):.2f}kHz
+                - MIME type: {mimetype}
+                """
+            # Text
+            elif filetype == FileTypes.Text:
+                display_attributes = f"""
+                ### **DATA**
+                - Name: {data_name}
+                - Created: {created}
+                - Dataset: {self.name}
+                ___
+                ### **MEDIA ATTRIBUTES**
+                - MIME type: {mimetype}
+                """
+            if placeholder:
+                with placeholder.container():
+                    st.info(display_attributes)
+            else:
+                st.write("### \n")
+                st.info(display_attributes)
+
+    def load_dataset(self):
+        
+        for file in Path(self.dataset_path).iterdir():
+            if file.is_file():
+                pass
 
 def query_dataset_list() -> List[namedtuple]:
     """Query list of dataset from DB, Column Names: TRUE

@@ -111,7 +111,7 @@ def get_mime(file: Union[str, Path]):
     Returns:
         str: MIME type of file
     """
-    mime = mimetypes.guess_type(file)
+    mime = mimetypes.guess_type(file)[0]
     return mime
 
 
