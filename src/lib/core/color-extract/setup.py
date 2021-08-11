@@ -1,12 +1,12 @@
 import setuptools
 
 setuptools.setup(
-    name="data_table-test",
-    version="1.0.1-alpha1",
+    name="color-extract",
+    version="0.0.1",
     author="Chu Zhen Hao",
     author_email="",
     description="Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)",
-    long_description=" Based on Material UI Table using Data Grid API",
+    long_description="",
     long_description_content_type="text/plain",
     url="",
     packages=setuptools.find_packages(),
@@ -18,6 +18,5 @@ setuptools.setup(
         # If your component has other Python dependencies, list
         # them here.
         "streamlit >= 0.63",
-
     ],
 )

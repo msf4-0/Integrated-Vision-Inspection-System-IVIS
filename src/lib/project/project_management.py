@@ -76,12 +76,13 @@ class BaseProject:
         self.dataset_chosen: List = []
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
-        self.datasets, self.column_names = self.query_dataset_list()
-        self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
+        # self.datasets, self.column_names = self.query_dataset_list()
+        # self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.dataset_list: Dict = {}
         self.image_name_list: List = []  # for image_labelling
         self.annotation_task_join = []  # for image_labelling
 
+# DEPRECATED -> Import from dataset.management.py
     @st.cache
     def query_dataset_list(self) -> List:
         query_dataset_SQL = """
@@ -116,6 +117,7 @@ class BaseProject:
 
         return dataset_tmp, column_names
 
+# DEPRECATED -> Import from dataset.management.py
     def get_dataset_name_list(self) -> List:
         dataset_name_tmp = []
         dataset_name_id = {}

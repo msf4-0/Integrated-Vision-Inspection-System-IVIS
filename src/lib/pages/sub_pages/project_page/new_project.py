@@ -7,11 +7,9 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-import psycopg2
-import pandas as pd
-import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from time import sleep
+from colorutils import hex_to_hsv
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -27,22 +25,20 @@ SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 # TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
 from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
-import numpy as np  # TEMP for table viz
-from project.project_management import NewProject
-from frontend.editor_manager import NewEditor
+from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
-from core.utils.helper import create_dataframe
 from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
+from project.project_management import NewProject, ProjectPagination
+from frontend.editor_manager import NewEditor
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -72,7 +68,16 @@ class AnnotationType(IntEnum):
             raise ValueError()
 
 
+from color_extract import color_extract
+from core.utils.helper import get_df_row_highlight_color
+
+
 def show():
+    from_config = st.get_option('theme.backgroundColor')
+
+    color = color_extract(key='color_ts')
+    color = color['backgroundColor'] if color else from_config
+    df_row_highlight_color = get_df_row_highlight_color(color)
 
     chdir_root()  # change to root directory
 
@@ -102,7 +107,7 @@ def show():
     # >>>> PROJECT SIDEBAR >>>>
     project_page_options = ("All Projects", "New Project")
     with st.sidebar.expander("Project Page", expanded=True):
-        session_state.current_page = st.radio("project_page_select", options=project_page_options,
+        session_state.current_page = st.radio("", options=project_page_options,
                                               index=0)
     # <<<< PROJECT SIDEBAR <<<<
 
@@ -184,11 +189,11 @@ def show():
     # >>>> Right Column to select dataset >>>>
     # TODO #51 Utilise dataset query from dataset_management
     with outercol3:
-        session_state.new_project.datasets, dataset_column_names = session_state.new_project.query_dataset_list()
-        session_state.new_project.dataset_name_list, session_state.new_project.dataset_name_id = session_state.new_project.get_dataset_name_list()
+        existing_dataset, dataset_table_column_names = query_dataset_list()
+        dataset_dict = get_dataset_name_list(existing_dataset)
 
         session_state.new_project.dataset_chosen = st.multiselect(
-            "Dataset List", key="dataset", options=session_state.new_project.dataset_name_list, help="Assign dataset to the project")
+            "Dataset List", key="dataset_chosen", options=dataset_dict, help="Assign dataset to the project")
         place["dataset_chosen"] = st.empty()
         # Button to create new dataset
         new_data_button = st.button("Create New Dataset")
@@ -216,28 +221,35 @@ def show():
         start = 10 * session_state.dataset_page
         end = start + 10
 
-        df = create_dataframe(session_state.new_project.datasets,
-                              column_names=dataset_column_names, date_time_format=True)
+        df = create_dataframe(existing_dataset,
+                              column_names=dataset_table_column_names, date_time_format=True)
+
+        df_loc = df.loc[:, "ID":"Date/Time"]
+        df_slice = df_loc.iloc[start:end]
 
         def highlight_row(x, selections):
 
             if x.Name in selections:
 
-                return ['background-color: #90a4ae'] * len(x)
+                return [f'background-color: {df_row_highlight_color}'] * len(x)
             else:
                 return ['background-color: '] * len(x)
-        df_slice = df.iloc[start:end]
-        styler = df_slice.style.format(
-            {
-                "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
+        # df_slice = df.iloc[start:end]
+        # styler = df_slice.style.format(
+        #     {
+        #         "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
 
-            }
-        )
+        #     }
+        # )
+        styler = df_slice.style.apply(
+            highlight_row, selections=session_state.dataset_chosen, axis=1)
 
         # >>>>DATAFRAME
-        st.table(styler.apply(
-            highlight_row, selections=session_state.new_project.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
-                [dict(selector='th', props=[('text-align', 'center')])]))
+        # st.table(styler.apply(
+        #     highlight_row, selections=session_state.new_project.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
+        #         [dict(selector='th', props=[('text-align', 'center')])]))
+        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+            [dict(selector='th', props=[('text-align', 'center')])]))
 
     # <<<< Left Column to show full list of dataset and selection <<<<
 
@@ -246,7 +258,7 @@ def show():
         [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
     num_dataset_per_page = 10
     num_dataset_page = len(
-        session_state.new_project.dataset_name_list) // num_dataset_per_page
+        dataset_dict) // num_dataset_per_page
     # st.write(num_dataset_page)
     if num_dataset_page > 1:
         if session_state.dataset_page < num_dataset_page:
@@ -262,7 +274,7 @@ def show():
         col2.write(
             f"Page {1+session_state.dataset_page} of {num_dataset_page}")
     # <<<< Dataset Pagination <<<<
-    #TODO #52 Add Editor Config
+    # TODO #52 Add Editor Config
     # **** Submit Button ****
     success_place = st.empty()
     field = [session_state.new_project.name,

@@ -7,10 +7,9 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict, Optional
+from typing import Union, List, Dict, Optional, NamedTuple
 from time import perf_counter
 import pandas as pd
-import psycopg2
 from psycopg2 import sql
 import mimetypes
 from streamlit.uploaded_file_manager import UploadedFile
@@ -32,6 +31,43 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_fetchone, init_connection
 
 conn = init_connection(**st.secrets["postgres"])
+
+from colorutils import hex_to_hsv
+from color_extract import color_extract
+
+
+class HSV(NamedTuple):
+    H: int
+    S: int
+    V: int
+
+chdir_root()
+def hex_to_hsv_converter(hex_code):
+    hsv = HSV._make(hex_to_hsv(hex_code))
+
+    return hsv
+
+
+def get_df_row_highlight_color(color):
+ 
+
+    value_threshold = 0.5
+    dark_green = "#80CBC4"
+    light_green = "#00796B"
+
+    hsv = hex_to_hsv_converter(color)
+
+    V = hsv.V
+
+    df_row_highlight_color = dark_green if (
+        V > value_threshold) else light_green
+
+    return df_row_highlight_color
+
+
+def get_theme():
+    backgroundColor = st.get_option('theme.backgroundColor')
+    return backgroundColor
 
 
 def split_string(string: str) -> List:
