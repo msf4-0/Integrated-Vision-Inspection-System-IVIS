@@ -42,7 +42,7 @@ from frontend.editor_manager import NewEditor
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from core.utils.helper import create_dataframe
-from data_manager.dataset_management import query_dataset_list,get_dataset_name_list
+from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -182,6 +182,7 @@ def show():
 
     data_left, data_right = st.columns(2)
     # >>>> Right Column to select dataset >>>>
+    # TODO #51 Utilise dataset query from dataset_management
     with outercol3:
         session_state.new_project.datasets, dataset_column_names = session_state.new_project.query_dataset_list()
         session_state.new_project.dataset_name_list, session_state.new_project.dataset_name_id = session_state.new_project.get_dataset_name_list()
@@ -261,19 +262,7 @@ def show():
         col2.write(
             f"Page {1+session_state.dataset_page} of {num_dataset_page}")
     # <<<< Dataset Pagination <<<<
-
-    # # **** Image Augmentation (Optional) ****
-    # st.write("## __Image Augmentation :__")
-    # session_state.new_project["augmentation"] = st.multiselect(
-    #     "Augmentation List", key="augmentation", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
-    # place["augmentation"] = st.empty()
-
-    # # **** Training Parameters (Optional) ****
-    # st.write("## __Training Parameters :__")
-    # session_state.new_project["training_param"] = st.multiselect(
-    #     "Training Parameters", key="training_param", options=DATASET_LIST, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
-    # place["augmentation"] = st.empty()
-
+    #TODO #52 Add Editor Config
     # **** Submit Button ****
     success_place = st.empty()
     field = [session_state.new_project.name,
