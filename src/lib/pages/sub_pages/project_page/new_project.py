@@ -73,11 +73,6 @@ from core.utils.helper import get_df_row_highlight_color
 
 
 def show():
-    from_config = st.get_option('theme.backgroundColor')
-
-    color = color_extract(key='color_ts')
-    color = color['backgroundColor'] if color else from_config
-    df_row_highlight_color = get_df_row_highlight_color(color)
 
     chdir_root()  # change to root directory
 
@@ -93,23 +88,16 @@ def show():
 
     # ******** SESSION STATE ***********************************************************
 
-    if "current_page" not in session_state:  # KIV
-        session_state.current_page = "All Projects"
-        session_state.previous_page = "All Projects"
-
     if "new_project" not in session_state:
         session_state.new_project = NewProject(get_random_string(length=8))
+    if 'new_editor' not in session_state:
         session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
+    # NOTE
+    if 'dataset_page' not in session_state:
         session_state.dataset_page = 0
     # ******** SESSION STATE *********************************************************
 
-    # >>>> PROJECT SIDEBAR >>>>
-    project_page_options = ("All Projects", "New Project")
-    with st.sidebar.expander("Project Page", expanded=True):
-        session_state.current_page = st.radio("", options=project_page_options,
-                                              index=0)
-    # <<<< PROJECT SIDEBAR <<<<
 
 # >>>> New Project INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # Page title
@@ -121,12 +109,7 @@ def show():
     id_right.write(
         f"### __Project ID:__ {session_state.new_project.id}")
 
-    create_project_place = st.empty()
-    # if layout == 'wide':
     outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
-    # else:
-    #     col2 = create_project_place
-    # with create_project_place.container():
     outercol1.write("## __Project Information :__")
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
@@ -227,6 +210,11 @@ def show():
         df_loc = df.loc[:, "ID":"Date/Time"]
         df_slice = df_loc.iloc[start:end]
 
+        # GET color from active theme
+        from_config = st.get_option('theme.backgroundColor')
+
+        df_row_highlight_color = get_df_row_highlight_color()
+
         def highlight_row(x, selections):
 
             if x.Name in selections:
@@ -234,20 +222,11 @@ def show():
                 return [f'background-color: {df_row_highlight_color}'] * len(x)
             else:
                 return ['background-color: '] * len(x)
-        # df_slice = df.iloc[start:end]
-        # styler = df_slice.style.format(
-        #     {
-        #         "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
 
-        #     }
-        # )
         styler = df_slice.style.apply(
             highlight_row, selections=session_state.dataset_chosen, axis=1)
 
         # >>>>DATAFRAME
-        # st.table(styler.apply(
-        #     highlight_row, selections=session_state.new_project.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
-        #         [dict(selector='th', props=[('text-align', 'center')])]))
         st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
             [dict(selector='th', props=[('text-align', 'center')])]))
 

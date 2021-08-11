@@ -41,15 +41,19 @@ class HSV(NamedTuple):
     S: int
     V: int
 
+
 chdir_root()
+
+
 def hex_to_hsv_converter(hex_code):
     hsv = HSV._make(hex_to_hsv(hex_code))
 
     return hsv
 
 
-def get_df_row_highlight_color(color):
- 
+def get_df_row_highlight_color(color=None):
+    color = color_extract(key='color_ts')
+    color = color['backgroundColor'] if color else '#FFFFFF'
 
     value_threshold = 0.5
     dark_green = "#80CBC4"
