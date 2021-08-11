@@ -44,7 +44,7 @@ from core.utils.helper import create_dataframe
 from core.utils.file_handler import delete_file_directory
 from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, get_dataset_name_list, query_dataset_list
+from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, FileTypes, get_dataset_name_list, query_dataset_list
 from pages.sub_pages.dataset_page import new_dataset
 from annotation.annotation_manager import Task
 from data_table import data_table
@@ -333,8 +333,12 @@ def dashboard():
                 log_info("START UPDATE")
                 session_state.temp_name = session_state.name
 
+                # Update title and description
                 session_state.dataset.update_title_desc(
                     session_state.name, session_state.desc)
+
+                # Update dataset path
+                session_state.dataset.update_dataset_path(session_state.name)
 
                 session_state.append_data_flag = DataPermission.ViewOnly
                 session_state.checkbox = False
@@ -459,7 +463,7 @@ def dashboard():
                 "Edit dataset", key="edit_dataset2", on_click=append_data_flag_1)
 
         elif (session_state.append_data_flag == DataPermission.Edit):
-            
+
             place['back'].button('Back', key='back', on_click=back)
             if data_selection:
                 create_delete_button()

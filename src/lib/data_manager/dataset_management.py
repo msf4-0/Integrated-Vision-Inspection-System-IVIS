@@ -359,10 +359,37 @@ class Dataset(BaseDataset):
         new_title_desc_return = db_fetchone(
             update_title_desc_SQL, conn, update_title_desc_vars)
         log_info(f"Updating title and desc {new_title_desc_return}")
-        sleep(1)
 
         self.name, self.desc = new_title_desc_return if new_title_desc_return else (
             None, None)
+
+    def update_dataset_path(self, new_dataset_name: str):
+        new_directory_name = get_directory_name(new_dataset_name)
+        new_dataset_path = DATASET_DIR / str(new_directory_name)
+
+        # Rename dataset folder
+        try:
+            old_dataset_path = Path(self.dataset_path)
+            old_dataset_path.rename(Path(new_dataset_path))
+            log_info(f'Renamed dataset path to {new_dataset_path}')
+        except Exception as e:
+            log_error(f'{e}: Could not rename file')
+
+        update_dataset_path_SQL = """
+                                UPDATE
+                                    public.dataset
+                                SET
+                                    dataset_path = %s
+                                WHERE
+                                    id = %s
+                                RETURNING dataset_path;
+        """
+        update_dataset_path_vars = [str(new_dataset_path), self.id]
+        new_dataset_path_return = db_fetchone(
+            update_dataset_path_SQL, conn, update_dataset_path_vars)
+
+        log_info(f"Updating dataset path {new_dataset_path_return}")
+        self.dataset_path = new_dataset_path_return if new_dataset_path_return else self.dataset_path
 
     def update_dataset(self):
         """Wrapper function to update existing dataset
@@ -492,7 +519,6 @@ class Dataset(BaseDataset):
 
             with placeholder.container():
                 st.info(display_attributes)
-
 
 
 def query_dataset_list() -> List[namedtuple]:
