@@ -21,7 +21,7 @@ from videoprops import get_audio_properties, get_video_properties, pretty_print
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
-from core.utils.dataset_handler import get_image_size
+from core.utils.dataset_handler import get_image_size,load_image_PIL
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -109,6 +109,7 @@ class BaseDataset:
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
         self.has_submitted = False
+        self.raw_data_dict:Dict={} # stores raw data of data
 
 # NOTE DEPRECATED *************************
     def query_deployment_id(self) -> int:
@@ -516,10 +517,18 @@ class Dataset(BaseDataset):
                 ### **MEDIA ATTRIBUTES**
                 - MIME type: {mimetype}
                 """
-
-            with placeholder.container():
+            if placeholder:
+                with placeholder.container():
+                    st.info(display_attributes)
+            else:
+                st.write("### \n")
                 st.info(display_attributes)
 
+    def load_dataset(self):
+        
+        for file in Path(self.dataset_path).iterdir():
+            if file.is_file():
+                pass
 
 def query_dataset_list() -> List[namedtuple]:
     """Query list of dataset from DB, Column Names: TRUE

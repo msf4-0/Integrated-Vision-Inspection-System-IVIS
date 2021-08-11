@@ -231,12 +231,15 @@ def data_url_encoder_PIL(image: Image):
     return data_url
 
 
-@st.cache
+@st.cache(show_spinner=True)
 def load_image_PIL(image_path: Path) -> str:
 
     log_info("Loading Image")
 
-    img = Image.open(image_path)
+    try:
+        img = Image.open(image_path)
+    except:
+        img = None
 
     return img
 

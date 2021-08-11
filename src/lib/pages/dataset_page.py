@@ -12,6 +12,7 @@ import streamlit as st
 from collections import namedtuple
 from threading import Thread
 from time import sleep
+import pandas as pd
 from streamlit.report_thread import add_report_ctx
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
@@ -38,10 +39,11 @@ if str(TEST_MODULE_PATH) not in sys.path:
 else:
     pass
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
+from path_desc import DATASET_DIR, chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
 from core.utils.file_handler import delete_file_directory
+from core.utils.dataset_handler import load_image_PIL
 from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, FileTypes, get_dataset_name_list, query_dataset_list
@@ -113,6 +115,11 @@ def dashboard():
         [2.5, 0.1, 3.5])
 
     place["desc"] = outercol2.empty()
+    place['page_break'] = st.empty()
+    data_title, _, _ = st.columns(
+        [2.5, 0.1, 3.5])
+    data_view_left, _, data_view_right = st.columns(
+        [2.5, 0.1, 3.5])
 
     # column placeholder for variable/class objects
     _, varscol1, varscol2, varscol3 = st.columns([0.4, 2, 3.5, 0.15])
@@ -405,16 +412,18 @@ def dashboard():
 
         ]
     # **************** DATA TABLE COLUMN CONFIG ****************************
+        # ****** EXTRA *******************************
+        data_df = pd.DataFrame.from_dict(session_state.dataset.data_name_list)
+        # ****** EXTRA *******************************
 
         data_selection = data_table(
             session_state.dataset.data_name_list, dataset_columns, checkbox=session_state.checkbox, key="data_table")
 
         with st.expander("Append dataset", expanded=False):
             data_uploader(session_state.dataset)
-        st.write(f"Selection")
-        st.write(data_selection)
 
         # >>>>>>>>>>>>> DELETE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
+
         def delete_file_callback(file_selection_list: str, dataset_path: Path):
             if file_selection_list:
                 if not dataset_path:
@@ -461,6 +470,24 @@ def dashboard():
 
             place["submit_changes"].button(
                 "Edit dataset", key="edit_dataset2", on_click=append_data_flag_1)
+
+            if data_selection:
+                data_path = Path(
+                    session_state.dataset.dataset_path, data_selection[0])
+
+                place['page_break'].write("___")
+                with data_view_left.container():
+                    data = load_image_PIL(data_path)
+                    if data:
+                        data_title.write("## **Data Viewer**")
+                        st.image(data, width=500)
+
+                        with data_view_right.container():
+                            data_df_query=data_df.loc[data_df["id"]==data_selection[0]]
+                            # st.write(data_df_query)
+                            data_info=data_df_query.to_dict(orient='records')[0]
+                            # st.write(data_info)
+                            session_state.dataset.display_data_media_attributes(data_info,data,)
 
         elif (session_state.append_data_flag == DataPermission.Edit):
 
