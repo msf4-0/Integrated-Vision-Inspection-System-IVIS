@@ -101,6 +101,20 @@ def check_if_exists(table: str, column_name: str, condition, conn):
 
     return exist_flag
 
+
+def get_mime(file: Union[str, Path]):
+    """Get MIME type of file
+
+    Args:
+        file (Union[str, Path]): filepath in string or path-like object
+
+    Returns:
+        str: MIME type of file
+    """
+    mime = mimetypes.guess_type(file)
+    return mime
+
+
 # MIME: type/subtype
 # get filetype
 
@@ -127,7 +141,7 @@ def get_filetype(file: Union[str, Path, UploadedFile]):
         filetype = str(Path(mime_type).parent)
     else:
         filetype = None
-        
+
     return filetype
 
 

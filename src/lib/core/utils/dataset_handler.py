@@ -23,6 +23,7 @@ from mimetypes import guess_type
 from base64 import b64encode
 import numpy as np
 import cv2
+from typing import Union, List, Dict, Optional
 
 
 # >>>> User-defined Modules >>>>
@@ -236,8 +237,8 @@ def load_image_PIL(image_path: Path) -> str:
     log_info("Loading Image")
 
     img = Image.open(image_path)
-    img_RGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return img_RGB
+
+    return img
 
 # OpenCV
 
@@ -315,7 +316,7 @@ def load_image_cv2(image_path: str) -> str:
 #     return data_url
 
 
-def get_image_size(image_path):
+def get_image_size(image: Union[np.ndarray, Image.Image]):
     """get dimension of image
 
     Args:
@@ -324,8 +325,16 @@ def get_image_size(image_path):
     Returns:
         tuple: original_width and original_height
     """
-    with Image.open(image_path) as img:
-        original_width, original_height = img.size
+    if image:
+        if isinstance(image, np.ndarray):
+            original_width, original_height = image.shape[1], image.shape[0]
+        elif isinstance(image, Image.Image):
+
+            original_width, original_height = image.size
+
+    else:
+        original_width, original_height = None, None
+
     return original_width, original_height
 
 

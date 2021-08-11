@@ -15,6 +15,7 @@ from PIL import Image
 from time import sleep, perf_counter
 from glob import glob, iglob
 from datetime import datetime
+from numpy import ndarray
 from stqdm import stqdm
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -382,20 +383,9 @@ class Dataset(BaseDataset):
 
         return append_data_flag
 
-
-# TODO REMOVE
-
-
-    def update_data_name_list(self, new_name_list: List):
-        current_data_name_only_list = [x['id'] for x in self.data_name_list]
-        new_data_name_only_list = list(
-            set(current_data_name_only_list + new_name_list))
-        # NOT NEEDED
-        # Image Previewer
-
-
-# TODO Observe query dataset list caching performance
-# @st.cache(ttl=100)
+    @staticmethod
+    def display_data_media_attributes(data_name, data_raw):
+        
 
 
 def query_dataset_list() -> List[namedtuple]:
