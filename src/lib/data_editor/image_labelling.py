@@ -33,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
 from project.project_management import Project
-from frontend.editor_manager import Editor
+from data_editor.editor_management  import Editor
 from user.user_management import User
 from data_manager.database_manager import init_connection
 from annotation.annotation_manager import Annotations, NewAnnotations, NewTask, Task, load_buffer_image
@@ -43,7 +43,7 @@ from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, Sem
 conn = init_connection(**st.secrets["postgres"])
 
 # NOTE: not used********************************************
-from frontend.streamlit_labelstudio import st_labelstudio
+from data_editor.streamlit_labelstudio import st_labelstudio
 from streamlit.report_thread import add_report_ctx
 
 

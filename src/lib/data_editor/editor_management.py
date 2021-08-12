@@ -5,19 +5,18 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-from os import name
 import sys
 from pathlib import Path
 from typing import List, Dict, Union
 import xml.dom
 from xml.dom import minidom
 from datetime import datetime
-import psycopg2
 import json
+from PIL import Image
+from base64 import b64encode, decode
+from io import BytesIO
 import streamlit as st
-from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
-from streamlit import error_util
+from streamlit import session_state as session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -33,6 +32,7 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
+from core.utils.helper import get_mime
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -74,7 +74,6 @@ class NewEditor(BaseEditor):
         super().__init__()
         self.name: str = random_generator
 
-    
     def init_editor(self) -> int:
         init_editor_SQL = """
                                     INSERT INTO public.editor (
@@ -154,7 +153,7 @@ class Editor(BaseEditor):
 
     def to_xml_string(self, pretty=False) -> str:
         if pretty:
-            xml_string = self.xml_doc.toxml(
+            xml_string = self.xml_doc.toprettyxml(
                 encoding='utf8').decode('utf-8')
         else:
             xml_string = self.xml_doc.toxml(encoding='utf8').decode('utf-8')
@@ -162,6 +161,7 @@ class Editor(BaseEditor):
         return xml_string
 
     # get Nodelist of parent tag
+
     def get_parents(self, parent_tagName: str, attr: str = None, value: str = None) -> List:
         if self.xml_doc:
             if attr and value:
@@ -261,6 +261,30 @@ class Editor(BaseEditor):
             updated_editor_config_xml_string = self.to_xml_string(pretty=True)
             self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
+
+
+@st.cache
+def load_sample_image():
+    """Load Image and generate Data URL in base64 bytes
+
+    Args:
+        image (bytes-like): BytesIO object
+
+    Returns:
+        bytes: UTF-8 encoded base64 bytes
+    """
+    chdir_root()  # ./image_labelling
+    log_info("Loading Sample Image")
+    sample_image = "resources/sample.jpg"
+    with Image.open(sample_image) as img:
+        img_byte_arr = BytesIO()
+        img.save(img_byte_arr, format='jpeg')
+
+    bb = img_byte_arr.getvalue()
+    b64code = b64encode(bb).decode('utf-8')
+    data_url = 'data:image/jpeg;base64,' + b64code
+
+    return data_url
 
 
 # ************************************************* OLD *************************************************
