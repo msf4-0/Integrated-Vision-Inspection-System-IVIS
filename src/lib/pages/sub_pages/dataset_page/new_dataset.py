@@ -71,15 +71,6 @@ def show():
 
     chdir_root()  # change to root directory
 
-    # with st.sidebar.container():
-
-    #     st.image("resources/MSF-logo.gif", use_column_width=True)
-    # # with st.container():
-    #     st.title("Integrated Vision Inspection System", anchor='title')
-
-    #     st.header(
-    #         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-    #     st.markdown("""___""")
 
     # ******** SESSION STATE ********
     if "current_page" not in session_state:
@@ -91,13 +82,6 @@ def show():
         session_state.new_dataset = NewDataset(get_random_string(length=8))
         session_state.data_source_radio = "File Upload 📂"
     # ******** SESSION STATE ********
-
-    # >>>> Dataset SIDEBAR >>>>
-    # project_page_options = ("All Datasets", "New Dataset")
-    # with st.sidebar.expander("Dataset Page", expanded=True):
-    #     session_state.current_page = st.radio("", options=project_page_options,
-    #                                           index=0)
-    # # <<<< Dataset SIDEBAR <<<<
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
@@ -118,7 +102,7 @@ def show():
     def check_if_name_exist(field_placeholder, conn):
         context = ['name', session_state.name]
         if session_state.name:
-            if session_state.new_dataset.check_if_exist(context, conn):
+            if session_state.new_dataset.check_if_exists(context, conn):
                 field_placeholder['name'].error(
                     f"Dataset name used. Please enter a new name")
                 sleep(1)
@@ -259,8 +243,9 @@ def show():
     submit_button = submit_col2.button("Submit", key="submit")
 
     if submit_button:
+        keys=["name", "upload"]
         session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
-            field, field_placeholder=place)
+            field, field_placeholder=place,keys=keys)
 
         if session_state.new_dataset.has_submitted:
             # st.success(""" Successfully created new dataset: {0}.

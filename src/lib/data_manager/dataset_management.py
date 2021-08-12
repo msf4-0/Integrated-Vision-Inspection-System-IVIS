@@ -138,7 +138,7 @@ class BaseDataset:
                 # Double check if Dataset name exists in DB
                 if (field.index(i) == 0) and ('name' in keys):
                     context = ['name', field[0]]
-                    if self.check_if_exist(context, conn):
+                    if self.check_if_exists(context, conn):
                         field_placeholder[keys[0]].error(
                             f"Dataset name used. Please enter a new name")
                         log_error(
@@ -157,7 +157,7 @@ class BaseDataset:
         # if empty_fields not empty -> return False, else -> return True
         return not empty_fields
 
-    def check_if_exist(self, context: List, conn) -> bool:
+    def check_if_exists(self, context: List, conn) -> bool:
         check_exist_SQL = """
                             SELECT
                                 EXISTS (

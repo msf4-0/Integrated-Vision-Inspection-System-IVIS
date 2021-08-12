@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+from genericpath import exists
 import sys
 from pathlib import Path
 from typing import NamedTuple, Union, List, Dict
@@ -35,7 +36,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.helper import get_directory_name
+from core.utils.helper import get_directory_name, check_if_exists, check_if_field_empty
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -48,6 +49,7 @@ class ProjectPagination(IntEnum):
     Dashboard = 0
     New = 1
     Existing = 2
+    NewDataset = 3
 
     def __str__(self):
         return self.name
@@ -366,46 +368,42 @@ class NewProject(BaseProject):
         else:
             self.deployment_id = None
 
-    def check_if_field_empty(self, field: List, field_placeholder):
+    def check_if_field_empty(self, context: Dict, field_placeholder):
         empty_fields = []
-        keys = ["name", "deployment_type", "dataset_chosen"]
+
+        keys = ["name", "deployment_type", "dataset_chosen"]  # >>> DEPRECATED
+
         # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-        for i in field:
-            if i and i != "":
-                if field.index(i) == 0:
-                    context = ['name', field[0]]
-                    if self.check_if_exist(context, conn):
-                        field_placeholder[keys[0]].error(
+        for k, v in context.items():
+            if v and v != "":
+                if k == 'name':
+                    context = {'column_name': 'name', 'value': v}
+
+                    if self.check_if_exists(context, conn):
+                        field_placeholder[k].error(
                             f"Project name used. Please enter a new name")
                         log_error(
                             f"Project name used. Please enter a new name")
-                        empty_fields.append(keys[0])
+                        empty_fields.append(k)
 
                 else:
                     pass
             else:
 
-                idx = field.index(i)
-                field_placeholder[keys[idx]].error(
+                field_placeholder[k].error(
                     f"Please do not leave field blank")
-                empty_fields.append(keys[idx])
+                empty_fields.append(k)
 
         # if empty_fields not empty -> return False, else -> return True
         return not empty_fields
 
-    def check_if_exist(self, context: List, conn) -> bool:
-        check_exist_SQL = """
-                            SELECT
-                                EXISTS (
-                                    SELECT
-                                        %s
-                                    FROM
-                                        public.project
-                                    WHERE
-                                        name = %s);
-                        """
-        exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
-        return exist_status
+    def check_if_exists(self, context: Dict, conn) -> bool:
+        table = 'public.project'
+
+        exists_flag = check_if_exists(
+            table, context['column_name'], context['value'], conn)
+
+        return exists_flag
 
     def insert_project(self):
         insert_project_SQL = """
