@@ -243,7 +243,7 @@ def main():
         st.write(vars(session_state.editor))
     with st.expander('Editor Config', expanded=True):
         config2 = session_state.editor.to_xml_string(
-            pretty=False)
+            pretty=True)
         st.code(config2, language='xml')
 
     with col2:

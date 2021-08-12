@@ -223,7 +223,7 @@ class Editor(BaseEditor):
         newChild = nodeList.appendChild(new_label)
 
         # serialise XML doc and Update database
-        updated_editor_config_xml_string = self.to_xml_string(pretty=True)
+        updated_editor_config_xml_string = self.to_xml_string(pretty=False)
         self.update_editor_config(updated_editor_config_xml_string)
 
         return newChild
@@ -258,7 +258,7 @@ class Editor(BaseEditor):
                 log_error(error_msg)
 
         if removedChild:
-            updated_editor_config_xml_string = self.to_xml_string(pretty=True)
+            updated_editor_config_xml_string = self.to_xml_string(pretty=False)
             self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
 
