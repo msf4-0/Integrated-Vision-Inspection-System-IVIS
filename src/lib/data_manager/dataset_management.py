@@ -529,7 +529,7 @@ class Dataset(BaseDataset):
         for file in Path(self.dataset_path).iterdir():
             if file.is_file():
                 pass
-
+@st.cache(ttl=60)
 def query_dataset_list() -> List[namedtuple]:
     """Query list of dataset from DB, Column Names: TRUE
 

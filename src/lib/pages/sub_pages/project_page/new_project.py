@@ -137,6 +137,7 @@ def new_project():
 
         if session_state.name:
             if session_state.new_project.check_if_exists(context, conn):
+                session_state.new_project.name = None
                 field_placeholder['name'].error(
                     f"Project name used. Please enter a new name")
                 sleep(1)
@@ -145,7 +146,9 @@ def new_project():
             else:
                 session_state.new_project.name = session_state.name
                 log_info(f"Project name fresh and ready to rumble")
-                
+        else:
+            pass
+
     with infocol2:
 
         # **** PROJECT TITLE****
@@ -225,8 +228,6 @@ def new_project():
         df_slice = df_loc.iloc[start:end]
 
         # GET color from active theme
-        from_config = st.get_option('theme.backgroundColor')
-
         df_row_highlight_color = get_df_row_highlight_color()
 
         def highlight_row(x, selections):
@@ -286,16 +287,15 @@ def new_project():
 
     col1, col2 = st.columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
-    session_state.new_project.has_submitted=False
+    session_state.new_project.has_submitted = False
     if submit_button:
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
             context, field_placeholder=place)
-        
-        st.write(session_state.new_project.has_submitted)
+
 
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
-            if session_state.new_project.initialise_project():
+            if session_state.new_project.initialise_project(dataset_dict):
                 session_state.new_editor.project_id = session_state.new_project.id
                 if session_state.new_editor.init_editor():
                     success_place.success(
@@ -309,9 +309,9 @@ def new_project():
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
 
     col1, col2 = st.columns(2)
-    col1.write(vars(session_state.new_project))
-    col2.write(vars(session_state.new_editor))
-
+    # col1.write(vars(session_state.new_project))
+    # col2.write(vars(session_state.new_editor))
+    # col2.write(dataset_dict)
 
 def main():
     new_project()

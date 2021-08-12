@@ -26,7 +26,7 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
+from path_desc import chdir_root,PROJECT_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
@@ -211,7 +211,7 @@ class Project(BaseProject):
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
         # self.dataset_list = self.load_dataset()
-# TODO #45 I want IU
+# TODO #57 ammend get_dataset_name_list
 
     @st.cache
     def query_all_fields(self) -> NamedTuple:
@@ -379,7 +379,7 @@ class NewProject(BaseProject):
 
     
 
-    def insert_project(self):
+    def insert_project(self,dataset_dict:Dict):
         insert_project_SQL = """
                                 INSERT INTO public.project (
                                     name,
@@ -390,12 +390,12 @@ class NewProject(BaseProject):
                                     %s,
                                     %s,
                                     %s,
-                                    %s)
+                                    (SELECT dt.id FROM public.deployment_type dt where dt.name = %s))
                                 RETURNING id;
                                 
                             """
         insert_project_vars = [self.name, self.desc,
-                               str(self.project_path), self.deployment_id]
+                               str(self.project_path), self.deployment_type]
         self.id = db_fetchone(
             insert_project_SQL, conn, insert_project_vars)[0]
         insert_project_dataset_SQL = """
@@ -406,36 +406,24 @@ class NewProject(BaseProject):
                                             %s,
                                             %s);"""
         for dataset in self.dataset_chosen:
-            dataset_id = self.dataset_name_id[dataset]
+            dataset_id = dataset_dict[dataset].ID
             insert_project_dataset_vars = [self.id, dataset_id]
             db_no_fetch(insert_project_dataset_SQL, conn,
                         insert_project_dataset_vars)
         return self.id
 
-    # def insert_project_dataset(self):
 
-    #     insert_project_dataset_SQL = """
-    #                                     INSERT INTO public.project_dataset (
-    #                                         project_id,
-    #                                         dataset_id)
-    #                                     VALUES (
-    #                                         %s,
-    #                                         %s);"""
-    #     for dataset in self.dataset_chosen:
-    #         dataset_id = self.dataset_name_id[dataset]
-    #         insert_project_dataset_vars = [self.id, dataset_id]
-    #         db_no_fetch(insert_project_dataset_SQL, conn,
-    #                     insert_project_dataset_vars)
+    def initialise_project(self,dataset_dict):
 
-    def initialise_project(self):
         directory_name = get_directory_name(self.name)
-        self.project_path = Path.home() / '.local' / 'share' / \
-            'integrated-vision-inspection-system' / \
-            'app_media' / 'project' / str(directory_name)
+        self.project_path = PROJECT_DIR / str(directory_name)
+
         create_folder_if_not_exist(self.project_path)
+
         log_info(
             f"Successfully created **{self.name}** project at {str(self.project_path)}")
-        if self.insert_project():
+
+        if self.insert_project(dataset_dict):
 
             log_info(
                 f"Successfully stored **{self.name}** project information in database")
