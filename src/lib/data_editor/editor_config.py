@@ -30,53 +30,32 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
-from data_manager.annotation_type_select import annotation_sel
-from data_editor.editor_management import Editor,load_sample_image
+from data_editor.editor_management import Editor, EditorFlag, load_sample_image
+from data_editor.streamlit_labelstudio import st_labelstudio
 from project.project_management import Project
-from core.utils.code_generator import get_random_string
 # <<<< User-defined Modules <<<<
 
-# TODO: not used
-from data_editor.streamlit_labelstudio import st_labelstudio
-
+# initialise connection to Database
+conn = init_connection(**st.secrets["postgres"])
 place = {}
 
-
-class EditorFlag(IntEnum):
-    submit = 1
-    update = 2
-    delete = 3
-    skip = 4
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return EditorFlag[s]
-        except KeyError:
-            raise ValueError()
+with st.sidebar.container():
+    st.image("resources/MSF-logo.gif", use_column_width=True)
+# with st.container():
+    st.title("Integrated Vision Inspection System", anchor='title')
+    st.header(
+        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    st.markdown("""___""")
 
 
+def editor_config():
 
-def main():
-
-    # >>>> Template >>>>
     chdir_root()  # change to root directory
-    # initialise connection to Database
-    conn = init_connection(**st.secrets["postgres"])
-    with st.sidebar.container():
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.container():
-        st.title("Integrated Vision Inspection System", anchor='title')
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-        st.markdown("""___""")
-    # <<<< Template <<<<
 
+    # >>>> LOAD SAMPLE IMAGE >>>>
     data_url = load_sample_image()
 
+    # *********************** EDITOR SETUP ****************************************************
     interfaces = [
         "panel",
         "controls",
@@ -86,8 +65,8 @@ def main():
 
     user = {
         'pk': 1,
-        'firstName': "Zhen Hao",
-        'lastName': "Chu"
+        'firstName': "John",
+        'lastName': "Snow"
     },
 
     task = {
@@ -98,27 +77,30 @@ def main():
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-                }
+            }
     }
+    # *********************** EDITOR SETUP ****************************************************
+
     # *************************************************************************************
     # >>>> EDITOR >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # *************************************************************************************
+
+    # ******** SESSION STATE *********************************************************
+
+    if "editor" not in session_state:
+        # TODO Pass current project ID into here
+        session_state.project = Project(7)
+        session_state.editor = Editor(session_state.project.id)
+
+    # ******** SESSION STATE *********************************************************
     
     # Page title
     st.write("# Editor Config")
     st.markdown("___")
-    # **** Instantiate Editor ****
-    if "editor" not in session_state:
-        session_state.project = Project(7)
-        session_state.editor = Editor(session_state.project.id)
 
-    # v = annotation_sel()
+    # >>>> COLUMN PLACEHOLDERS 
     col1, col2 = st.columns([1, 2])
-    # if None not in v:
-    #     (annotationType, annotationConfig_template) = v
-
-    #     config = annotationConfig_template['config']
-
+    
     with col1:
         st.text_input("Check column", key="column1")
 
@@ -255,7 +237,7 @@ def main():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        main()
+        editor_config()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+from enum import IntEnum
 from typing import List, Dict, Union
 import xml.dom
 from xml.dom import minidom
@@ -44,6 +45,24 @@ conn = init_connection(**st.secrets['postgres'])
 # - editor_config
 # - labels
 # - project_id
+
+
+class EditorFlag(IntEnum):
+    START = 0
+    SUBMIT = 1
+    UPDATE = 2
+    DELETE = 3
+    SKIP = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return EditorFlag[s]
+        except KeyError:
+            raise ValueError()
 
 
 class BaseEditor:

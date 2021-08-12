@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from enum import IntEnum
 from time import sleep
-from colorutils import hex_to_hsv
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -98,7 +97,7 @@ def new_project():
     if 'new_editor' not in session_state:
         session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
-    # NOTE 'dataset_page' moved to the bottom
+        
     # ******** SESSION STATE *********************************************************
 
     # Page title
