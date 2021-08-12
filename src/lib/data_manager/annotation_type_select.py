@@ -6,8 +6,8 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 import streamlit as st
 from pathlib import Path
-import sys
-import os
+import xml.dom.minidom as minidom
+
 
 from annotation.annotation_template import loadAnnotationTemplate
 
@@ -25,7 +25,10 @@ def annotation_sel():
         annotationConfig_template = loadAnnotationTemplate(
             annotationType_list.index(annotationType) - 1)
         with st.expander(label="template", expanded=False):
-            st.write(annotationConfig_template)  # annotation config template
+            template = (minidom.parseString(
+                annotationConfig_template['config']))
+            # annotation config template
+            st.code(template.toprettyxml())
         return annotationType, annotationConfig_template
     else:
         annotationType = annotationConfig_template = None

@@ -167,6 +167,7 @@ def new_project():
             (deployment_type, editor_base_config) = v
 
             session_state.new_editor.editor_config = editor_base_config['config']
+            
 
             # TODO Remove deployment id
             if deployment_type is not None:
@@ -182,7 +183,6 @@ def new_project():
             session_state.new_project.deployment_type = None
             session_state.new_project.deployment_id=None
 
-        # TODO Fix no warning of deployment type not chosen
         place["deployment_type"] = st.empty()
 
     # <<<<<<<< New Project INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
