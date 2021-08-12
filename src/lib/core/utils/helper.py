@@ -7,12 +7,12 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict, Optional
+from typing import Union, List, Dict, Optional, NamedTuple
 from time import perf_counter
 import pandas as pd
-import psycopg2
-from psycopg2 import sql
 import mimetypes
+from colorutils import hex_to_hsv
+from color_extract import color_extract
 from streamlit.uploaded_file_manager import UploadedFile
 import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -32,6 +32,44 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_fetchone, init_connection
 
 conn = init_connection(**st.secrets["postgres"])
+
+
+class HSV(NamedTuple):
+    H: int
+    S: int
+    V: int
+
+
+chdir_root()
+
+
+def hex_to_hsv_converter(hex_code):
+    hsv = HSV._make(hex_to_hsv(hex_code))
+
+    return hsv
+
+
+def get_df_row_highlight_color(color=None):
+    color = color_extract(key='color_ts')
+    color = color['backgroundColor'] if color else '#FFFFFF'
+
+    value_threshold = 0.5
+    dark_green = "#80CBC4"
+    light_green = "#00796B"
+
+    hsv = hex_to_hsv_converter(color)
+
+    V = hsv.V
+
+    df_row_highlight_color = dark_green if (
+        V > value_threshold) else light_green
+
+    return df_row_highlight_color
+
+
+def get_theme():
+    backgroundColor = st.get_option('theme.backgroundColor')
+    return backgroundColor
 
 
 def split_string(string: str) -> List:
@@ -81,25 +119,6 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
             #     [dict(selector='th', props=[('text-align', 'center')])])
 
         return df
-
-
-def check_if_exists(table: str, column_name: str, condition, conn):
-    # Separate schema and tablename from 'table'
-    schema, tablename = [i for i in table.split('.')]
-    check_if_exists_SQL = sql.SQL("""
-                        SELECT
-                            EXISTS (
-                                SELECT
-                                    *
-                                FROM
-                                    {}
-                                WHERE
-                                    {} = %s);
-                            """).format(sql.Identifier(schema, tablename), sql.Identifier(column_name))
-    check_if_exists_vars = [condition]
-    exist_flag = db_fetchone(check_if_exists_SQL, conn, check_if_exists_vars)
-
-    return exist_flag
 
 
 def get_mime(file: Union[str, Path]):

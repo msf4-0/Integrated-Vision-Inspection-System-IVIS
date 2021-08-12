@@ -8,17 +8,12 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from typing import NamedTuple, Union, List, Dict
-import psycopg2
-from PIL import Image
 from time import sleep, perf_counter
 from enum import IntEnum
-from copy import copy, deepcopy
-import pandas as pd
 from glob import glob, iglob
 import cv2
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -31,11 +26,12 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
+from path_desc import chdir_root,PROJECT_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.helper import get_directory_name
+from core.utils.form_manager import check_if_exists, check_if_field_empty
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -48,6 +44,7 @@ class ProjectPagination(IntEnum):
     Dashboard = 0
     New = 1
     Existing = 2
+    NewDataset = 3
 
     def __str__(self):
         return self.name
@@ -76,12 +73,13 @@ class BaseProject:
         self.dataset_chosen: List = []
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
-        self.datasets, self.column_names = self.query_dataset_list()
-        self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
+        # self.datasets, self.column_names = self.query_dataset_list()
+        # self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.dataset_list: Dict = {}
         self.image_name_list: List = []  # for image_labelling
         self.annotation_task_join = []  # for image_labelling
 
+# DEPRECATED -> Import from dataset.management.py
     @st.cache
     def query_dataset_list(self) -> List:
         query_dataset_SQL = """
@@ -116,6 +114,7 @@ class BaseProject:
 
         return dataset_tmp, column_names
 
+# DEPRECATED -> Import from dataset.management.py
     def get_dataset_name_list(self) -> List:
         dataset_name_tmp = []
         dataset_name_id = {}
@@ -212,7 +211,7 @@ class Project(BaseProject):
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
         # self.dataset_list = self.load_dataset()
-# TODO #45 I want IU
+# TODO #57 ammend get_dataset_name_list
 
     @st.cache
     def query_all_fields(self) -> NamedTuple:
@@ -364,48 +363,23 @@ class NewProject(BaseProject):
         else:
             self.deployment_id = None
 
-    def check_if_field_empty(self, field: List, field_placeholder):
-        empty_fields = []
-        keys = ["name", "deployment_type", "dataset_chosen"]
-        # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-        for i in field:
-            if i and i != "":
-                if field.index(i) == 0:
-                    context = ['name', field[0]]
-                    if self.check_if_exist(context, conn):
-                        field_placeholder[keys[0]].error(
-                            f"Project name used. Please enter a new name")
-                        log_error(
-                            f"Project name used. Please enter a new name")
-                        empty_fields.append(keys[0])
+    def check_if_exists(self, context: Dict, conn) -> bool:
+        table = 'public.project'
 
-                else:
-                    pass
-            else:
+        exists_flag = check_if_exists(
+            table, context['column_name'], context['value'], conn)
 
-                idx = field.index(i)
-                field_placeholder[keys[idx]].error(
-                    f"Please do not leave field blank")
-                empty_fields.append(keys[idx])
+        return exists_flag
+    
+    def check_if_field_empty(self, context: Dict, field_placeholder):
+        check_if_exists=self.check_if_exists
+        empty_fields = check_if_field_empty(
+            context, field_placeholder, check_if_exists)
+        return empty_fields
 
-        # if empty_fields not empty -> return False, else -> return True
-        return not empty_fields
+    
 
-    def check_if_exist(self, context: List, conn) -> bool:
-        check_exist_SQL = """
-                            SELECT
-                                EXISTS (
-                                    SELECT
-                                        %s
-                                    FROM
-                                        public.project
-                                    WHERE
-                                        name = %s);
-                        """
-        exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
-        return exist_status
-
-    def insert_project(self):
+    def insert_project(self,dataset_dict:Dict):
         insert_project_SQL = """
                                 INSERT INTO public.project (
                                     name,
@@ -416,12 +390,12 @@ class NewProject(BaseProject):
                                     %s,
                                     %s,
                                     %s,
-                                    %s)
+                                    (SELECT dt.id FROM public.deployment_type dt where dt.name = %s))
                                 RETURNING id;
                                 
                             """
         insert_project_vars = [self.name, self.desc,
-                               str(self.project_path), self.deployment_id]
+                               str(self.project_path), self.deployment_type]
         self.id = db_fetchone(
             insert_project_SQL, conn, insert_project_vars)[0]
         insert_project_dataset_SQL = """
@@ -432,36 +406,24 @@ class NewProject(BaseProject):
                                             %s,
                                             %s);"""
         for dataset in self.dataset_chosen:
-            dataset_id = self.dataset_name_id[dataset]
+            dataset_id = dataset_dict[dataset].ID
             insert_project_dataset_vars = [self.id, dataset_id]
             db_no_fetch(insert_project_dataset_SQL, conn,
                         insert_project_dataset_vars)
         return self.id
 
-    # def insert_project_dataset(self):
 
-    #     insert_project_dataset_SQL = """
-    #                                     INSERT INTO public.project_dataset (
-    #                                         project_id,
-    #                                         dataset_id)
-    #                                     VALUES (
-    #                                         %s,
-    #                                         %s);"""
-    #     for dataset in self.dataset_chosen:
-    #         dataset_id = self.dataset_name_id[dataset]
-    #         insert_project_dataset_vars = [self.id, dataset_id]
-    #         db_no_fetch(insert_project_dataset_SQL, conn,
-    #                     insert_project_dataset_vars)
+    def initialise_project(self,dataset_dict):
 
-    def initialise_project(self):
         directory_name = get_directory_name(self.name)
-        self.project_path = Path.home() / '.local' / 'share' / \
-            'integrated-vision-inspection-system' / \
-            'app_media' / 'project' / str(directory_name)
+        self.project_path = PROJECT_DIR / str(directory_name)
+
         create_folder_if_not_exist(self.project_path)
+
         log_info(
             f"Successfully created **{self.name}** project at {str(self.project_path)}")
-        if self.insert_project():
+
+        if self.insert_project(dataset_dict):
 
             log_info(
                 f"Successfully stored **{self.name}** project information in database")
@@ -472,58 +434,6 @@ class NewProject(BaseProject):
                 f"Failed to stored **{self.name}** project information in database")
             return False
 
-
-# TODO: move to form_manager
-
-
-def check_if_field_empty(new_user, field_placeholder, field_name):
-    empty_fields = []
-    # all_field_filled = all(new_user)
-    # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-    for key, value in new_user.items():
-        if value == "":
-            field_placeholder[key].error(
-                f"Please do not leave {field_name[key]} field blank")
-            empty_fields.append(key)
-
-        else:
-            pass
-
-    return not empty_fields
-
-
-# TODO:KIV can be removed
-
-
-def create_project_table(conn=conn):  # Create Table
-    # create relation : user_details
-    create_project_table_SQL = """
-                                CREATE TABLE IF NOT EXISTS public.project (
-                                id bigint NOT NULL GENERATED BY DEFAULT AS IDENTITY (INCREMENT 1 START 1
-                                MINVALUE 1
-                                MAXVALUE 9223372036854775807
-                                CACHE 1),
-                                name text NOT NULL UNIQUE,
-                                description text,
-                                deployment_id integer,
-                                dataset_id bigint,
-                                training_id bigint,
-                                editor_config text,
-                                created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                PRIMARY KEY (id),
-                                CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL,
-                                CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL)
-                            TABLESPACE image_labelling;
-
-                            CREATE TRIGGER project_update
-                                BEFORE UPDATE ON public.project
-                                FOR EACH ROW
-                                EXECUTE PROCEDURE trigger_update_timestamp ();
-
-                            ALTER TABLE public.project OWNER TO shrdc;
-                            """
-    db_no_fetch(create_project_table_SQL, conn)
 
 # >>>> CREATE PROJECT >>>>
 

@@ -1,0 +1,8 @@
+MANIFEST.in
+setup.py
+color_extract/__init__.py
+color_extract.egg-info/PKG-INFO
+color_extract.egg-info/SOURCES.txt
+color_extract.egg-info/dependency_links.txt
+color_extract.egg-info/requires.txt
+color_extract.egg-info/top_level.txt

@@ -7,11 +7,9 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-import psycopg2
-import pandas as pd
-import numpy as np  # TEMP for table viz
 from enum import IntEnum
 from time import sleep
+from colorutils import hex_to_hsv
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -27,22 +25,20 @@ SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 # TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
 from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
-import numpy as np  # TEMP for table viz
-from project.project_management import NewProject
-from frontend.editor_manager import NewEditor
+from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
-from core.utils.helper import create_dataframe
 from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
+from project.project_management import NewProject, ProjectPagination
+from frontend.editor_manager import NewEditor
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -71,213 +67,235 @@ class AnnotationType(IntEnum):
         except KeyError:
             raise ValueError()
 
+# TODO #51 Utilise dataset query from dataset_management
 
-def show():
 
-    chdir_root()  # change to root directory
+chdir_root()  # change to root directory
 
-    with st.sidebar.container():
+with st.sidebar.container():
 
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.container():
-        st.title("Integrated Vision Inspection System", anchor='title')
+    st.image("resources/MSF-logo.gif", use_column_width=True)
+# with st.container():
+    st.title("Integrated Vision Inspection System", anchor='title')
 
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-        st.markdown("""___""")
+    st.header(
+        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    st.markdown("""___""")
+
+
+def new_project():
+
+    # >>>> INIT >>>>
+    # ********* QUERY DATASET ********************************************
+    existing_dataset, dataset_table_column_names = query_dataset_list()
+    dataset_dict = get_dataset_name_list(existing_dataset)
+    # ********* QUERY DATASET ********************************************
 
     # ******** SESSION STATE ***********************************************************
 
-    if "current_page" not in session_state:  # KIV
-        session_state.current_page = "All Projects"
-        session_state.previous_page = "All Projects"
-
     if "new_project" not in session_state:
         session_state.new_project = NewProject(get_random_string(length=8))
+    if 'new_editor' not in session_state:
         session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
-        session_state.dataset_page = 0
+    # NOTE 'dataset_page' moved to the bottom
     # ******** SESSION STATE *********************************************************
 
-    # >>>> PROJECT SIDEBAR >>>>
-    project_page_options = ("All Projects", "New Project")
-    with st.sidebar.expander("Project Page", expanded=True):
-        session_state.current_page = st.radio("project_page_select", options=project_page_options,
-                                              index=0)
-    # <<<< PROJECT SIDEBAR <<<<
-
-# >>>> New Project INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # Page title
     st.write("# __Add New Project__")
     st.markdown("___")
 
+    # ************COLUMN PLACEHOLDERS *****************************************************
     # right-align the project ID relative to the page
     id_blank, id_right = st.columns([3, 1])
+
+    # Columns for Project Information
+    infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
+
+    # include options to create new dataset on this page
+    # create 2 columns for "New Data Button"
+    datasetcol1, datasetcol2, datasetcol3, _ = st.columns(
+        [1.5, 1.75, 1.75, 0.5])
+
+    # COLUMNS for Dataframe buttons
+    _, button_col1, _, button_col2, _, button_col3, _ = st.columns(
+        [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
+
+    # ************COLUMN PLACEHOLDERS *****************************************************
+    # <<<< INIT <<<<
+
+# >>>> New Project INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     id_right.write(
         f"### __Project ID:__ {session_state.new_project.id}")
 
-    create_project_place = st.empty()
-    # if layout == 'wide':
-    outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
-    # else:
-    #     col2 = create_project_place
-    # with create_project_place.container():
-    outercol1.write("## __Project Information :__")
+    infocol1.write("## __Project Information :__")
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
-        context = ['name', session_state.name]
+        context = {'column_name': 'name', 'value': session_state.name}
+
         if session_state.name:
-            if session_state.new_project.check_if_exist(context, conn):
+            if session_state.new_project.check_if_exists(context, conn):
+                session_state.new_project.name = None
                 field_placeholder['name'].error(
                     f"Project name used. Please enter a new name")
                 sleep(1)
+                field_placeholder['name'].empty()
                 log_error(f"Project name used. Please enter a new name")
             else:
                 session_state.new_project.name = session_state.name
                 log_info(f"Project name fresh and ready to rumble")
+        else:
+            pass
 
-    outercol2.text_input(
-        "Project Title", key="name", help="Enter the name of the project", on_change=check_if_name_exist, args=(place, conn,))
-    place["name"] = outercol2.empty()
+    with infocol2:
 
-    # **** Project Description (Optional) ****
-    description = outercol2.text_area(
-        "Description (Optional)", key="desc", help="Enter the description of the project")
-    if description:
-        session_state.new_project.desc = description
-    else:
-        pass
+        # **** PROJECT TITLE****
+        st.text_input(
+            "Project Title", key="name", help="Enter the name of the project", on_change=check_if_name_exist, args=(place, conn,))
+        place["name"] = st.empty()
 
-    with outercol2:
+        # **** PROJECT DESCRIPTION (OPTIONAL) ****
+        description = st.text_area(
+            "Description (Optional)", key="desc", help="Enter the description of the project")
+        if description:
+            session_state.new_project.desc = description
+        else:
+            pass
+
+        # **** DEPLOYMENT TYPE and EDITOR BASE TEMPLATE LOAD ****
         v = annotation_sel()
+
         if None not in v:
             (deployment_type, editor_base_config) = v
 
             session_state.new_editor.editor_config = editor_base_config['config']
-    # deployment_type = outercol2.selectbox(
-    #     "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the project")
 
-            if deployment_type is not None:
-                session_state.new_project.deployment_type = deployment_type
-                session_state.new_project.query_deployment_id()
-                # st.write(session_state.new_project.deployment_id)
+            # TODO Remove deployment id
+            session_state.new_project.deployment_type = deployment_type
+            session_state.new_project.query_deployment_id()
 
-            else:
-                pass
+        else:
+            session_state.new_editor.editor_config = None
+            session_state.new_project.deployment_type = None
+            session_state.new_project.deployment_id = None
 
-        place["deployment_type"] = outercol2.empty()
+        place["deployment_type"] = st.empty()
 
-# <<<<<<<< New Project INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    # <<<<<<<< New Project INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>>>>>> Choose Dataset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    # include options to create new dataset on this page
-    # create 2 columns for "New Data Button"
-    outercol1, outercol2, outercol3, _ = st.columns(
-        [1.5, 1.75, 1.75, 0.5])
+    datasetcol1.write("## __Dataset :__")
 
-    outercol1.write("## __Dataset :__")
-    # outercol1, outercol2, outercol3 = st.columns([1, 2, 2])
+    # ******************************* Right Column to select dataset *******************************
 
-    data_left, data_right = st.columns(2)
-    # >>>> Right Column to select dataset >>>>
-    # TODO #51 Utilise dataset query from dataset_management
-    with outercol3:
-        session_state.new_project.datasets, dataset_column_names = session_state.new_project.query_dataset_list()
-        session_state.new_project.dataset_name_list, session_state.new_project.dataset_name_id = session_state.new_project.get_dataset_name_list()
+    with datasetcol3:
 
         session_state.new_project.dataset_chosen = st.multiselect(
-            "Dataset List", key="dataset", options=session_state.new_project.dataset_name_list, help="Assign dataset to the project")
+            "Dataset List", key="dataset_chosen", options=dataset_dict, help="Assign dataset to the project")
         place["dataset_chosen"] = st.empty()
-        # Button to create new dataset
+
+        # TODO #55 Button to create new dataset
         new_data_button = st.button("Create New Dataset")
 
-        # print choosen dataset
+        # >>>> DISPLAY CHOSEN DATASET>>>>
         st.write("### Dataset choosen:")
         if len(session_state.new_project.dataset_chosen) > 0:
             for idx, data in enumerate(session_state.new_project.dataset_chosen):
                 st.write(f"{idx+1}. {data}")
+
         elif len(session_state.new_project.dataset_chosen) == 0:
             st.info("No dataset selected")
-    # <<<< Right Column to select dataset <<<<
 
-    # >>>> Left Column to show full list of dataset and selection >>>>
+    # ******************************* Right Column to select dataset *******************************
+
+    # ******************* Left Column to show full list of dataset and selection *******************
+
     if "dataset_page" not in session_state:
         session_state.dataset_page = 0
 
+    with datasetcol2:
+        start = 10 * session_state.dataset_page
+        end = start + 10
+
+        # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        df = create_dataframe(existing_dataset,
+                              column_names=dataset_table_column_names, date_time_format=True)
+
+        df_loc = df.loc[:, "ID":"Date/Time"]
+        df_slice = df_loc.iloc[start:end]
+
+        # GET color from active theme
+        df_row_highlight_color = get_df_row_highlight_color()
+
+        def highlight_row(x, selections):
+
+            if x.Name in selections:
+
+                return [f'background-color: {df_row_highlight_color}'] * len(x)
+            else:
+                return ['background-color: '] * len(x)
+
+        styler = df_slice.style.apply(
+            highlight_row, selections=session_state.dataset_chosen, axis=1)
+
+        # >>>>DATAFRAME
+        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+            [dict(selector='th', props=[('text-align', 'center')])]))
+
+    # ******************* Left Column to show full list of dataset and selection *******************
+
+    # **************************************** DATASET PAGINATION ****************************************
+
+    # >>>> PAGINATION CALLBACK >>>>
     def next_page():
         session_state.dataset_page += 1
 
     def prev_page():
         session_state.dataset_page -= 1
 
-    with outercol2:
-        start = 10 * session_state.dataset_page
-        end = start + 10
-
-        df = create_dataframe(session_state.new_project.datasets,
-                              column_names=dataset_column_names, date_time_format=True)
-
-        def highlight_row(x, selections):
-
-            if x.Name in selections:
-
-                return ['background-color: #90a4ae'] * len(x)
-            else:
-                return ['background-color: '] * len(x)
-        df_slice = df.iloc[start:end]
-        styler = df_slice.style.format(
-            {
-                "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
-
-            }
-        )
-
-        # >>>>DATAFRAME
-        st.table(styler.apply(
-            highlight_row, selections=session_state.new_project.dataset_chosen, axis=1).set_properties(**{'text-align': 'center'}).set_table_styles(
-                [dict(selector='th', props=[('text-align', 'center')])]))
-
-    # <<<< Left Column to show full list of dataset and selection <<<<
-
-    # >>>> Dataset Pagination >>>>
-    _, col1, _, col2, _, col3, _ = st.columns(
-        [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
     num_dataset_per_page = 10
     num_dataset_page = len(
-        session_state.new_project.dataset_name_list) // num_dataset_per_page
-    # st.write(num_dataset_page)
+        dataset_dict) // num_dataset_per_page
+
     if num_dataset_page > 1:
         if session_state.dataset_page < num_dataset_page:
-            col3.button(">", on_click=next_page)
+            button_col3.button(">", on_click=next_page)
         else:
-            col3.write("")  # this makes the empty column show up on mobile
+            # this makes the empty column show up on mobile
+            button_col3.write("")
 
         if session_state.dataset_page > 0:
-            col1.button("<", on_click=prev_page)
+            button_col1.button("<", on_click=prev_page)
         else:
-            col1.write("")  # this makes the empty column show up on mobile
+            # this makes the empty column show up on mobile
+            button_col1.write("")
 
-        col2.write(
+        button_col2.write(
             f"Page {1+session_state.dataset_page} of {num_dataset_page}")
-    # <<<< Dataset Pagination <<<<
-    #TODO #52 Add Editor Config
-    # **** Submit Button ****
+    # **************************************** DATASET PAGINATION ****************************************
+
+    # TODO #52 Add Editor Config
+
+    # ******************************** SUBMISSION *************************************************
     success_place = st.empty()
-    field = [session_state.new_project.name,
-             session_state.new_project.deployment_id, session_state.new_project.dataset_chosen]
-    st.write(field)
+    context = {'name': session_state.new_project.name,
+               'deployment_type': session_state.new_project.deployment_type, 'dataset_chosen': session_state.new_project.dataset_chosen}
+    st.write(context)
+
     col1, col2 = st.columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
-
+    session_state.new_project.has_submitted = False
     if submit_button:
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
-            field, field_placeholder=place)
+            context, field_placeholder=place)
+
 
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
-            if session_state.new_project.initialise_project():
+            if session_state.new_project.initialise_project(dataset_dict):
                 session_state.new_editor.project_id = session_state.new_project.id
                 if session_state.new_editor.init_editor():
                     success_place.success(
@@ -291,12 +309,12 @@ def show():
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
 
     col1, col2 = st.columns(2)
-    col1.write(vars(session_state.new_project))
-    col2.write(vars(session_state.new_editor))
-
+    # col1.write(vars(session_state.new_project))
+    # col2.write(vars(session_state.new_editor))
+    # col2.write(dataset_dict)
 
 def main():
-    show()
+    new_project()
 
 
 if __name__ == "__main__":

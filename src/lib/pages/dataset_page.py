@@ -163,7 +163,7 @@ def dashboard():
                 dataset_dict[session_state.dataset_sel])
         else:
             session_state.dataset = Dataset(
-                dataset_dict[session_state.dataset_sel])    # *******************************************************************************
+                dataset_dict[session_state.dataset_sel])
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TABLE OF DATA>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     # >>>>>>>>> INSTATIATE DATASET CLASS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -275,7 +275,7 @@ def dashboard():
 
             # Do not check if name same as current dataset name
             if (session_state.name) and (session_state.name != session_state.dataset.name):
-                if session_state.dataset.check_if_exist(context, conn):
+                if session_state.dataset.check_if_exists(context, conn):
                     field_placeholder['name'].error(
                         f"Dataset name used. Please enter a new name")
 

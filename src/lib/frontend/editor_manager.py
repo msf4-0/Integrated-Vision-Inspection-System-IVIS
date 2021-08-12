@@ -74,7 +74,7 @@ class NewEditor(BaseEditor):
         super().__init__()
         self.name: str = random_generator
 
-    @classmethod
+    
     def init_editor(self) -> int:
         init_editor_SQL = """
                                     INSERT INTO public.editor (
