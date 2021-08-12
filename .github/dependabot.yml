@@ -8,7 +8,7 @@ updates:
 # Enable version updates for npm
 - package-ecosystem: "npm"
   # Look for `package.json` and `lock` files in the `root` directory
-  directory: "/src/test/data_table_component/data_table/frontend"
+  directory: "/src/test/data_table_component/data_table_test/frontend"
   # Check the npm registry for updates every day (weekdays)
   schedule:
     interval: "daily"# Enable version updates for npm
