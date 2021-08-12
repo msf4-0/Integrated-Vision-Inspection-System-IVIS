@@ -33,7 +33,7 @@ else:
 from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe, get_df_row_highlight_color, check_if_exists, check_if_field_empty
+from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
@@ -145,6 +145,7 @@ def new_project():
             else:
                 session_state.new_project.name = session_state.name
                 log_info(f"Project name fresh and ready to rumble")
+                
     with infocol2:
 
         # **** PROJECT TITLE****
@@ -162,26 +163,20 @@ def new_project():
 
         # **** DEPLOYMENT TYPE and EDITOR BASE TEMPLATE LOAD ****
         v = annotation_sel()
-     
+
         if None not in v:
             (deployment_type, editor_base_config) = v
 
             session_state.new_editor.editor_config = editor_base_config['config']
-            
 
             # TODO Remove deployment id
-            if deployment_type is not None:
-                session_state.new_project.deployment_type = deployment_type
-                session_state.new_project.query_deployment_id()
-                # st.write(session_state.new_project.deployment_id)
+            session_state.new_project.deployment_type = deployment_type
+            session_state.new_project.query_deployment_id()
 
-            else:
-                session_state.new_project.deployment_type = None
-                session_state.new_project.deployment_id=None
         else:
             session_state.new_editor.editor_config = None
             session_state.new_project.deployment_type = None
-            session_state.new_project.deployment_id=None
+            session_state.new_project.deployment_id = None
 
         place["deployment_type"] = st.empty()
 
@@ -288,12 +283,15 @@ def new_project():
     context = {'name': session_state.new_project.name,
                'deployment_type': session_state.new_project.deployment_type, 'dataset_chosen': session_state.new_project.dataset_chosen}
     st.write(context)
+
     col1, col2 = st.columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
-
+    session_state.new_project.has_submitted=False
     if submit_button:
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
             context, field_placeholder=place)
+        
+        st.write(session_state.new_project.has_submitted)
 
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project

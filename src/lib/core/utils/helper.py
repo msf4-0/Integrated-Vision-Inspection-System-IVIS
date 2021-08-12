@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Union, List, Dict, Optional, NamedTuple
 from time import perf_counter
 import pandas as pd
-from psycopg2 import sql
 import mimetypes
+from colorutils import hex_to_hsv
+from color_extract import color_extract
 from streamlit.uploaded_file_manager import UploadedFile
 import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -31,9 +32,6 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_fetchone, init_connection
 
 conn = init_connection(**st.secrets["postgres"])
-
-from colorutils import hex_to_hsv
-from color_extract import color_extract
 
 
 class HSV(NamedTuple):
@@ -121,57 +119,6 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
             #     [dict(selector='th', props=[('text-align', 'center')])])
 
         return df
-
-
-def check_if_exists(table: str, column_name: str, condition, conn=conn):
-
-    # Separate schema and tablename from 'table'
-    schema, tablename = [i for i in table.split('.')]
-    check_if_exists_SQL = sql.SQL("""
-                        SELECT
-                            EXISTS (
-                                SELECT
-                                    *
-                                FROM
-                                    {}
-                                WHERE
-                                    {} = %s);
-                            """).format(sql.Identifier(schema, tablename), sql.Identifier(column_name))
-    check_if_exists_vars = [condition]
-    exist_flag = db_fetchone(check_if_exists_SQL, conn,
-                             check_if_exists_vars).exists
-
-    return exist_flag
-
-
-def check_if_field_empty(field: List, field_placeholder, keys):
-    empty_fields = []
-
-    # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-    for i in field:
-        if i and i != "":
-
-            # Double check if Dataset name exists in DB
-            if (field.index(i) == 0) and ('name' in keys):
-                context = ['name', field[0]]
-                if check_if_exists(context, conn):
-                    field_placeholder[keys[0]].error(
-                        f"Dataset name used. Please enter a new name")
-                    log_error(
-                        f"Dataset name used. Please enter a new name")
-                    empty_fields.append(keys[0])
-
-            else:
-                pass
-        else:
-
-            idx = field.index(i)
-            field_placeholder[keys[idx]].error(
-                f"Please do not leave field blank")
-            empty_fields.append(keys[idx])
-
-    # if empty_fields not empty -> return False, else -> return True
-    return not empty_fields
 
 
 def get_mime(file: Union[str, Path]):
