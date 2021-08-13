@@ -4,24 +4,16 @@
   "private": true,
   "dependencies": {
     "@material-ui/core": "^4.12.3",
-    "@material-ui/data-grid": "^4.0.0-alpha.36",
+    "@material-ui/data-grid": "^4.0.0-alpha.37",
     "@material-ui/icons": "^4.11.2",
     "@material-ui/lab": "^4.0.0-alpha.60",
-    "@material-ui/x-license": "^4.0.0-alpha.36",
+    "@material-ui/x-license": "^4.0.0-alpha.37",
     "@testing-library/jest-dom": "^5.14.1",
     "@testing-library/react": "^12.0.0",
     "@testing-library/user-event": "^13.2.1",
-
-    "@types/jest": "^27.0.0",
-
-
-
+    "@types/jest": "^27.0.1",
+    "@types/node": "^16.6.1",
     "@types/react": "^17.0.17",
-
-    "@types/node": "^16.6.0",
-    
-
-
     "@types/react-dom": "^17.0.9",
     "clsx": "^1.1.1",
     "prop-types": "^15.7.2",

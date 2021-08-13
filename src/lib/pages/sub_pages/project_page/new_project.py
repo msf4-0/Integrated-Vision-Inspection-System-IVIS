@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from enum import IntEnum
 from time import sleep
-from colorutils import hex_to_hsv
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -38,7 +37,7 @@ from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
 from project.project_management import NewProject, ProjectPagination
-from frontend.editor_manager import NewEditor
+from data_editor.editor_management import NewEditor
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -51,21 +50,7 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-class AnnotationType(IntEnum):
-    Image_Classification = 1
-    BBox = 2
-    Polygons = 3
-    Masks = 4
 
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return AnnotationType[s]
-        except KeyError:
-            raise ValueError()
 
 # TODO #51 Utilise dataset query from dataset_management
 
@@ -98,7 +83,7 @@ def new_project():
     if 'new_editor' not in session_state:
         session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
-    # NOTE 'dataset_page' moved to the bottom
+        
     # ******** SESSION STATE *********************************************************
 
     # Page title
@@ -283,7 +268,6 @@ def new_project():
     success_place = st.empty()
     context = {'name': session_state.new_project.name,
                'deployment_type': session_state.new_project.deployment_type, 'dataset_chosen': session_state.new_project.dataset_chosen}
-    st.write(context)
 
     col1, col2 = st.columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
@@ -291,7 +275,6 @@ def new_project():
     if submit_button:
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
             context, field_placeholder=place)
-
 
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
@@ -311,7 +294,9 @@ def new_project():
     col1, col2 = st.columns(2)
     # col1.write(vars(session_state.new_project))
     # col2.write(vars(session_state.new_editor))
+    col2.write(context)
     # col2.write(dataset_dict)
+
 
 def main():
     new_project()

@@ -33,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
 from project.project_management import Project
-from frontend.editor_manager import Editor
+from data_editor.editor_management  import Editor,EditorFlag
 from user.user_management import User
 from data_manager.database_manager import init_connection
 from annotation.annotation_manager import Annotations, NewAnnotations, NewTask, Task, load_buffer_image
@@ -43,26 +43,11 @@ from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, Sem
 conn = init_connection(**st.secrets["postgres"])
 
 # NOTE: not used********************************************
-from frontend.streamlit_labelstudio import st_labelstudio
+from data_editor.streamlit_labelstudio import st_labelstudio
 from streamlit.report_thread import add_report_ctx
 
 
-class EditorFlag(IntEnum):
-    START = 0
-    SUBMIT = 1
-    UPDATE = 2
-    DELETE = 3
-    SKIP = 4
 
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return EditorFlag[s]
-        except KeyError:
-            raise ValueError()
 
 
 EDITOR_CONFIG = {"Image Classification": ImgClassification, "Object Detection with Bounding Boxes": DetectionBBOX,

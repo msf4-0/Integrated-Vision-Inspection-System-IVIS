@@ -8,6 +8,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import sys
 from pathlib import Path
 from typing import List, Dict, Union
+from enum import IntEnum
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import Json
@@ -38,6 +39,32 @@ from user.user_management import User
 from core.utils.dataset_handler import data_url_encoder_cv2
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
+
+
+class AnnotationType(IntEnum):
+    Image_Classification = 1
+    BBox = 2
+    Polygons = 3
+    Masks = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return AnnotationType[s]
+        except KeyError:
+            raise ValueError()
+
+
+# Dictionary to store labels into DB
+annotation_types = {
+    AnnotationType.Image_Classification: 'Classification',
+    AnnotationType.BBox: 'Bounding Box',
+    AnnotationType.Polygons: 'Segmentation Polygon',
+    AnnotationType.Masks: 'Segmentation Mask'
+}
 
 
 class BaseTask:

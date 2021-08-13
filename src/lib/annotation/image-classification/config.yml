@@ -4,17 +4,19 @@ image:
 details: <h1>Classify the image</h1>
 config: '
 <View>
-<Header value="Select label"/>
-  <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-    <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
-  <View>
-  <Choices name="choice" toName="image">
-    <Choice value="Airplane"/>
-    <Choice value="Truck"/>
-    <Choice value="Car"/>
-  </Choices>
+    <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
+        <Header value="Select label to classify image"/>
+        <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+            <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+            <View>
+                <Filter toName="tag" minlength="0" name="filter"/>
+                <Choices name="choice" toName="image">
+                    <Choice value="Airplane"/>
+                    <Choice value="Truck"/>
+                    <Choice value="Car"/>
+                </Choices>
+            </View>
+        </View>
+    </View>
 </View>
-  </View>
-</View>
-
 '
