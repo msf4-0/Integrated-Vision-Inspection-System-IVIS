@@ -33,6 +33,7 @@ from data_manager.database_manager import init_connection
 from data_editor.editor_management import Editor, EditorFlag, load_sample_image
 from data_editor.streamlit_labelstudio import st_labelstudio
 from project.project_management import Project
+from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
 # <<<< User-defined Modules <<<<
 
 # initialise connection to Database
@@ -40,7 +41,7 @@ conn = init_connection(**st.secrets["postgres"])
 place = {}
 
 
-def editor_config(project_id: int):
+def editor_config(project_id: int, deployment_type: str):
 
     chdir_root()  # change to root directory
 
@@ -83,7 +84,7 @@ def editor_config(project_id: int):
         # TODO Pass current project ID into here
         # session_state.project = Project(7)
 
-        session_state.editor = Editor(project_id)
+        session_state.editor = Editor(project_id, deployment_type)
 
     # ******** SESSION STATE *********************************************************
 
@@ -100,47 +101,56 @@ def editor_config(project_id: int):
         # st.text_input("Check column", key="column1")
 
         # >>>> Load XML -> Document object
-        session_state.editor.editor_config = session_state.editor.load_raw_xml()
-        xml_doc = session_state.editor.load_xml(
-            session_state.editor.editor_config)
-        session_state.editor.xml_doc = deepcopy(xml_doc)  # DEEPCOPY
+        # session_state.editor.editor_config = session_state.editor.load_raw_xml()
+        # xml_doc = session_state.editor.load_xml(
+        #     session_state.editor.editor_config)
+        # session_state.editor.xml_doc = deepcopy(xml_doc)  # DEEPCOPY
 
         # >>>> get labels
 
         # TODO #64 Allow other annotation types
-        session_state.editor.childNodes = session_state.editor.get_child(
-            'RectangleLabels', 'Label')
+        # session_state.editor.childNodes = session_state.editor.get_child(
+        #     'RectangleLabels', 'Label')
 
-        # labels
-        session_state.editor.labels = session_state.editor.get_labels(
-            session_state.editor.childNodes)
+        # # labels
+        # session_state.editor.labels = session_state.editor.get_labels(
+        #     session_state.editor.childNodes)
 
+        session_state.editor.labels = session_state.editor.get_labels()
+        if 'labels_select' not in session_state:
+            session_state.labels_select = session_state.editor.labels
+
+        # TODO remove
         tagName_attributes = session_state.editor.get_tagname_attributes(
             session_state.editor.childNodes)
-
 
         # TODO #65 Add and Update List of Labels into DB
         # Store as
         # add label into list
+
         def add_label(place):
-           
+
             if session_state.add_label and session_state.add_label not in session_state.editor.labels:
 
                 newChild = session_state.editor.create_label(
-                    'RectangleLabels', 'Label', 'value', session_state.add_label)
+                    'value', session_state.add_label)
+
                 log_info(f"newChild: {newChild.attributes.items()}")
 
                 log_info(f"New label added {session_state.editor.labels}")
+                session_state.editor.labels = session_state.editor.get_labels()
+                if 'labels_select' in session_state:
+                    del session_state.labels_select
 
-                
             elif session_state.add_label in session_state.editor.labels:
                 label_exist_msg = f"Label '{session_state.add_label}' already exists in {session_state.editor.labels}"
                 log_error(label_exist_msg)
                 place["add_label"].error(label_exist_msg)
                 sleep(1)
+                place["add_label"].empty()
 
         def update_labels():
-           
+
             diff_12 = set(session_state.editor.labels).difference(
                 session_state.labels_select)  # set 1 - set 2 REMOVAL
             diff_21 = set(session_state.labels_select).difference(
@@ -155,7 +165,7 @@ def editor_config(project_id: int):
                         session_state.editor.labels)
                     # TODO: function to remove DOM
                     removedChild = session_state.editor.remove_label(
-                        'Label', 'value', removed_label)
+                        'value', removed_label)
                     log_info(f"removedChild: {removedChild}")
                     log_info(f"Label removed {session_state.editor.labels}")
 
@@ -172,12 +182,15 @@ def editor_config(project_id: int):
             else:
                 print("No Change")
                 pass
+            session_state.editor.labels = session_state.editor.get_labels()
+            if 'labels_select' in session_state:
+                del session_state.labels_select
+            
             # if len(session_state.editor.labels) > len(session_state.labels_select):
             #     # Action:REMOVE
             #     # Find removed label
             #     removed_label =
 
-      
         # >>>>>>> ADD LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         st.text_input('Add Label', key='add_label',
                       on_change=add_label, args=(place,))
@@ -185,12 +198,11 @@ def editor_config(project_id: int):
         place["add_label"].info(
             '''Please enter desired labels and choose the labels to be used from the multi-select widget below''')
         # # labels_chosen = ['Hello', 'World', 'Bye']
-
+        log_info(f"Before multi {session_state.editor.labels}")
         # >>>>>>> REMOVE LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
+        st.write(session_state.editor.labels)
         st.multiselect('Labels', options=session_state.editor.labels,
-                       default=session_state.editor.labels, key='labels_select', on_change=update_labels)
-
+                       key='labels_select', on_change=update_labels)
 
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
 
@@ -206,9 +218,6 @@ def editor_config(project_id: int):
         st.write(tagName_attributes)
         st.write("Editor Class")
         st.write(vars(session_state.editor))
-
-
-
 
     with st.expander('Editor Config', expanded=True):
         config2 = session_state.editor.to_xml_string(
@@ -235,7 +244,8 @@ def main():
             st.markdown("""___""")
         # ************************TO REMOVE************************
         project_id = 7
-        editor_config(project_id)
+        deployment_type = DEPLOYMENT_TYPE[2]
+        editor_config(project_id, deployment_type)
 
 
 if __name__ == "__main__":

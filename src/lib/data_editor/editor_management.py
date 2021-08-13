@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+from os import stat
 import sys
 from pathlib import Path
 from enum import IntEnum
@@ -35,7 +36,8 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import get_mime
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
-
+from annotation.annotation_manager import annotation_types
+from deployment.deployment_management import DEPLOYMENT_TYPE
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -65,6 +67,15 @@ class EditorFlag(IntEnum):
             raise ValueError()
 
 
+# TAG_NAMES=
+TAGNAMES = {
+    "Image Classification": {"type": "Choices", "tag": "Choice"},
+    "Object Detection with Bounding Boxes": {"type": "RectangleLabels", "tag": "Label"},
+    "Semantic Segmentation with Polygons": {"type": "PolygonLabels", "tag": "Label"},
+    "Semantic Segmentation with Masks": {"type": "BrushLabels", "tag": "Label"},
+}
+
+
 class BaseEditor:
     def __init__(self) -> None:
 
@@ -75,17 +86,15 @@ class BaseEditor:
         self.labels: List = []
         self.project_id: Union[str, int] = None
 
-    def update_editor_config(self, updated_editor_config):
-        update_editor_config_SQL = """
-                                    UPDATE
-                                        public.editor
-                                    SET
-                                        editor_config = %s
-                                    WHERE
-                                        project_id = %s;
-                                            """
-        update_editor_config_vars = [updated_editor_config, self.project_id]
-        db_no_fetch(update_editor_config_SQL, conn, update_editor_config_vars)
+    @staticmethod
+    def get_annotation_tags(deployment_type):
+        try:
+            parent_tagname, child_tagname = TAGNAMES[deployment_type]['type'], TAGNAMES[deployment_type]['tag']
+        except Exception as e:
+            log_error(
+                f"{e}: Could not retrieve tags. Deployment type '{deployment_type}' is not supported.")
+
+        return parent_tagname, child_tagname
 
 
 class NewEditor(BaseEditor):
@@ -112,12 +121,15 @@ class NewEditor(BaseEditor):
 
 
 class Editor(BaseEditor):
-    def __init__(self, project_id) -> None:
+    def __init__(self, project_id, deployment_type) -> None:
         super().__init__()
         self.xml_doc: minidom.Document = None
         self.childNodes: minidom.Node = None
         self.project_id = project_id
+        self.parent_tagname, self.child_tagname = self.get_annotation_tags(
+            deployment_type)
         self.editor_config = self.load_raw_xml()
+        self.xml_doc=self.load_xml(self.editor_config)
         self.query_editor_fields()
 
     def query_editor_fields(self):
@@ -142,7 +154,13 @@ class Editor(BaseEditor):
                 f"Editor for Project with ID: {self.project_id} does not exists in the database!!!")
         return editor_fields
 
-    def load_raw_xml(self):
+    def load_raw_xml(self) -> str:
+        """Load XML string from Database
+
+        Returns:
+            str: XML string
+        """
+
         query_editor_SQL = """SELECT
                                 editor_config
                             FROM
@@ -163,12 +181,20 @@ class Editor(BaseEditor):
         return self.editor_config
 
     def load_xml(self, editor_config: str) -> minidom.Document:
+        """Parse XML string into XML minidom.Document object
+
+        Args:
+            editor_config (str): XML string for database
+
+        Returns:
+            minidom.Document: XML minidom.Document object
+        """
         if editor_config:
             xml_doc = minidom.parseString(editor_config)
             self.xml_doc = xml_doc
             return xml_doc
         else:
-            pass
+            log_error(f"Unable to parse string as XML object")
 
     @staticmethod
     def pretty_print(xml_doc: minidom.Document, encoding: str = 'utf-8'):
@@ -211,7 +237,11 @@ class Editor(BaseEditor):
             return parents
 
     # to get list of labels
-    def get_child(self, parent_tagName: str, child_tagName: str, attr: str = None, value: str = None) -> List:
+    def get_child(self, parent_tagName: str = None, child_tagName: str = None, attr: str = None, value: str = None) -> List:
+
+        if (parent_tagName and child_tagName) is None:
+            parent_tagName, child_tagName = self.parent_tagname, self.child_tagname
+
         parents = self.get_parents(parent_tagName, attr, value)
         elements = []
         for parent in parents:
@@ -219,7 +249,7 @@ class Editor(BaseEditor):
                 child_tagName)  # list of child elements
             for child in childs:
                 elements.append(child)
-
+        self.childNodes = elements
         return elements
 
     def get_tagname_attributes(self, elements: List) -> List:
@@ -237,7 +267,8 @@ class Editor(BaseEditor):
 
         return tagName_attributes
 
-    def get_labels(self, elements: List) -> List:
+    @staticmethod
+    def get_labels_from_childNode(elements: List) -> List:
         # assume only one type of annotation type
         labels = []
         for element in elements:  # for 'value' attrib ONLY
@@ -250,26 +281,55 @@ class Editor(BaseEditor):
         # [('value', 'World'), ('background', 'pink')]
         # [('value', 'Hello'), ('background', 'blue')]
         # [('value', 'World'), ('background', 'pink')]
+        # self.labels = labels
         return labels
 
-    def create_label(self, parent, tagname, attr, value):
-        nodeList = self.xml_doc.getElementsByTagName(
-            parent)[0]  # 'RectangleLabels'
+    def get_labels(self, parent_tagName: str = None, child_tagName: str = None, attr: str = None, value: str = None):
+        """Get labels from XML DOM using Parent and Child tags
 
-        new_label = self.xml_doc.createElement(tagname)  # 'Label'
+        Args:
+            parent_tagName (str): Annotation Tagname
+            child_tagName (str): Annotation Child Tagname
+            attr (str, optional): 'value' attribute of tag if specific label to be found . Defaults to None.
+            value (str, optional): Value of 'value'. Defaults to None.
+
+        Returns:
+            [type]: [description]
+        """
+        if (parent_tagName and child_tagName) is None:
+            parent_tagName, child_tagName = self.parent_tagname, self.child_tagname
+
+        self.childNodes = self.get_child(
+            parent_tagName=parent_tagName, child_tagName=child_tagName, attr=attr, value=value)
+        self.labels = self.get_labels_from_childNode(self.childNodes)
+
+        return self.labels
+
+    def create_label(self, attr, value, parent_tagname=None, child_tagname=None):
+        if (parent_tagname and child_tagname) is None:
+            parent_tagname, child_tagname = self.parent_tagname, self.child_tagname
+        nodeList = self.xml_doc.getElementsByTagName(
+            parent_tagname)[0]  # 'RectangleLabels'
+
+        new_label = self.xml_doc.createElement(child_tagname)  # 'Label'
         new_label.setAttribute(attr, value)  # value='<label-name>'
 
         # add new tag to parent childNodelist
-        newChild = nodeList.appendChild(new_label)
+        # <Label value="..." background="...">
+        newChild = nodeList.appendChild(new_label)  # xml_doc will be updated
 
+        # NOTE Update when submit button is pressed -> CALLBACK
         # serialise XML doc and Update database
         updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-        self.update_editor_config(updated_editor_config_xml_string)
+        log_info(updated_editor_config_xml_string)
+        # self.update_editor_config(updated_editor_config_xml_string)
 
         return newChild
 
-    def edit_labels(self, tagName: str, attr: str, old_value: str, new_value: str):
-        nodeList = self.xml_doc.getElementsByTagName(tagName)
+    def edit_labels(self,  attr: str, old_value: str, new_value: str,child_tagname: str=None):
+        if child_tagname is None:
+            child_tagname = self.child_tagname
+        nodeList = self.xml_doc.getElementsByTagName(child_tagname)
         new_attributes = []
         for node in reversed(nodeList):
             if node.hasAttribute(attr) and node.getAttribute(attr) == old_value:
@@ -280,8 +340,10 @@ class Editor(BaseEditor):
         if new_attributes:
             return new_attributes
 
-    def remove_label(self, tagName: str, attr: str, value: str):
-        nodeList = self.xml_doc.getElementsByTagName(tagName)
+    def remove_label(self,  attr: str, value: str,child_tagname: str=None):
+        if child_tagname is None:
+            child_tagname = self.child_tagname
+        nodeList = self.xml_doc.getElementsByTagName(child_tagname)
         removedChild = []
         for node in reversed(nodeList):
             if node.hasAttribute(attr) and node.getAttribute(attr) == value:
@@ -298,12 +360,51 @@ class Editor(BaseEditor):
                 log_error(error_msg)
 
         if removedChild:
-            updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-            self.update_editor_config(updated_editor_config_xml_string)
+            # NOTE Update when submit button is pressed -> CALLBACK
+            # updated_editor_config_xml_string = self.to_xml_string(pretty=True)
+            # self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
-    
-    def label_store(self):
-        pass
+
+    def generate_labels_dict(self, deployment_type) -> dict:
+        """  Generate labels dictionary to display on project dashboard
+        {'Bounding Box':[List of labels],
+            'Classification':[List of labels]
+            } 
+
+        Args:
+            deployment_type ([type]): Type of Deep Learning deployment
+
+        Returns:
+            Dict: Dictionary of labels with Annotation Type
+        """
+        # get ID from enum member value
+        # get annotation type
+        # generate dict
+
+        annotation_type = annotation_types[DEPLOYMENT_TYPE[deployment_type]]
+        labels_dict = {annotation_type: self.labels}
+
+        return labels_dict
+
+    def update_editor_config(self, deployment_type: str):
+
+        updated_editor_config_xml_string = self.to_xml_string(pretty=True)
+        labels_dict = self.get_labels(deployment_type)
+        labels_json = json.dumps(labels_dict)
+
+        update_editor_config_SQL = """
+                                    UPDATE
+                                        public.editor
+                                    SET
+                                        editor_config = %s,
+                                        labels = %s::JSONB
+                                    WHERE
+                                        project_id = %s;
+                                            """
+        update_editor_config_vars = [
+            updated_editor_config_xml_string, labels_json, self.project_id]
+        db_no_fetch(update_editor_config_SQL, conn, update_editor_config_vars)
+
 
 @st.cache
 def load_sample_image():

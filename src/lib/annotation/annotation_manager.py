@@ -34,7 +34,6 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
-from core.utils.helper import check_if_exists
 from user.user_management import User
 from core.utils.dataset_handler import data_url_encoder_cv2
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
