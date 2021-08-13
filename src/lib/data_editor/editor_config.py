@@ -39,23 +39,15 @@ from project.project_management import Project
 conn = init_connection(**st.secrets["postgres"])
 place = {}
 
-with st.sidebar.container():
-    st.image("resources/MSF-logo.gif", use_column_width=True)
-# with st.container():
-    st.title("Integrated Vision Inspection System", anchor='title')
-    st.header(
-        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-    st.markdown("""___""")
 
-
-def editor_config():
+def editor_config(project_id: int):
 
     chdir_root()  # change to root directory
 
     # >>>> LOAD SAMPLE IMAGE >>>>
     data_url = load_sample_image()
 
-    # *********************** EDITOR SETUP ****************************************************
+# *********************** EDITOR SETUP ****************************************************
     interfaces = [
         "panel",
         "controls",
@@ -77,30 +69,33 @@ def editor_config():
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-            }
+                }
     }
     # *********************** EDITOR SETUP ****************************************************
 
-    # *************************************************************************************
-    # >>>> EDITOR >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    # *************************************************************************************
+# *************************************************************************************
+# >>>> EDITOR >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# *************************************************************************************
 
-    # ******** SESSION STATE *********************************************************
+# ******** SESSION STATE *********************************************************
 
     if "editor" not in session_state:
         # TODO Pass current project ID into here
-        session_state.project = Project(7)
-        session_state.editor = Editor(session_state.project.id)
+        # session_state.project = Project(7)
+
+        session_state.editor = Editor(project_id)
 
     # ******** SESSION STATE *********************************************************
-    
+
+
+# ******************************************START*******************************************
     # Page title
     st.write("# Editor Config")
     st.markdown("___")
 
-    # >>>> COLUMN PLACEHOLDERS 
+    # >>>> COLUMN PLACEHOLDERS
     col1, col2 = st.columns([1, 2])
-    
+
     with col1:
         st.text_input("Check column", key="column1")
 
@@ -225,19 +220,35 @@ def editor_config():
         st.write(vars(session_state.editor))
     with st.expander('Editor Config', expanded=True):
         config2 = session_state.editor.to_xml_string(
-            pretty=False)
+            pretty=True)
         st.code(config2, language='xml')
 
     with col2:
         st.text_input("Check column", key="column2")
         st_labelstudio(config2, interfaces, user, task, key='editor_test')
-        st.write("Project Class")
-        st.write(vars(session_state.project))
+
+
+def main():
+    RELEASE = False
+
+    # ****************** TEST ******************************
+    if not RELEASE:
+
+        # ************************TO REMOVE************************
+        with st.sidebar.container():
+            st.image("resources/MSF-logo.gif", use_column_width=True)
+            st.title("Integrated Vision Inspection System", anchor='title')
+            st.header(
+                "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+            st.markdown("""___""")
+        # ************************TO REMOVE************************
+        project_id = 7
+        editor_config(project_id)
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        editor_config()
+        main()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

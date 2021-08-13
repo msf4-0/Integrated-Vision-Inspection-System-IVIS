@@ -170,14 +170,35 @@ class Editor(BaseEditor):
         else:
             pass
 
-    def to_xml_string(self, pretty=False) -> str:
-        if pretty:
-            xml_string = self.xml_doc.toprettyxml(
-                encoding='utf8').decode('utf-8')
-        else:
-            xml_string = self.xml_doc.toxml(encoding='utf8').decode('utf-8')
+    @staticmethod
+    def pretty_print(xml_doc: minidom.Document, encoding: str = 'utf-8'):
+        """Pretty prints XML using minidom.Document.toprettyxml but removing additional whitespaces
+            to give a compact and neater output. 
 
-        return xml_string
+        Args:
+            xml_doc (minidom.Document): XML object
+            encoding (str, optional): Type of encoding of XML string. Defaults to 'utf-8'.
+
+        Returns:
+            str: XML string 
+        """
+        return '\n'.join([line for line in xml_doc.toprettyxml(indent='\t', encoding=encoding).decode('utf-8').split('\n') if line.strip()])
+
+    def to_xml_string(self, pretty=False, encoding: str = 'utf-8', encoding_flag: bool = False) -> str:
+        if pretty:
+            xml_string = self.pretty_print(
+                self.xml_doc, encoding=encoding)  # return string
+            # xml_string = self.xml_doc.toprettyxml(
+            #     encoding='utf8').decode('utf-8')
+        else:
+            xml_string = self.xml_doc.toxml(encoding=encoding).decode(encoding)
+
+        if encoding_flag:
+            xml_encoded_string = xml_string.encode(encoding)
+            return xml_encoded_string
+
+        else:
+            return xml_string
 
     # get Nodelist of parent tag
 
@@ -242,7 +263,7 @@ class Editor(BaseEditor):
         newChild = nodeList.appendChild(new_label)
 
         # serialise XML doc and Update database
-        updated_editor_config_xml_string = self.to_xml_string(pretty=False)
+        updated_editor_config_xml_string = self.to_xml_string(pretty=True)
         self.update_editor_config(updated_editor_config_xml_string)
 
         return newChild
@@ -277,7 +298,7 @@ class Editor(BaseEditor):
                 log_error(error_msg)
 
         if removedChild:
-            updated_editor_config_xml_string = self.to_xml_string(pretty=False)
+            updated_editor_config_xml_string = self.to_xml_string(pretty=True)
             self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
 
