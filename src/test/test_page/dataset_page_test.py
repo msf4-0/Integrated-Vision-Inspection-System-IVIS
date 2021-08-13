@@ -345,10 +345,6 @@ def main():
         dataset_page[session_state.dataset_pagination]()
 
 
-        # <<<< Dataset SIDEBAR <<<<
-        # new_dataset.show()
-        # st.write(session_state)
-
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

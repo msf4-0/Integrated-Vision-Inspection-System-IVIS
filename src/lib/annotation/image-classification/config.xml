@@ -1,13 +1,15 @@
 <View>
     <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
-        <Header value="Select label and start to draw on image"/>
+        <Header value="Select label to classify image"/>
         <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
             <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
             <View>
-                <BrushLabels name="tag" toName="image">
-                    <Label value="Airplane" background="rgba(255, 0, 0, 0.7)"/>
-                    <Label value="Car" background="rgba(0, 0, 255, 0.7)"/>
-                </BrushLabels>
+                <Filter toName="tag" minlength="0" name="filter"/>
+                <Choices name="choice" toName="image">
+                    <Choice value="Airplane"/>
+                    <Choice value="Truck"/>
+                    <Choice value="Car"/>
+                </Choices>
             </View>
         </View>
     </View>

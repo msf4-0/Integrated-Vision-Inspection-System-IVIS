@@ -412,7 +412,7 @@ CREATE TABLE IF NOT EXISTS public.editor (
     CACHE 1),
     name character varying(50) NOT NULL,
     editor_config text,
-    labels text[],
+    labels jsonb[],
     project_id bigint NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -30,7 +30,7 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root,MEDIA_ROOT
+from path_desc import chdir_root, MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
 
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
@@ -60,7 +60,16 @@ class DeploymentType(IntEnum):
             raise ValueError()
 
 
+# KIV
+DEPLOYMENT_TYPE = {
+    DeploymentType.Image_Classification: "Image Classification",
+    DeploymentType.OD: "Object Detection with Bounding Boxes",
+    DeploymentType.Instance: "Semantic Segmentation with Polygons",
+    DeploymentType.Semantic: "Semantic Segmentation with Masks"
+}
+
 # <<<< Variable Declaration <<<<
+
 
 class BaseDeployment:
     def __init__(self) -> None:
