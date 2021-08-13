@@ -97,7 +97,7 @@ def editor_config(project_id: int):
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        st.text_input("Check column", key="column1")
+        # st.text_input("Check column", key="column1")
 
         # >>>> Load XML -> Document object
         session_state.editor.editor_config = session_state.editor.load_raw_xml()
@@ -224,7 +224,7 @@ def editor_config(project_id: int):
         st.code(config2, language='xml')
 
     with col2:
-        st.text_input("Check column", key="column2")
+        # st.text_input("Check column", key="column2")
         st_labelstudio(config2, interfaces, user, task, key='editor_test')
 
 
