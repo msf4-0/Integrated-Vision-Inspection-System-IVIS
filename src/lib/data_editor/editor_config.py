@@ -119,7 +119,7 @@ def editor_config(project_id: int):
             session_state.editor.childNodes)
 
 
-        # TODO Add and Update List of Labels into DB
+        # TODO #65 Add and Update List of Labels into DB
         # Store as
         # add label into list
         def add_label(place):
@@ -177,7 +177,7 @@ def editor_config(project_id: int):
             #     # Find removed label
             #     removed_label =
 
-        # TODO
+      
         # >>>>>>> ADD LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         st.text_input('Add Label', key='add_label',
                       on_change=add_label, args=(place,))
@@ -191,6 +191,9 @@ def editor_config(project_id: int):
         st.multiselect('Labels', options=session_state.editor.labels,
                        default=session_state.editor.labels, key='labels_select', on_change=update_labels)
 
+
+        # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
+
         st.write("Labels selected:")
         st.write(session_state.labels_select)
         st.write("Doc")
@@ -203,7 +206,10 @@ def editor_config(project_id: int):
         st.write(tagName_attributes)
         st.write("Editor Class")
         st.write(vars(session_state.editor))
-        
+
+
+
+
     with st.expander('Editor Config', expanded=True):
         config2 = session_state.editor.to_xml_string(
             pretty=True)
