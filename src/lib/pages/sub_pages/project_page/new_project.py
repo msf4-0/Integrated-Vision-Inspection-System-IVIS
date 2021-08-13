@@ -50,21 +50,7 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-class AnnotationType(IntEnum):
-    Image_Classification = 1
-    BBox = 2
-    Polygons = 3
-    Masks = 4
 
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return AnnotationType[s]
-        except KeyError:
-            raise ValueError()
 
 # TODO #51 Utilise dataset query from dataset_management
 

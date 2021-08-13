@@ -107,6 +107,7 @@ def editor_config(project_id: int):
 
         # >>>> get labels
 
+        # TODO #64 Allow other annotation types
         session_state.editor.childNodes = session_state.editor.get_child(
             'RectangleLabels', 'Label')
 
@@ -117,9 +118,12 @@ def editor_config(project_id: int):
         tagName_attributes = session_state.editor.get_tagname_attributes(
             session_state.editor.childNodes)
 
+
+        # TODO Add and Update List of Labels into DB
+        # Store as
         # add label into list
         def add_label(place):
-            st.write(session_state.add_label)
+           
             if session_state.add_label and session_state.add_label not in session_state.editor.labels:
 
                 newChild = session_state.editor.create_label(
@@ -128,8 +132,7 @@ def editor_config(project_id: int):
 
                 log_info(f"New label added {session_state.editor.labels}")
 
-                # session_state.editor.labels.append(
-                #     session_state.labels_input)
+                
             elif session_state.add_label in session_state.editor.labels:
                 label_exist_msg = f"Label '{session_state.add_label}' already exists in {session_state.editor.labels}"
                 log_error(label_exist_msg)
@@ -137,7 +140,7 @@ def editor_config(project_id: int):
                 sleep(1)
 
         def update_labels():
-            st.write(session_state.labels_select)
+           
             diff_12 = set(session_state.editor.labels).difference(
                 session_state.labels_select)  # set 1 - set 2 REMOVAL
             diff_21 = set(session_state.labels_select).difference(
@@ -190,24 +193,6 @@ def editor_config(project_id: int):
 
         st.write("Labels selected:")
         st.write(session_state.labels_select)
-
-        # >>>>>>>>> try to create node
-
-        # st.write("Create Label")
-        # newChild = session_state.editor.create_label(
-        #     'RectangleLabels', 'Label', 'value', 'aruco')
-        # st.write(newChild.attributes.items())
-        # st.write("Remove Label")
-
-        # st.write(session_state.editor.remove_labels(
-        #     'Label', 'value', 'Hello')[0].attributes.items())
-        # # st.write(removeChild)
-        # st.write("Edit Label")
-        # st.write(session_state.editor.edit_labels(
-        #     'Label', 'value', 'aruco', 'Car'))
-
-        # newChild = session_state.editor.create_label(
-        #     'RectangleLabels', 'Label', 'value', 'airport')
         st.write("Doc")
         st.write(session_state.editor.xml_doc)
         st.write("Label Childnodes")
@@ -218,6 +203,7 @@ def editor_config(project_id: int):
         st.write(tagName_attributes)
         st.write("Editor Class")
         st.write(vars(session_state.editor))
+        
     with st.expander('Editor Config', expanded=True):
         config2 = session_state.editor.to_xml_string(
             pretty=True)
