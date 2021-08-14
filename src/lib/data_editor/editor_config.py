@@ -98,24 +98,8 @@ def editor_config(project_id: int, deployment_type: str):
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        # st.text_input("Check column", key="column1")
 
-        # >>>> Load XML -> Document object
-        # session_state.editor.editor_config = session_state.editor.load_raw_xml()
-        # xml_doc = session_state.editor.load_xml(
-        #     session_state.editor.editor_config)
-        # session_state.editor.xml_doc = deepcopy(xml_doc)  # DEEPCOPY
-
-        # >>>> get labels
-
-        # TODO #64 Allow other annotation types
-        # session_state.editor.childNodes = session_state.editor.get_child(
-        #     'RectangleLabels', 'Label')
-
-        # # labels
-        # session_state.editor.labels = session_state.editor.get_labels(
-        #     session_state.editor.childNodes)
-
+        #>>>> LOAD LABELS
         session_state.editor.labels = session_state.editor.get_labels()
         if 'labels_select' not in session_state:
             session_state.labels_select = session_state.editor.labels
