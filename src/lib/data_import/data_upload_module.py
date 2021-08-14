@@ -88,7 +88,7 @@ def data_uploader(dataset: Dataset):
         # uploaded_files_multi = st.file_uploader(
         #     label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget", on_change=check_filetype_category, args=(place,))
         uploaded_files_multi = st.file_uploader(
-            label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key='upload_widget')
+            label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key='upload_module')
 
         place["upload"] = st.empty()
 
@@ -105,7 +105,7 @@ def data_uploader(dataset: Dataset):
         st.info(file_format_info)
 
         # NOTE !!!!!!!!!!!!!!
-        if uploaded_files_multi and (len(session_state.upload_widget) != 0):
+        if uploaded_files_multi and (len(session_state.upload_module) != 0):
             # if uploaded_files_multi:
 
             # >>>> CHECK FILETYPE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -158,10 +158,11 @@ def data_uploader(dataset: Dataset):
     # <<<<<<<< New Dataset Upload <<<<<<<<
 
     # >>>>>>>>>>>>>>>>>>>>>>>> SUBMISSION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    
-    def update_dataset_callback(field,place):
+
+    def update_dataset_callback(field, place):
+        context = {'upload': field }
         dataset.has_submitted = dataset.check_if_field_empty(
-            field, field_placeholder=place, keys=['upload'])
+            context, field_placeholder=place)
 
         if dataset.has_submitted:
             # st.success(""" Successfully created new dataset: {0}.
@@ -170,15 +171,17 @@ def data_uploader(dataset: Dataset):
             # set FLAG to 0
             session_state.append_data_flag = dataset.update_pipeline(
                 success_place)
-            
-            if 'upload_widget' in session_state:
-                del session_state.upload_widget
-            # return session_state.append_data_flag
-    
-    success_place = st.empty()
-    field = [dataset.dataset]
 
-    submit_button = st.button("Submit", key="submit",on_click=update_dataset_callback,args=(field,place,))
+            if 'upload_module' in session_state:
+                del session_state.upload_module
+            # return session_state.append_data_flag
+
+    success_place = st.empty()
+    field = dataset.dataset
+
+    st.button(
+        "Submit", key="submit", on_click=update_dataset_callback, args=(field, place,))
+
 
 def main():
     TEST_FLAG = False
@@ -202,7 +205,7 @@ def main():
         st.write(session_state.append_data_flag)
 
         with st.expander("", expanded=False):
-            data_uploader(session_state.dataset, key='upload_widget')
+            data_uploader(session_state.dataset, key='upload_module')
 
         submit = st.button("Test", key="testing")
         if submit:

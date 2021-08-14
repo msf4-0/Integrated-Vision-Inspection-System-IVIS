@@ -21,7 +21,7 @@ from videoprops import get_audio_properties, get_video_properties, pretty_print
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
-from core.utils.dataset_handler import get_image_size,load_image_PIL
+from core.utils.dataset_handler import get_image_size, load_image_PIL
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -40,6 +40,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import get_directory_name, get_mime
+from core.utils.form_manager import check_if_exists, check_if_field_empty
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -109,7 +110,7 @@ class BaseDataset:
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
         self.has_submitted = False
-        self.raw_data_dict:Dict={} # stores raw data of data
+        self.raw_data_dict: Dict = {}  # stores raw data of data
 
 # NOTE DEPRECATED *************************
     def query_deployment_id(self) -> int:
@@ -128,55 +129,72 @@ class BaseDataset:
         else:
             self.deployment_id = None
 
-    def check_if_field_empty(self, field: List, field_placeholder, keys=["name", "upload"]):
-        empty_fields = []
+# NOTE DEPRECATED *************************
+    # def check_if_field_empty(self, field: List, field_placeholder, keys=["name", "upload"]):
+    #     empty_fields = []
 
-        # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-        for i in field:
-            if i and i != "":
+    #     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
+    #     for i in field:
+    #         if i and i != "":
 
-                # Double check if Dataset name exists in DB
-                if (field.index(i) == 0) and ('name' in keys):
-                    context = ['name', field[0]]
-                    if self.check_if_exists(context, conn):
-                        field_placeholder[keys[0]].error(
-                            f"Dataset name used. Please enter a new name")
-                        log_error(
-                            f"Dataset name used. Please enter a new name")
-                        empty_fields.append(keys[0])
+    #             # Double check if Dataset name exists in DB
+    #             if (field.index(i) == 0) and ('name' in keys):
+    #                 context = ['name', field[0]]
+    #                 if self.check_if_exists(context, conn):
+    #                     field_placeholder[keys[0]].error(
+    #                         f"Dataset name used. Please enter a new name")
+    #                     log_error(
+    #                         f"Dataset name used. Please enter a new name")
+    #                     empty_fields.append(keys[0])
 
-                else:
-                    pass
-            else:
+    #             else:
+    #                 pass
+    #         else:
 
-                idx = field.index(i)
-                field_placeholder[keys[idx]].error(
-                    f"Please do not leave field blank")
-                empty_fields.append(keys[idx])
+    #             idx = field.index(i)
+    #             field_placeholder[keys[idx]].error(
+    #                 f"Please do not leave field blank")
+    #             empty_fields.append(keys[idx])
 
-        # if empty_fields not empty -> return False, else -> return True
-        return not empty_fields
+    #     # if empty_fields not empty -> return False, else -> return True
+    #     return not empty_fields
 
-    def check_if_exists(self, context: List, conn) -> bool:
-        check_exist_SQL = """
-                            SELECT
-                                EXISTS (
-                                    SELECT
-                                        %s
-                                    FROM
-                                        public.dataset
-                                    WHERE
-                                        name = %s);
-                        """
-        exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
-        return exist_status
+    def check_if_field_empty(self, context: Dict, field_placeholder):
+        check_if_exists = self.check_if_exists
+        empty_fields = check_if_field_empty(
+            context, field_placeholder, check_if_exists)
+        return empty_fields
+
+    def check_if_exists(self, context: Dict, conn) -> bool:
+        table = 'public.dataset'
+
+        exists_flag = check_if_exists(
+            table, context['column_name'], context['value'], conn)
+
+        return exists_flag
+
+# NOTE DEPRECATED *************************
+    # def check_if_exists(self, context: List, conn) -> bool:
+    #     check_exist_SQL = """
+    #                         SELECT
+    #                             EXISTS (
+    #                                 SELECT
+    #                                     %s
+    #                                 FROM
+    #                                     public.dataset
+    #                                 WHERE
+    #                                     name = %s);
+    #                     """
+    #     exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
+    #     return exist_status
 
     def dataset_PNG_encoding(self):
         if self.dataset:
-            for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#'):
+            for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#',st_container=st.sidebar,desc="Uploading data"):
                 img_name = img.name
                 log_info(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
+
                 # st.title(img.name)
                 try:
                     with Image.open(img) as pil_img:
@@ -206,14 +224,19 @@ class BaseDataset:
             self.dataset_total_filesize = 0
         return self.dataset_total_filesize
 
+    @staticmethod
+    def get_dataset_path(dataset_name: str) -> Path:
+        directory_name = get_directory_name(
+            dataset_name)  # change name to lowercase
+        # join directory name with '-' dash
+        dataset_path = DATASET_DIR / str(directory_name)
+        log_info(f"Dataset Path: {dataset_path}")
+        return dataset_path
+
     def save_dataset(self) -> bool:
-        if self.dataset_path:
-            directory_name = self.dataset_path
-        else:  # if somehow dataset path Did Not Exist
-            directory_name = get_directory_name(
-                self.name)  # change name to lowercase
-            # join directory name with '-' dash
-            self.dataset_path = DATASET_DIR / str(directory_name)
+
+        # Get absolute dataset folder path
+        self.dataset_path = self.get_dataset_path(self.name)
 
         # directory_name = get_directory_name(
         #     self.name)
@@ -267,7 +290,8 @@ class Dataset(BaseDataset):
         self.name = dataset.Name
         self.desc = dataset.Description
         self.dataset_size = dataset.Dataset_Size
-        self.dataset_path = dataset.Dataset_Path
+        self.dataset_path = self.get_dataset_path(self.name)  # NOTE
+        # self.dataset_path = dataset.Dataset_Path
         self.filetype = dataset.File_Type
         self.data_name_list = {}
 
@@ -279,6 +303,7 @@ class Dataset(BaseDataset):
         Returns:
             Dict[dict]: Dataset name as key to a List of data in the dataset directory
         """
+        self.dataset_path = self.get_dataset_path(self.name)
         try:
             # IF dataset info already exist and len of data same as number of files in folder -> get from Dict
             if data_name_list_full.get(self.name) and (len(data_name_list_full.get(self.name))) == len([file for file in Path(self.dataset_path).iterdir() if file.is_file()]):
@@ -296,9 +321,12 @@ class Dataset(BaseDataset):
         return data_name_list_full
 
     def glob_folder_data_list(self, data_name_list_full: Dict):
+        self.dataset_path = self.get_dataset_path(self.name)
+        log_info(self.dataset_path)
+        log_info(self.name)
         if self.dataset_path:
 
-            dataset_path = self.dataset_path + "/*"
+            dataset_path = Path(self.dataset_path) / "./*"
 
             data_info_tmp = []
 
@@ -306,7 +334,7 @@ class Dataset(BaseDataset):
             # {'id':data_name,'filetype':self.filetype,'created_at':os.stat().st_mtime}
 
             # Glob through dataset directory
-            for data_path in iglob(dataset_path):
+            for data_path in iglob(str(dataset_path)):
                 data_info = {}
 
                 log_info(f"Globbing {data_path}......")
@@ -326,6 +354,7 @@ class Dataset(BaseDataset):
             return data_name_list_full
 
     def update_dataset_size(self):
+        self.dataset_path = self.get_dataset_path(self.name)
         new_dataset_size = len([file for file in Path(
             self.dataset_path).iterdir() if file.is_file()])
 
@@ -365,8 +394,9 @@ class Dataset(BaseDataset):
             None, None)
 
     def update_dataset_path(self, new_dataset_name: str):
-        new_directory_name = get_directory_name(new_dataset_name)
-        new_dataset_path = DATASET_DIR / str(new_directory_name)
+        # new_directory_name = get_directory_name(new_dataset_name)
+        # new_dataset_path = DATASET_DIR / str(new_directory_name)
+        new_dataset_path = self.get_dataset_path(new_dataset_name)
 
         # Rename dataset folder
         try:
@@ -376,21 +406,22 @@ class Dataset(BaseDataset):
         except Exception as e:
             log_error(f'{e}: Could not rename file')
 
-        update_dataset_path_SQL = """
-                                UPDATE
-                                    public.dataset
-                                SET
-                                    dataset_path = %s
-                                WHERE
-                                    id = %s
-                                RETURNING dataset_path;
-        """
-        update_dataset_path_vars = [str(new_dataset_path), self.id]
-        new_dataset_path_return = db_fetchone(
-            update_dataset_path_SQL, conn, update_dataset_path_vars)
+    # NOTE: No longer storing dataset path in server
+        # update_dataset_path_SQL = """
+        #                         UPDATE
+        #                             public.dataset
+        #                         SET
+        #                             dataset_path = %s
+        #                         WHERE
+        #                             id = %s
+        #                         RETURNING dataset_path;
+        # """
+        # update_dataset_path_vars = [str(new_dataset_path), self.id]
+        # new_dataset_path_return = db_fetchone(
+        #     update_dataset_path_SQL, conn, update_dataset_path_vars)
 
-        log_info(f"Updating dataset path {new_dataset_path_return}")
-        self.dataset_path = new_dataset_path_return if new_dataset_path_return else self.dataset_path
+        # log_info(f"Updating dataset path {new_dataset_path_return}")
+        # self.dataset_path = new_dataset_path_return if new_dataset_path_return else self.dataset_path
 
     def update_dataset(self):
         """Wrapper function to update existing dataset
@@ -444,6 +475,7 @@ class Dataset(BaseDataset):
             mimetype = get_mime(data_name)
 
             if not data_raw:
+                self.dataset_path = self.get_dataset_path(self.name)
                 filepath = self.dataset_path / data_name
 
             try:
@@ -525,11 +557,17 @@ class Dataset(BaseDataset):
                 st.info(display_attributes)
 
     def load_dataset(self):
-        
+
+        self.dataset_path = self.get_dataset_path(self.name)
+
         for file in Path(self.dataset_path).iterdir():
             if file.is_file():
                 pass
-@st.cache(ttl=60)
+
+
+# **************************** IMPORTANT ****************************
+# ************************ CANNOT CACHE !!!!!*************************
+# Will throw ValueError for selectbox dataset_sel because of session state (BUG)
 def query_dataset_list() -> List[namedtuple]:
     """Query list of dataset from DB, Column Names: TRUE
 
@@ -543,8 +581,8 @@ def query_dataset_list() -> List[namedtuple]:
             dataset_size AS "Dataset Size",
             (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
             updated_at AS "Date/Time",
-            description AS "Description",
-            dataset_path AS "Dataset Path"
+            description AS "Description"
+            
         FROM
             public.dataset d
         ORDER BY id ASC;"""
@@ -569,6 +607,10 @@ def query_dataset_list() -> List[namedtuple]:
         dataset_tmp = []
 
     return dataset_tmp, column_names
+
+# **************************** IMPORTANT ****************************
+# ************************ CANNOT CACHE !!!!!*************************
+# Will throw ValueError for selectbox dataset_sel because of session state (BUG)
 
 
 def get_dataset_name_list(dataset_list: List[namedtuple]):

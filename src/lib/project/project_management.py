@@ -248,7 +248,7 @@ class Project(BaseProject):
                                     d.name AS "Name",
                                     d.dataset_size AS "Dataset Size",
                                     pd.updated_at AS "Date/Time",
-                                    d.dataset_path AS "Path"
+                                    
                                 FROM
                                     public.project_dataset pd
                                     LEFT JOIN public.dataset d ON d.id = pd.dataset_id

@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from enum import IntEnum
 import streamlit as st
-from collections import namedtuple
 from threading import Thread
 from time import sleep
 import pandas as pd
@@ -41,7 +40,7 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import DATASET_DIR, chdir_root
 from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe
+from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.file_handler import delete_file_directory
 from core.utils.dataset_handler import load_image_PIL
 from data_import.data_upload_module import data_uploader
@@ -75,6 +74,7 @@ with st.sidebar.container():
 
 
 def dashboard():
+    session_state.dataset_pagination = DatasetPagination.Dashboard
     # Page title
     st.write("# **Dataset**")
     st.markdown("___")
@@ -164,6 +164,8 @@ def dashboard():
         else:
             session_state.dataset = Dataset(
                 dataset_dict[session_state.dataset_sel])
+        session_state.dataset.dataset_path = Dataset.get_dataset_path(
+            session_state.dataset.name)
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TABLE OF DATA>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     # >>>>>>>>> INSTATIATE DATASET CLASS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -208,11 +210,14 @@ def dashboard():
         df_loc = df.loc[:, "ID":"Date/Time"]
         df_slice = df_loc.iloc[start:end]
 
+        # GET color from active theme
+        df_row_highlight_color = get_df_row_highlight_color()
+
         def highlight_row(x, selections):
 
             if x.Name in selections:
 
-                return ['background-color: #90a4ae'] * len(x)
+                return [f'background-color: {df_row_highlight_color}'] * len(x)
             else:
                 return ['background-color: '] * len(x)
 
@@ -270,15 +275,17 @@ def dashboard():
     elif session_state.append_data_flag == DataPermission.Edit:
         session_state.checkbox = True
 
+        # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
         def check_if_name_exist(field_placeholder, conn):
-            context = ['name', session_state.name]
+            context = {'column_name': 'name', 'value': session_state.name}
 
             # Do not check if name same as current dataset name
             if (session_state.name) and (session_state.name != session_state.dataset.name):
                 if session_state.dataset.check_if_exists(context, conn):
                     field_placeholder['name'].error(
                         f"Dataset name used. Please enter a new name")
-
+                    sleep(1)  # NOTE: KIV perf
+                    field_placeholder['name'].empty()
                     log_error(f"Dataset name used. Please enter a new name")
                     return False
                 else:
@@ -292,6 +299,8 @@ def dashboard():
                 log_error(f"Dataset name field is empty!")
                 field_placeholder['name'].error(
                     f"Dataset name field is empty!")
+                sleep(1)  # NOTE: KIV perf
+                field_placeholder['name'].empty()
 
                 return False
 
@@ -350,6 +359,9 @@ def dashboard():
                 session_state.append_data_flag = DataPermission.ViewOnly
                 session_state.checkbox = False
 
+                if 'dataset_sel' in session_state:
+                    del session_state.dataset_sel
+
                 def show_update_success():
                     update_success_place = outercol2.empty()
                     update_success_place.success(
@@ -368,12 +380,15 @@ def dashboard():
                 if 'name' in session_state:
                     del session_state.name
                     del session_state.desc
+
                 if 'dataset_sel' in session_state:
                     del session_state.dataset_sel
                     log_info("DELETE SELECTBOX")
                 update_success_msg_thread.join()
             else:
                 log_info("NO UPDATE")
+            if 'dataset_sel' in session_state:
+                del session_state.dataset_sel
 
         place["back"] = st.empty()
         place['submit_changes'] = st.empty()
@@ -522,6 +537,9 @@ def main():
     def dataset_page_navigator():
         session_state.dataset_pagination = project_page_options.index(
             session_state.dataset_page_navigator_radio)
+    
+    if "dataset_page_navigator_radio" in session_state:
+        del session_state.dataset_page_navigator_radio
 
     with st.sidebar.expander("Dataset", expanded=True):
         st.radio("", options=project_page_options,
