@@ -71,7 +71,6 @@ def show():
 
     chdir_root()  # change to root directory
 
-
     # ******** SESSION STATE ********
     if "current_page" not in session_state:
         session_state.previous_page = "All Datasets"
@@ -100,9 +99,10 @@ def show():
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
-        context = ['name', session_state.name]
+        context = {'column_name': 'name', 'value': session_state.name}
         if session_state.name:
             if session_state.new_dataset.check_if_exists(context, conn):
+                session_state.new_dataset.name = None
                 field_placeholder['name'].error(
                     f"Dataset name used. Please enter a new name")
                 sleep(1)
@@ -235,21 +235,21 @@ def show():
     #     "File Upload 📂", key="file_upload_button", on_click=update_file_uploader_flag)
 
     # <<<<<<<< New Dataset Upload <<<<<<<<
-    # **** Submit Button ****
+    # ******************************** SUBMISSION *************************************************
     success_place = st.empty()
-    field = [session_state.new_dataset.name, session_state.new_dataset.dataset]
-    st.write(field)
+    context = {'name': session_state.new_dataset.name,
+               'upload': session_state.new_dataset.dataset}
+
+    st.write(context)
     submit_col1, submit_col2 = st.columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
 
     if submit_button:
-        keys=["name", "upload"]
+        keys = ["name", "upload"]
         session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
-            field, field_placeholder=place,keys=keys)
+            context, field_placeholder=place)
 
         if session_state.new_dataset.has_submitted:
-            # st.success(""" Successfully created new dataset: {0}.
-            #                 """.format(session_state.new_dataset.name))
 
             if session_state.new_dataset.save_dataset():
 
@@ -264,6 +264,8 @@ def show():
                     # reset NewDataset class object
                     session_state.new_dataset = NewDataset(
                         get_random_string(length=8))
+                    if 'upload_widget' in session_state:
+                        del session_state.upload_widget
 
                 else:
                     st.error(
