@@ -70,7 +70,7 @@ def editor_config(project_id: int, deployment_type: str):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-                }
+        }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -96,10 +96,11 @@ def editor_config(project_id: int, deployment_type: str):
 
     # >>>> COLUMN PLACEHOLDERS
     col1, col2 = st.columns([1, 2])
+    lowercol1, lowercol2 = st.columns([1, 2])
 
     with col1:
 
-        #>>>> LOAD LABELS
+        # >>>> LOAD LABELS
         session_state.editor.labels = session_state.editor.get_labels()
         if 'labels_select' not in session_state:
             session_state.labels_select = session_state.editor.labels
@@ -107,10 +108,6 @@ def editor_config(project_id: int, deployment_type: str):
         # TODO remove
         tagName_attributes = session_state.editor.get_tagname_attributes(
             session_state.editor.childNodes)
-
-        # TODO #65 Add and Update List of Labels into DB
-        # Store as
-        # add label into list
 
         def add_label(place):
 
@@ -169,7 +166,7 @@ def editor_config(project_id: int, deployment_type: str):
             session_state.editor.labels = session_state.editor.get_labels()
             if 'labels_select' in session_state:
                 del session_state.labels_select
-            
+
             # if len(session_state.editor.labels) > len(session_state.labels_select):
             #     # Action:REMOVE
             #     # Find removed label
@@ -184,12 +181,12 @@ def editor_config(project_id: int, deployment_type: str):
         # # labels_chosen = ['Hello', 'World', 'Bye']
         log_info(f"Before multi {session_state.editor.labels}")
         # >>>>>>> REMOVE LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        st.write(session_state.editor.labels)
+
         st.multiselect('Labels', options=session_state.editor.labels,
                        key='labels_select', on_change=update_labels)
 
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
-
+    with lowercol1:
         st.write("Labels selected:")
         st.write(session_state.labels_select)
         st.write("Doc")

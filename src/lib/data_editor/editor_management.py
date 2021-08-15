@@ -116,7 +116,7 @@ class NewEditor(BaseEditor):
                                         id;"""
 
         init_editor_vars = [self.name, self.editor_config, self.project_id]
-        self.id = db_fetchone(init_editor_SQL, conn, init_editor_vars)[0]
+        self.id = db_fetchone(init_editor_SQL, conn, init_editor_vars).id
         return self.id
 
 
@@ -129,7 +129,7 @@ class Editor(BaseEditor):
         self.parent_tagname, self.child_tagname = self.get_annotation_tags(
             deployment_type)
         self.editor_config = self.load_raw_xml()
-        self.xml_doc=self.load_xml(self.editor_config)
+        self.xml_doc = self.load_xml(self.editor_config)
         self.query_editor_fields()
 
     def query_editor_fields(self):
@@ -326,7 +326,7 @@ class Editor(BaseEditor):
 
         return newChild
 
-    def edit_labels(self,  attr: str, old_value: str, new_value: str,child_tagname: str=None):
+    def edit_labels(self, attr: str, old_value: str, new_value: str, child_tagname: str = None):
         if child_tagname is None:
             child_tagname = self.child_tagname
         nodeList = self.xml_doc.getElementsByTagName(child_tagname)
@@ -340,7 +340,7 @@ class Editor(BaseEditor):
         if new_attributes:
             return new_attributes
 
-    def remove_label(self,  attr: str, value: str,child_tagname: str=None):
+    def remove_label(self, attr: str, value: str, child_tagname: str = None):
         if child_tagname is None:
             child_tagname = self.child_tagname
         nodeList = self.xml_doc.getElementsByTagName(child_tagname)

@@ -26,7 +26,7 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root,PROJECT_DIR
+from path_desc import chdir_root, PROJECT_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
@@ -78,74 +78,6 @@ class BaseProject:
         self.dataset_list: Dict = {}
         self.image_name_list: List = []  # for image_labelling
         self.annotation_task_join = []  # for image_labelling
-
-# DEPRECATED -> Import from dataset.management.py
-    @st.cache
-    def query_dataset_list(self) -> List:
-        query_dataset_SQL = """
-        SELECT
-            id AS "ID",
-            name AS "Name",
-            dataset_size AS "Dataset Size",
-            (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
-            updated_at AS "Date/Time",
-            description AS "Description",
-            dataset_path AS "Dataset Path"
-        FROM
-            public.dataset d
-        ORDER BY id ASC;"""
-
-        datasets, column_names = db_fetchall(
-            query_dataset_SQL, conn, fetch_col_name=True)
-        dataset_tmp = []
-        if datasets:
-            for dataset in datasets:
-
-                # convert datetime with TZ to (2021-07-30 12:12:12) format
-                converted_datetime = dataset.Date_Time.strftime(
-                    '%Y-%m-%d %H:%M:%S')
-                dataset = dataset._replace(
-                    Date_Time=converted_datetime)
-                dataset_tmp.append(dataset)
-
-            self.datasets = dataset_tmp
-        else:
-            dataset_tmp = []
-
-        return dataset_tmp, column_names
-
-# DEPRECATED -> Import from dataset.management.py
-    def get_dataset_name_list(self) -> List:
-        dataset_name_tmp = []
-        dataset_name_id = {}
-        if self.datasets:
-            for dataset in self.datasets:
-                dataset_name_tmp.append(dataset[1])
-                dataset_name_id[dataset[1]] = dataset[0]
-            self.dataset_name_list = dataset_name_tmp
-            self.dataset_name_id = dataset_name_id
-        else:
-            self.dataset_name_list = []
-            self.dataset_name_id = {}
-
-        return dataset_name_tmp, dataset_name_id
-
-    # @st.cache
-    # def create_dataset_dataframe(self) -> pd.DataFrame:
-
-    #     if self.datasets:
-    #         df = pd.DataFrame(self.datasets, columns=)
-    #         df['Date/Time'] = pd.to_datetime(df['Date/Time'],
-    #                                          format='%Y-%m-%d %H:%M:%S')
-    #         df.sort_values(by=['Date/Time'], inplace=True,
-    #                        ascending=False, ignore_index=True)
-    #         df.index.name = ('No.')
-
-    #         # dfStyler = df.style.set_properties(**{'text-align': 'center'})
-    #         # dfStyler.set_table_styles(
-    #         #     [dict(selector='th', props=[('text-align', 'center')])])
-
-    #     return df
 
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
@@ -201,6 +133,23 @@ class BaseProject:
             query_all_projects_SQL, conn)
 
         return projects
+
+    @staticmethod
+    def get_project_path(project_name: str) -> Path:
+        """Get project path from project name
+
+        Args:
+            project_name (str): Project name
+
+        Returns:
+            Path: Path-like object for project path
+        """
+        directory_name = get_directory_name(
+            project_name)  # change name to lowercase
+        # join directory name with '-' dash
+        project_path = PROJECT_DIR / str(directory_name)
+        log_info(f"Project Path: {str(project_path)}")
+        return project_path
 
 
 class Project(BaseProject):
@@ -363,6 +312,7 @@ class NewProject(BaseProject):
         else:
             self.deployment_id = None
 
+    # Wrapper for check_if_exists function from form_manager.py
     def check_if_exists(self, context: Dict, conn) -> bool:
         table = 'public.project'
 
@@ -370,34 +320,31 @@ class NewProject(BaseProject):
             table, context['column_name'], context['value'], conn)
 
         return exists_flag
-    
+
+    # Wrapper for check_if_exists function from form_manager.py
     def check_if_field_empty(self, context: Dict, field_placeholder):
-        check_if_exists=self.check_if_exists
+        check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
             context, field_placeholder, check_if_exists)
         return empty_fields
 
-    
-
-    def insert_project(self,dataset_dict:Dict):
+    def insert_project(self, dataset_dict: Dict):
         insert_project_SQL = """
                                 INSERT INTO public.project (
                                     name,
-                                    description,                                    
-                                    project_path,                                    
+                                    description,                                                                   
                                     deployment_id)
                                 VALUES (
-                                    %s,
                                     %s,
                                     %s,
                                     (SELECT dt.id FROM public.deployment_type dt where dt.name = %s))
                                 RETURNING id;
                                 
                             """
-        insert_project_vars = [self.name, self.desc,
-                               str(self.project_path), self.deployment_type]
+        insert_project_vars = [self.name, self.desc, self.deployment_type]
         self.id = db_fetchone(
-            insert_project_SQL, conn, insert_project_vars)[0]
+            insert_project_SQL, conn, insert_project_vars).id
+
         insert_project_dataset_SQL = """
                                         INSERT INTO public.project_dataset (
                                             project_id,
@@ -412,11 +359,12 @@ class NewProject(BaseProject):
                         insert_project_dataset_vars)
         return self.id
 
+    def initialise_project(self, dataset_dict):
 
-    def initialise_project(self,dataset_dict):
+        # directory_name = get_directory_name(self.name)
+        # self.project_path = PROJECT_DIR / str(directory_name)
 
-        directory_name = get_directory_name(self.name)
-        self.project_path = PROJECT_DIR / str(directory_name)
+        self.project_path = self.get_project_path(self.name)  # UPDATED
 
         create_folder_if_not_exist(self.project_path)
 
