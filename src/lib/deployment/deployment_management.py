@@ -62,10 +62,10 @@ class DeploymentType(IntEnum):
 
 # KIV
 DEPLOYMENT_TYPE = {
-    DeploymentType.Image_Classification: "Image Classification",
-    DeploymentType.OD: "Object Detection with Bounding Boxes",
-    DeploymentType.Instance: "Semantic Segmentation with Polygons",
-    DeploymentType.Semantic: "Semantic Segmentation with Masks"
+    "Image Classification": DeploymentType.Image_Classification,
+    "Object Detection with Bounding Boxes": DeploymentType.OD,
+    "Semantic Segmentation with Polygons": DeploymentType.Instance,
+    "Semantic Segmentation with Masks": DeploymentType.Semantic
 }
 
 # <<<< Variable Declaration <<<<

@@ -37,7 +37,7 @@ from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import get_mime
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
 from annotation.annotation_manager import annotation_types
-from deployment.deployment_management import DEPLOYMENT_TYPE
+from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -69,10 +69,10 @@ class EditorFlag(IntEnum):
 
 # TAG_NAMES=
 TAGNAMES = {
-    "Image Classification": {"type": "Choices", "tag": "Choice"},
-    "Object Detection with Bounding Boxes": {"type": "RectangleLabels", "tag": "Label"},
-    "Semantic Segmentation with Polygons": {"type": "PolygonLabels", "tag": "Label"},
-    "Semantic Segmentation with Masks": {"type": "BrushLabels", "tag": "Label"},
+    DeploymentType.Image_Classification: {"type": "Choices", "tag": "Choice"},
+    DeploymentType.OD: {"type": "RectangleLabels", "tag": "Label"},
+    DeploymentType.Instance: {"type": "PolygonLabels", "tag": "Label"},
+    DeploymentType.Semantic: {"type": "BrushLabels", "tag": "Label"},
 }
 
 
@@ -381,7 +381,7 @@ class Editor(BaseEditor):
         # get annotation type
         # generate dict
 
-        annotation_type = annotation_types[DEPLOYMENT_TYPE[deployment_type]]
+        annotation_type = annotation_types[deployment_type]
         labels_dict = {annotation_type: self.labels}
 
         return labels_dict
@@ -389,7 +389,7 @@ class Editor(BaseEditor):
     def update_editor_config(self, deployment_type: str):
 
         updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-        labels_dict = self.get_labels(deployment_type)
+        labels_dict = self.generate_labels_dict(deployment_type)
         labels_json = json.dumps(labels_dict)
 
         update_editor_config_SQL = """
@@ -399,11 +399,15 @@ class Editor(BaseEditor):
                                         editor_config = %s,
                                         labels = %s::JSONB
                                     WHERE
-                                        project_id = %s;
+                                        project_id = %s
+                                    RETURNING id;
                                             """
         update_editor_config_vars = [
             updated_editor_config_xml_string, labels_json, self.project_id]
-        db_no_fetch(update_editor_config_SQL, conn, update_editor_config_vars)
+        query_return = db_fetchone(
+            update_editor_config_SQL, conn, update_editor_config_vars)
+
+        return query_return
 
 
 @st.cache

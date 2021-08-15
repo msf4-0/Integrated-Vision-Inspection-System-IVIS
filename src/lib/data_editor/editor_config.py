@@ -70,7 +70,7 @@ def editor_config(project_id: int, deployment_type: str):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-        }
+            }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -94,8 +94,15 @@ def editor_config(project_id: int, deployment_type: str):
     st.write("# Editor Config")
     st.markdown("___")
 
-    # >>>> COLUMN PLACEHOLDERS
+    # ************COLUMN PLACEHOLDERS *****************************************************
+
+    # >>>> MAIN COLUMNS
     col1, col2 = st.columns([1, 2])
+
+    # >>>> Add 'save' button
+    save_col1, save_col2 = st.columns([1, 2])
+
+    # >>>> To display variables during dev
     lowercol1, lowercol2 = st.columns([1, 2])
 
     with col1:
@@ -185,6 +192,26 @@ def editor_config(project_id: int, deployment_type: str):
         st.multiselect('Labels', options=session_state.editor.labels,
                        key='labels_select', on_change=update_labels)
 
+    # TODO ADD 'SAVE' BUTTON
+    with save_col1:
+        def save_editor_config(deployment_type):
+            log_info("Updating Editor Config......")
+
+            if session_state.editor.update_editor_config(deployment_type):
+
+                #>>>> Display success message
+                update_success_place = st.empty()
+                update_success_place.success(
+                    f"Successfully updated editor configurations")
+                sleep(0.5)
+                update_success_place.empty()
+
+                # if 'editor' in session_state:
+                #     del session_state.editor
+
+        st.button('Save', key='save_editor_config',
+                  on_click=save_editor_config, args=(deployment_type,))
+
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
     with lowercol1:
         st.write("Labels selected:")
@@ -225,7 +252,7 @@ def main():
             st.markdown("""___""")
         # ************************TO REMOVE************************
         project_id = 7
-        deployment_type = DEPLOYMENT_TYPE[2]
+        deployment_type = DEPLOYMENT_TYPE["Object Detection with Bounding Boxes"] # get enum ->2
         editor_config(project_id, deployment_type)
 
 
