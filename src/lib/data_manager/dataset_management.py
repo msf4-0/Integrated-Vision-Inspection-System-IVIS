@@ -190,7 +190,7 @@ class BaseDataset:
 
     def dataset_PNG_encoding(self):
         if self.dataset:
-            for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#',st_container=st.sidebar,desc="Uploading data"):
+            for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading data"):
                 img_name = img.name
                 log_info(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
@@ -264,11 +264,10 @@ class NewDataset(BaseDataset):
                                 INSERT INTO public.dataset (
                                     name,
                                     description,
-                                    dataset_path,
+                                    
                                     dataset_size,
                                     filetype_id)
                                 VALUES (
-                                    %s,
                                     %s,
                                     %s,
                                     %s,
@@ -277,7 +276,7 @@ class NewDataset(BaseDataset):
                                 RETURNING id;
                             """
         insert_dataset_vars = [self.name, self.desc,
-                               str(self.dataset_path), self.dataset_size, self.filetype]
+                               self.dataset_size, self.filetype]
         self.dataset_id = db_fetchone(
             insert_dataset_SQL, conn, insert_dataset_vars).id
         return self.dataset_id

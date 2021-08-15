@@ -50,11 +50,6 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-
-
-# TODO #51 Utilise dataset query from dataset_management
-
-
 chdir_root()  # change to root directory
 
 with st.sidebar.container():
@@ -83,7 +78,7 @@ def new_project():
     if 'new_editor' not in session_state:
         session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
-        
+
     # ******** SESSION STATE *********************************************************
 
     # Page title
