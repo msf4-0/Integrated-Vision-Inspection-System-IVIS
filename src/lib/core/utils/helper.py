@@ -67,6 +67,31 @@ def get_df_row_highlight_color(color=None):
     return df_row_highlight_color
 
 
+def get_textColor():
+    text_color = color_extract(key='text_color')
+    return text_color
+
+
+class NavColor(NamedTuple):
+    border: str
+    background: str
+
+
+current_page = NavColor('#0071BC', '#29B6F6')
+non_current_page = NavColor('#0071BC', None)
+color = {'current_page': current_page, 'non_current_page': non_current_page}
+
+
+def get_current_page_nav_color(index: int, num_pages: int, offset: int = 0) -> List[NavColor]:
+    color = []
+
+    for i in range(num_pages):
+        color[i] = current_page if (
+            i == (index - offset)) else non_current_page
+
+    return color
+
+
 def get_theme():
     backgroundColor = st.get_option('theme.backgroundColor')
     return backgroundColor

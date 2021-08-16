@@ -152,8 +152,8 @@ def dashboard():
                 session_state.dataset = Dataset(
                     dataset_dict[session_state.dataset_sel])
 
-            if 'name' in session_state:  # RESET Text field
-                del session_state.name
+            if 'dataset_name' in session_state:  # RESET Text field
+                del session_state.dataset_name
                 del session_state.desc
 
         dataset_selection = st.selectbox("Select Dataset", options=dataset_dict,
@@ -278,32 +278,34 @@ def dashboard():
 
         # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
         def check_if_name_exist(field_placeholder, conn):
-            context = {'column_name': 'name', 'value': session_state.name}
+            context = {'column_name': 'name',
+                       'value': session_state.dataset_name}
 
             # Do not check if name same as current dataset name
-            if (session_state.name) and (session_state.name != session_state.dataset.name):
-                if session_state.dataset.check_if_exists(context, conn):
-                    field_placeholder['name'].error(
-                        f"Dataset name used. Please enter a new name")
-                    sleep(1)  # NOTE: KIV perf
-                    field_placeholder['name'].empty()
-                    log_error(f"Dataset name used. Please enter a new name")
-                    return False
-                else:
+            if (session_state.dataset_name) and (session_state.dataset.check_if_exists(context, conn)):
 
-                    # # UPDATE NAME
-                    # session_state.dataset.name = session_state.name
-                    log_error(f"Dataset name fresh and ready to rumble")
-                    return True
+                field_placeholder['dataset_name'].error(
+                    f"Dataset name used. Please enter a new name")
+                sleep(1)  # NOTE: KIV perf
+                field_placeholder['dataset_name'].empty()
+                log_error(f"Dataset name used. Please enter a new name")
+                return False
 
-            elif not session_state.name:
+            elif not session_state.dataset_name:
                 log_error(f"Dataset name field is empty!")
-                field_placeholder['name'].error(
+                field_placeholder['dataset_name'].error(
                     f"Dataset name field is empty!")
                 sleep(1)  # NOTE: KIV perf
-                field_placeholder['name'].empty()
+                field_placeholder['dataset_name'].empty()
 
                 return False
+
+            else:
+
+                # # UPDATE NAME
+                # session_state.dataset.name = session_state.name
+                log_error(f"Dataset name fresh and ready to rumble")
+                return True
 
         # ***************************************************topcol3 ***************************************************
         with place['dataset_id'].container():
@@ -312,8 +314,8 @@ def dashboard():
                 f"### __Dataset ID:__ {session_state.dataset.dataset_id}")
             # TITLE
             st.text_input(
-                "Dataset Title", value=session_state.dataset.name, key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
-            place['name'] = st.empty()
+                "Dataset Title", value=session_state.dataset.name, key="dataset_name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
+            place['dataset_name'] = st.empty()
 
         # ***************************************************outercol2 ***************************************************
         with place['desc'].container():
@@ -338,24 +340,25 @@ def dashboard():
             session_state.append_data_flag = DataPermission.ViewOnly
             session_state.checkbox = False
             # reset values of text input widget
-            if 'name' in session_state:
-                del session_state.name
+            if 'dataset_name' in session_state:
+                del session_state.dataset_name
                 del session_state.desc
 
         def submit_title_desc_changes():
 
             # Update database
             log_info("UPDATING")
-            if check_if_name_exist(place, conn):
-                log_info("START UPDATE")
-                session_state.temp_name = session_state.name
+            if check_if_name_exist(place, conn):  # If name does not exists
+                log_info("START UPDATE NAME and DESC")
+                session_state.temp_name = session_state.dataset_name
 
                 # Update title and description
                 session_state.dataset.update_title_desc(
-                    session_state.name, session_state.desc)
+                    session_state.dataset_name, session_state.desc)
 
                 # Update dataset path
-                session_state.dataset.update_dataset_path(session_state.name)
+                session_state.dataset.update_dataset_path(
+                    session_state.dataset_name)
 
                 session_state.append_data_flag = DataPermission.ViewOnly
                 session_state.checkbox = False
@@ -378,15 +381,34 @@ def dashboard():
                 log_info("After thread start")
 
                 # reset values of text input widget
-                if 'name' in session_state:
-                    del session_state.name
+                if 'dataset_name' in session_state:
+                    del session_state.dataset_name
                     del session_state.desc
 
                 if 'dataset_sel' in session_state:
                     del session_state.dataset_sel
                     log_info("DELETE SELECTBOX")
                 update_success_msg_thread.join()
-            else:
+
+            elif (session_state.dataset.desc != session_state.desc):
+                session_state.temp_name = session_state.dataset.name
+                # Update title and description
+                session_state.dataset.update_title_desc(
+                    session_state.dataset.name, session_state.desc)
+
+                session_state.append_data_flag = DataPermission.ViewOnly
+                session_state.checkbox = False
+
+                # reset values of text input widget
+                if 'dataset_name' in session_state:
+                    del session_state.dataset_name
+                    del session_state.desc
+
+                if 'dataset_sel' in session_state:
+                    del session_state.dataset_sel
+                    log_info("DELETE SELECTBOX")
+
+            else:  # if name exists and desc the same
                 log_info("NO UPDATE")
             if 'dataset_sel' in session_state:
                 del session_state.dataset_sel
@@ -548,6 +570,19 @@ def main():
                  index=session_state.dataset_pagination, on_change=dataset_page_navigator, key="dataset_page_navigator_radio")
 
     dataset_page[session_state.dataset_pagination]()
+    back_to_dataset_dashboard_button_place = st.empty()
+    if session_state.dataset_pagination == DatasetPagination.New:
+
+        def to_dataset_dashboard_page():
+
+            session_state.dataset_pagination = DatasetPagination.Dashboard
+            NewDataset.reset_new_dataset_page()
+
+        st.button("Back", key='back_to_dataset_dashboard',
+                  on_click=to_dataset_dashboard_page)
+
+    else:
+        back_to_dataset_dashboard_button_place.empty()
 
 
 if __name__ == "__main__":

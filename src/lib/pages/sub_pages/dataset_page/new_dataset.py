@@ -267,35 +267,35 @@ def new_dataset():
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
 
     # TODO Move to dataset_page
-    def to_dataset_dashboard_page():
+    # def to_dataset_dashboard_page():
 
-        # Check project status:
-        # if New Project => return to Entry page
-        # else => return to Dataset Dashboard
-        # try:
-        #     if "project_status" not in session_state:
-        #         session_state.project_status = None
-        #     if session_state.project_status:
-        #         if session_state.project_status == ProjectPagination.New:
-        #             # If New Project
-        #             session_state.new_project_pagination = NewProjectPagination.Entry
+    #     # Check project status:
+    #     # if New Project => return to Entry page
+    #     # else => return to Dataset Dashboard
+    #     # try:
+    #     #     if "project_status" not in session_state:
+    #     #         session_state.project_status = None
+    #     #     if session_state.project_status:
+    #     #         if session_state.project_status == ProjectPagination.New:
+    #     #             # If New Project
+    #     #             session_state.new_project_pagination = NewProjectPagination.Entry
 
-        #         elif session_state.project_status == ProjectPagination.Existing:
-        #             # If Existing Project
-        #             # NOTE
-        #             session_state.project_pagination = ProjectPagination.Existing
+    #     #         elif session_state.project_status == ProjectPagination.Existing:
+    #     #             # If Existing Project
+    #     #             # NOTE
+    #     #             session_state.project_pagination = ProjectPagination.Existing
 
-        # except Exception as e:
-        #     log_error(
-        #         f"""{e}: Either New Dataset Page entered from Dataset Dashboard or 
-        #         session_state.new_project is not initialised or nullified""")
+    #     # except Exception as e:
+    #     #     log_error(
+    #     #         f"""{e}: Either New Dataset Page entered from Dataset Dashboard or 
+    #     #         session_state.new_project is not initialised or nullified""")
 
-        # >>>> CLEAR ALL CLASS ATTRIBUTES AND WIDGET STATES >>>>
-        NewDataset.reset_new_dataset_page()
-        session_state.dataset_pagination = DatasetPagination.Dashboard
+    #     # >>>> CLEAR ALL CLASS ATTRIBUTES AND WIDGET STATES >>>>
+    #     NewDataset.reset_new_dataset_page()
+    #     session_state.dataset_pagination = DatasetPagination.Dashboard
 
-    st.button("Back", key='back_to_dataset_dashboard',
-              on_click=to_dataset_dashboard_page)
+    # st.button("Back", key='back_to_dataset_dashboard',
+    #           on_click=to_dataset_dashboard_page)
 
     st.write(vars(session_state.new_dataset))
     # for img in session_state.new_dataset.dataset:

@@ -78,6 +78,12 @@ def check_if_field_empty(context: Dict, field_placeholder, check_if_exists=None)
     return not empty_fields
 
 
+def remove_newline_trailing_whitespace(text: str) -> str:
+    fixed_text = " ".join([x for x in text.split()])
+
+    return fixed_text
+
+
 def reset_page_attributes(attributes_list: List):
     for attrib in attributes_list:
         if attrib in session_state:

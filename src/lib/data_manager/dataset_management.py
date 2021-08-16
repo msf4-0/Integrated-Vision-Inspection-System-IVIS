@@ -171,6 +171,8 @@ class BaseDataset:
         exists_flag = check_if_exists(
             table, context['column_name'], context['value'], conn)
 
+        return exists_flag
+
     def dataset_PNG_encoding(self):
         if self.dataset:
             for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading data"):

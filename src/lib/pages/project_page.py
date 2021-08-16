@@ -61,28 +61,6 @@ def dashboard():
 
 def main():
 
-    # dataset_page = {
-    #     DatasetPagination.Dashboard: dashboard,
-    #     DatasetPagination.New: new_dataset.show
-    # }
-    # if 'dataset_pagination' not in session_state:
-    #     session_state.dataset_pagination = DatasetPagination.Dashboard
-
-    # project_page_options = ("Dashboard", "Create New Dataset")
-
-    # def dataset_page_navigator():
-    #     session_state.dataset_pagination = project_page_options.index(
-    #         session_state.dataset_page_navigator_radio)
-
-    # if "dataset_page_navigator_radio" in session_state:
-    #     del session_state.dataset_page_navigator_radio
-
-    # with st.sidebar.expander("Dataset", expanded=True):
-    #     st.radio("", options=project_page_options,
-    #              index=session_state.dataset_pagination, on_change=dataset_page_navigator, key="dataset_page_navigator_radio")
-
-    # dataset_page[session_state.dataset_pagination]()
-
     project_page = {
         ProjectPagination.Dashboard: dashboard,
         ProjectPagination.New: new_project.index,
