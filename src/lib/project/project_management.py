@@ -149,14 +149,16 @@ class BaseProject:
         # join directory name with '-' dash
         project_path = PROJECT_DIR / str(directory_name)
         log_info(f"Project Path: {str(project_path)}")
+
         return project_path
 
 
 class Project(BaseProject):
     def __init__(self, project_id: int) -> None:
         super().__init__(project_id)
+        self.project_status = ProjectPagination.Existing  # flag for pagination
         self.datasets, self.column_names = self.query_project_dataset_list()
-        self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
+        self.dataset_dict = self.get_dataset_name_list()
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
         # self.dataset_list = self.load_dataset()
@@ -170,8 +172,7 @@ class Project(BaseProject):
                                 p.name,
                                 description,
                                 dt.name as deployment_type,
-                                deployment_id,
-                                project_path
+                                deployment_id                              
                                 
                             FROM
                                 public.project p
@@ -196,17 +197,19 @@ class Project(BaseProject):
                                     d.id AS "ID",
                                     d.name AS "Name",
                                     d.dataset_size AS "Dataset Size",
-                                    pd.updated_at AS "Date/Time",
-                                    
+                                    pd.updated_at AS "Date/Time"                                    
                                 FROM
                                     public.project_dataset pd
                                     LEFT JOIN public.dataset d ON d.id = pd.dataset_id
                                 WHERE
-                                    pd.project_id = %s;
+                                    pd.project_id = %s
+                                ORDER BY d.id ASC;
                                     """
         query_project_dataset_vars = [self.id]
         project_datasets, column_names = db_fetchall(
             query_project_dataset_SQL, conn, query_project_dataset_vars, fetch_col_name=True)
+
+        log_info("Querying list of dataset attached to project from database......")
         project_dataset_tmp = []
         if project_datasets:
             for dataset in project_datasets:
@@ -222,6 +225,25 @@ class Project(BaseProject):
             project_dataset_tmp = []
 
         return project_dataset_tmp, column_names
+
+    def get_dataset_name_list(self):
+        """Generate Dictionary of namedtuple
+
+        Args:
+            project_dataset_list (List[namedtuple]): Query from database
+
+        Returns:
+            Dict: Dictionary of namedtuple
+        """
+        project_dataset_dict = {}
+        if self.datasets:
+            for dataset in self.datasets:
+                # DEPRECATED -> dataset info can be accessed through namedtuple of dataset_dict
+                # dataset_name_list[dataset.Name] = dataset.ID
+                project_dataset_dict[dataset.Name] = dataset
+            log_info("Generating list of project dataset names and ID......")
+
+        return project_dataset_dict
 
     @st.cache
     def load_dataset(self) -> List:
@@ -295,6 +317,7 @@ class NewProject(BaseProject):
         super().__init__(project_id)
         self.project_total_filesize = 0  # in byte-size
         self.has_submitted = False
+        self.project_status = ProjectPagination.New  # flag for pagination
 
     def query_deployment_id(self) -> int:
         query_id_SQL = """

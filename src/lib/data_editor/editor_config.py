@@ -6,8 +6,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 import sys
 from pathlib import Path
-from enum import IntEnum
-from copy import deepcopy
+from typing import Union, List, Dict
 from time import sleep
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -30,9 +29,9 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
-from data_editor.editor_management import Editor, EditorFlag, load_sample_image
+from data_editor.editor_management import Editor, load_sample_image
 from data_editor.streamlit_labelstudio import st_labelstudio
-from project.project_management import Project
+from project.project_management import NewProject, Project
 from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
 # <<<< User-defined Modules <<<<
 
@@ -41,8 +40,11 @@ conn = init_connection(**st.secrets["postgres"])
 place = {}
 
 
-def editor_config(project_id: int, deployment_type: str):
+def editor_config(project: Union[NewProject, Project]):
+    log_info("Entered editor config")
 
+
+    # project_id: int, deployment_type: str
     chdir_root()  # change to root directory
 
     # >>>> LOAD SAMPLE IMAGE >>>>
@@ -70,7 +72,7 @@ def editor_config(project_id: int, deployment_type: str):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-            }
+        }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -81,10 +83,8 @@ def editor_config(project_id: int, deployment_type: str):
 # ******** SESSION STATE *********************************************************
 
     if "editor" not in session_state:
-        # TODO Pass current project ID into here
-        # session_state.project = Project(7)
-
-        session_state.editor = Editor(project_id, deployment_type)
+        deployment_type = DEPLOYMENT_TYPE[project.deployment_type]        
+        session_state.editor = Editor(project.id, deployment_type)
 
     # ******** SESSION STATE *********************************************************
 
@@ -199,35 +199,35 @@ def editor_config(project_id: int, deployment_type: str):
 
             if session_state.editor.update_editor_config(deployment_type):
 
-                #>>>> Display success message
+                # >>>> Display success message
                 update_success_place = st.empty()
                 update_success_place.success(
                     f"Successfully updated editor configurations")
-                sleep(0.5)
+                sleep(0.7)
                 update_success_place.empty()
 
-                # if 'editor' in session_state:
-                #     del session_state.editor
+                if 'editor' in session_state:
+                    del session_state.editor
 
         st.button('Save', key='save_editor_config',
                   on_click=save_editor_config, args=(deployment_type,))
 
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
-    with lowercol1:
-        st.write("Labels selected:")
-        st.write(session_state.labels_select)
-        st.write("Doc")
-        st.write(session_state.editor.xml_doc)
-        st.write("Label Childnodes")
-        st.write(session_state.editor.childNodes)
-        st.write("Labels")
-        st.write(session_state.editor.labels)
-        st.write("Attributes")
-        st.write(tagName_attributes)
-        st.write("Editor Class")
-        st.write(vars(session_state.editor))
+    # with lowercol1:
+    #     st.write("Labels selected:")
+    #     st.write(session_state.labels_select)
+    #     st.write("Doc")
+    #     st.write(session_state.editor.xml_doc)
+    #     st.write("Label Childnodes")
+    #     st.write(session_state.editor.childNodes)
+    #     st.write("Labels")
+    #     st.write(session_state.editor.labels)
+    #     st.write("Attributes")
+    #     st.write(tagName_attributes)
+    #     st.write("Editor Class")
+    #     st.write(vars(session_state.editor))
 
-    with st.expander('Editor Config', expanded=True):
+    with st.expander('Editor Config', expanded=False):
         config2 = session_state.editor.to_xml_string(
             pretty=True)
         st.code(config2, language='xml')
@@ -242,7 +242,7 @@ def main():
 
     # ****************** TEST ******************************
     if not RELEASE:
-
+        log_info("At main")
         # ************************TO REMOVE************************
         with st.sidebar.container():
             st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -251,9 +251,12 @@ def main():
                 "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
             st.markdown("""___""")
         # ************************TO REMOVE************************
-        project_id = 7
-        deployment_type = DEPLOYMENT_TYPE["Object Detection with Bounding Boxes"] # get enum ->2
-        editor_config(project_id, deployment_type)
+        # project_id = 7
+        # # get enum ->2
+        # deployment_type = DEPLOYMENT_TYPE["Object Detection with Bounding Boxes"]
+        project=Project(7)
+        editor_config(project)
+        log_info("At main bottom")
 
 
 if __name__ == "__main__":

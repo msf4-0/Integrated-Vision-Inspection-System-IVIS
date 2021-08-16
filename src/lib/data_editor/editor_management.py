@@ -36,7 +36,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import get_mime
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
-from annotation.annotation_manager import annotation_types
+from annotation.annotation_management import annotation_types
 from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
@@ -321,7 +321,7 @@ class Editor(BaseEditor):
         # NOTE Update when submit button is pressed -> CALLBACK
         # serialise XML doc and Update database
         updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-        log_info(updated_editor_config_xml_string)
+        # log_info(updated_editor_config_xml_string)
         # self.update_editor_config(updated_editor_config_xml_string)
 
         return newChild
