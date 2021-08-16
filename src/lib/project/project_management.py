@@ -13,7 +13,7 @@ from enum import IntEnum
 from glob import glob, iglob
 import cv2
 import streamlit as st
-from streamlit import cli as stcli  # Add CLI so can run Python script directly
+from streamlit import cli as stcli
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -32,6 +32,10 @@ from data_manager.database_manager import init_connection, db_fetchone, db_no_fe
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.helper import get_directory_name
 from core.utils.form_manager import check_if_exists, check_if_field_empty
+from data_manager.dataset_management import Dataset, get_dataset_name_list
+# Add CLI so can run Python script directly
+from data_editor.editor_management import Editor
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -68,13 +72,11 @@ class BaseProject:
         self.deployment_id: Union[str, int] = None
         self.dataset_id: int = None
         self.training_id: int = None
-        self.editor_config: str = None
+        self.editor: str = None
         self.deployment_type: str = None
         self.dataset_chosen: List = []
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
-        # self.datasets, self.column_names = self.query_dataset_list()
-        # self.dataset_name_list, self.dataset_name_id = self.get_dataset_name_list()
         self.dataset_list: Dict = {}
         self.image_name_list: List = []  # for image_labelling
         self.annotation_task_join = []  # for image_labelling
@@ -161,10 +163,13 @@ class Project(BaseProject):
         self.dataset_dict = self.get_dataset_name_list()
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
+        self.project_path = self.get_project_path(self.name)
+        # Instantiate Editor class object
+        self.editor: str = Editor(self.id, self.deployment_type)
+
         # self.dataset_list = self.load_dataset()
 # TODO #57 ammend get_dataset_name_list
 
-    @st.cache
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
                             SELECT
@@ -184,13 +189,12 @@ class Project(BaseProject):
         project_field = db_fetchone(
             query_all_field_SQL, conn, query_all_field_vars)
         if project_field:
-            self.name, self.desc, self.deployment_type, self.deployment_id, self.project_path = project_field
+            self.name, self.desc, self.deployment_type, self.deployment_id = project_field
         else:
             log_error(
                 f"Project with ID: {self.id} does not exists in the database!!!")
         return project_field
 
-    @st.cache
     def query_project_dataset_list(self) -> List:
         query_project_dataset_SQL = """
                                 SELECT
@@ -236,14 +240,23 @@ class Project(BaseProject):
             Dict: Dictionary of namedtuple
         """
         project_dataset_dict = {}
-        if self.datasets:
-            for dataset in self.datasets:
-                # DEPRECATED -> dataset info can be accessed through namedtuple of dataset_dict
-                # dataset_name_list[dataset.Name] = dataset.ID
-                project_dataset_dict[dataset.Name] = dataset
-            log_info("Generating list of project dataset names and ID......")
+        # if self.datasets:
+        #     for dataset in self.datasets:
+        #         # DEPRECATED -> dataset info can be accessed through namedtuple of dataset_dict
+        #         # dataset_name_list[dataset.Name] = dataset.ID
+        #         project_dataset_dict[dataset.Name] = dataset
+        project_dataset_dict = get_dataset_name_list(self.datasets)  # UPDATED
+        log_info("Generating list of project dataset names and ID......")
 
         return project_dataset_dict
+
+    def refresh_project_details(self):
+        """Redundant function to update project attributes
+        """
+        self.datasets, self.column_names = self.query_project_dataset_list()
+        self.dataset_dict = self.get_dataset_name_list()
+        self.data_name_list = self.get_data_name_list()
+        self.query_all_fields()
 
     @st.cache
     def load_dataset(self) -> List:
@@ -297,14 +310,14 @@ class Project(BaseProject):
             data_name_list = {}
             for d in self.datasets:
                 data_name_tmp = []
-                dataset_path = d.Path
-                dataset_path = dataset_path + "/*"
+                dataset_path = Dataset.get_dataset_path(d.Name)
+                dataset_path = dataset_path / "./*"
                 # for data_path in iglob(dataset_path):
                 #     data_name = Path(data_path).name
                 #     data_name_tmp.append(data_name)
 
                 data_name_tmp = [Path(data_path).name
-                                 for data_path in iglob(dataset_path)]  # UPDATED with List comprehension
+                                 for data_path in iglob(str(dataset_path))]  # UPDATED with List comprehension
 
                 data_name_list[d.Name] = sorted(data_name_tmp)
 

@@ -96,6 +96,15 @@ class BaseEditor:
 
         return parent_tagname, child_tagname
 
+    @staticmethod
+    def get_deployment_type(deployment_type: Union[str, IntEnum]):
+        if isinstance(deployment_type, IntEnum):
+            deployment_type = deployment_type
+        elif isinstance(deployment_type, str):
+            deployment_type = DEPLOYMENT_TYPE[deployment_type]
+
+        return deployment_type
+
 
 class NewEditor(BaseEditor):
     def __init__(self, random_generator) -> None:
@@ -103,6 +112,12 @@ class NewEditor(BaseEditor):
         self.name: str = random_generator
 
     def init_editor(self) -> int:
+        """Load base editor template into the database
+
+        Returns:
+            int: Editor ID
+        """
+
         init_editor_SQL = """
                                     INSERT INTO public.editor (
                                         name,
@@ -126,8 +141,9 @@ class Editor(BaseEditor):
         self.xml_doc: minidom.Document = None
         self.childNodes: minidom.Node = None
         self.project_id = project_id
+        self.deployment_type = self.get_deployment_type(deployment_type)
         self.parent_tagname, self.child_tagname = self.get_annotation_tags(
-            deployment_type)
+            self.deployment_type)
         self.editor_config = self.load_raw_xml()
         self.xml_doc = self.load_xml(self.editor_config)
         self.query_editor_fields()
@@ -365,7 +381,7 @@ class Editor(BaseEditor):
             # self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
 
-    def generate_labels_dict(self, deployment_type) -> dict:
+    def generate_labels_dict(self, deployment_type:IntEnum) -> dict:
         """  Generate labels dictionary to display on project dashboard
         {'Bounding Box':[List of labels],
             'Classification':[List of labels]
@@ -386,10 +402,10 @@ class Editor(BaseEditor):
 
         return labels_dict
 
-    def update_editor_config(self, deployment_type: str):
+    def update_editor_config(self):
 
         updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-        labels_dict = self.generate_labels_dict(deployment_type)
+        labels_dict = self.generate_labels_dict(self.deployment_type)
         labels_json = json.dumps(labels_dict)
 
         update_editor_config_SQL = """
