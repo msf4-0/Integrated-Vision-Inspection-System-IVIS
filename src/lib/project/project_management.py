@@ -61,6 +61,22 @@ class ProjectPagination(IntEnum):
         except KeyError:
             raise ValueError()
 
+
+class NewProjectPagination(IntEnum):
+    Entry = 0
+    NewDataset = 1
+    EditorConfig = 2
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return NewProjectPagination[s]
+        except KeyError:
+            raise ValueError()
+
 # <<<< Variable Declaration <<<<
 
 

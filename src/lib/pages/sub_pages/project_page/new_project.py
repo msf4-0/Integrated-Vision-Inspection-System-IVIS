@@ -13,6 +13,8 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 from core.webcam.webcam_webrtc import show
+from data_editor.editor_config import editor_config
+from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
 
 # DEFINE Web APP page configuration
@@ -37,8 +39,8 @@ from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
-from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
-from project.project_management import NewProject
+from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
+from project.project_management import NewProject, ProjectPagination, NewProjectPagination
 from data_editor.editor_management import Editor, NewEditor
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -55,18 +57,8 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
 
 chdir_root()  # change to root directory
 
-# with st.sidebar.container():
 
-#     st.image("resources/MSF-logo.gif", use_column_width=True)
-# # with st.container():
-#     st.title("Integrated Vision Inspection System", anchor='title')
-
-#     st.header(
-#         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-#     st.markdown("""___""")
-
-
-def new_project():
+def new_project_entry_page():
 
     # >>>> INIT >>>>
     # ********* QUERY DATASET ********************************************
@@ -82,6 +74,14 @@ def new_project():
         session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
 
+    if 'project_status' not in session_state:
+        session_state.project_status = ProjectPagination.New
+    else:
+        session_state.project_status = ProjectPagination.New
+    if 'project_pagination' not in session_state:
+        session_state.project_pagination = ProjectPagination.New
+    else:
+        session_state.project_pagination = ProjectPagination.New
     # ******** SESSION STATE *********************************************************
 
     # Page title
@@ -181,7 +181,13 @@ def new_project():
         place["dataset_chosen"] = st.empty()
 
         # TODO #55 Button to create new dataset
-        new_data_button = st.button("Create New Dataset")
+
+    # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        def to_new_dataset_page():
+            session_state.new_project_pagination = NewProjectPagination.NewDataset
+
+        st.button("Create New Dataset", key="create_new_dataset_from_new_project",
+                  on_click=to_new_dataset_page, help="Create new dataset")
 
         # >>>> DISPLAY CHOSEN DATASET>>>>
         st.write("### Dataset choosen:")
@@ -267,9 +273,11 @@ def new_project():
     context = {'name': session_state.new_project.name,
                'deployment_type': session_state.new_project.deployment_type, 'dataset_chosen': session_state.new_project.dataset_chosen}
 
-    col1, col2 = st.columns([3, 0.5])
-    submit_button = col2.button("Submit", key="submit")
-    session_state.new_project.has_submitted = False
+    submit_col1, submit_col2 = st.columns([3, 0.5])
+    submit_button = submit_col2.button("Submit", key="submit")
+
+    # >>>> Removed
+    # session_state.new_project.has_submitted = False
     if submit_button:
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
             context, field_placeholder=place)
@@ -283,6 +291,7 @@ def new_project():
                         session_state.new_project.id, session_state.new_project.deployment_type)
                     success_place.success(
                         f"Successfully stored **{session_state.new_project.name}** project information in database")
+                    # session_state.new_project_pagination == NewProjectPagination.EditorConfig #TODO
                 else:
                     success_place.error(
                         f"Failed to stored **{session_state.new_editor.name}** editor config in database")
@@ -298,15 +307,39 @@ def new_project():
     # col2.write(dataset_dict)
 
 
-def main():
+def index():
+    new_project_page = {
+        NewProjectPagination.Entry: new_project_entry_page,
+        NewProjectPagination.NewDataset: new_dataset,
+        NewProjectPagination.EditorConfig: editor_config
+    }
+    if 'new_project_pagination' not in session_state:
+        session_state.new_project_pagination = NewProjectPagination.Entry
 
-    new_project()
+    if session_state.new_project_pagination == NewProjectPagination.EditorConfig:
+        new_project_page[session_state.new_project_pagination](
+            session_state.new_project)
+    else:
+        new_project_page[session_state.new_project_pagination]()
+
+    back_to_entry_page_button_place = st.empty()
+
+    if session_state.new_project_pagination == NewProjectPagination.NewDataset:
+
+        def to_new_project_entry_page():
+            NewDataset.reset_new_dataset_page()
+            session_state.new_project_pagination = NewProjectPagination.Entry
+        back_to_entry_page_button_place.button("Back", key="back_to_entry_page",
+                                               on_click=to_new_project_entry_page)
+
+    else:
+        back_to_entry_page_button_place.empty()
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
 
-        main()
+        index()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

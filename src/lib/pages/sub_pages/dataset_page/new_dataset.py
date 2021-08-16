@@ -38,6 +38,7 @@ from core.webcam import webcam_webrtc
 from core.utils.helper import check_filetype
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import NewDataset, DatasetPagination
+from project.project_management import NewProjectPagination, ProjectPagination
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -258,12 +259,6 @@ def new_dataset():
                     success_place.success(
                         f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
 
-                    # reset NewDataset class object
-                    session_state.new_dataset = NewDataset(
-                        get_random_string(length=8))
-                    if 'upload_widget' in session_state:
-                        del session_state.upload_widget
-
                 else:
                     st.error(
                         f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")
@@ -271,7 +266,32 @@ def new_dataset():
                 st.error(
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
 
+    # TODO Move to dataset_page
     def to_dataset_dashboard_page():
+
+        # Check project status:
+        # if New Project => return to Entry page
+        # else => return to Dataset Dashboard
+        # try:
+        #     if "project_status" not in session_state:
+        #         session_state.project_status = None
+        #     if session_state.project_status:
+        #         if session_state.project_status == ProjectPagination.New:
+        #             # If New Project
+        #             session_state.new_project_pagination = NewProjectPagination.Entry
+
+        #         elif session_state.project_status == ProjectPagination.Existing:
+        #             # If Existing Project
+        #             # NOTE
+        #             session_state.project_pagination = ProjectPagination.Existing
+
+        # except Exception as e:
+        #     log_error(
+        #         f"""{e}: Either New Dataset Page entered from Dataset Dashboard or 
+        #         session_state.new_project is not initialised or nullified""")
+
+        # >>>> CLEAR ALL CLASS ATTRIBUTES AND WIDGET STATES >>>>
+        NewDataset.reset_new_dataset_page()
         session_state.dataset_pagination = DatasetPagination.Dashboard
 
     st.button("Back", key='back_to_dataset_dashboard',

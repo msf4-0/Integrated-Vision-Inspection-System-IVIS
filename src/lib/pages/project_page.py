@@ -34,7 +34,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from project.project_management import NewProject, ProjectPagination
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
-from pages.sub_pages.project_page.new_project import new_project
+from pages.sub_pages.project_page import new_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -85,13 +85,16 @@ def main():
 
     project_page = {
         ProjectPagination.Dashboard: dashboard,
-        ProjectPagination.New: new_project,
+        ProjectPagination.New: new_project.index,
         ProjectPagination.Existing: None,
         ProjectPagination.NewDataset: new_dataset
     }
 
     if 'project_pagination' not in session_state:
         session_state.project_pagination = ProjectPagination.Dashboard
+
+    if 'project_status' not in session_state:
+        session_state.project_status = None
 
     project_page_options = ("Dashboard", "Create New Project")
 
@@ -101,7 +104,7 @@ def main():
 
         session_state.project_pagination = project_page_options.index(
             session_state.project_page_navigator_radio)
-        
+
         if "project_page_navigator_radio" in session_state:
             del session_state.project_page_navigator_radio
 

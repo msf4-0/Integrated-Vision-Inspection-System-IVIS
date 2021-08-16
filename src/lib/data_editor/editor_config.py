@@ -12,9 +12,11 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 # DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
+# NOTE
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -29,7 +31,7 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
-from data_editor.editor_management import  load_sample_image
+from data_editor.editor_management import load_sample_image
 from data_editor.streamlit_labelstudio import st_labelstudio
 from project.project_management import NewProject, Project
 # <<<< User-defined Modules <<<<
@@ -70,7 +72,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-                }
+            }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -253,7 +255,7 @@ def main():
         # # get enum ->2
         # deployment_type = DEPLOYMENT_TYPE["Object Detection with Bounding Boxes"]
         if 'project' not in session_state:
-            session_state.project=Project(7)
+            session_state.project = Project(7)
         # project = Project(7)
         # project.refresh_project_details()
         # st.write(vars(session_state.project))
