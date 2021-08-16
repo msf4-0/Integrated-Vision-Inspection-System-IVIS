@@ -171,23 +171,6 @@ class BaseDataset:
         exists_flag = check_if_exists(
             table, context['column_name'], context['value'], conn)
 
-        return exists_flag
-
-# NOTE DEPRECATED *************************
-    # def check_if_exists(self, context: List, conn) -> bool:
-    #     check_exist_SQL = """
-    #                         SELECT
-    #                             EXISTS (
-    #                                 SELECT
-    #                                     %s
-    #                                 FROM
-    #                                     public.dataset
-    #                                 WHERE
-    #                                     name = %s);
-    #                     """
-    #     exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
-    #     return exist_status
-
     def dataset_PNG_encoding(self):
         if self.dataset:
             for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading data"):
@@ -264,7 +247,6 @@ class NewDataset(BaseDataset):
                                 INSERT INTO public.dataset (
                                     name,
                                     description,
-                                    
                                     dataset_size,
                                     filetype_id)
                                 VALUES (
@@ -404,23 +386,6 @@ class Dataset(BaseDataset):
             log_info(f'Renamed dataset path to {new_dataset_path}')
         except Exception as e:
             log_error(f'{e}: Could not rename file')
-
-    # NOTE: No longer storing dataset path in server
-        # update_dataset_path_SQL = """
-        #                         UPDATE
-        #                             public.dataset
-        #                         SET
-        #                             dataset_path = %s
-        #                         WHERE
-        #                             id = %s
-        #                         RETURNING dataset_path;
-        # """
-        # update_dataset_path_vars = [str(new_dataset_path), self.id]
-        # new_dataset_path_return = db_fetchone(
-        #     update_dataset_path_SQL, conn, update_dataset_path_vars)
-
-        # log_info(f"Updating dataset path {new_dataset_path_return}")
-        # self.dataset_path = new_dataset_path_return if new_dataset_path_return else self.dataset_path
 
     def update_dataset(self):
         """Wrapper function to update existing dataset

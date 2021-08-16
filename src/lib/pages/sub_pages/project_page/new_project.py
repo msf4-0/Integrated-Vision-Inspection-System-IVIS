@@ -37,7 +37,7 @@ from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
 from project.project_management import NewProject, ProjectPagination
-from data_editor.editor_management import NewEditor
+from data_editor.editor_management import Editor, NewEditor
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -276,6 +276,8 @@ def new_project():
             if session_state.new_project.initialise_project(dataset_dict):
                 session_state.new_editor.project_id = session_state.new_project.id
                 if session_state.new_editor.init_editor():
+                    session_state.new_project.editor = Editor(
+                        session_state.new_project.id, session_state.new_project.deployment_type)
                     success_place.success(
                         f"Successfully stored **{session_state.new_project.name}** project information in database")
                 else:

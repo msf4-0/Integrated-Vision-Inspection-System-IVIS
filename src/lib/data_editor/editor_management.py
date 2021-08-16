@@ -36,8 +36,8 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import get_mime
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
-from annotation.annotation_manager import annotation_types
-from deployment.deployment_management import DEPLOYMENT_TYPE
+from annotation.annotation_management import annotation_types
+from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -69,10 +69,10 @@ class EditorFlag(IntEnum):
 
 # TAG_NAMES=
 TAGNAMES = {
-    "Image Classification": {"type": "Choices", "tag": "Choice"},
-    "Object Detection with Bounding Boxes": {"type": "RectangleLabels", "tag": "Label"},
-    "Semantic Segmentation with Polygons": {"type": "PolygonLabels", "tag": "Label"},
-    "Semantic Segmentation with Masks": {"type": "BrushLabels", "tag": "Label"},
+    DeploymentType.Image_Classification: {"type": "Choices", "tag": "Choice"},
+    DeploymentType.OD: {"type": "RectangleLabels", "tag": "Label"},
+    DeploymentType.Instance: {"type": "PolygonLabels", "tag": "Label"},
+    DeploymentType.Semantic: {"type": "BrushLabels", "tag": "Label"},
 }
 
 
@@ -96,6 +96,15 @@ class BaseEditor:
 
         return parent_tagname, child_tagname
 
+    @staticmethod
+    def get_deployment_type(deployment_type: Union[str, IntEnum]):
+        if isinstance(deployment_type, IntEnum):
+            deployment_type = deployment_type
+        elif isinstance(deployment_type, str):
+            deployment_type = DEPLOYMENT_TYPE[deployment_type]
+
+        return deployment_type
+
 
 class NewEditor(BaseEditor):
     def __init__(self, random_generator) -> None:
@@ -103,6 +112,12 @@ class NewEditor(BaseEditor):
         self.name: str = random_generator
 
     def init_editor(self) -> int:
+        """Load base editor template into the database
+
+        Returns:
+            int: Editor ID
+        """
+
         init_editor_SQL = """
                                     INSERT INTO public.editor (
                                         name,
@@ -116,7 +131,7 @@ class NewEditor(BaseEditor):
                                         id;"""
 
         init_editor_vars = [self.name, self.editor_config, self.project_id]
-        self.id = db_fetchone(init_editor_SQL, conn, init_editor_vars)[0]
+        self.id = db_fetchone(init_editor_SQL, conn, init_editor_vars).id
         return self.id
 
 
@@ -126,10 +141,11 @@ class Editor(BaseEditor):
         self.xml_doc: minidom.Document = None
         self.childNodes: minidom.Node = None
         self.project_id = project_id
+        self.deployment_type = self.get_deployment_type(deployment_type)
         self.parent_tagname, self.child_tagname = self.get_annotation_tags(
-            deployment_type)
+            self.deployment_type)
         self.editor_config = self.load_raw_xml()
-        self.xml_doc=self.load_xml(self.editor_config)
+        self.xml_doc = self.load_xml(self.editor_config)
         self.query_editor_fields()
 
     def query_editor_fields(self):
@@ -321,12 +337,12 @@ class Editor(BaseEditor):
         # NOTE Update when submit button is pressed -> CALLBACK
         # serialise XML doc and Update database
         updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-        log_info(updated_editor_config_xml_string)
+        # log_info(updated_editor_config_xml_string)
         # self.update_editor_config(updated_editor_config_xml_string)
 
         return newChild
 
-    def edit_labels(self,  attr: str, old_value: str, new_value: str,child_tagname: str=None):
+    def edit_labels(self, attr: str, old_value: str, new_value: str, child_tagname: str = None):
         if child_tagname is None:
             child_tagname = self.child_tagname
         nodeList = self.xml_doc.getElementsByTagName(child_tagname)
@@ -340,7 +356,7 @@ class Editor(BaseEditor):
         if new_attributes:
             return new_attributes
 
-    def remove_label(self,  attr: str, value: str,child_tagname: str=None):
+    def remove_label(self, attr: str, value: str, child_tagname: str = None):
         if child_tagname is None:
             child_tagname = self.child_tagname
         nodeList = self.xml_doc.getElementsByTagName(child_tagname)
@@ -365,7 +381,7 @@ class Editor(BaseEditor):
             # self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
 
-    def generate_labels_dict(self, deployment_type) -> dict:
+    def generate_labels_dict(self, deployment_type:IntEnum) -> dict:
         """  Generate labels dictionary to display on project dashboard
         {'Bounding Box':[List of labels],
             'Classification':[List of labels]
@@ -381,15 +397,15 @@ class Editor(BaseEditor):
         # get annotation type
         # generate dict
 
-        annotation_type = annotation_types[DEPLOYMENT_TYPE[deployment_type]]
+        annotation_type = annotation_types[deployment_type]
         labels_dict = {annotation_type: self.labels}
 
         return labels_dict
 
-    def update_editor_config(self, deployment_type: str):
+    def update_editor_config(self):
 
         updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-        labels_dict = self.get_labels(deployment_type)
+        labels_dict = self.generate_labels_dict(self.deployment_type)
         labels_json = json.dumps(labels_dict)
 
         update_editor_config_SQL = """
@@ -399,11 +415,15 @@ class Editor(BaseEditor):
                                         editor_config = %s,
                                         labels = %s::JSONB
                                     WHERE
-                                        project_id = %s;
+                                        project_id = %s
+                                    RETURNING id;
                                             """
         update_editor_config_vars = [
             updated_editor_config_xml_string, labels_json, self.project_id]
-        db_no_fetch(update_editor_config_SQL, conn, update_editor_config_vars)
+        query_return = db_fetchone(
+            update_editor_config_SQL, conn, update_editor_config_vars)
+
+        return query_return
 
 
 @st.cache
