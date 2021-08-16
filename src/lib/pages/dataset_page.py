@@ -7,7 +7,6 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from enum import IntEnum
 import streamlit as st
 from threading import Thread
 from time import sleep
@@ -45,7 +44,7 @@ from core.utils.file_handler import delete_file_directory
 from core.utils.dataset_handler import load_image_PIL
 from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, FileTypes, get_dataset_name_list, query_dataset_list
+from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, get_dataset_name_list, query_dataset_list
 from pages.sub_pages.dataset_page import new_dataset
 from annotation.annotation_manager import Task
 from data_table import data_table
@@ -80,8 +79,8 @@ def dashboard():
     st.markdown("___")
 
     # ********* QUERY DATASET ********************************************
-    existing_dataset, dataset_table_column_names = query_dataset_list()
-    dataset_dict = get_dataset_name_list(existing_dataset)
+    existing_dataset, dataset_table_column_names = query_dataset_list() #namedtuple of query from DB
+    dataset_dict = get_dataset_name_list(existing_dataset)  # Dict with dataset name as key and query as value
     # ********* QUERY DATASET ********************************************
 
     if "dataset_data" not in session_state:
@@ -537,7 +536,7 @@ def main():
     def dataset_page_navigator():
         session_state.dataset_pagination = project_page_options.index(
             session_state.dataset_page_navigator_radio)
-    
+
     if "dataset_page_navigator_radio" in session_state:
         del session_state.dataset_page_navigator_radio
 

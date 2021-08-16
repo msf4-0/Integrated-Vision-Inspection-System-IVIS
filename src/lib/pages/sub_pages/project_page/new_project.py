@@ -50,9 +50,6 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-# TODO #51 Utilise dataset query from dataset_management
-
-
 chdir_root()  # change to root directory
 
 with st.sidebar.container():
