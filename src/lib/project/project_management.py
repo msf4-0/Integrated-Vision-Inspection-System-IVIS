@@ -11,10 +11,11 @@ from typing import NamedTuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
+from colorutils import static
 import cv2
 import streamlit as st
 from streamlit import cli as stcli
-
+from streamlit import session_state as session_state
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -415,6 +416,18 @@ class NewProject(BaseProject):
                 f"Failed to stored **{self.name}** project information in database")
             return False
 
+    @staticmethod
+    def reset_new_project_page():
+        """Method to reset all widgets and attributes in the New Project Page when changing pages
+        """
+
+        new_project_attributes = ["new_project", "new_editor", "name",
+                                  "desc", "annotation_type", "dataset_page", "dataset_chosen"]
+
+        for attrib in new_project_attributes:
+            if attrib in session_state:
+                log_info(f"del {attrib}")
+                del session_state[attrib]
 
 # >>>> CREATE PROJECT >>>>
 

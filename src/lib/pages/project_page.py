@@ -32,7 +32,7 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
-from project.project_management import ProjectPagination
+from project.project_management import NewProject, ProjectPagination
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page.new_project import new_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -96,6 +96,9 @@ def main():
     project_page_options = ("Dashboard", "Create New Project")
 
     def project_page_navigator():
+
+        NewProject.reset_new_project_page()
+
         session_state.project_pagination = project_page_options.index(
             session_state.project_page_navigator_radio)
 
