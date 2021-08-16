@@ -101,6 +101,9 @@ def main():
 
         session_state.project_pagination = project_page_options.index(
             session_state.project_page_navigator_radio)
+        
+        if "project_page_navigator_radio" in session_state:
+            del session_state.project_page_navigator_radio
 
     with navigator.expander("Project", expanded=True):
         st.radio("", options=project_page_options,

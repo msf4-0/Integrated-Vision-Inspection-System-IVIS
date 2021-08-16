@@ -32,7 +32,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.helper import get_directory_name
-from core.utils.form_manager import check_if_exists, check_if_field_empty
+from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
 from data_editor.editor_management import Editor
@@ -424,10 +424,7 @@ class NewProject(BaseProject):
         new_project_attributes = ["new_project", "new_editor", "name",
                                   "desc", "annotation_type", "dataset_page", "dataset_chosen"]
 
-        for attrib in new_project_attributes:
-            if attrib in session_state:
-                log_info(f"del {attrib}")
-                del session_state[attrib]
+        reset_page_attributes(new_project_attributes)
 
 # >>>> CREATE PROJECT >>>>
 

@@ -9,19 +9,17 @@ from collections import namedtuple
 import sys
 from pathlib import Path
 import os
-from typing import Dict, Tuple, Union, List
+from typing import Dict, Union, List
 from enum import IntEnum
 from PIL import Image
-from time import sleep, perf_counter
-from glob import glob, iglob
+from time import sleep
+from glob import iglob
 from datetime import datetime
-from numpy import ndarray
 from stqdm import stqdm
-from videoprops import get_audio_properties, get_video_properties, pretty_print
+from videoprops import get_audio_properties, get_video_properties
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
-from core.utils.dataset_handler import get_image_size, load_image_PIL
+from streamlit import session_state as session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -40,7 +38,9 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import get_directory_name, get_mime
-from core.utils.form_manager import check_if_exists, check_if_field_empty
+from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
+from core.utils.dataset_handler import get_image_size
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -262,6 +262,16 @@ class NewDataset(BaseDataset):
         self.dataset_id = db_fetchone(
             insert_dataset_SQL, conn, insert_dataset_vars).id
         return self.dataset_id
+
+    @staticmethod
+    def reset_new_dataset_page():
+        """Method to reset all widgets and attributes in the New Dataset Page when changing pages
+        """
+
+        new_dataset_attributes = ["new_dataset", "data_source_radio", "name",
+                                  "desc", "upload_widget"]
+
+        reset_page_attributes(new_dataset_attributes)
 
 
 class Dataset(BaseDataset):

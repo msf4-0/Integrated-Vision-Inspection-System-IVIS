@@ -71,8 +71,6 @@ def new_dataset():
     chdir_root()  # change to root directory
 
     # ******** SESSION STATE ********
-    if "current_page" not in session_state:
-        session_state.previous_page = "All Datasets"
 
     if "new_dataset" not in session_state:
         # set random dataset ID before getting actual from Database

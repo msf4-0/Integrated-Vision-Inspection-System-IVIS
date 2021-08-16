@@ -44,7 +44,7 @@ from core.utils.file_handler import delete_file_directory
 from core.utils.dataset_handler import load_image_PIL
 from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, get_dataset_name_list, query_dataset_list
+from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, NewDataset, get_dataset_name_list, query_dataset_list
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from annotation.annotation_management import Task
 from data_table import data_table
@@ -536,11 +536,12 @@ def main():
     dataset_page_options = ("Dashboard", "Create New Dataset")
 
     def dataset_page_navigator():
+        NewDataset.reset_new_dataset_page()
         session_state.dataset_pagination = dataset_page_options.index(
             session_state.dataset_page_navigator_radio)
 
-    if "dataset_page_navigator_radio" in session_state:
-        del session_state.dataset_page_navigator_radio
+        if "dataset_page_navigator_radio" in session_state:
+            del session_state.dataset_page_navigator_radio
 
     with st.sidebar.expander("Dataset", expanded=True):
         st.radio("", options=dataset_page_options,
