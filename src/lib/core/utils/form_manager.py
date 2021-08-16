@@ -3,7 +3,9 @@ from pathlib import Path
 from typing import Dict
 from psycopg2 import sql
 from time import sleep
+from typing import List
 import streamlit as st
+from streamlit import session_state as session_state
 
 SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -64,7 +66,7 @@ def check_if_field_empty(context: Dict, field_placeholder, check_if_exists=None)
                     log_error('escaped check')
 
             else:
-                
+
                 pass
         else:
 
@@ -74,3 +76,16 @@ def check_if_field_empty(context: Dict, field_placeholder, check_if_exists=None)
     log_info(empty_fields)
     # if empty_fields not empty -> return False, else -> return True
     return not empty_fields
+
+
+def remove_newline_trailing_whitespace(text: str) -> str:
+    fixed_text = " ".join([x for x in text.split()])
+
+    return fixed_text
+
+
+def reset_page_attributes(attributes_list: List):
+    for attrib in attributes_list:
+        if attrib in session_state:
+            log_info(f"del {attrib}")
+            del session_state[attrib]

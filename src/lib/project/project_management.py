@@ -11,10 +11,12 @@ from typing import NamedTuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
+from colorutils import static
 import cv2
 import streamlit as st
 from streamlit import cli as stcli
-
+from streamlit import session_state as session_state
+import streamlit.components.v1 as components
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -30,8 +32,8 @@ from path_desc import chdir_root, PROJECT_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.helper import get_directory_name
-from core.utils.form_manager import check_if_exists, check_if_field_empty
+from core.utils.helper import NavColor, get_directory_name
+from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes, remove_newline_trailing_whitespace
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
 from data_editor.editor_management import Editor
@@ -57,6 +59,22 @@ class ProjectPagination(IntEnum):
     def from_string(cls, s):
         try:
             return ProjectPagination[s]
+        except KeyError:
+            raise ValueError()
+
+
+class NewProjectPagination(IntEnum):
+    Entry = 0
+    NewDataset = 1
+    EditorConfig = 2
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return NewProjectPagination[s]
         except KeyError:
             raise ValueError()
 
@@ -166,9 +184,6 @@ class Project(BaseProject):
         self.project_path = self.get_project_path(self.name)
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
-
-        # self.dataset_list = self.load_dataset()
-# TODO #57 ammend get_dataset_name_list
 
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
@@ -418,6 +433,64 @@ class NewProject(BaseProject):
                 f"Failed to stored **{self.name}** project information in database")
             return False
 
+    @staticmethod
+    def reset_new_project_page():
+        """Method to reset all widgets and attributes in the New Project Page when changing pages
+        """
+
+        new_project_attributes = ["new_project", "new_editor", "new_project_name",
+                                  "new_project_desc", "annotation_type", "new_project_dataset_page", "new_project_dataset_chosen"]
+
+        reset_page_attributes(new_project_attributes)
+
+
+# *********************NEW PROJECT PAGE NAVIGATOR ********************************************
+def new_project_nav(color):
+
+    html_string = f'''
+    <style>
+      .div1 {{
+        display: flex;
+        justify-content: space-evenly;
+
+        padding: 10px;
+        width: 30%;
+        margin-left: auto;
+        margin-right: auto;
+      }}
+      .div2 {{
+      color:white;
+        border-radius: 25px 0px 0px 25px;
+        border-style: solid;
+        border-color: {color[0].border};
+        background-color: {color[0].background};
+        padding: 10px;
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+      }}
+      .div3 {{
+      color:white;
+        border-radius: 0px 25px 25px 0px;
+        border-style: solid;
+        border-color: {color[1].border};
+        background-color: {color[1].background};
+        padding: 10px;
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+      }}
+    </style>
+    
+      <div class="div1">
+        <div class="div2">New Project Info</div>
+        <div class="div3">Editor Setup</div>
+      </div>
+    
+  '''
+    components.html(html_string, height=100)
 
 # >>>> CREATE PROJECT >>>>
 

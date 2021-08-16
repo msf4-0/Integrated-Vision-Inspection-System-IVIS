@@ -4,90 +4,98 @@ Date: 5/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
-import streamlit as st
 
-from pathlib import Path
-from time import sleep
 import sys
-import logging
+from pathlib import Path
+from enum import IntEnum
+from time import sleep
+import streamlit as st
+from streamlit import cli as stcli
+from streamlit import session_state as session_state
 
-
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
-from path_desc import chdir_root
-layout = 'wide'
-# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # DEFINE Web APP page configuration
+layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 
-import psycopg2
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+# TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
-@st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
-def init_connection():
-    return psycopg2.connect(**st.secrets["postgres"])
+from path_desc import chdir_root
+from core.utils.log import log_info, log_error  # logger
+from data_manager.database_manager import init_connection
+from project.project_management import NewProject, ProjectPagination
+from pages.sub_pages.dataset_page.new_dataset import new_dataset
+from pages.sub_pages.project_page import new_project
+# >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
+# initialise connection to Database
+conn = init_connection(**st.secrets["postgres"])
+PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
 
+# <<<< Variable Declaration <<<<
+chdir_root()  # change to root directory
 
-#--------------------Logger-------------------------#
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
+with st.sidebar.container():
+    st.image("resources/MSF-logo.gif", use_column_width=True)
 
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.INFO)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
-
-log = logging.getLogger()
-
-#----------------------------------------------------#
-# PROJECT_PAGE_OPTIONS = {"All Projects":, "New Project":}
-
-def show():
-    chdir_root()
-
-    # #------------------START------------------------#
-    with st.sidebar.beta_container():
-
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-    with st.beta_container():
-        st.title("Integrated Vision Inspection System", anchor='title')
-
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    st.title("Integrated Vision Inspection System", anchor='title')
+    st.header(
+        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
     st.markdown("""___""")
+    st.radio("", options=PAGE_OPTIONS, key="all_pages")
 
-    #-------------------------------------------#
-    conn = init_connection()
-    if "current_page" not in st.session_state:
-        st.session_state.current_page = "All Projects"
-        st.session_state.previous_page = "All Projects"
-
-    # >>>> Project Sidebar >>>>
-    project_page_options = ("All Projects", "New Project")
-    with st.sidebar.beta_expander("Project Page", expanded=True):
-        st.session_state.current_page = st.radio("project_page_select", options=project_page_options,
-                                                 index=0)
-
-    # # <<<<<<<<<<<<<<<<<<<<<<<<<
-    # st.write("")
+navigator = st.sidebar.empty()
 
 
-show()
+def dashboard():
+    st.write(f"# Nothing")
 
 
-# if __name__ == "__main__":
-#     if st._is_running_with_streamlit:
+def main():
 
-#         main()
-#     else:
-#         sys.argv = ["streamlit", "run", sys.argv[0]]
-#         sys.exit(stcli.main())
+    project_page = {
+        ProjectPagination.Dashboard: dashboard,
+        ProjectPagination.New: new_project.index,
+        ProjectPagination.Existing: None,
+        ProjectPagination.NewDataset: new_dataset
+    }
+
+    if 'project_pagination' not in session_state:
+        session_state.project_pagination = ProjectPagination.Dashboard
+
+    if 'project_status' not in session_state:
+        session_state.project_status = None
+
+    project_page_options = ("Dashboard", "Create New Project")
+
+    def project_page_navigator():
+
+        NewProject.reset_new_project_page()
+
+        session_state.project_pagination = project_page_options.index(
+            session_state.project_page_navigator_radio)
+
+        if "project_page_navigator_radio" in session_state:
+            del session_state.project_page_navigator_radio
+
+    with navigator.expander("Project", expanded=True):
+        st.radio("", options=project_page_options,
+                 index=session_state.project_pagination, on_change=project_page_navigator, key="project_page_navigator_radio")
+
+    project_page[session_state.project_pagination]()
+
+
+if __name__ == "__main__":
+    if st._is_running_with_streamlit:
+        main()
+    else:
+        sys.argv = ["streamlit", "run", sys.argv[0]]
+        sys.exit(stcli.main())
