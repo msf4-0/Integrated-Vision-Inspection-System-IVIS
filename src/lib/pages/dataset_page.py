@@ -37,7 +37,7 @@ if str(TEST_MODULE_PATH) not in sys.path:
 else:
     pass
 # >>>> User-defined Modules >>>>
-from path_desc import DATASET_DIR, chdir_root
+from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.file_handler import delete_file_directory
@@ -45,8 +45,8 @@ from core.utils.dataset_handler import load_image_PIL
 from data_import.data_upload_module import data_uploader
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, get_dataset_name_list, query_dataset_list
-from pages.sub_pages.dataset_page import new_dataset
-from annotation.annotation_manager import Task
+from pages.sub_pages.dataset_page.new_dataset import new_dataset
+from annotation.annotation_management import Task
 from data_table import data_table
 # from data_table_test import data_table  # FOR DEVELOPMENT
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -79,8 +79,10 @@ def dashboard():
     st.markdown("___")
 
     # ********* QUERY DATASET ********************************************
-    existing_dataset, dataset_table_column_names = query_dataset_list() #namedtuple of query from DB
-    dataset_dict = get_dataset_name_list(existing_dataset)  # Dict with dataset name as key and query as value
+    # namedtuple of query from DB
+    existing_dataset, dataset_table_column_names = query_dataset_list()
+    # Dict with dataset name as key and query as value
+    dataset_dict = get_dataset_name_list(existing_dataset)
     # ********* QUERY DATASET ********************************************
 
     if "dataset_data" not in session_state:
@@ -526,22 +528,22 @@ def main():
 
     dataset_page = {
         DatasetPagination.Dashboard: dashboard,
-        DatasetPagination.New: new_dataset.show
+        DatasetPagination.New: new_dataset
     }
     if 'dataset_pagination' not in session_state:
         session_state.dataset_pagination = DatasetPagination.Dashboard
 
-    project_page_options = ("Dashboard", "Create New Dataset")
+    dataset_page_options = ("Dashboard", "Create New Dataset")
 
     def dataset_page_navigator():
-        session_state.dataset_pagination = project_page_options.index(
+        session_state.dataset_pagination = dataset_page_options.index(
             session_state.dataset_page_navigator_radio)
 
     if "dataset_page_navigator_radio" in session_state:
         del session_state.dataset_page_navigator_radio
 
     with st.sidebar.expander("Dataset", expanded=True):
-        st.radio("", options=project_page_options,
+        st.radio("", options=dataset_page_options,
                  index=session_state.dataset_pagination, on_change=dataset_page_navigator, key="dataset_page_navigator_radio")
 
     dataset_page[session_state.dataset_pagination]()

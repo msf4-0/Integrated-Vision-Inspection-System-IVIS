@@ -66,7 +66,7 @@ class DeploymentType(IntEnum):
             raise ValueError()
 
 
-def show():
+def new_dataset():
 
     chdir_root()  # change to root directory
 
@@ -285,7 +285,7 @@ def show():
 
 
 def main():
-    show()
+    new_dataset()
 
 
 if __name__ == "__main__":

@@ -12,11 +12,13 @@ from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+from core.webcam.webcam_webrtc import show
+
 
 # DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -36,8 +38,9 @@ from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from data_manager.dataset_management import query_dataset_list, get_dataset_name_list
-from project.project_management import NewProject, ProjectPagination
+from project.project_management import NewProject
 from data_editor.editor_management import Editor, NewEditor
+
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -52,15 +55,15 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
 
 chdir_root()  # change to root directory
 
-with st.sidebar.container():
+# with st.sidebar.container():
 
-    st.image("resources/MSF-logo.gif", use_column_width=True)
-# with st.container():
-    st.title("Integrated Vision Inspection System", anchor='title')
+#     st.image("resources/MSF-logo.gif", use_column_width=True)
+# # with st.container():
+#     st.title("Integrated Vision Inspection System", anchor='title')
 
-    st.header(
-        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-    st.markdown("""___""")
+#     st.header(
+#         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+#     st.markdown("""___""")
 
 
 def new_project():
@@ -296,6 +299,7 @@ def new_project():
 
 
 def main():
+
     new_project()
 
 

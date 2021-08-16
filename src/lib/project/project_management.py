@@ -167,9 +167,6 @@ class Project(BaseProject):
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
 
-        # self.dataset_list = self.load_dataset()
-# TODO #57 ammend get_dataset_name_list
-
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
                             SELECT
