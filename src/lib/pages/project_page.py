@@ -33,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from project.project_management import ProjectPagination
-from pages.sub_pages.dataset_page import new_dataset
+from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page.new_project import new_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
@@ -87,7 +87,7 @@ def main():
         ProjectPagination.Dashboard: dashboard,
         ProjectPagination.New: new_project,
         ProjectPagination.Existing: None,
-        ProjectPagination.NewDataset: new_dataset.show
+        ProjectPagination.NewDataset: new_dataset
     }
 
     if 'project_pagination' not in session_state:

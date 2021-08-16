@@ -2,15 +2,15 @@ import {
   Streamlit,
   ComponentProps,
   withStreamlitConnection,
-} from "streamlit-component-lib"
-import { ReactElement, useState } from "react"
+} from "streamlit-component-lib";
+import { ReactElement, useState } from "react";
 
 interface ComponentTheme {
-  primaryColor: string | undefined
-  secondaryBackgroundColor: string | undefined
-  textColor: string | undefined
-  backgroundColor: string | undefined
-  font: string | undefined
+  primaryColor: string | undefined;
+  secondaryBackgroundColor: string | undefined;
+  textColor: string | undefined;
+  backgroundColor: string | undefined;
+  font: string | undefined;
 }
 
 function ColorExtract({ args, theme }: ComponentProps): ReactElement {
@@ -20,20 +20,25 @@ function ColorExtract({ args, theme }: ComponentProps): ReactElement {
     textColor: theme?.textColor,
     backgroundColor: theme?.backgroundColor,
     font: theme?.font,
-  }
-  const [currentTheme, setTheme] = useState(myTheme)
+  };
+  const [currentFlag, setFlag] = useState(0);
+  const [currentTheme, setTheme] = useState(myTheme);
   const onThemeChange = (myTheme: ComponentTheme) => {
-    setTheme(myTheme)
-    Streamlit.setComponentValue(myTheme)
-    console.log(myTheme)
+    setTheme(myTheme);
+    setFlag(1);
+    Streamlit.setComponentValue(myTheme);
+    console.log(myTheme);
+  };
+  if (
+    myTheme.backgroundColor !== currentTheme.backgroundColor ||
+    currentFlag === 0
+  ) {
+    onThemeChange(myTheme);
   }
-  if (myTheme.backgroundColor !== currentTheme.backgroundColor) {
-    onThemeChange(myTheme)
-  }
+  console.log("Flag", currentFlag);
+  console.log(myTheme);
 
-  console.log(myTheme)
-
-  return <div>{null}</div>
+  return <div>{null}</div>;
 }
 
-export default withStreamlitConnection(ColorExtract)
+export default withStreamlitConnection(ColorExtract);

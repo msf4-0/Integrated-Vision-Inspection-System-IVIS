@@ -27,9 +27,9 @@ def color_extract(nothing=None, key=None):
     return component_value
 
 
-# if not _RELEASE:
-#     import streamlit as st
+if not _RELEASE:
+    import streamlit as st
 
-#     st.subheader("Color extract")
-#     hex_code = color_extract(key='dev')
-#     st.write(hex_code)
+    st.subheader("Color extract")
+    hex_code = color_extract(key='dev')
+    st.write(hex_code)
