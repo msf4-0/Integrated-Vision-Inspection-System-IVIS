@@ -32,7 +32,7 @@ else:
 from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe, get_df_row_highlight_color,get_textColor, current_page, non_current_page
+from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
@@ -339,10 +339,13 @@ def index():
         color = [current_page, non_current_page]
     else:
         color = [non_current_page, current_page]
-    
-    textColor=get_textColor()
-    log_info(f"{color},{textColor}")
-    new_project_nav(color,textColor)
+    try:
+        textColor = get_textColor()
+        log_info(f"{color},{textColor}")
+        new_project_nav(color, textColor)
+    except:
+        pass
+
     # ******************** TOP PAGE NAV *******************************************************************************************************
 
     if session_state.new_project_pagination == NewProjectPagination.EditorConfig:

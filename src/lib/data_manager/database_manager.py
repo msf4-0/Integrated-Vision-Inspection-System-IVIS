@@ -100,10 +100,8 @@ def db_no_fetch(sql_message, conn, vars: List = None) -> None:
 def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> NamedTuple:
 
     with conn:
-        if return_dict:
-            cursor_factory = DictCursor
-        else:
-            cursor_factory = NamedTupleCursor
+        cursor_factory = DictCursor if return_dict else NamedTupleCursor
+
         with conn.cursor(cursor_factory=cursor_factory) as cur:
 
             try:
@@ -116,10 +114,18 @@ def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = Fal
 
                 conn.commit()
                 return_one = cur.fetchone()  # return tuple
+                # Obtain Column names from query
                 column_names = [desc[0] for desc in cur.description]
+
                 if fetch_col_name:
+                    if return_dict:
+                        # Convert results to pure Python dictionary
+                        return_one = convert_to_dict(return_one)
                     return return_one, column_names
                 else:
+                    if return_dict:
+                        # Convert results to pure Python dictionary
+                        return_one = convert_to_dict(return_one)
                     column_names = None
                     return return_one
             except psycopg2.Error as e:
@@ -128,10 +134,7 @@ def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = Fal
 
 def db_fetchall(sql_message, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> NamedTuple:
     with conn:
-        if return_dict:
-            cursor_factory = DictCursor
-        else:
-            cursor_factory = NamedTupleCursor
+        cursor_factory = DictCursor if return_dict else NamedTupleCursor
         with conn.cursor(cursor_factory=cursor_factory) as cur:
             try:
                 if vars:
@@ -142,8 +145,19 @@ def db_fetchall(sql_message, conn, vars: List = None, fetch_col_name: bool = Fal
                 return_all = cur.fetchall()  # return array of tuple
                 column_names = [desc[0] for desc in cur.description]
                 if fetch_col_name:
+                    if return_dict:
+                        # Convert results to pure Python dictionary
+                        return_all = convert_to_dict(return_all)
                     return return_all, column_names
                 else:
+                    if return_dict:
+                        return_all = convert_to_dict(return_all)
+                    column_names = None
                     return return_all
             except psycopg2.Error as e:
                 log_error(e)
+
+
+def convert_to_dict(query: List):
+    query_dict = [dict(row) for row in query]
+    return query_dict

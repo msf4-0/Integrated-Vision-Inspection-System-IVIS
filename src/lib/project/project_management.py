@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+from collections import namedtuple
 from typing import NamedTuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
@@ -31,7 +32,7 @@ from path_desc import chdir_root, PROJECT_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.helper import NavColor, get_directory_name
+from core.utils.helper import NavColor, get_directory_name, get_textColor
 from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
@@ -134,24 +135,6 @@ class BaseProject:
             self.annotation_task_join = []
 
         return column_names
-
-    @st.cache(ttl=600)
-    def query_all_projects(self) -> List[NamedTuple]:
-        query_all_projects_SQL = """
-                                    SELECT
-                                        p.id as "ID",
-                                        p.name as "Name",
-                                        description as "Description",
-                                        dt.name as "Deployment Type",
-                                        project_path
-                                    FROM
-                                        public.project p
-                                        LEFT JOIN deployment_type dt ON dt.id = p.deployment_id;
-                                """
-        projects = db_fetchall(
-            query_all_projects_SQL, conn)
-
-        return projects
 
     @staticmethod
     def get_project_path(project_name: str) -> Path:
@@ -443,9 +426,61 @@ class NewProject(BaseProject):
         reset_page_attributes(new_project_attributes)
 
 
+# ******************** QUERY ALL PROJECTS **************************************
+@st.cache(ttl=60)
+def query_all_projects(return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
+    """Return values for all project
+
+    Args:
+        return_dict (bool, optional): True if results to be in Python Dictionary, else collections.namedtuple. Defaults to False.
+
+    Returns:
+        List[NamedTuple]: [description]
+    """
+    ID_string = "id" if for_data_table else "ID"
+    query_all_projects_SQL = f"""
+                                SELECT
+                                    p.id as \"{ID_string}\",
+                                    p.name as "Name",
+                                    description as "Description",
+                                    dt.name as "Deployment Type",
+                                    p.updated_at as "Date/Time"
+                                    
+                                FROM
+                                    public.project p
+                                    LEFT JOIN deployment_type dt ON dt.id = p.deployment_id;
+                            """
+    projects, column_names = db_fetchall(
+        query_all_projects_SQL, conn, fetch_col_name=True, return_dict=return_dict)
+
+    log_info(f"Querying projects from database")
+    project_tmp = []
+    if projects:
+        for project in projects:
+            # convert datetime with TZ to (2021-07-30 12:12:12) format
+            if return_dict:
+                converted_datetime = project["Date/Time"].strftime(
+                    '%Y-%m-%d %H:%M:%S')
+                project["Date/Time"] = converted_datetime
+            else:
+                converted_datetime = project.Date_Time.strftime(
+                    '%Y-%m-%d %H:%M:%S')
+
+                project = project._replace(
+                    Date_Time=converted_datetime)
+            project_tmp.append(project)
+
+    # self.dataset_list = dataset_tmp
+
+    else:
+        project_tmp = []
+
+    return project_tmp, column_names
+
+
 # *********************NEW PROJECT PAGE NAVIGATOR ********************************************
-def new_project_nav(color,textColor):
-    
+def new_project_nav(color, textColor):
+    textColor = textColor
     html_string = f'''
     <style>
       .div1 {{
