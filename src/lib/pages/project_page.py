@@ -35,7 +35,7 @@ from data_manager.database_manager import init_connection
 from data_table import data_table
 from project.project_management import NewProject, ProjectPagination, query_all_projects
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
-from pages.sub_pages.project_page import new_project
+from pages.sub_pages.project_page import new_project, existing_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -64,12 +64,37 @@ def dashboard():
 
     # ********* QUERY PROJECT ********************************************
     # namedtuple of query from DB
-    existing_project, project_table_column_names = query_all_projects(return_dict=True,for_data_table=True)
+    existing_project, project_table_column_names = query_all_projects(
+        return_dict=True, for_data_table=True)
     # st.write(existing_project)
     # ********* QUERY DATASET ********************************************
 
-    # **************** DATA TABLE COLUMN CONFIG ****************************
+    # ******** SESSION STATE *********************************************************
 
+    if 'project_status' not in session_state:
+        session_state.project_status = ProjectPagination.Existing
+    else:
+        session_state.project_status = ProjectPagination.Existing
+
+    # ******** SESSION STATE *********************************************************
+
+    # ************COLUMN PLACEHOLDERS *****************************************************
+    create_new_project_button_col1 = st.empty()
+
+    # ************COLUMN PLACEHOLDERS *****************************************************
+
+    # ***************** CREATE NEW PROJECT BUTTON *********************************************************
+    def to_new_project_page():
+        session_state.project_pagination = ProjectPagination.New
+
+        if "all_project_table" in session_state:
+            del session_state.all_project_table
+
+    create_new_project_button_col1.button(
+        "Create New Project", key='create_new_project_from project_dashboard', on_click=to_new_project_page,help="Create new project")
+    # ***************** CREATE NEW PROJECT BUTTON *********************************************************
+
+    # **************** DATA TABLE COLUMN CONFIG *********************************************************
     project_columns = [
         {
             'field': "Name",
@@ -108,18 +133,19 @@ def dashboard():
 
     ]
 
-    # **************** DATA TABLE COLUMN CONFIG ****************************
+    # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
-    
-    data_table(existing_project,project_columns,checkbox=False,key='all_project_table')
+    data_table(existing_project, project_columns,
+               checkbox=False, key='all_project_table')
     st.write(session_state.all_project_table)
+
 
 def main():
 
     project_page = {
         ProjectPagination.Dashboard: dashboard,
         ProjectPagination.New: new_project.index,
-        ProjectPagination.Existing: None,
+        ProjectPagination.Existing: existing_project.index,
         ProjectPagination.NewDataset: new_dataset
     }
 
