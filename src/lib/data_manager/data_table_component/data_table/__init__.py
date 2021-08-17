@@ -1,19 +1,22 @@
 import os
+import sys
+from pathlib import Path
+from typing import Callable, Optional, Tuple, List, Dict
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit import session_state as session_state
 
-# >>>>>>> TEMP for Logging >>>>>>>>
-import logging
-import sys
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
+SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
 
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.INFO)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
 
-log = logging.getLogger()
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
+# >>>> User-defined Modules >>>>
+from core.utils.helper import check_args_kwargs
 
 _RELEASE = True
 
@@ -30,9 +33,50 @@ else:
         "data_table", path=build_dir)
 
 
-def data_table(rows, columns, checkbox: bool = True, key=None):
+def data_table(
+    rows: List[Dict],
+    columns: List[Dict],
+    checkbox: bool = True,
+    key: str = None,
+    on_change: Optional[Callable] = None,
+    args: Optional[Tuple] = None,
+    kwargs: Optional[Dict] = None
+) -> List:
+    """Generate Data Table using Material UI Data Grid MIT
+
+    Args:
+        rows (List[Dict]): Row data
+        columns (List[Dict]): Table column configuration
+        checkbox (bool, optional): Flag to enable checkboxes to the first column. Defaults to True.
+        key (str, optional): Unique key for widget. Defaults to None.
+        on_change (Optional[Callable], optional): Callback function when there are changes to the selection. Defaults to None.
+        args (Optional[Tuple], optional): Callback function *args. Defaults to None.
+        kwargs (Optional[Dict], optional): Callback function **kwargs. Defaults to None.
+
+    Returns:
+        List: List of selections
+    """
+
     component_value = _component_func(
         rows=rows, columns=columns, checkbox=checkbox, key=key, default=[])
+
+    _prev_value_name = str(key) + "_prev_value"
+    if _prev_value_name not in session_state:
+        session_state[_prev_value_name] = None
+
+    if session_state[_prev_value_name] != session_state[key]:
+        """Should run method"""
+        if on_change:
+            wildcard = args if args else kwargs
+            check_args_kwargs(wildcards=wildcard, func=on_change)
+            if args:
+                on_change(*args)
+            elif kwargs:
+                on_change(*kwargs)
+
+    else:
+        """nothing"""
+    session_state[_prev_value_name] = session_state[key]
 
     return component_value
 
