@@ -33,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_table import data_table
-from project.project_management import NewProject, ProjectPagination, query_all_projects
+from project.project_management import NewProject, ProjectPagination, NewProjectPagination, query_all_projects
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import new_project, existing_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -91,7 +91,7 @@ def dashboard():
             del session_state.all_project_table
 
     create_new_project_button_col1.button(
-        "Create New Project", key='create_new_project_from project_dashboard', on_click=to_new_project_page,help="Create new project")
+        "Create New Project", key='create_new_project_from project_dashboard', on_click=to_new_project_page, help="Create new project")
     # ***************** CREATE NEW PROJECT BUTTON *********************************************************
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
@@ -101,7 +101,7 @@ def dashboard():
             'headerName': "Name",
             'headerAlign': "center",
             'align': "center",
-            'flex': 150,
+            'flex': 130,
             'hideSortIcons': True,
 
         },
@@ -109,7 +109,7 @@ def dashboard():
             'field': "Description",
             'headerName': "Description",
             'headerAlign': "center",
-            'align': "center",
+            'align': "left",
             'flex': 150,
             'hideSortIcons': True,
         },
@@ -126,7 +126,7 @@ def dashboard():
             'headerName': "Date/Time",
             'headerAlign': "center",
             'align': "center",
-            'flex': 120,
+            'flex': 100,
             'hideSortIcons': True,
             'type': 'date',
         },
@@ -134,10 +134,14 @@ def dashboard():
     ]
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
+    def table_callback(x, y):
+        placing = st.empty()
+        placing.success(f"Working: {x},{y}")
+        sleep(1)
+        placing.empty()
 
     data_table(existing_project, project_columns,
-               checkbox=False, key='all_project_table')
-    st.write(session_state.all_project_table)
+               checkbox=False, key='all_project_table', on_change=table_callback, args=(1, 2,))
 
 
 def main():
@@ -163,7 +167,7 @@ def main():
 
         session_state.project_pagination = project_page_options.index(
             session_state.project_page_navigator_radio)
-
+        session_state.new_project_pagination = NewProjectPagination.Entry
         if "project_page_navigator_radio" in session_state:
             del session_state.project_page_navigator_radio
 

@@ -7,12 +7,13 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from typing import Union, List, Dict, Optional, NamedTuple
+from typing import Union, List, Dict, Optional, NamedTuple, Callable, Any
 from time import perf_counter
 import pandas as pd
 import mimetypes
 from colorutils import hex_to_hsv
 from color_extract import color_extract
+from inspect import signature
 from streamlit.uploaded_file_manager import UploadedFile
 import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -252,3 +253,9 @@ def check_filetype(uploaded_files, dataset, field_placeholder: Dict = None):
         average_time = time_elapsed / number_of_files
         log_info(
             f"Time taken to compare filetypes {time_elapsed}s with average of {average_time}s for {number_of_files}")
+
+
+def check_args_kwargs(wildcards: Union[List, Dict], func: Callable[..., Any]):
+
+    assert len(wildcards) == len(signature(
+        func).parameters), "Length of wildcards does not meet length of arguments required by callback function"
