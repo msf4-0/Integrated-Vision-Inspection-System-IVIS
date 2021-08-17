@@ -68,7 +68,7 @@ def get_df_row_highlight_color(color=None):
 
 
 def get_textColor():
-    text_color = color_extract(key='text_color')
+    text_color = (color_extract(key='text_color'))['textColor']
     return text_color
 
 

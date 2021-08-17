@@ -56,7 +56,10 @@ navigator = st.sidebar.empty()
 
 
 def dashboard():
-    st.write(f"# Nothing")
+    # TODO #73 Add Table of Project and info
+    # TODO #74 Callback for Data Table
+    st.write(f"# Project")
+    st.markdown("___")
 
 
 def main():

@@ -11,7 +11,6 @@ from typing import NamedTuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
-from colorutils import static
 import cv2
 import streamlit as st
 from streamlit import cli as stcli
@@ -33,7 +32,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.helper import NavColor, get_directory_name
-from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes, remove_newline_trailing_whitespace
+from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
 from data_editor.editor_management import Editor
@@ -445,8 +444,8 @@ class NewProject(BaseProject):
 
 
 # *********************NEW PROJECT PAGE NAVIGATOR ********************************************
-def new_project_nav(color):
-
+def new_project_nav(color,textColor):
+    
     html_string = f'''
     <style>
       .div1 {{
@@ -459,7 +458,7 @@ def new_project_nav(color):
         margin-right: auto;
       }}
       .div2 {{
-      color:white;
+      color:{textColor};
         border-radius: 25px 0px 0px 25px;
         border-style: solid;
         border-color: {color[0].border};
@@ -471,7 +470,7 @@ def new_project_nav(color):
         text-align: center;
       }}
       .div3 {{
-      color:white;
+      color:{textColor};
         border-radius: 0px 25px 25px 0px;
         border-style: solid;
         border-color: {color[1].border};
