@@ -36,7 +36,7 @@ from project.project_management import Project
 from data_editor.editor_management  import Editor,EditorFlag
 from user.user_management import User
 from data_manager.database_manager import init_connection
-from annotation.annotation_manager import Annotations, NewAnnotations, NewTask, Task, load_buffer_image
+from annotation.annotation_management import Annotations, NewAnnotations, NewTask, Task, load_buffer_image
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 
 # <<<< User-defined Modules <<<<

@@ -32,7 +32,8 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
-from project.project_management import NewProject, ProjectPagination
+from data_table import data_table
+from project.project_management import NewProject, ProjectPagination, query_all_projects
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import new_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -61,6 +62,57 @@ def dashboard():
     st.write(f"# Project")
     st.markdown("___")
 
+    # ********* QUERY PROJECT ********************************************
+    # namedtuple of query from DB
+    existing_project, project_table_column_names = query_all_projects(return_dict=True,for_data_table=True)
+    # st.write(existing_project)
+    # ********* QUERY DATASET ********************************************
+
+    # **************** DATA TABLE COLUMN CONFIG ****************************
+
+    project_columns = [
+        {
+            'field': "Name",
+            'headerName': "Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': True,
+
+        },
+        {
+            'field': "Description",
+            'headerName': "Description",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Deployment Type",
+            'headerName': "Deployment Type",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Date/Time",
+            'headerName': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+            'type': 'date',
+        },
+
+    ]
+
+    # **************** DATA TABLE COLUMN CONFIG ****************************
+
+    
+    data_table(existing_project,project_columns,checkbox=False,key='all_project_table')
+    st.write(session_state.all_project_table)
 
 def main():
 
