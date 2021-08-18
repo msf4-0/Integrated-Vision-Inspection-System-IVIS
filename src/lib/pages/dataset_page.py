@@ -141,6 +141,8 @@ def dashboard():
 
             log_info("Enter append_data_flag_0 SELECTBOX")
             session_state.append_data_flag = DataPermission.ViewOnly
+
+            # DEPRECATED
             session_state.selectbox_flag = 1
 
             if "dataset" not in session_state:
@@ -546,7 +548,7 @@ def dashboard():
     # <<<<<<<<<<<<<<<<<<<<<<<<<< LOAD EXISTING DATASET <<<<<<<<<<<<<<<<<<<<<#
 
 
-def main():
+def index():
 
     dataset_page = {
         DatasetPagination.Dashboard: dashboard,
@@ -587,7 +589,7 @@ def main():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        main()
+        index()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

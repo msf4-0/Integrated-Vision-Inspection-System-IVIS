@@ -70,15 +70,19 @@ def data_table(
 
     # if session_state[_prev_value_name] != session_state[key]:
     #     """Should run method"""
-    if on_change:
-        log_info("Inside callback")
-        wildcard = args if args else kwargs
-        check_args_kwargs(wildcards=wildcard, func=on_change)
-        if args:
-            on_change(*args)
-        elif kwargs:
-            on_change(*kwargs)
-        # st.experimental_rerun()
+    if component_value:
+        if on_change:
+            log_info("Inside callback")
+            wildcard = args if args else kwargs
+            if args or kwargs:
+                check_args_kwargs(wildcards=wildcard, func=on_change)
+            if args:
+                on_change(*args)
+            elif kwargs:
+                on_change(*kwargs)
+            else:
+                on_change()
+            st.experimental_rerun()
 
     # else:
     #     """nothing"""

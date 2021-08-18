@@ -255,7 +255,8 @@ def check_filetype(uploaded_files, dataset, field_placeholder: Dict = None):
             f"Time taken to compare filetypes {time_elapsed}s with average of {average_time}s for {number_of_files}")
 
 
-def check_args_kwargs(wildcards: Union[List, Dict], func: Callable[..., Any]):
+def check_args_kwargs(wildcards: Union[List, Dict] = None, func: Callable[..., Any] = None):
 
-    assert len(wildcards) == len(signature(
-        func).parameters), "Length of wildcards does not meet length of arguments required by callback function"
+    if wildcards and func:
+        assert len(wildcards) == len(signature(
+            func).parameters), "Length of wildcards does not meet length of arguments required by callback function"

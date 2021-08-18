@@ -348,6 +348,7 @@ def index():
 
     # ******************** TOP PAGE NAV *******************************************************************************************************
 
+    # NOTE whether to allow going back to Home Page for all pages ???????
     if session_state.new_project_pagination == NewProjectPagination.EditorConfig:
 
         def to_project_dashboard():
@@ -367,6 +368,7 @@ def index():
 
     new_project_back_button_place = st.empty()
 
+    # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if session_state.new_project_pagination != NewProjectPagination.Entry:
 
         def to_new_project_entry_page():
