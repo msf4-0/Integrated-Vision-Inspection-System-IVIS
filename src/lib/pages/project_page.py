@@ -33,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_table import data_table
-from project.project_management import NewProject, ProjectPagination, NewProjectPagination, ProjectPermission, query_all_projects
+from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, ProjectPermission, query_all_projects
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import new_project, existing_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -74,7 +74,11 @@ def dashboard():
         session_state.project_status = ProjectPagination.Existing
     else:
         session_state.project_status = ProjectPagination.Existing
+    if 'append_project_flag' not in session_state:
+        session_state.append_project_flag = ProjectPermission.ViewOnly
 
+    if "all_project_table" not in session_state:
+        session_state.all_project_table = None
     # ******** SESSION STATE *********************************************************
 
     # ************COLUMN PLACEHOLDERS *****************************************************
@@ -137,18 +141,27 @@ def dashboard():
 
     # >>>>>>>>>>>> DATA TABLE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # TODO #78 Load Project Info
-    def table_callback():
+    def to_existing_project():
 
-        project_id_tmp = session_state.all_project_table
+        project_id_tmp = session_state.all_project_table[0]
         log_info(f"Entering Project {project_id_tmp}")
 
         session_state.project_pagination = ProjectPagination.Existing
+        session_state.append_project_flag = ProjectPermission.ViewOnly
+
+        if "project" not in session_state:
+            session_state.project = Project(project_id_tmp)
+
+        else:
+            session_state.project = Project(project_id_tmp)
 
         if "all_project_table" in session_state:
             del session_state.all_project_table
-
+    if "all_project_table" not in session_state:
+        session_state.all_project_table = None
     data_table(existing_project, project_columns,
-               checkbox=False, key='all_project_table', on_change=table_callback)
+               checkbox=False, key='all_project_table', on_change=to_existing_project)
+    # st.write(session_state.all_project_table)
 
 
 def main():
@@ -168,6 +181,7 @@ def main():
 
     project_page_options = ("Dashboard", "Create New Project")
 
+    # NOTE DEPRECATED ******************************************************************************
     def project_page_navigator():
 
         NewProject.reset_new_project_page()
@@ -185,7 +199,7 @@ def main():
     def to_project_dashboard():
 
         NewProject.reset_new_project_page()
-
+        Project.reset_project_page()
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
 

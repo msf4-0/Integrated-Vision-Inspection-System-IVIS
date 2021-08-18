@@ -335,6 +335,20 @@ class Project(BaseProject):
 
             return data_name_list
 
+    # *************************************************************************************************************************
+    # TODO #81 Add reset to project page *************************************************************************************
+    @staticmethod
+    def reset_project_page():
+        """Method to reset all widgets and attributes in the Project Page when changing pages
+        """
+
+        new_project_attributes = ["all_project_table","project", "editor", "project_name",
+                                  "project_desc", "annotation_type", "project_dataset_page", "project_dataset"]
+
+        reset_page_attributes(new_project_attributes)
+    # TODO #81 Add reset to project page *************************************************************************************
+    # *************************************************************************************************************************
+
 
 class NewProject(BaseProject):
     def __init__(self, project_id) -> None:
