@@ -33,7 +33,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_table import data_table
-from project.project_management import NewProject, ProjectPagination, NewProjectPagination, query_all_projects
+from project.project_management import NewProject, ProjectPagination, NewProjectPagination, ProjectPermission, query_all_projects
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import new_project, existing_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -84,7 +84,7 @@ def dashboard():
 
     # ***************** CREATE NEW PROJECT BUTTON *********************************************************
     def to_new_project_page():
-      
+
         session_state.project_pagination = ProjectPagination.New
 
         if "all_project_table" in session_state:
@@ -137,19 +137,18 @@ def dashboard():
 
     # >>>>>>>>>>>> DATA TABLE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # TODO #78 Load Project Info
-    def table_callback(x, y):
-        placing = st.empty()
-        placing.success(f"Working: {x},{y}")
-        sleep(1)
-        placing.empty()
-        log_info("Table Callback")
+    def table_callback():
+
+        project_id_tmp = session_state.all_project_table
+        log_info(f"Entering Project {project_id_tmp}")
+
         session_state.project_pagination = ProjectPagination.Existing
 
         if "all_project_table" in session_state:
             del session_state.all_project_table
 
     data_table(existing_project, project_columns,
-               checkbox=False, key='all_project_table', on_change=table_callback, args=(1, 2,))
+               checkbox=False, key='all_project_table', on_change=table_callback)
 
 
 def main():

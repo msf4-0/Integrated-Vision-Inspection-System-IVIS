@@ -73,6 +73,7 @@ with st.sidebar.container():
 
 
 def dashboard():
+
     session_state.dataset_pagination = DatasetPagination.Dashboard
     # Page title
     st.write("# **Dataset**")
@@ -135,7 +136,6 @@ def dashboard():
         st.button("➕️", key="create_new_dataset",
                   on_click=to_new_dataset_page, help="Create new dataset")
 
-    # TODO: removed 'dataset selection'????
     with topcol2:
         def append_data_flag_0():
 

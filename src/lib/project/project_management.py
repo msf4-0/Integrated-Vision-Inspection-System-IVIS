@@ -46,6 +46,21 @@ from data_editor.editor_management import Editor
 conn = init_connection(**st.secrets["postgres"])
 
 
+class ProjectPermission(IntEnum):
+    ViewOnly = 0
+    Edit = 1
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ProjectPermission[s]
+        except KeyError:
+            raise ValueError()
+
+
 class ProjectPagination(IntEnum):
     Dashboard = 0
     New = 1
