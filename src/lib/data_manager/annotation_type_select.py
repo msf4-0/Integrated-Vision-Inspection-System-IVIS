@@ -9,7 +9,7 @@ from pathlib import Path
 import xml.dom.minidom as minidom
 
 
-from annotation.annotation_template import loadAnnotationTemplate
+from annotation.annotation_template import load_annotation_template
 
 
 def annotation_sel():
@@ -22,7 +22,7 @@ def annotation_sel():
     annotationType = st.selectbox("Template", annotationType_list, index=0, format_func=lambda x: 'Select an option' if x == ' ' else x,
                                   key="annotation_type", help="Please select the desired type of annotation")
     if annotationType is not " ":
-        annotationConfig_template = loadAnnotationTemplate(
+        annotationConfig_template = load_annotation_template(
             annotationType_list.index(annotationType) - 1)
         with st.expander(label="template", expanded=False):
             template = (minidom.parseString(

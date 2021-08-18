@@ -140,7 +140,7 @@ def dashboard():
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
     # >>>>>>>>>>>> DATA TABLE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    # TODO #78 Load Project Info
+
     def to_existing_project():
 
         project_id_tmp = session_state.all_project_table[0]

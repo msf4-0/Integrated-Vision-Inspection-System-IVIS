@@ -33,8 +33,9 @@ else:
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
+from annotation.annotation_template import load_annotation_template
 from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import get_mime
+from core.utils.code_generator import get_random_string
 from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
 from annotation.annotation_management import annotation_types
 from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
@@ -105,17 +106,27 @@ class BaseEditor:
 
         return deployment_type
 
+    @staticmethod
+    def get_editor_template(deployment_type_id: Union[int, IntEnum]) -> str:
+        """Get editor template from config.yml
 
-class NewEditor(BaseEditor):
-    def __init__(self, random_generator) -> None:
-        super().__init__()
-        self.name: str = random_generator
-
-    def init_editor(self) -> int:
-        """Load base editor template into the database
+        Args:
+            deployment_type_id (Union[int, IntEnum]): Deployment type id 
 
         Returns:
-            int: Editor ID
+            str: Editor template XML string
+        """
+
+        editor_config = (load_annotation_template(
+            deployment_type_id - 1))['config']
+
+        return editor_config
+
+    def insert_editor_template(self) -> int:
+        """Insert editor template into Database
+
+        Returns:
+            int: Editor class id
         """
 
         init_editor_SQL = """
@@ -135,6 +146,15 @@ class NewEditor(BaseEditor):
         return self.id
 
 
+class NewEditor(BaseEditor):
+    def __init__(self, random_generator) -> None:
+        super().__init__()
+        self.name: str = random_generator
+
+    def init_editor(self) -> int:
+        self.id = self.insert_editor_template()
+
+
 class Editor(BaseEditor):
     def __init__(self, project_id, deployment_type) -> None:
         super().__init__()
@@ -147,6 +167,18 @@ class Editor(BaseEditor):
         self.editor_config = self.load_raw_xml()
         self.xml_doc = self.load_xml(self.editor_config)
         self.query_editor_fields()
+
+    def editor_notfound_handler(self):
+        """Insert editor template into database and store in class attributes
+        - Editor config from config.yml
+        - Editor.id from query return 
+        """
+        # generate temp name from random_generator length=8
+        # get editor template
+        # load into database with project id
+        self.name = get_random_string(length=8)
+        self.editor_config = self.get_editor_template(self.deployment_type)
+        self.id = self.insert_editor_template()
 
     def query_editor_fields(self):
         query_editor_fields_SQL = """
@@ -186,13 +218,15 @@ class Editor(BaseEditor):
 
         query_editor_vars = [self.project_id]
 
-        editor_config = db_fetchone(
-            query_editor_SQL, conn, query_editor_vars)[0]
-
-        self.editor_config = editor_config if editor_config else None
-        if not editor_config:
-            log_info(
-                f"Editor config does not exists in the database for Project ID:{self.project_id}")
+        try:
+            self.editor_config = (db_fetchone(
+                query_editor_SQL, conn, query_editor_vars)[0])
+            log_info(f"Loaded editor into DB")
+        except TypeError as e:
+            log_error(
+                f"{e}: Editor config does not exists in the database for Project ID:{self.project_id}")
+            self.editor_notfound_handler()
+            log_info(f"Loaded editor into DB with ID: {self.id}")
 
         return self.editor_config
 
@@ -381,7 +415,7 @@ class Editor(BaseEditor):
             # self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
 
-    def generate_labels_dict(self, deployment_type:IntEnum) -> dict:
+    def generate_labels_dict(self, deployment_type: IntEnum) -> dict:
         """  Generate labels dictionary to display on project dashboard
         {'Bounding Box':[List of labels],
             'Classification':[List of labels]
