@@ -59,6 +59,8 @@ chdir_root()  # change to root directory
 
 def existing_project():
     st.write("# Existing")
+    # TODO #79 Add dashboard to show types of labels and number of datasets
+    # TODO #80 Add Labelling interface
 
 
 def index():

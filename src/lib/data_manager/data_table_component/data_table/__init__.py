@@ -17,6 +17,7 @@ else:
 
 # >>>> User-defined Modules >>>>
 from core.utils.helper import check_args_kwargs
+from core.utils.log import log_info
 
 _RELEASE = True
 
@@ -59,30 +60,33 @@ def data_table(
 
     component_value = _component_func(
         rows=rows, columns=columns, checkbox=checkbox, key=key, default=[])
-
+    log_info("Inside data table function")
     # create unique key for previous value
-    _prev_value_name = str(key) + "_prev_value"
-    if _prev_value_name not in session_state:
-        session_state[_prev_value_name] = None
+    # _prev_value_name = str(key) + "_prev_value"
+    # if _prev_value_name not in session_state:
+    #     session_state[_prev_value_name] = None
+    # log_info(
+    #     f"Current: {session_state[key]}; Prev: {session_state[_prev_value_name]}")
 
-    if session_state[_prev_value_name] != session_state[key]:
-        """Should run method"""
-        if on_change:
-            wildcard = args if args else kwargs
-            check_args_kwargs(wildcards=wildcard, func=on_change)
-            if args:
-                on_change(*args)
-            elif kwargs:
-                on_change(*kwargs)
-            st.experimental_rerun()
+    # if session_state[_prev_value_name] != session_state[key]:
+    #     """Should run method"""
+    if on_change:
+        log_info("Inside callback")
+        wildcard = args if args else kwargs
+        check_args_kwargs(wildcards=wildcard, func=on_change)
+        if args:
+            on_change(*args)
+        elif kwargs:
+            on_change(*kwargs)
+        # st.experimental_rerun()
 
-    else:
-        """nothing"""
+    # else:
+    #     """nothing"""
 
-    try:
-        session_state[_prev_value_name] = session_state[key]
-    except:
-        pass
+    # try:
+    #     session_state[_prev_value_name] = session_state[key]
+    # except:
+    #     pass
 
     return component_value
 
