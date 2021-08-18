@@ -57,8 +57,7 @@ navigator = st.sidebar.empty()
 
 
 def dashboard():
-    # TODO #73 Add Table of Project and info
-    # TODO #74 Callback for Data Table
+    log_info("Top of project dashboard")
     st.write(f"# Project")
     st.markdown("___")
 
@@ -85,6 +84,7 @@ def dashboard():
 
     # ***************** CREATE NEW PROJECT BUTTON *********************************************************
     def to_new_project_page():
+      
         session_state.project_pagination = ProjectPagination.New
 
         if "all_project_table" in session_state:
@@ -134,11 +134,19 @@ def dashboard():
     ]
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
+
+    # >>>>>>>>>>>> DATA TABLE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # TODO #78 Load Project Info
     def table_callback(x, y):
         placing = st.empty()
         placing.success(f"Working: {x},{y}")
         sleep(1)
         placing.empty()
+        log_info("Table Callback")
+        session_state.project_pagination = ProjectPagination.Existing
+
+        if "all_project_table" in session_state:
+            del session_state.all_project_table
 
     data_table(existing_project, project_columns,
                checkbox=False, key='all_project_table', on_change=table_callback, args=(1, 2,))
@@ -171,10 +179,24 @@ def main():
         if "project_page_navigator_radio" in session_state:
             del session_state.project_page_navigator_radio
 
-    with navigator.expander("Project", expanded=True):
-        st.radio("", options=project_page_options,
-                 index=session_state.project_pagination, on_change=project_page_navigator, key="project_page_navigator_radio")
+    # with navigator.expander("Project", expanded=True):
+    #     st.radio("", options=project_page_options,
+    #              index=session_state.project_pagination, on_change=project_page_navigator, key="project_page_navigator_radio")
 
+    def to_project_dashboard():
+
+        NewProject.reset_new_project_page()
+
+        session_state.project_pagination = ProjectPagination.Dashboard
+        session_state.new_project_pagination = NewProjectPagination.Entry
+
+        # if "project_page_navigator_radio" in session_state:
+        #     del session_state.project_page_navigator_radio
+
+    with navigator.container():
+        st.button("Project", key="to_project_dashboard_sidebar",
+                  on_click=to_project_dashboard)
+    log_info("Navigator")
     project_page[session_state.project_pagination]()
 
 

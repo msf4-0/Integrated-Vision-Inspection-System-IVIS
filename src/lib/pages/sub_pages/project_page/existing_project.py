@@ -58,12 +58,12 @@ chdir_root()  # change to root directory
 
 
 def existing_project():
-    pass
+    st.write("# Existing")
 
 
 def index():
 
-    pass
+    existing_project()
 
 
 if __name__ == "__main__":

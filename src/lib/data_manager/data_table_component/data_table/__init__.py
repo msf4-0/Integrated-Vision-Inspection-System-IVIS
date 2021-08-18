@@ -60,6 +60,7 @@ def data_table(
     component_value = _component_func(
         rows=rows, columns=columns, checkbox=checkbox, key=key, default=[])
 
+    # create unique key for previous value
     _prev_value_name = str(key) + "_prev_value"
     if _prev_value_name not in session_state:
         session_state[_prev_value_name] = None
@@ -73,10 +74,15 @@ def data_table(
                 on_change(*args)
             elif kwargs:
                 on_change(*kwargs)
+            st.experimental_rerun()
 
     else:
         """nothing"""
-    session_state[_prev_value_name] = session_state[key]
+
+    try:
+        session_state[_prev_value_name] = session_state[key]
+    except:
+        pass
 
     return component_value
 
