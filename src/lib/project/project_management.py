@@ -93,6 +93,24 @@ class NewProjectPagination(IntEnum):
         except KeyError:
             raise ValueError()
 
+
+class ExistingProjectPagination(IntEnum):
+    Dashboard = 0
+    Labelling = 1
+    Training = 2
+    Models = 3
+    Export = 4
+    Settings = 5
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ExistingProjectPagination[s]
+        except KeyError:
+            raise ValueError()
 # <<<< Variable Declaration <<<<
 
 
@@ -342,7 +360,7 @@ class Project(BaseProject):
         """Method to reset all widgets and attributes in the Project Page when changing pages
         """
 
-        new_project_attributes = ["all_project_table","project", "editor", "project_name",
+        new_project_attributes = ["all_project_table", "project", "editor", "project_name",
                                   "project_desc", "annotation_type", "project_dataset_page", "project_dataset"]
 
         reset_page_attributes(new_project_attributes)
