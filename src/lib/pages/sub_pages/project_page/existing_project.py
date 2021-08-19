@@ -14,9 +14,9 @@ from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -37,6 +37,7 @@ from data_manager.dataset_management import NewDataset, query_dataset_list, get_
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
 from data_editor.editor_management import Editor
 from data_editor.editor_config import editor_config
+from existing_project_pages import existing_project_dashboard
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -54,13 +55,6 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
 chdir_root()  # change to root directory
 
 
-def dashboard():
-    st.write("# Existing")
-    # TODO #79 Add dashboard to show types of labels and number of datasets
-    # TODO #80 Add Labelling interface
-    st.write(f"## **Project Name:** {session_state.project.name}")
-
-
 def index():
     RELEASE = False
 
@@ -69,11 +63,6 @@ def index():
         log_info("At Exisiting Project Dashboard INDEX")
 
         # ************************TO REMOVE************************
-
-        # DEFINE Web APP page configuration
-        layout = 'wide'
-        st.set_page_config(page_title="Integrated Vision Inspection System",
-                           page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
         with st.sidebar.container():
             st.image("resources/MSF-logo.gif", use_column_width=True)
             st.title("Integrated Vision Inspection System", anchor='title')
@@ -95,7 +84,7 @@ def index():
 
     # ************************ EXISTING PROJECT PAGINATION *************************
     existing_project_page = {
-        ExistingProjectPagination.Dashboard: dashboard,
+        ExistingProjectPagination.Dashboard: existing_project_dashboard.dashboard,
         ExistingProjectPagination.Labelling: None,
         ExistingProjectPagination.Training: None,
         ExistingProjectPagination.Models: None,
@@ -112,6 +101,8 @@ def index():
 
     # >>>> CALLBACK for RADIO >>>>
     def existing_project_page_navigator():
+
+        # NOTE: TO RESET SUB-PAGES AFTER EXIT
 
         session_state.existing_project_pagination = existing_project_page_options.index(
             session_state.existing_project_page_navigator_radio)

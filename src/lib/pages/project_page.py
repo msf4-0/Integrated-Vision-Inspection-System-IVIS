@@ -199,7 +199,9 @@ def main():
     def to_project_dashboard():
 
         NewProject.reset_new_project_page()
+        # TODO #81 Add reset to project page *************************************************************************************
         Project.reset_project_page()
+
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
 

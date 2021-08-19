@@ -221,7 +221,7 @@ class Editor(BaseEditor):
         try:
             self.editor_config = (db_fetchone(
                 query_editor_SQL, conn, query_editor_vars)[0])
-            log_info(f"Loaded editor into DB")
+            log_info(f"Loaded editor from DB")
         except TypeError as e:
             log_error(
                 f"{e}: Editor config does not exists in the database for Project ID:{self.project_id}")
