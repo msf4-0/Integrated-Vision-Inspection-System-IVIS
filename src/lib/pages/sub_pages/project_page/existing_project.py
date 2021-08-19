@@ -61,7 +61,7 @@ def existing_project():
     st.write("# Existing")
     # TODO #79 Add dashboard to show types of labels and number of datasets
     # TODO #80 Add Labelling interface
-    st.write(vars(session_state.project))
+    st.write(f"## **Project Name:** {session_state.project.name}")
 
 
 def index():
