@@ -15,8 +15,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -37,9 +37,9 @@ from data_manager.dataset_management import NewDataset, query_dataset_list, get_
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
 from data_editor.editor_management import Editor
 from data_editor.editor_config import editor_config
-from existing_project_pages import existing_project_dashboard
-from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
+from pages.sub_pages.dataset_page.new_dataset import new_dataset
+from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard, labelling_dashboard
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -56,7 +56,7 @@ chdir_root()  # change to root directory
 
 
 def index():
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -92,9 +92,21 @@ def index():
         ExistingProjectPagination.Settings: None
     }
 
+    # ****************************** HEADER **********************************************
+    st.write(f"# {session_state.project.name}")
+
+    project_description = session_state.project.desc if session_state.project.desc is not None else " "
+    st.write(f"### {project_description}")
+
+    st.markdown("""___""")
+    # ****************************** HEADER **********************************************
+
     if 'existing_project_pagination' not in session_state:
         session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
+    
+    log_info(f"Entering Project {session_state.project.id}")
 
+    session_state.append_project_flag = ProjectPermission.ViewOnly
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     existing_project_page_options = (
         "Overview", "Labelling", "Training", "Models", "Export", "Settings")

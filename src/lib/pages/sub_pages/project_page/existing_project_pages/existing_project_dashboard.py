@@ -53,9 +53,7 @@ chdir_root()  # change to root directory
 
 def dashboard():
     # TODO #79 Add dashboard to show types of labels and number of datasets
-    st.write(f"# {session_state.project.name}")
-    project_description = session_state.project.desc if not None else " "
-    st.write(f"### {project_description}")
+    st.write("Hello")
 
 
 if __name__ == "__main__":
