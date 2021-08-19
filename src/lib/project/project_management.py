@@ -231,6 +231,7 @@ class Project(BaseProject):
                                     d.id AS "ID",
                                     d.name AS "Name",
                                     d.dataset_size AS "Dataset Size",
+                                    (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
                                     pd.updated_at AS "Date/Time"                                    
                                 FROM
                                     public.project_dataset pd

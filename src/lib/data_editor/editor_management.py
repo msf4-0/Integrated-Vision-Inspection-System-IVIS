@@ -486,9 +486,7 @@ class Editor(BaseEditor):
 
         return query_return
 
-    st.cache(ttl=100)
-
-    def create_table_of_labels(self) -> pd.DataFrame:
+    def get_labels_results(self):
         # Compatible with multiple annotation types
         try:
             self.labels_results = []
@@ -497,7 +495,7 @@ class Editor(BaseEditor):
                 for value in values:
                     self.labels_results.append(
                         Labels(value, annotation_type, None, None))
-            log_info(f"Created DataFrame for Label Details (labels_results)")
+            log_info(f"Getting Label Details (labels_results)")
         except TypeError as e:
             log_error(f"{e}: Labels could not be found in 'labels' column")
             self.labels_results = []
@@ -508,7 +506,10 @@ class Editor(BaseEditor):
                 for value in self.labels:
                     self.labels_results.append(
                         Labels(value, annotation_type, None, None))
-                log_info(f"Created DataFrame for Label Details (labels_dict)")
+                log_info(f"Getting Label Details (labels_dict)")
+
+    def create_table_of_labels(self) -> pd.DataFrame:
+        self.get_labels_results()
         # Create DataFrame
         column_names = ['Label Name', 'Annotation Type',
                         'Counts', 'Percentile (%)']

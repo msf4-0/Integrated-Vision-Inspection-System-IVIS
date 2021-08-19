@@ -97,14 +97,14 @@ def index():
     st.write(f"# {session_state.project.name}")
 
     project_description = session_state.project.desc if session_state.project.desc is not None else " "
-    st.write(f"### {project_description}")
+    st.write(f"{project_description}")
 
     st.markdown("""___""")
     # ****************************** HEADER **********************************************
 
     if 'existing_project_pagination' not in session_state:
         session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
-    
+
     log_info(f"Entering Project {session_state.project.id}")
 
     session_state.append_project_flag = ProjectPermission.ViewOnly

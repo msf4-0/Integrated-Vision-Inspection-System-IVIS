@@ -52,19 +52,45 @@ chdir_root()  # change to root directory
 
 
 def dashboard():
-    # TODO #79 Add dashboard to show types of labels and number of datasets
-    st.write("Hello")
 
+    # TODO #79 Add dashboard to show types of labels and number of datasets
     # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     df = session_state.project.editor.create_table_of_labels()
     df.index.name = 'No.'
-    df['Percentile (%)']=df['Percentile (%)'].map("{:.2f}".format)
+    df['Percentile (%)'] = df['Percentile (%)'].map("{:.2f}".format)
     styler = df.style
+
+    # >>>> Annotation table placeholders
+    annotation_col1, annotation_col2 = st.columns([3, 0.5])
+
+    annotation_col1.write("## **Annotations**")
+    annotation_col2.write(
+        f"### Total labels: {len(session_state.project.editor.labels_results)}")
+
     st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
         [dict(selector='th', props=[('text-align', 'center')])]))
 
     # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+    # >>>>>>>>>>PANDAS DATAFRAME for DATASET DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    df = create_dataframe(session_state.project.datasets, column_names=session_state.project.column_names,
+                          sort=True, sort_by='ID', asc=True, date_time_format=True)
+    df_loc = df.loc[:, "ID":"Date/Time"]
+
+    styler = df_loc.style
+
+    # >>>> Dataset table placeholders
+    dataset_table_col1, dataset_table_col2 = st.columns([3, 0.5])
+
+    dataset_table_col1.write("## **Datasets**")
+    dataset_table_col2.write(
+        f"### Total datasets: {len(session_state.project.datasets)}")
+
+    st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+        [dict(selector='th', props=[('text-align', 'center')])]))    # >>>>>>>>>>PANDAS DATAFRAME for DATASET DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    st.write(vars(session_state.project))
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
