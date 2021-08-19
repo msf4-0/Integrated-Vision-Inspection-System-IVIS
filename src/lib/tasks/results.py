@@ -16,8 +16,8 @@ else:
     pass
 
 import streamlit as st
-from frontend.streamlit_labelstudio import st_labelstudio
-from annotation.annotation_manager import Result, Annotations
+from data_editor.streamlit_labelstudio import st_labelstudio
+from annotation.annotation_management import Result, Annotations
 from core.utils.log import log_info
 
 interfaces = [

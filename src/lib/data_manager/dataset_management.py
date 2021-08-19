@@ -129,35 +129,7 @@ class BaseDataset:
         else:
             self.deployment_id = None
 
-# NOTE DEPRECATED *************************
-    # def check_if_field_empty(self, field: List, field_placeholder, keys=["name", "upload"]):
-    #     empty_fields = []
 
-    #     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-    #     for i in field:
-    #         if i and i != "":
-
-    #             # Double check if Dataset name exists in DB
-    #             if (field.index(i) == 0) and ('name' in keys):
-    #                 context = ['name', field[0]]
-    #                 if self.check_if_exists(context, conn):
-    #                     field_placeholder[keys[0]].error(
-    #                         f"Dataset name used. Please enter a new name")
-    #                     log_error(
-    #                         f"Dataset name used. Please enter a new name")
-    #                     empty_fields.append(keys[0])
-
-    #             else:
-    #                 pass
-    #         else:
-
-    #             idx = field.index(i)
-    #             field_placeholder[keys[idx]].error(
-    #                 f"Please do not leave field blank")
-    #             empty_fields.append(keys[idx])
-
-    #     # if empty_fields not empty -> return False, else -> return True
-    #     return not empty_fields
 
     def check_if_field_empty(self, context: Dict, field_placeholder):
         check_if_exists = self.check_if_exists

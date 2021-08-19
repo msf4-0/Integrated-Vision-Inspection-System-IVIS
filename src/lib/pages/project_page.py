@@ -164,7 +164,7 @@ def dashboard():
     # st.write(session_state.all_project_table)
 
 
-def main():
+def index():
 
     project_page = {
         ProjectPagination.Dashboard: dashboard,
@@ -199,7 +199,9 @@ def main():
     def to_project_dashboard():
 
         NewProject.reset_new_project_page()
+        # TODO #81 Add reset to project page *************************************************************************************
         Project.reset_project_page()
+
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
 
@@ -215,7 +217,7 @@ def main():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        main()
+        index()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

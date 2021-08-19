@@ -14,15 +14,14 @@ from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-# TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
@@ -30,18 +29,17 @@ else:
     pass
 
 from path_desc import chdir_root
-from core.utils.code_generator import get_random_string
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import init_connection
-from data_manager.annotation_type_select import annotation_sel
 from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
-from project.project_management import NewProject, ProjectPagination, NewProjectPagination, new_project_nav
-from data_editor.editor_management import Editor, NewEditor
+from project.project_management import ExistingProjectPagination, ProjectPermission, Project
+from data_editor.editor_management import Editor
 from data_editor.editor_config import editor_config
-from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
+from pages.sub_pages.dataset_page.new_dataset import new_dataset
+from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard, labelling_dashboard
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -57,22 +55,87 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
 chdir_root()  # change to root directory
 
 
-def existing_project():
-    st.write("# Existing")
-    # TODO #79 Add dashboard to show types of labels and number of datasets
-    # TODO #80 Add Labelling interface
-    st.write(f"## **Project Name:** {session_state.project.name}")
-
-
 def index():
+    RELEASE = False
 
-    existing_project()
+    # ****************** TEST ******************************
+    if not RELEASE:
+        log_info("At Exisiting Project Dashboard INDEX")
+
+        # ************************TO REMOVE************************
+        with st.sidebar.container():
+            st.image("resources/MSF-logo.gif", use_column_width=True)
+            st.title("Integrated Vision Inspection System", anchor='title')
+            st.header(
+                "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+            st.markdown("""___""")
+
+        # ************************TO REMOVE************************
+        project_id_tmp = 7
+        log_info(f"Entering Project {project_id_tmp}")
+
+        session_state.append_project_flag = ProjectPermission.ViewOnly
+
+        if "project" not in session_state:
+            session_state.project = Project(project_id_tmp)
+            log_info("Inside")
+
+        # else:
+        #     session_state.project = Project(project_id_tmp)
+
+    # ************************ EXISTING PROJECT PAGINATION *************************
+    existing_project_page = {
+        ExistingProjectPagination.Dashboard: existing_project_dashboard.dashboard,
+        ExistingProjectPagination.Labelling: None,
+        ExistingProjectPagination.Training: None,
+        ExistingProjectPagination.Models: None,
+        ExistingProjectPagination.Export: None,
+        ExistingProjectPagination.Settings: None
+    }
+
+    # ****************************** HEADER **********************************************
+    st.write(f"# {session_state.project.name}")
+
+    project_description = session_state.project.desc if session_state.project.desc is not None else " "
+    st.write(f"{project_description}")
+
+    st.markdown("""___""")
+    # ****************************** HEADER **********************************************
+
+    if 'existing_project_pagination' not in session_state:
+        session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
+
+    log_info(f"Entering Project {session_state.project.id}")
+
+    session_state.append_project_flag = ProjectPermission.ViewOnly
+    # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    existing_project_page_options = (
+        "Overview", "Labelling", "Training", "Models", "Export", "Settings")
+
+    # >>>> CALLBACK for RADIO >>>>
+    def existing_project_page_navigator():
+
+        # NOTE: TO RESET SUB-PAGES AFTER EXIT
+
+        session_state.existing_project_pagination = existing_project_page_options.index(
+            session_state.existing_project_page_navigator_radio)
+
+        if "dataset_page_navigator_radio" in session_state:
+            del session_state.existing_project_page_navigator_radio
+
+    with st.sidebar.expander(session_state.project.name, expanded=True):
+        st.radio("", options=existing_project_page_options,
+                 index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
+    # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    existing_project_page[session_state.existing_project_pagination]()
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-
         index()
+
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
