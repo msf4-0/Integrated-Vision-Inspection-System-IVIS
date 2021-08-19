@@ -14,6 +14,12 @@ updates:
     interval: "daily"# Enable version updates for npm
 - package-ecosystem: "npm"
   # Look for `package.json` and `lock` files in the `root` directory
+  directory: "/src/lib/data_manager/data_table_component/data_table/frontend"
+  # Check the npm registry for updates every day (weekdays)
+  schedule:
+    interval: "daily"# Enable version updates for npm
+- package-ecosystem: "npm"
+  # Look for `package.json` and `lock` files in the `root` directory
   directory: "/src/lib/data_editor/streamlit_labelstudio/frontend"
   # Check the npm registry for updates every day (weekdays)
   schedule:
