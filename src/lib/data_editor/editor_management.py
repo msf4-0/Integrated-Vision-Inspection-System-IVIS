@@ -5,20 +5,22 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-from os import stat
-import sys
-from pathlib import Path
-from enum import IntEnum
-from typing import List, Dict, Union
-import xml.dom
-from xml.dom import minidom
-from datetime import datetime
 import json
-from PIL import Image
+import sys
+import xml.dom
 from base64 import b64encode, decode
+from enum import IntEnum
 from io import BytesIO
+from pathlib import Path
+from typing import Dict, List, NamedTuple, Union
+from xml.dom import minidom
+
+import pandas as pd
 import streamlit as st
+from PIL import Image
 from streamlit import session_state as session_state
+
+from core.utils.helper import create_dataframe
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -31,14 +33,16 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+from annotation.annotation_management import annotation_types
+from annotation.annotation_template import load_annotation_template
+from core.utils.code_generator import get_random_string
+from core.utils.log import log_error, log_info  # logger
+from data_manager.database_manager import (db_fetchone, db_no_fetch,
+                                           init_connection)
+from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from annotation.annotation_template import load_annotation_template
-from core.utils.log import log_info, log_error  # logger
-from core.utils.code_generator import get_random_string
-from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
-from annotation.annotation_management import annotation_types
-from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -75,6 +79,14 @@ TAGNAMES = {
     DeploymentType.Instance: {"type": "PolygonLabels", "tag": "Label"},
     DeploymentType.Semantic: {"type": "BrushLabels", "tag": "Label"},
 }
+
+
+class Labels(NamedTuple):
+    # store label details from self.labels_dict
+    name: str
+    type: str
+    count: int
+    percentile: float
 
 
 class BaseEditor:
@@ -180,7 +192,6 @@ class BaseEditor:
             Dict: Dictionary of labels with Annotation Type
         """
 
-        
         if not self.labels:
             # Case when Editor not exists in DB
             self.xml_doc: minidom.Document = self.load_xml(self.editor_config)
@@ -282,12 +293,15 @@ class Editor(BaseEditor):
         super().__init__()
         self.project_id = project_id
         self.childNodes: minidom.Node = None
+        # store query from 'labels' column
+        self.labels_dict: Dict[List[str]] = {}
         self.deployment_type = self.get_deployment_type(deployment_type)
         self.parent_tagname, self.child_tagname = self.get_annotation_tags(
             self.deployment_type)
         self.editor_config = self.load_raw_xml()
         self.xml_doc: minidom.Document = self.load_xml(self.editor_config)
         self.id, self.name, self.labels = self.query_editor_fields()
+        self.labels_results: List = []  # store results from labels
 
     def editor_notfound_handler(self):
         """Insert editor template into database and store in class attributes
@@ -317,7 +331,7 @@ class Editor(BaseEditor):
         editor_fields = db_fetchone(
             query_editor_fields_SQL, conn, query_editor_fields_vars)
         if editor_fields:
-            self.id, self.name, self.labels = editor_fields
+            self.id, self.name, self.labels_dict = editor_fields
         else:
             log_error(
                 f"Editor for Project with ID: {self.project_id} does not exists in the database!!!")
@@ -351,22 +365,6 @@ class Editor(BaseEditor):
 
         return self.editor_config
 
-    # def load_xml(self, editor_config: str) -> minidom.Document:
-    #     """Parse XML string into XML minidom.Document object
-
-    #     Args:
-    #         editor_config (str): XML string for database
-
-    #     Returns:
-    #         minidom.Document: XML minidom.Document object
-    #     """
-    #     if editor_config:
-    #         xml_doc = minidom.parseString(editor_config)
-    #         self.xml_doc = xml_doc
-    #         return xml_doc
-    #     else:
-    #         log_error(f"Unable to parse string as XML object")
-
     @staticmethod
     def pretty_print(xml_doc: minidom.Document, encoding: str = 'utf-8'):
         """Pretty prints XML using minidom.Document.toprettyxml but removing additional whitespaces
@@ -397,33 +395,6 @@ class Editor(BaseEditor):
         else:
             return xml_string
 
-#  NOTE: DEPRECRATED
-    # get Nodelist of parent tag
-
-    # def get_parents(self, parent_tagName: str, attr: str = None, value: str = None) -> List:
-    #     if self.xml_doc:
-    #         if attr and value:
-    #             pass
-    #         else:
-    #             parents = self.xml_doc.getElementsByTagName(parent_tagName)
-    #         return parents
-
-    # # to get list of labels
-    # def get_child(self, parent_tagName: str = None, child_tagName: str = None, attr: str = None, value: str = None) -> List:
-
-    #     if (parent_tagName and child_tagName) is None:
-    #         parent_tagName, child_tagName = self.parent_tagname, self.child_tagname
-
-    #     parents = self.get_parents(parent_tagName, attr, value)
-    #     elements = []
-    #     for parent in parents:
-    #         childs = parent.getElementsByTagName(
-    #             child_tagName)  # list of child elements
-    #         for child in childs:
-    #             elements.append(child)
-    #     self.childNodes = elements
-    #     return elements
-
     def get_tagname_attributes(self, elements: List) -> List:
         '''
         element.attributes.items() -> give a list of tuples of attributes
@@ -439,44 +410,6 @@ class Editor(BaseEditor):
 
         return tagName_attributes
 
-    # @staticmethod
-    # def get_labels_from_childNode(elements: List) -> List:
-    #     # assume only one type of annotation type
-    #     labels = []
-    #     for element in elements:  # for 'value' attrib ONLY
-    #         if element.hasAttribute('value'):
-    #             labels.append(element.getAttribute('value'))
-
-    #     # TODO: add option for background
-    #     # element.attributes.items() -> give a list of tuples of attributes
-    #     # [('value', 'Hello'), ('background', 'blue')]
-    #     # [('value', 'World'), ('background', 'pink')]
-    #     # [('value', 'Hello'), ('background', 'blue')]
-    #     # [('value', 'World'), ('background', 'pink')]
-    #     # self.labels = labels
-    #     return labels
-
-    # def get_labels(self, parent_tagName: str = None, child_tagName: str = None, attr: str = None, value: str = None):
-    #     """Get labels from XML DOM using Parent and Child tags
-
-    #     Args:
-    #         parent_tagName (str): Annotation Tagname
-    #         child_tagName (str): Annotation Child Tagname
-    #         attr (str, optional): 'value' attribute of tag if specific label to be found . Defaults to None.
-    #         value (str, optional): Value of 'value'. Defaults to None.
-
-    #     Returns:
-    #         [type]: [description]
-    #     """
-    #     if (parent_tagName and child_tagName) is None:
-    #         parent_tagName, child_tagName = self.parent_tagname, self.child_tagname
-
-    #     self.childNodes = self.get_child(
-    #         parent_tagName=parent_tagName, child_tagName=child_tagName, attr=attr, value=value)
-    #     self.labels = self.get_labels_from_childNode(self.childNodes)
-
-    #     return self.labels
-
     def create_label(self, attr, value, parent_tagname=None, child_tagname=None):
         if (parent_tagname and child_tagname) is None:
             parent_tagname, child_tagname = self.parent_tagname, self.child_tagname
@@ -489,12 +422,6 @@ class Editor(BaseEditor):
         # add new tag to parent childNodelist
         # <Label value="..." background="...">
         newChild = nodeList.appendChild(new_label)  # xml_doc will be updated
-
-        # NOTE Update when submit button is pressed -> CALLBACK
-        # serialise XML doc and Update database
-        updated_editor_config_xml_string = self.to_xml_string(pretty=True)
-        # log_info(updated_editor_config_xml_string)
-        # self.update_editor_config(updated_editor_config_xml_string)
 
         return newChild
 
@@ -537,27 +464,6 @@ class Editor(BaseEditor):
             # self.update_editor_config(updated_editor_config_xml_string)
             return removedChild
 
-    # def generate_labels_dict(self, deployment_type: IntEnum) -> dict:
-    #     """  Generate labels dictionary to display on project dashboard
-    #     {'Bounding Box':[List of labels],
-    #         'Classification':[List of labels]
-    #         }
-
-    #     Args:
-    #         deployment_type ([type]): Type of Deep Learning deployment
-
-    #     Returns:
-    #         Dict: Dictionary of labels with Annotation Type
-    #     """
-    #     # get ID from enum member value
-    #     # get annotation type
-    #     # generate dict
-
-    #     annotation_type = annotation_types[deployment_type]
-    #     labels_dict = {annotation_type: self.labels}
-
-    #     return labels_dict
-
     def update_editor_config(self):
 
         self.editor_config = self.to_xml_string(pretty=True)
@@ -579,6 +485,37 @@ class Editor(BaseEditor):
             update_editor_config_SQL, conn, update_editor_config_vars)
 
         return query_return
+
+    st.cache(ttl=100)
+
+    def create_table_of_labels(self) -> pd.DataFrame:
+        # Compatible with multiple annotation types
+        try:
+            self.labels_results = []
+            for key, values in self.labels_dict.items():
+                annotation_type = key
+                for value in values:
+                    self.labels_results.append(
+                        Labels(value, annotation_type, None, None))
+            log_info(f"Created DataFrame for Label Details (labels_results)")
+        except TypeError as e:
+            log_error(f"{e}: Labels could not be found in 'labels' column")
+            self.labels_results = []
+            if self.labels:
+                # Compatible with one annotation type
+                # form dict from XML
+                annotation_type = annotation_types[self.deployment_type]
+                for value in self.labels:
+                    self.labels_results.append(
+                        Labels(value, annotation_type, None, None))
+                log_info(f"Created DataFrame for Label Details (labels_dict)")
+        # Create DataFrame
+        column_names = ['Label Name', 'Annotation Type',
+                        'Counts', 'Percentile (%)']
+        df = create_dataframe(self.labels_results, column_names,
+                              sort=True, sort_by='Annotation Type')
+        df = df.fillna(0)
+        return df
 
 
 @st.cache

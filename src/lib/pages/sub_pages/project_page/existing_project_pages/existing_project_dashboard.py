@@ -55,6 +55,16 @@ def dashboard():
     # TODO #79 Add dashboard to show types of labels and number of datasets
     st.write("Hello")
 
+    # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    df = session_state.project.editor.create_table_of_labels()
+    df.index.name = 'No.'
+    df['Percentile (%)']=df['Percentile (%)'].map("{:.2f}".format)
+    styler = df.style
+    st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+        [dict(selector='th', props=[('text-align', 'center')])]))
+
+    # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

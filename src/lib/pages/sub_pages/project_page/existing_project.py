@@ -15,8 +15,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -56,7 +56,7 @@ chdir_root()  # change to root directory
 
 
 def index():
-    RELEASE = True
+    RELEASE = False
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -78,9 +78,10 @@ def index():
 
         if "project" not in session_state:
             session_state.project = Project(project_id_tmp)
+            log_info("Inside")
 
-        else:
-            session_state.project = Project(project_id_tmp)
+        # else:
+        #     session_state.project = Project(project_id_tmp)
 
     # ************************ EXISTING PROJECT PAGINATION *************************
     existing_project_page = {

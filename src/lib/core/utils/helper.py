@@ -128,7 +128,7 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
     if data:
 
         df = pd.DataFrame(data, columns=column_names)
-        df.index.name = ('No.')
+        df.index.name = 'No.'
         if date_time_format:
             df['Date/Time'] = pd.to_datetime(df['Date/Time'],
                                              format='%Y-%m-%d %H:%M:%S')
