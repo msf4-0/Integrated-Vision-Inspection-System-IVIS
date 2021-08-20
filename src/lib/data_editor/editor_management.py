@@ -195,7 +195,10 @@ class BaseEditor:
         if not self.labels:
             # Case when Editor not exists in DB
             self.xml_doc: minidom.Document = self.load_xml(self.editor_config)
-            self.labels = self.get_labels()
+            self.parent_tagname, self.child_tagname = self.get_annotation_tags(
+                deployment_type)
+            self.labels = self.get_labels(
+                self.parent_tagname, self.child_tagname)
 
         annotation_type = annotation_types[deployment_type]
         labels_dict = {annotation_type: self.labels}
@@ -218,6 +221,8 @@ class BaseEditor:
             deployment_type = deployment_type
         elif isinstance(deployment_type, str):
             deployment_type = DEPLOYMENT_TYPE[deployment_type]
+
+        log_info(f"Deployment Type is :{deployment_type}")
 
         return deployment_type
 
@@ -258,6 +263,8 @@ class BaseEditor:
         Returns:
             int: Editor class id
         """
+        self.deployment_type = self.get_deployment_type(
+            self.deployment_type)  # convert to IntEnum
         labels_json = self.convert_labels_dict_to_JSON()
         init_editor_SQL = """
                                     INSERT INTO public.editor (
@@ -283,9 +290,14 @@ class NewEditor(BaseEditor):
     def __init__(self, random_generator) -> None:
         super().__init__()
         self.name: str = random_generator
+        self.parent_tagname: str = None
+        self.child_tagname: str = None
 
-    def init_editor(self) -> int:
+    def init_editor(self, deployment_type: str) -> int:
+        self.deployment_type = deployment_type
         self.id = self.insert_editor_template()
+
+        return self.id
 
 
 class Editor(BaseEditor):

@@ -6,14 +6,16 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 
 import sys
-from pathlib import Path
-from enum import IntEnum
 from copy import deepcopy
-from time import sleep, perf_counter
-from typing import Union, Dict
+from enum import IntEnum
+from pathlib import Path
+from time import perf_counter, sleep
+from typing import Dict, Union
+from humanize import naturalsize
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+
 # DEFINE Web APP page configuration
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -31,14 +33,15 @@ for path in sys.path:
     else:
         pass
 
-from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
-from core.utils.log import log_info, log_error  # logger
-from core.webcam import webcam_webrtc
 from core.utils.helper import check_filetype
+from core.utils.log import log_error, log_info  # logger
+from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset, DatasetPagination
+from data_manager.dataset_management import DatasetPagination, NewDataset
+from path_desc import chdir_root
 from project.project_management import NewProjectPagination, ProjectPagination
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -160,7 +163,7 @@ def new_dataset():
 
     outercol1, outercol2, outercol3 = st.columns([1.5, 2, 2])
     dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
-    dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
+    dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
     outercol3.markdown(" ____ ")
 
     dataset_size_place = outercol3.empty()
@@ -210,7 +213,7 @@ def new_dataset():
             session_state.new_dataset.dataset_size = 0  # length of uploaded files
             session_state.new_dataset.dataset = []
         dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
-        dataset_filesize_string = f"- ### Total size of data: **{(session_state.new_dataset.calc_total_filesize()):.2f} MB**"
+        dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
 
         # outercol2.write(uploaded_files_multi[0]) # TODO: Remove
         dataset_size_place.write(dataset_size_string)
@@ -287,7 +290,7 @@ def new_dataset():
 
     #     # except Exception as e:
     #     #     log_error(
-    #     #         f"""{e}: Either New Dataset Page entered from Dataset Dashboard or 
+    #     #         f"""{e}: Either New Dataset Page entered from Dataset Dashboard or
     #     #         session_state.new_project is not initialised or nullified""")
 
     #     # >>>> CLEAR ALL CLASS ATTRIBUTES AND WIDGET STATES >>>>

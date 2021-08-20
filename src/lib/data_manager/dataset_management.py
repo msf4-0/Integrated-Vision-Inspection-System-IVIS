@@ -129,8 +129,6 @@ class BaseDataset:
         else:
             self.deployment_id = None
 
-
-
     def check_if_field_empty(self, context: Dict, field_placeholder):
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
@@ -174,9 +172,9 @@ class BaseDataset:
             self.dataset_total_filesize = 0
             for data in self.dataset:
                 self.dataset_total_filesize += data.size
-            # To get size in MB
-            self.dataset_total_filesize = bytes_divisor(
-                self.dataset_total_filesize, -2)
+            # # To get size in MB
+            # self.dataset_total_filesize = bytes_divisor(
+            #     self.dataset_total_filesize, -2)
         else:
             self.dataset_total_filesize = 0
         return self.dataset_total_filesize

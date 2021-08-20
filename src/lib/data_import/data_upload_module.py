@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from time import sleep, perf_counter
 from typing import Union, Dict
+from humanize import naturalsize
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -71,7 +72,7 @@ def data_uploader(dataset: Dataset):
     data_source = data_source_options.index(data_source)
 
     dataset_size_string = f"- ### Number of datas: **{dataset.dataset_size}**"
-    dataset_filesize_string = f"- ### Total size of data: **{(dataset.calc_total_filesize()):.2f} MB**"
+    dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=dataset.calc_total_filesize(),format='%.2f')}**"
 
     st.markdown(" ____ ")
     # TODO: #15 Webcam integration
@@ -124,7 +125,7 @@ def data_uploader(dataset: Dataset):
             dataset.dataset = None
 
         dataset_size_string = f"- ### Number of datas: **{dataset.dataset_size}**"
-        dataset_filesize_string = f"- ### Total size of data: **{(dataset.calc_total_filesize()):.2f} MB**"
+        dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=dataset.calc_total_filesize(),format='%.2f')}**"
 
         st.markdown(" ____ ")
 
@@ -160,7 +161,7 @@ def data_uploader(dataset: Dataset):
     # >>>>>>>>>>>>>>>>>>>>>>>> SUBMISSION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     def update_dataset_callback(field, place):
-        context = {'upload': field }
+        context = {'upload': field}
         dataset.has_submitted = dataset.check_if_field_empty(
             context, field_placeholder=place)
 
@@ -205,7 +206,7 @@ def main():
         st.write(session_state.append_data_flag)
 
         with st.expander("", expanded=False):
-            data_uploader(session_state.dataset, key='upload_module')
+            data_uploader(session_state.dataset)
 
         submit = st.button("Test", key="testing")
         if submit:

@@ -101,6 +101,8 @@ class NewTask(BaseTask):
                                     %s,
                                     %s,
                                     %s)
+                                ON CONFLICT ON CONSTRAINT task_pkey DO NOTHING
+
                                 RETURNING id;
                                         """
         insert_new_task_vars = [image_name, project_id, dataset_id]
@@ -125,6 +127,18 @@ class Task(BaseTask):
     # TODO: check if current image exists as a 'task' in DB
     @staticmethod
     def check_if_task_exists(image_name: str, project_id: int, dataset_id: int, conn=conn) -> bool:
+        """Check if tasks exist in the Task table
+
+
+        Args:
+            image_name (str): Name of data
+            project_id (int): Project ID
+            dataset_id (int): Dataset ID
+            conn (psycopg2.connection): Connection class object. Defaults to conn.
+
+        Returns:
+            bool: True if exists else False
+        """
         check_if_exists_SQL = """
                                 SELECT
                                     EXISTS (

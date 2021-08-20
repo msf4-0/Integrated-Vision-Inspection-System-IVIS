@@ -90,6 +90,7 @@ def dashboard():
     def to_new_project_page():
 
         session_state.project_pagination = ProjectPagination.New
+        session_state.project_status = ProjectPagination.New
 
         if "all_project_table" in session_state:
             del session_state.all_project_table
@@ -147,6 +148,7 @@ def dashboard():
         log_info(f"Entering Project {project_id_tmp}")
 
         session_state.project_pagination = ProjectPagination.Existing
+        session_state.project_status = ProjectPagination.Existing
         session_state.append_project_flag = ProjectPermission.ViewOnly
 
         if "project" not in session_state:
@@ -157,8 +159,10 @@ def dashboard():
 
         if "all_project_table" in session_state:
             del session_state.all_project_table
+
     if "all_project_table" not in session_state:
         session_state.all_project_table = None
+
     data_table(existing_project, project_columns,
                checkbox=False, key='all_project_table', on_change=to_existing_project)
     # st.write(session_state.all_project_table)
@@ -182,15 +186,15 @@ def index():
     project_page_options = ("Dashboard", "Create New Project")
 
     # NOTE DEPRECATED ******************************************************************************
-    def project_page_navigator():
+    # def project_page_navigator():
 
-        NewProject.reset_new_project_page()
+    #     NewProject.reset_new_project_page()
 
-        session_state.project_pagination = project_page_options.index(
-            session_state.project_page_navigator_radio)
-        session_state.new_project_pagination = NewProjectPagination.Entry
-        if "project_page_navigator_radio" in session_state:
-            del session_state.project_page_navigator_radio
+    #     session_state.project_pagination = project_page_options.index(
+    #         session_state.project_page_navigator_radio)
+    #     session_state.new_project_pagination = NewProjectPagination.Entry
+    #     if "project_page_navigator_radio" in session_state:
+    #         del session_state.project_page_navigator_radio
 
     # with navigator.expander("Project", expanded=True):
     #     st.radio("", options=project_page_options,
@@ -211,7 +215,7 @@ def index():
     with navigator.container():
         st.button("Project", key="to_project_dashboard_sidebar",
                   on_click=to_project_dashboard)
-    log_info("Navigator")
+    log_info(f"Navigator: {session_state.project_pagination}")
     project_page[session_state.project_pagination]()
 
 

@@ -69,6 +69,7 @@ def new_project_entry_page():
 
     if "new_project" not in session_state:
         session_state.new_project = NewProject(get_random_string(length=8))
+
     if 'new_editor' not in session_state:
         session_state.new_editor = NewEditor(get_random_string(length=8))
         # set random project ID before getting actual from Database
@@ -289,8 +290,9 @@ def new_project_entry_page():
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
             if session_state.new_project.initialise_project(dataset_dict):
-                session_state.new_editor.project_id = session_state.new_project.id
-                if session_state.new_editor.init_editor():
+                session_state.new_editor.project_id = session_state.new_project.id # Updated with Actual Project ID from DB
+                # deployment type now IntEnum
+                if session_state.new_editor.init_editor(session_state.new_project.deployment_type):
                     session_state.new_project.editor = Editor(
                         session_state.new_project.id, session_state.new_project.deployment_type)
                     success_place.success(
@@ -333,7 +335,7 @@ def index():
         session_state.new_project_pagination = NewProjectPagination.Entry
 
     new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
-
+    log_info(f" New Project Pagination: {session_state.new_project_pagination}")
     # ******************** TOP PAGE NAV *******************************************************************************************************
     if (session_state.new_project_pagination == NewProjectPagination.Entry) or (session_state.new_project_pagination == NewProjectPagination.NewDataset):
         color = [current_page, non_current_page]
@@ -360,7 +362,8 @@ def index():
 
         new_project_home_col2.button(
             "Done", key='back_to_project_dashboard', on_click=to_project_dashboard)
-
+        log_info(
+            f"Project ID before editor config: {session_state.new_project.id},{session_state.new_project.editor}")
         new_project_page[session_state.new_project_pagination](
             session_state.new_project)
     else:
@@ -374,6 +377,7 @@ def index():
         def to_new_project_entry_page():
             NewDataset.reset_new_dataset_page()
             session_state.new_project_pagination = NewProjectPagination.Entry
+
         new_project_back_button_place.button("Back", key="back_to_entry_page",
                                              on_click=to_new_project_entry_page)
 
