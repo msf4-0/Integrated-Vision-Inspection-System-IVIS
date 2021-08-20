@@ -129,8 +129,6 @@ class BaseDataset:
         else:
             self.deployment_id = None
 
-
-
     def check_if_field_empty(self, context: Dict, field_placeholder):
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(

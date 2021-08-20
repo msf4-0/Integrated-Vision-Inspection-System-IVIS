@@ -101,7 +101,7 @@ class NewTask(BaseTask):
                                     %s,
                                     %s,
                                     %s)
-                                ON CONFLICT ON CONSTRAINT task_pkey
+                                ON CONFLICT ON CONSTRAINT task_pkey DO NOTHING
 
                                 RETURNING id;
                                         """
