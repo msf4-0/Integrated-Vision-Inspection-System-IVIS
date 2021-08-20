@@ -13,6 +13,7 @@ from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
 import cv2
+from stqdm import stqdm
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -37,6 +38,7 @@ from core.utils.form_manager import check_if_exists, check_if_field_empty, reset
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
 from data_editor.editor_management import Editor
+from annotation.annotation_management import NewTask
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -261,7 +263,6 @@ class Project(BaseProject):
 
         return project_dataset_tmp, column_names
 
-   
     def get_dataset_name_list(self):
         """Generate Dictionary of namedtuple
 
@@ -341,15 +342,16 @@ class Project(BaseProject):
         if self.datasets:
             data_name_list = {}
             for d in self.datasets:
-                data_name_tmp = []
-                dataset_path = Dataset.get_dataset_path(d.Name)
-                dataset_path = dataset_path / "./*"
-                # for data_path in iglob(dataset_path):
-                #     data_name = Path(data_path).name
-                #     data_name_tmp.append(data_name)
+                # data_name_tmp = []
+                # dataset_path = Dataset.get_dataset_path(d.Name)
+                # dataset_path = dataset_path / "./*"
+                # # for data_path in iglob(dataset_path):
+                # #     data_name = Path(data_path).name
+                # #     data_name_tmp.append(data_name)
 
-                data_name_tmp = [Path(data_path).name
-                                 for data_path in iglob(str(dataset_path))]  # UPDATED with List comprehension
+                # data_name_tmp = [Path(data_path).name
+                #                  for data_path in iglob(str(dataset_path))]  # UPDATED with List comprehension
+                data_name_tmp = get_single_data_name_list(d.Name)
 
                 data_name_list[d.Name] = sorted(data_name_tmp)
 
@@ -410,6 +412,25 @@ class NewProject(BaseProject):
             context, field_placeholder, check_if_exists)
         return empty_fields
 
+    def insert_new_project_task(self,dataset_name:str,dataset_id:int):
+        """Create New Task for Project
+            - Insert into 'task' table
+
+        Args:
+            dataset_name (str): Dataset Name
+            dataset_id (int): Dataset ID
+        """
+        data_name_list = get_single_data_name_list(dataset_name)
+        if len(data_name_list):
+            log_info(f"Inserting task into DB........")
+            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
+                
+                # >>>> Insert new task from NewTask class method
+                task_id = NewTask.insert_new_task(
+                    data, self.id, dataset_id)
+                log_info(f"Loaded task {task_id} into DB for data: {data}")
+
+
     def insert_project(self, dataset_dict: Dict):
         insert_project_SQL = """
                                 INSERT INTO public.project (
@@ -424,6 +445,8 @@ class NewProject(BaseProject):
                                 
                             """
         insert_project_vars = [self.name, self.desc, self.deployment_type]
+
+        # Query returns Project ID from table insertion
         self.id = db_fetchone(
             insert_project_SQL, conn, insert_project_vars).id
 
@@ -434,11 +457,20 @@ class NewProject(BaseProject):
                                         VALUES (
                                             %s,
                                             %s);"""
-        for dataset in self.dataset_chosen:
+
+        for dataset in stqdm(self.dataset_chosen, unit='dataset', st_container=st.sidebar, desc="Attaching dataset to project"):
             dataset_id = dataset_dict[dataset].ID
+            dataset_name = dataset_dict[dataset].Name
+
             insert_project_dataset_vars = [self.id, dataset_id]
             db_no_fetch(insert_project_dataset_SQL, conn,
                         insert_project_dataset_vars)
+
+            # NEED TO ADD INSERT TASK
+            # get data name list
+            # loop data and add task
+            self.insert_new_project_task(dataset_name,dataset_id)
+
         return self.id
 
     def initialise_project(self, dataset_dict):
@@ -576,6 +608,28 @@ def new_project_nav(color, textColor):
     components.html(html_string, height=100)
 
 # >>>> CREATE PROJECT >>>>
+
+
+def get_single_data_name_list(dataset_name: str) -> List:
+    """Get a List of data for a single dataset
+
+    Args:
+        dataset_name (str): Name of dataset
+
+    Returns:
+        List: List of data from dataset
+    """
+    data_name_list = []
+    dataset_path = Dataset.get_dataset_path(dataset_name)
+    dataset_path = dataset_path / "./*"
+    # for data_path in iglob(dataset_path):
+    #     data_name = Path(data_path).name
+    #     data_name_tmp.append(data_name)
+
+    data_name_list = [Path(data_path).name
+                      for data_path in iglob(str(dataset_path))]  # UPDATED with List comprehension
+
+    return data_name_list
 
 
 def main():

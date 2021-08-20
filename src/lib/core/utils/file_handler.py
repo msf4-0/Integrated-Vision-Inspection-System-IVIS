@@ -42,6 +42,8 @@ _DIR_APP_NAME = "integrated-vision-inspection-system"
 # REFERENCED LS
 
 # TODO #49 utilise this to create App dir during installation
+
+
 def get_config_dir():
     config_dir = user_config_dir(appname=_DIR_APP_NAME)
     os.makedirs(config_dir, exist_ok=True)
@@ -54,6 +56,7 @@ def get_data_dir():
     return data_dir
 
 
+# ************************** DEPRECATED **************************
 def bytes_divisor(value: Union[int, float], power: int = 1) -> Union[int, float]:
     """Convert bytes size
 

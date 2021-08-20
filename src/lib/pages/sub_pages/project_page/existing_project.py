@@ -30,13 +30,8 @@ else:
 
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
-from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
-from data_editor.editor_management import Editor
-from data_editor.editor_config import editor_config
 
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard, labelling_dashboard
