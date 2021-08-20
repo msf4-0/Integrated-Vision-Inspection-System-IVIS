@@ -174,9 +174,9 @@ class BaseDataset:
             self.dataset_total_filesize = 0
             for data in self.dataset:
                 self.dataset_total_filesize += data.size
-            # To get size in MB
-            self.dataset_total_filesize = bytes_divisor(
-                self.dataset_total_filesize, -2)
+            # # To get size in MB
+            # self.dataset_total_filesize = bytes_divisor(
+            #     self.dataset_total_filesize, -2)
         else:
             self.dataset_total_filesize = 0
         return self.dataset_total_filesize

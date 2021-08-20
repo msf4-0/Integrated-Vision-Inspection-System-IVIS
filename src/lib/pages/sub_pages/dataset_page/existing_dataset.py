@@ -255,7 +255,7 @@ def main():
     # st.write(existing_dataset)
     dataset_dict = get_dataset_name_list(existing_dataset)
 
-    show(dataset_dict["My Second Dataset"])
+    show(dataset_dict["My 2nd Dataset"])
     # ****************** TESTING ***********************
 
 
