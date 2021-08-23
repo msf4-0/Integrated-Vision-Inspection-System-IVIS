@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+from collections import namedtuple
 import sys
 from pathlib import Path
 from typing import List, Dict, Union
@@ -33,7 +34,7 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import db_no_fetch, init_connection, db_fetchone
+from data_manager.database_manager import db_fetchall, db_no_fetch, init_connection, db_fetchone
 from user.user_management import User
 from core.utils.dataset_handler import data_url_encoder_cv2
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -64,6 +65,23 @@ annotation_types = {
     AnnotationType.Polygons: 'Segmentation Polygon',
     AnnotationType.Masks: 'Segmentation Mask'
 }
+
+class LabellingPagination(IntEnum):
+    AllTask = 0
+    Labelled = 1
+    Queue = 2
+    Editor = 3
+    Performance=4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return LabellingPagination[s]
+        except KeyError:
+            raise ValueError()
 
 
 class BaseTask:
@@ -121,10 +139,10 @@ class Task(BaseTask):
         self.dataset_id = dataset_id
         self.annotations = annotations
         self.predictions = predictions
+        # holds raw data values for Data (Numpy array for images)
         self.data_object = data_object
         self.query_task()
 
-    # TODO: check if current image exists as a 'task' in DB
     @staticmethod
     def check_if_task_exists(image_name: str, project_id: int, dataset_id: int, conn=conn) -> bool:
         """Check if tasks exist in the Task table
@@ -155,6 +173,48 @@ class Task(BaseTask):
             check_if_exists_SQL, conn, check_if_exists_vars).exists
 
         return exists_flag
+
+    # @staticmethod
+    # @st.cache(ttl=60)
+    # def query_all_task(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
+
+    #     ID_string = "id" if for_data_table else "ID"
+    #     query_all_task_SQL = f"""
+    #         SELECT
+    #             t.id,
+    #             t.name,
+    #             (
+    #                 SELECT
+    #                     first_name || ' ' || last_name AS "Created By"
+    #                 FROM
+    #                     public.users u
+    #                 WHERE
+    #                     u.id = a.users_id), (
+    #                 SELECT
+    #                     d.name
+    #                 FROM
+    #                     public.dataset d
+    #                 WHERE
+    #                     d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+    #         FROM
+    #             public.task t
+    #             LEFT JOIN public.annotations a ON a.id = t.annotation_id
+    #         WHERE
+    #             t.project_id = %s
+    #         ORDER BY
+    #             id;
+    #                             """
+    #     query_all_task_vars = [project_id]
+
+    #     try:
+    #         all_task_query_return = db_fetchall(
+    #             query_all_task_SQL, conn, query_all_task_vars, fetch_col_name=False)
+
+    #     except Exception as e:
+    #         log_error(f"{e}: No task found for Project ")
+    #         all_task_query_return = None
+
+    #     return all_task_query_return
 
     def query_task(self):
         """Query ID, 'Is Labelled' flag and 'Skipped' flag
@@ -223,7 +283,7 @@ class Task(BaseTask):
         #     self.data_list[self.name] = data
         return data
 
-    def generate_editor_format(self, annotations_dict, predictions_dict=None):
+    def generate_editor_format(self, annotations_dict: List, predictions_dict: List = None):
         """Generate editor format based on Label Studio Frontend requirements
 
         Args:
@@ -521,7 +581,7 @@ class Annotations(BaseAnnotations):
         self.task = task  # 'Task' class object
         self.user = {}
         if self.task.is_labelled:
-            self.query_annotations()
+            self.query_annotations()  # get annotations id, results, user details, date/time
             self.completed_by = {
                 "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
         else:
@@ -578,6 +638,7 @@ class Annotations(BaseAnnotations):
                 "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
             log_info("Query in class")
             return query_return
+
         except TypeError as e:
             log_error(
                 f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.project_id}")

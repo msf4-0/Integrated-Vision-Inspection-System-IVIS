@@ -93,13 +93,45 @@ WHERE
 SELECT
     id,
     result,
-    (u.id,u.email,u.first_name,u.last_name),
+    (u.id,
+        u.email,
+        u.first_name,
+        u.last_name),
     created_at,
     updated_at
 FROM
     public.annotations a
-inner join public.users u
-on a.users_id = u.id
+    INNER JOIN public.users u ON a.users_id = u.id
 WHERE
     task_id = % s;
+
+-- Query all Task
+SELECT
+    t.id,
+    t.name AS "Task Name",
+    (
+        SELECT
+            CASE WHEN (
+                SELECT
+                    first_name || ' ' || last_name AS "Created By"
+                FROM
+                    public.users u
+                WHERE
+                    u.id = a.users_id) IS NULL THEN
+                '-'
+            END AS "Created By"),
+    (
+        SELECT
+            d.name AS "Dataset Name"
+        FROM
+            public.dataset d
+        WHERE
+            d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+FROM
+    public.task t
+    LEFT JOIN public.annotations a ON a.id = t.annotation_id
+WHERE
+    t.project_id = %s
+ORDER BY
+    t.id;
 

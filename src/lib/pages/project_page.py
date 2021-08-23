@@ -34,6 +34,7 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_table import data_table
 from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, ProjectPermission, query_all_projects
+from annotation.annotation_management import LabellingPagination
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import new_project, existing_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -142,6 +143,8 @@ def dashboard():
 
     # >>>>>>>>>>>> DATA TABLE CALLBACK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+    data_table_place = st.empty()
+
     def to_existing_project():
 
         project_id_tmp = session_state.all_project_table[0]
@@ -157,15 +160,17 @@ def dashboard():
         else:
             session_state.project = Project(project_id_tmp)
 
+        data_table_place.empty()
         if "all_project_table" in session_state:
             del session_state.all_project_table
 
     if "all_project_table" not in session_state:
         session_state.all_project_table = None
 
-    data_table(existing_project, project_columns,
-               checkbox=False, key='all_project_table', on_change=to_existing_project)
-    # st.write(session_state.all_project_table)
+    with data_table_place:
+        data_table(existing_project, project_columns,
+                   checkbox=False, key='all_project_table', on_change=to_existing_project)
+        # st.write(session_state.all_project_table)
 
 
 def index():
@@ -208,7 +213,7 @@ def index():
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
-
+        session_state.labelling_pagination = LabellingPagination.AllTask
         # if "project_page_navigator_radio" in session_state:
         #     del session_state.project_page_navigator_radio
 
