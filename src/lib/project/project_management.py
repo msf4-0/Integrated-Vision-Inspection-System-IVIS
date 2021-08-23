@@ -13,6 +13,7 @@ from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
 import cv2
+import pandas as pd
 from stqdm import stqdm
 import streamlit as st
 from streamlit import cli as stcli
@@ -33,7 +34,7 @@ from path_desc import chdir_root, PROJECT_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.helper import NavColor, get_directory_name, get_textColor
+from core.utils.helper import get_directory_name, create_dataframe
 from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
@@ -134,6 +135,11 @@ class BaseProject:
         self.image_name_list: List = []  # for image_labelling
         self.annotation_task_join = []  # for image_labelling
 
+
+# TODO KIV get_all_task() at Project class
+
+
+    @st.cache(ttl=60)
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
             SELECT
@@ -357,8 +363,84 @@ class Project(BaseProject):
 
             return data_name_list
 
+    # NOTE To determine if  ^ get_annotation_task_join required at BaseProject class
+    @staticmethod
+    @st.cache(ttl=60)
+    def query_all_task(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
+
+        ID_string = "id" if for_data_table else "ID"
+        query_all_task_SQL = f"""
+            SELECT
+                t.id AS \"{ID_string}\",
+                t.name AS "Task Name",
+                (
+                    SELECT
+                        CASE WHEN (
+                            SELECT
+                                first_name || ' ' || last_name AS "Created By"
+                            FROM
+                                public.users u
+                            WHERE
+                                u.id = a.users_id) IS NULL THEN
+                            '-'
+                        END AS "Created By"),
+                (
+                    SELECT
+                        d.name AS "Dataset Name"
+                    FROM
+                        public.dataset d
+                    WHERE
+                        d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+            FROM
+                public.task t
+                LEFT JOIN public.annotations a ON a.id = t.annotation_id
+            WHERE
+                t.project_id = %s
+            ORDER BY
+                t.id;
+                                """
+        query_all_task_vars = [project_id]
+        log_info(
+            f"Querying annotations and tasks from database for Project {project_id}")
+
+        try:
+            all_task = []
+            all_task_query_return, column_names = db_fetchall(
+                query_all_task_SQL, conn, query_all_task_vars, fetch_col_name=True, return_dict=return_dict)
+
+            for task in all_task_query_return:
+                # convert datetime with TZ to (2021-07-30 12:12:12) format
+                if return_dict:
+                    converted_datetime = task["Date/Time"].strftime(
+                        '%Y-%m-%d %H:%M:%S')
+                    task["Date/Time"] = converted_datetime
+                else:
+                    converted_datetime = task.Date_Time.strftime(
+                        '%Y-%m-%d %H:%M:%S')
+
+                    task = task._replace(
+                        Date_Time=converted_datetime)
+                all_task.append(task)
+
+        except Exception as e:
+            log_error(f"{e}: No task found for Project {project_id} ")
+            all_task = []
+            column_names = []
+
+        return all_task, column_names
+
+    # NOTE Redundant
+    def create_all_task_dataframe(self, all_task: Union[List[namedtuple], List[dict]], column_names: List = None) -> pd.DataFrame:
+        # create DF for All Task Table
+        # returns Pandas DataFrame
+        df = create_dataframe(all_task, column_names, date_time_format=True)
+        df['Created By'] = df['Created By'].fillna("-")
+
+        return df
+
     # *************************************************************************************************************************
     # TODO #81 Add reset to project page *************************************************************************************
+
     @staticmethod
     def reset_project_page():
         """Method to reset all widgets and attributes in the Project Page when changing pages
@@ -412,7 +494,7 @@ class NewProject(BaseProject):
             context, field_placeholder, check_if_exists)
         return empty_fields
 
-    def insert_new_project_task(self,dataset_name:str,dataset_id:int):
+    def insert_new_project_task(self, dataset_name: str, dataset_id: int):
         """Create New Task for Project
             - Insert into 'task' table
 
@@ -424,12 +506,11 @@ class NewProject(BaseProject):
         if len(data_name_list):
             log_info(f"Inserting task into DB........")
             for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
-                
+
                 # >>>> Insert new task from NewTask class method
                 task_id = NewTask.insert_new_task(
                     data, self.id, dataset_id)
                 log_info(f"Loaded task {task_id} into DB for data: {data}")
-
 
     def insert_project(self, dataset_dict: Dict):
         insert_project_SQL = """
@@ -469,7 +550,7 @@ class NewProject(BaseProject):
             # NEED TO ADD INSERT TASK
             # get data name list
             # loop data and add task
-            self.insert_new_project_task(dataset_name,dataset_id)
+            self.insert_new_project_task(dataset_name, dataset_id)
 
         return self.id
 

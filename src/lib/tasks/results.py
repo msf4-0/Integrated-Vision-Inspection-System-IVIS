@@ -153,8 +153,13 @@ def DetectionBBOX(results_raw):
 
                 results_display.append({'id': a['id'], 'x': relative_x, 'y': relative_y, 'width': relative_width,
                                         'height': relative_height, 'rectanglelabels': a['results'][0]['value']['rectanglelabels'][0]})
-                bbox_results = {'x': relative_x, 'y': relative_y, 'width': relative_width,
-                                'height': relative_height}  # store current bbox results:x,y,w,h
+
+                bbox_results = {
+                    'x': relative_x, 
+                    'y': relative_y, 
+                    'width': relative_width,
+                    'height': relative_height}  # store current bbox results:x,y,w,h
+                    
                 results_temp = a['results'][0]  # incomplete results dictionary
                 # include bbox results into key:'value'
                 results_temp['value'].update(bbox_results)
