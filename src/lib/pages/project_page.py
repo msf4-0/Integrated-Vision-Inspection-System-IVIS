@@ -213,7 +213,7 @@ def index():
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
-        session_state.labelling_pagination = LabellingPagination.Dashboard
+        session_state.labelling_pagination = LabellingPagination.AllTask
         # if "project_page_navigator_radio" in session_state:
         #     del session_state.project_page_navigator_radio
 

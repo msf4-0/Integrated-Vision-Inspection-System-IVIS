@@ -60,7 +60,7 @@ all_task_columns = [
         'headerName': "ID",
         'headerAlign': "center",
         'align': "center",
-        'flex': 50,
+        'flex': 70,
         'hideSortIcons': True,
 
     },
@@ -114,38 +114,34 @@ all_task_columns = [
 # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
 
+def no_labelled(all_task):
+    task_queue_dict = Project.get_labelled_task(all_task, False)
 
+    # >>>> TASK QUEUE TABLE >>>>>>>>>>>>>>>>>>>>>>
+    st.write(f"### Labelled Task")
+    data_table(task_queue_dict, all_task_columns,
+               checkbox=False, key='labelled_task_table_key')
 
 
 def labelled_table(all_task):
-    labelled_task_dict=Project.get_labelled_task(all_task,True)
-    
+    labelled_task_dict = Project.get_labelled_task(all_task, True)
+
     # >>>> LABELLED TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
     st.write(f"### Labelled Task")
     data_table(labelled_task_dict, all_task_columns,
                checkbox=False, key='labelled_task_table_key')
 
-    
 
-def _all_task_table(all_task: List):
+def all_task_table(all_task):
+
+    # TODO 80 Add Labelling section
+
+    # Query all task +user full name(concat)+ dataset name + annotation status
 
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
     st.write(f"### All Task")
     data_table(all_task, all_task_columns,
                checkbox=False, key='all_task_table_key')
-
-
-def dashboard(all_task):
-
-    # TODO 80 Add Labelling section
-    # 1. All Data Table
-    # 2. Queue
-    # 3. Labelled Table** Is it redundant to All Data Table????
-
-    # Query all task +user full name(concat)+ dataset name + annotation status
-
-    # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
-    _all_task_table(all_task)
 
 
 def index():
@@ -193,38 +189,40 @@ def index():
 
     # TODO #90 Add Pagination for Labelling Section
     labelling_page = {
-        LabellingPagination.Dashboard: dashboard,
+        LabellingPagination.AllTask: all_task_table,
         LabellingPagination.Labelled: labelled_table,
-        LabellingPagination.Queue: None,
+        LabellingPagination.Queue: no_labelled,
         LabellingPagination.Editor: None,
         LabellingPagination.Performance: None
     }
 
     # >>>> INSTANTIATE LABELLING PAGINATION
     if 'labelling_pagination' not in session_state:
-        session_state.labelling_pagination = LabellingPagination.Dashboard
+        session_state.labelling_pagination = LabellingPagination.AllTask
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    def to_labelling_section(section_name:IntEnum):
-        session_state.labelling_pagination=section_name
-    
-    
+    def to_labelling_section(section_name: IntEnum):
+        session_state.labelling_pagination = section_name
+
     with all_task_button_col:
-        st.button("All Task", key='all_task_button')
+        st.button("All Task", key='all_task_button', on_click=to_labelling_section, args=(
+            LabellingPagination.AllTask,))
 
     with labelled_task_button_col:
-        st.button("Labelled Task", key='labelled_task_button',on_click=to_labelling_section,args=(LabellingPagination.Labelled,))
+        st.button("Labelled Task", key='labelled_task_button',
+                  on_click=to_labelling_section, args=(LabellingPagination.Labelled,))
 
     with queue_button_col:
-        st.button("Queue", key='queue_button')
+        st.button("Queue", key='queue_button', on_click=to_labelling_section, args=(
+            LabellingPagination.Queue,))
 
     with start_labelling_button_col:
-        st.button("Start Labelling", key='start_labelling_button')
+        st.button("Start Labelling", key='start_labelling_button',
+                  on_click=to_labelling_section, args=(LabellingPagination.Editor,))
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
     all_task, all_task_column_names = Project.query_all_task(project_id,
                                                              return_dict=True, for_data_table=True)
-
 
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     log_info(f"Navigator: {session_state.labelling_pagination}")

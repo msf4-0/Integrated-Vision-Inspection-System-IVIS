@@ -67,7 +67,7 @@ annotation_types = {
 }
 
 class LabellingPagination(IntEnum):
-    Dashboard = 0
+    AllTask = 0
     Labelled = 1
     Queue = 2
     Editor = 3
