@@ -16,8 +16,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 from data_table import data_table
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -53,95 +53,108 @@ place = {}
 
 chdir_root()  # change to root directory
 
+# **************** DATA TABLE COLUMN CONFIG *********************************************************
+all_task_columns = [
+    {
+        'field': "id",
+        'headerName': "ID",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 50,
+        'hideSortIcons': True,
+
+    },
+    {
+        'field': "Task Name",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 200,
+        'hideSortIcons': False,
+    },
+    {
+        'field': "Created By",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 130,
+        'hideSortIcons': True,
+    },
+    {
+        'field': "Dataset Name",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 150,
+        'hideSortIcons': False,
+    },
+    {
+        'field': "Is Labelled",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 100,
+        'hideSortIcons': True,
+        'type': 'boolean',
+    },
+    {
+        'field': "Skipped",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 100,
+        'hideSortIcons': True,
+        'type': 'boolean',
+    },
+    {
+        'field': "Date/Time",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 100,
+        'hideSortIcons': False,
+        'type': 'date',
+    },
+
+]
+# **************** DATA TABLE COLUMN CONFIG *********************************************************
+
+
+
+
+
+def labelled_table(all_task):
+    labelled_task_dict=Project.get_labelled_task(all_task,True)
+    
+    # >>>> LABELLED TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
+    st.write(f"### Labelled Task")
+    data_table(labelled_task_dict, all_task_columns,
+               checkbox=False, key='labelled_task_table_key')
+
+    
 
 def _all_task_table(all_task: List):
-    # **************** DATA TABLE COLUMN CONFIG *********************************************************
-    all_task_columns = [
-        {
-            'field': "id",
-            'headerName': "ID",
-            'headerAlign': "center",
-            'align': "center",
-            'flex': 50,
-            'hideSortIcons': True,
-
-        },
-        {
-            'field': "Task Name",
-            'headerAlign': "center",
-            'align': "center",
-            'flex': 200,
-            'hideSortIcons': False,
-        },
-        {
-            'field': "Created By",
-            'headerAlign': "center",
-            'align': "center",
-            'flex': 150,
-            'hideSortIcons': True,
-        },
-        {
-            'field': "Dataset Name",
-            'headerAlign': "center",
-            'align': "center",
-            'flex': 150,
-            'hideSortIcons': False,
-        },
-        {
-            'field': "Is Labelled",
-            'headerAlign': "center",
-            'align': "center",
-            'flex': 100,
-            'hideSortIcons': True,
-            'type': 'boolean',
-        },
-        {
-            'field': "Skipped",
-            'headerAlign': "center",
-            'align': "center",
-            'flex': 100,
-            'hideSortIcons': True,
-            'type': 'boolean',
-        },
-        {
-            'field': "Date/Time",
-            'headerAlign': "center",
-            'align': "center",
-            'flex': 100,
-            'hideSortIcons': False,
-            'type': 'date',
-        },
-
-    ]
-    # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
-
+    st.write(f"### All Task")
     data_table(all_task, all_task_columns,
                checkbox=False, key='all_task_table_key')
 
 
-def dashboard():
+def dashboard(all_task):
+
     # TODO 80 Add Labelling section
     # 1. All Data Table
     # 2. Queue
     # 3. Labelled Table** Is it redundant to All Data Table????
 
     # Query all task +user full name(concat)+ dataset name + annotation status
-    project_id = session_state.project.id
-    all_task, all_task_column_names = Project.query_all_task(project_id,
-                                                             return_dict=True, for_data_table=True)
 
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
     _all_task_table(all_task)
 
 
 def index():
+
     RELEASE = False
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("At Exisiting Project Dashboard INDEX")
+        log_info("At Labelling INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -161,23 +174,62 @@ def index():
             session_state.project = Project(project_id_tmp)
             log_info("Inside")
 
-        
+        # ****************************** HEADER **********************************************
+        st.write(f"# {session_state.project.name}")
+
+        project_description = session_state.project.desc if session_state.project.desc is not None else " "
+        st.write(f"{project_description}")
+
+        st.markdown("""___""")
+        # ****************************** HEADER **********************************************
+
+    st.write(f"## **Labelling Section:**")
+
+    # ************COLUMN PLACEHOLDERS *****************************************************
+    # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
+    all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _, start_labelling_button_col = st.columns([
+        1.5, 0.5, 2, 0.5, 1, 10, 2])
+    # ************COLUMN PLACEHOLDERS *****************************************************
 
     # TODO #90 Add Pagination for Labelling Section
     labelling_page = {
         LabellingPagination.Dashboard: dashboard,
-        LabellingPagination.Labelled: None,
+        LabellingPagination.Labelled: labelled_table,
         LabellingPagination.Queue: None,
         LabellingPagination.Editor: None,
-        LabellingPagination.Performance:None
-    } 
+        LabellingPagination.Performance: None
+    }
 
+    # >>>> INSTANTIATE LABELLING PAGINATION
     if 'labelling_pagination' not in session_state:
         session_state.labelling_pagination = LabellingPagination.Dashboard
 
+    # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    def to_labelling_section(section_name:IntEnum):
+        session_state.labelling_pagination=section_name
+    
+    
+    with all_task_button_col:
+        st.button("All Task", key='all_task_button')
 
+    with labelled_task_button_col:
+        st.button("Labelled Task", key='labelled_task_button',on_click=to_labelling_section,args=(LabellingPagination.Labelled,))
+
+    with queue_button_col:
+        st.button("Queue", key='queue_button')
+
+    with start_labelling_button_col:
+        st.button("Start Labelling", key='start_labelling_button')
+    # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    project_id = session_state.project.id
+    all_task, all_task_column_names = Project.query_all_task(project_id,
+                                                             return_dict=True, for_data_table=True)
+
+
+    # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     log_info(f"Navigator: {session_state.labelling_pagination}")
-    labelling_page[session_state.labelling_pagination]()
+    labelling_page[session_state.labelling_pagination](all_task)
+
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

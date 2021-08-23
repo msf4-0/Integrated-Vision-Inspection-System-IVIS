@@ -14,6 +14,7 @@ import mimetypes
 from colorutils import hex_to_hsv
 from color_extract import color_extract
 from inspect import signature
+from functools import wraps
 from streamlit.uploaded_file_manager import UploadedFile
 import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -123,7 +124,7 @@ def is_empty(iterable: Union[List, Dict, set]) -> bool:
     return not bool(iterable)
 
 
-@st.cache
+# @st.cache
 def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort: bool = False, sort_by: Optional[str] = None, asc: bool = True, date_time_format: bool = False) -> pd.DataFrame:
     if data:
 
@@ -147,6 +148,25 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
         return df
 
 
+def dataframe2dict(orient='index') -> List:
+
+    def inner(func):
+        @wraps(func)
+        def convert_to_dict(*args, **kwargs):
+
+            if args:
+                df = func(*args)
+
+            elif kwargs:
+                df = func(**kwargs)
+
+            dataframe_dict = list(df.to_dict(orient=orient).values())
+
+            return dataframe_dict
+        return convert_to_dict
+    return inner
+
+
 def get_mime(file: Union[str, Path]):
     """Get MIME type of file
 
@@ -160,10 +180,9 @@ def get_mime(file: Union[str, Path]):
     return mime
 
 
+@st.cache
 # MIME: type/subtype
 # get filetype
-
-
 def get_filetype(file: Union[str, Path, UploadedFile]):
     """Get filetype from MIME of the file <type/subtype>
         Eg. image,video,audio,text

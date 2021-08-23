@@ -52,7 +52,7 @@ chdir_root()  # change to root directory
 
 
 def dashboard():
-
+    st.write(f"## **Overview:**")
     # TODO #79 Add dashboard to show types of labels and number of datasets
     # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -64,7 +64,7 @@ def dashboard():
     # >>>> Annotation table placeholders
     annotation_col1, annotation_col2 = st.columns([3, 0.5])
 
-    annotation_col1.write("## **Annotations**")
+    annotation_col1.write("### **Annotations**")
     annotation_col2.write(
         f"### Total labels: {len(session_state.project.editor.labels_results)}")
 
@@ -83,7 +83,7 @@ def dashboard():
     # >>>> Dataset table placeholders
     dataset_table_col1, dataset_table_col2 = st.columns([3, 0.5])
 
-    dataset_table_col1.write("## **Datasets**")
+    dataset_table_col1.write("### **Datasets**")
     dataset_table_col2.write(
         f"### Total datasets: {len(session_state.project.datasets)}")
 

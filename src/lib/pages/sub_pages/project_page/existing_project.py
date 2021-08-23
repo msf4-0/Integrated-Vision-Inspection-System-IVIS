@@ -52,10 +52,9 @@ chdir_root()  # change to root directory
 
 def index():
     RELEASE = True
-
+    log_info("At Exisiting Project Dashboard INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("At Exisiting Project Dashboard INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -81,7 +80,7 @@ def index():
     # ************************ EXISTING PROJECT PAGINATION *************************
     existing_project_page = {
         ExistingProjectPagination.Dashboard: existing_project_dashboard.dashboard,
-        ExistingProjectPagination.Labelling: None,
+        ExistingProjectPagination.Labelling: labelling_dashboard.index,
         ExistingProjectPagination.Training: None,
         ExistingProjectPagination.Models: None,
         ExistingProjectPagination.Export: None,
@@ -100,7 +99,7 @@ def index():
     if 'existing_project_pagination' not in session_state:
         session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
 
-    log_info(f"Entering Project {session_state.project.id}")
+    log_info(f"Entering Project {session_state.project.id}: {session_state.existing_project_pagination}")
 
     session_state.append_project_flag = ProjectPermission.ViewOnly
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
