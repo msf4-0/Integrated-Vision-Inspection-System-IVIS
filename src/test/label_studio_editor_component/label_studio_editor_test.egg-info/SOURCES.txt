@@ -1,0 +1,9 @@
+LICENSE
+MANIFEST.in
+setup.py
+label_studio_editor_test/__init__.py
+label_studio_editor_test.egg-info/PKG-INFO
+label_studio_editor_test.egg-info/SOURCES.txt
+label_studio_editor_test.egg-info/dependency_links.txt
+label_studio_editor_test.egg-info/requires.txt
+label_studio_editor_test.egg-info/top_level.txt

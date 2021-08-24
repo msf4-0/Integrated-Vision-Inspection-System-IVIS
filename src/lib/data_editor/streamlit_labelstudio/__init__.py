@@ -68,48 +68,44 @@ def st_labelstudio(config, interfaces, user, task, key=None):
 
 # if not _RELEASE:
 #     config = """
-#                 <View>
-# <Header value="Select label and start to click on image"/>
-#   <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-#     <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
-#     <View>
-#       <Filter toName="tag" minlength="0" name="filter"/>
-#       <RectangleLabels name="tag" toName="img" showInline="true" fillOpacity="0.8">
-#         <Label value="Hello"/>
-#         <Label value="World"/>
-#       </RectangleLabels>
+# <View>
+#     <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
+#         <Header value="Select label and start to click on image"/>
+#         <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+#             <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+#             <View>
+#                 <Filter toName="tag" minlength="0" name="filter"/>
+#                 <RectangleLabels name="tag" toName="img" showInline="true" fillOpacity="0.5" strokeWidth="5">
+#                     <Label value="Hello" background="blue"/>
+#                     <Label value="World" background="pink"/>
+#                 </RectangleLabels>
+#             </View>
+#         </View>
 #     </View>
-#   </View>
 # </View>
-#     """
+#                         """
 
 #     interfaces = [
-#     "annotations:add-new",
-#     "annotations:delete",
-#     "annotations:menu",
-#     "controls",
-#     "panel",
-#     "predictions:menu",
-#     "side-column",
-#     "skip",
-#     "submit"
-#     "update",
-# ],
+#         "panel",
+#         "controls",
+#         "side-column"
+
+#     ],
 
 #     user = {
-#     'pk': 1,
-#     'firstName': "Zhen Hao",
-#     'lastName': "Chu"
-# },
+#         'pk': 1,
+#         'firstName': "Zhen Hao",
+#         'lastName': "Chu"
+#     },
 
 #     task = {
-#     'completions': [],
-#     'predictions': [],
-#     'id': 1,
-#     'data': {
-#         'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
+#         'annotations': [],
+#         'predictions': [],
+#         'id': 1,
+#         'data': {
+#             'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
+#         }
 #     }
-# }
 
 #     results_raw = st_labelstudio(
 #         config, interfaces, user, task, key='random')
