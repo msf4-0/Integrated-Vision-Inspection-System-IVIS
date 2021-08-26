@@ -37,7 +37,7 @@ from project.project_management import Project
 from data_editor.editor_management import Editor, EditorFlag
 from user.user_management import User
 from data_manager.database_manager import init_connection
-from annotation.annotation_management import Annotations, NewAnnotations, NewTask, Task, load_buffer_image, task_labelling_columns, get_data_name, load_first_image
+from annotation.annotation_management import Annotations, NewAnnotations, NewTask, Task, load_buffer_image, task_labelling_columns, get_data_name, get_task_row
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
 from label_studio_editor import labelstudio_editor
 from data_table import data_table
@@ -155,37 +155,58 @@ def editor(data_id: List = []):
     def load_data(task_df):
         log_info(f"Inside load data CALLBACK")
         if session_state.data_labelling_table:
-            data_name = get_data_name(
-                session_state.data_labelling_table[0], task_df)
-            # get filetype
-            filetype = Dataset.get_filetype_enumerator(data_name)
-            log_info(filetype)
+            task_id = session_state.data_labelling_table[0]
+            task_row = get_task_row(task_id, task_df)
+
+        # >>>> INSTANTIATE TASK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            if 'task' not in session_state:
+                session_state.task = Task(
+                    task_row, session_state.project.dataset_dict, session_state.project.id)
+            else:
+                session_state.task = Task(
+                    task_row, session_state.project.dataset_dict, session_state.project.id)
+
+            log_info(
+                f"Task instantiated for id: {session_state.task.id} for {session_state.task.name}🏃")
+        # >>>> INSTANTIATE TASK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+            # Check if annotation exist
+            if Annotations.check_if_annotation_exists(session_state.task.id, session_state.project.id, conn):
+                session_state.annotation = Annotations(
+                    session_state.task)
+                log_info(
+                    f"Annotation {session_state.annotation.id} exists for Task ID: {session_state.task.id} for {session_state.task.name}")
+            else:
+                session_state.annotation=NewAnnotations(session_state.task,session_state.user)
+        else:
+            log_error(f"task_id NaN->Task not loaded😫")
 
         # set FLAG = 1 such that init render of none will be ignored
         # TODO Reset to 0 / del when switching back to dashboard
         session_state.new_annotation_flag = 1
-        # get FileTypes ^
-        # compare filetype
-        # load data
 
-    # For loading of interface from 'Start Labelling' where no data is selected
-    # Load first element
     st.write(session_state.new_annotation_flag)
-    if session_state.new_annotation_flag == 0:
-        if session_state.data_labelling_table:
-            load_first_image(task_df)
 
-        elif session_state.data_labelling == []:
-            session_state.data_labelling = [1]
+# ************************ FIRST RENDER: ********************************************************
+    if session_state.new_annotation_flag == 0:
+
+        if session_state.data_labelling_table:  # if task id passed as argument
             load_data(task_df)
+
+        elif session_state.data_labelling_table == []:  # if task id NOT passed as argument
+            session_state.data_labelling_table = [
+                all_task[0]['id']]  # set value as first ID
+            load_data(task_df)
+# ************************ FIRST RENDER: ********************************************************
 
     with main_col1:
         data_table(all_task, task_labelling_columns,
                    checkbox=False, key='data_labelling_table', on_change=load_data, args=(task_df,))
+
         # >>>>> Temp Image Viewer >>>>>
-        st.write(all_task[0])
-        st.write(session_state.data_labelling_table)
-        st.write(vars(session_state.project))
+        # st.write(all_task[0])
+        # st.write(session_state.data_labelling_table)
+        # st.write(vars(session_state.project))
 
 
 # ************************** DATA TABLE ***********************************************
@@ -501,7 +522,7 @@ def index():
         # ****************************** HEADER **********************************************
 
         st.write(f"## **Labelling Section:**")
-        editor([4])
+        editor()
 
 
 def main():

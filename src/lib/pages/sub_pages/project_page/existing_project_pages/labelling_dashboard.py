@@ -166,7 +166,7 @@ def all_task_table(all_task):
 
     data_table(all_task, all_task_columns,
                checkbox=False, key='all_task_table_key')
-
+    st.write(session_state.project.dataset_dict['My Third Dataset'])
 
 def index():
 

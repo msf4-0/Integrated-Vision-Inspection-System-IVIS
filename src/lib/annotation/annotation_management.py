@@ -13,7 +13,7 @@ from datetime import datetime
 from enum import IntEnum
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -37,7 +37,7 @@ else:
 from core.utils.dataset_handler import data_url_encoder_cv2, load_image_PIL
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import db_fetchall, db_fetchone, db_no_fetch, init_connection
-from data_manager.dataset_management import Dataset,load_image,data_url_encoder
+from data_manager.dataset_management import Dataset, load_image, data_url_encoder, FileTypes
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from user.user_management import User
@@ -137,18 +137,37 @@ class NewTask(BaseTask):
 
 
 class Task(BaseTask):
-    def __init__(self, data_name:str, project_id:int, dataset_id:int,data_path:Union[str,Path]=None, data_object: Union[Image.Image, np.ndarray] = None, annotations=None, predictions=None) -> None:
+    def __init__(self, task_row: dict, dataset_dict: Dict[namedtuple, Any], project_id: int, annotations=None, predictions=None) -> None:
         super().__init__()
-        self.data = {'image': None}  # generate when call LS format generator
-        self.name = data_name # None
-        self.project_id = project_id
-        self.dataset_id = dataset_id
-        self.annotations = annotations
-        self.predictions = predictions
-        # holds raw data values for Data (Numpy array for images)
-        self.data_object = data_object
-        self.data_path=data_path
-        self.query_task()
+        """
+        - task_row: id,Task Name, Created By, Dataset Name, Is Labelled, Skipped, Date/Time
+        - dataset_dict (from project class object)-> namedtuple: 
+            - ID, Name,Dataset_Size,File_Type,Date_Time
+        
+        """
+        self.task_row = task_row
+        self.dataset_dict = dataset_dict
+        self.project_id: int = project_id
+        self.annotations: List = annotations
+        self.predictions: List = predictions
+
+        # generate when call LS format generator
+        self.data: dict = {'image': None}
+        self.id = task_row['id']
+        self.name: str = task_row['Task Name']
+        self.dataset_name: str = task_row['Dataset Name']
+        self.is_labelled: bool = task_row['Is Labelled']
+        self.skipped: bool = task_row["Skipped"]
+
+        self.dataset_id: int = dataset_dict[self.dataset_name].ID
+        self.dataset_path = Dataset.get_dataset_path(self.dataset_name)
+
+        self.data_path = self.dataset_path / self.name
+        self.filetype = Dataset.get_filetype_enumerator(self.name)
+
+        self.data_url = self.get_data()  # Get Data URL
+
+        # self.query_task()
 
     @staticmethod
     def check_if_task_exists(image_name: str, project_id: int, dataset_id: int, conn=conn) -> bool:
@@ -219,27 +238,42 @@ class Task(BaseTask):
         """
 
         try:
-            data_url = data_url_encoder(self.data_object, self.name)
+            self.data_url = data_url_encoder(
+                self.data_object, self.filetype, self.data_path)
 
-            return data_url
+            return self.data_url
         except Exception as e:
             log_error(f"{e}: Failed to generate data url for {self.name}")
             return None
 
+    def load_data(self):
+        if self.filetype == FileTypes.Image:
+            self.data_object = load_image(self.data_path, opencv_flag=True)
+
+        elif self.filetype == FileTypes.Video:
+            pass
+        elif self.filetype == FileTypes.Audio:
+            pass
+        elif self.filetype == FileTypes.Text:
+            pass
+
+        return self.data_object
+
     @st.cache
     def get_data(self):
 
-        data = self.data_list.get(self.name)
+        # data = self.data_list.get(self.name)
 
-        if not data:
-            data = self.generate_data_url()
-            # add encoded image into dictionary
-            self.data_list[self.name] = data
+        # if not data:
+        self.data_object = self.load_data()
+        self.data_url = self.generate_data_url()
+        # add encoded image into dictionary
+        # self.data_list[self.name] = data
 
-        else:
-            log_info(f"Data {self.name} EXIST")
+        # else:
+        # log_info(f"Data {self.name} EXIST")
 
-        return data
+        return self.data_url
 
     def generate_editor_format(self, annotations_dict: List, predictions_dict: List = None):
         """Generate editor format based on Label Studio Frontend requirements
@@ -518,9 +552,13 @@ class BaseAnnotations:
 
 
 class NewAnnotations(BaseAnnotations):
-    def __init__(self, task: Task) -> None:
+    def __init__(self, task: Task, user: User) -> None:
         super().__init__(task)
+        self.task: Task = task
+        # Current user
+        self.user: User = user
 
+    # NOTE REDUNDANT
     def generate_annotation_dict(self) -> Union[Dict, List]:
         try:
             annotation_dict = []
@@ -535,7 +573,9 @@ class NewAnnotations(BaseAnnotations):
 class Annotations(BaseAnnotations):
     def __init__(self, task: Task) -> None:
         super().__init__(task)
-        log_info(f"Initialising New Task {self.task.name}")
+
+        log_info(f"Initialising Existing Annotations {self.task.name}")
+
         self.task = task  # 'Task' class object
         self.user = {}
         if self.task.is_labelled:
@@ -594,52 +634,12 @@ class Annotations(BaseAnnotations):
             # self.user is NamedTuple
             self.id, self.result, self.user["id"], self.user["email"], self.user[
                 "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
-            log_info("Query in class")
+            log_info("Query annotations in class")
             return query_return
 
         except TypeError as e:
             log_error(
                 f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.project_id}")
-
-    # def generate_annotation_dict(self) -> Union[Dict, List]:
-    #     try:
-    #         annotation_dict = {"id": self.id,
-    #                            "completed_by": self.completed_by,
-    #                            "result": [self.result],
-    #                            "was_cancelled": self.was_cancelled,
-    #                            "ground_truth": self.ground_truth,
-    #                            "created_at": str(self.created_at),
-    #                            "updated_at": str(self.updated_at),
-    #                            "lead_time": str(self.updated_at - self.created_at),
-    #                            "prediction": {},
-    #                            "result_count": 0,
-    #                            "task": self.task.id
-    #                            }
-    #         return annotation_dict
-    #     except Exception as e:
-    #         log_error(
-    #             f"{e}: Failed to generate annotation dict for Annotation {self.id}")
-    #         annotation_dict = {}
-    #         return annotation_dict
-# ********************** External Function *************************
-
-
-# @st.cache
-# def data_url_encoder(image):
-#     """Load Image and generate Data URL in base64 bytes
-
-#     Args:
-#         image (bytes-like): BytesIO object
-
-#     Returns:
-#         bytes: UTF-8 encoded base64 bytes
-#     """
-#     log_info("Loading sample image")
-#     bb = image.read()
-#     b64code = b64encode(bb).decode('utf-8')
-#     data_url = 'data:' + image.type + ';base64,' + b64code
-
-#     return data_url
 
 
 @st.cache
@@ -701,18 +701,51 @@ def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
 
     return data_name
 
+# DEPRECATED
+
 
 @st.cache
-def load_first_image(task_df: pd.DataFrame):
+def get_first_task_row(task_df: pd.DataFrame):
     # For loading of interface from 'Start Labelling' where no data is selected
     # Load first element
-    data_query_df = task_df[['Task Name', 'Dataset Name']].iloc[0].to_dict()
-    data_name = data_query_df['Task Name']
-    dataset_name = data_query_df['Dataset Name']
-    dataset_path = Dataset.get_dataset_path(dataset_name)
-    image_path = dataset_path / data_name
+    first_data_row = task_df.iloc[0].to_dict()
 
-    image_object = load_image_PIL(image_path)
+    return first_data_row
+
+
+def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
+    """Get data name from task_df dataframe (id,Task Name, Is Labelled, Skipped)
+
+    #### Disclaimer: Task name and Data name is interusable 
+
+    Args:
+        task_id (int): Task ID obtained from Data Table row selection
+        task_df (pd.DataFrame): DataFrame from create_all_task_dataframe() method from Dataset class
+
+    Raises:
+        TypeError: If data_id is not type (int)
+
+    Returns:
+        str: Name of data
+    """
+    # to obtain name data based on selection of data table
+    log_info(f"Obtaining data name from task_df")
+
+    # Handle data_id exceptions
+    if isinstance(task_id, int):
+        pass
+    elif isinstance(task_id, Union[List, tuple]):
+        assert len(task_id) <= 1, "Data selection should be singular"
+        data_id = task_id[0]
+    else:
+        raise TypeError("Data ID can only be int")
+
+    task_row = ((task_df.loc[task_df["id"] == data_id]
+                 ).to_dict(orient='records'))[0]
+
+    log_info(f"Currently serving data:{task_row['Task Name']}")
+
+    return task_row
 
 
 def get_image_size(image_path):
