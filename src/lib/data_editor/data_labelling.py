@@ -173,7 +173,7 @@ def editor(data_id: List = []):
     st.write(session_state.new_annotation_flag)
     if session_state.new_annotation_flag == 0:
         if session_state.data_labelling_table:
-            load_data(task_df)
+            load_first_image(task_df)
 
         elif session_state.data_labelling == []:
             session_state.data_labelling = [1]

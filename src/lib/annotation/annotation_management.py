@@ -5,22 +5,24 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-from collections import namedtuple
-import sys
-from pathlib import Path
-from typing import List, Dict, Union
-from enum import IntEnum
-from datetime import datetime
-import psycopg2
-from psycopg2.extras import Json
 import json
+import sys
 from base64 import b64encode
-from PIL import Image
+from collections import namedtuple
+from datetime import datetime
+from enum import IntEnum
 from io import BytesIO
+from pathlib import Path
+from typing import Dict, List, Union
+
+import numpy as np
 import pandas as pd
+import psycopg2
 import streamlit as st
+from PIL import Image
+from psycopg2.extras import Json
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state as session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -32,12 +34,14 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+from core.utils.dataset_handler import data_url_encoder_cv2, load_image_PIL
+from core.utils.log import log_error, log_info  # logger
+from data_manager.database_manager import db_fetchall, db_fetchone, db_no_fetch, init_connection
+from data_manager.dataset_management import Dataset,load_image,data_url_encoder
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import db_fetchall, db_no_fetch, init_connection, db_fetchone
 from user.user_management import User
-from core.utils.dataset_handler import data_url_encoder_cv2
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -133,16 +137,17 @@ class NewTask(BaseTask):
 
 
 class Task(BaseTask):
-    def __init__(self, data_object, data_name, project_id, dataset_id, annotations=None, predictions=None) -> None:
+    def __init__(self, data_name:str, project_id:int, dataset_id:int,data_path:Union[str,Path]=None, data_object: Union[Image.Image, np.ndarray] = None, annotations=None, predictions=None) -> None:
         super().__init__()
         self.data = {'image': None}  # generate when call LS format generator
-        self.name = data_name
+        self.name = data_name # None
         self.project_id = project_id
         self.dataset_id = dataset_id
         self.annotations = annotations
         self.predictions = predictions
         # holds raw data values for Data (Numpy array for images)
         self.data_object = data_object
+        self.data_path=data_path
         self.query_task()
 
     @staticmethod
@@ -175,48 +180,6 @@ class Task(BaseTask):
             check_if_exists_SQL, conn, check_if_exists_vars).exists
 
         return exists_flag
-
-    # @staticmethod
-    # @st.cache(ttl=60)
-    # def query_all_task(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
-
-    #     ID_string = "id" if for_data_table else "ID"
-    #     query_all_task_SQL = f"""
-    #         SELECT
-    #             t.id,
-    #             t.name,
-    #             (
-    #                 SELECT
-    #                     first_name || ' ' || last_name AS "Created By"
-    #                 FROM
-    #                     public.users u
-    #                 WHERE
-    #                     u.id = a.users_id), (
-    #                 SELECT
-    #                     d.name
-    #                 FROM
-    #                     public.dataset d
-    #                 WHERE
-    #                     d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
-    #         FROM
-    #             public.task t
-    #             LEFT JOIN public.annotations a ON a.id = t.annotation_id
-    #         WHERE
-    #             t.project_id = %s
-    #         ORDER BY
-    #             id;
-    #                             """
-    #     query_all_task_vars = [project_id]
-
-    #     try:
-    #         all_task_query_return = db_fetchall(
-    #             query_all_task_SQL, conn, query_all_task_vars, fetch_col_name=False)
-
-    #     except Exception as e:
-    #         log_error(f"{e}: No task found for Project ")
-    #         all_task_query_return = None
-
-    #     return all_task_query_return
 
     def query_task(self):
         """Query ID, 'Is Labelled' flag and 'Skipped' flag
@@ -256,7 +219,7 @@ class Task(BaseTask):
         """
 
         try:
-            data_url = data_url_encoder_cv2(self.data_object, self.name)
+            data_url = data_url_encoder(self.data_object, self.name)
 
             return data_url
         except Exception as e:
@@ -276,13 +239,6 @@ class Task(BaseTask):
         else:
             log_info(f"Data {self.name} EXIST")
 
-        # if self.name in self.data_list.keys():
-        #     data = self.data_list[self.name]
-        #     log_info(f"Data {self.name} EXIST")
-        # else:
-        #     data = self.generate_data_url()
-        #     # add encoded image into dictionary
-        #     self.data_list[self.name] = data
         return data
 
     def generate_editor_format(self, annotations_dict: List, predictions_dict: List = None):
@@ -668,22 +624,22 @@ class Annotations(BaseAnnotations):
 # ********************** External Function *************************
 
 
-@st.cache
-def data_url_encoder(image):
-    """Load Image and generate Data URL in base64 bytes
+# @st.cache
+# def data_url_encoder(image):
+#     """Load Image and generate Data URL in base64 bytes
 
-    Args:
-        image (bytes-like): BytesIO object
+#     Args:
+#         image (bytes-like): BytesIO object
 
-    Returns:
-        bytes: UTF-8 encoded base64 bytes
-    """
-    log_info("Loading sample image")
-    bb = image.read()
-    b64code = b64encode(bb).decode('utf-8')
-    data_url = 'data:' + image.type + ';base64,' + b64code
+#     Returns:
+#         bytes: UTF-8 encoded base64 bytes
+#     """
+#     log_info("Loading sample image")
+#     bb = image.read()
+#     b64code = b64encode(bb).decode('utf-8')
+#     data_url = 'data:' + image.type + ';base64,' + b64code
 
-    return data_url
+#     return data_url
 
 
 @st.cache
@@ -750,7 +706,13 @@ def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
 def load_first_image(task_df: pd.DataFrame):
     # For loading of interface from 'Start Labelling' where no data is selected
     # Load first element
-    first_data_name = task_df['Task Name'].iloc[0]
+    data_query_df = task_df[['Task Name', 'Dataset Name']].iloc[0].to_dict()
+    data_name = data_query_df['Task Name']
+    dataset_name = data_query_df['Dataset Name']
+    dataset_path = Dataset.get_dataset_path(dataset_name)
+    image_path = dataset_path / data_name
+
+    image_object = load_image_PIL(image_path)
 
 
 def get_image_size(image_path):
