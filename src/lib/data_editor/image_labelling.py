@@ -33,12 +33,12 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import create_dataframe
 from project.project_management import Project
-from data_editor.editor_management  import Editor,EditorFlag
+from data_editor.editor_management import Editor, EditorFlag
 from user.user_management import User
 from data_manager.database_manager import init_connection
 from annotation.annotation_management import Annotations, NewAnnotations, NewTask, Task, load_buffer_image
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
-
+from label_studio_editor import labelstudio_editor
 # <<<< User-defined Modules <<<<
 conn = init_connection(**st.secrets["postgres"])
 
@@ -47,39 +47,19 @@ from data_editor.streamlit_labelstudio import st_labelstudio
 from streamlit.report_thread import add_report_ctx
 
 
-
-
-
 EDITOR_CONFIG = {"Image Classification": ImgClassification, "Object Detection with Bounding Boxes": DetectionBBOX,
                  "Semantic Segmentation with Polygons": SemanticPolygon, "Semantic Segmentation with Masks": SemanticMask}
 
 
-def show():
-    log_info("Start")
+def editor():
+    log_info("Inside Editor function")
     chdir_root()  # change to root directory
 
-    if "data_sel" in session_state:
-        del session_state.data_sel
-
-    with st.sidebar.container():
-
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-        st.title("Integrated Vision Inspection System", anchor='title')
-
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-        st.markdown("""___""")
-
     # ******** SESSION STATE ***********************************************************
-    # TODO
-    # if "current_page" not in session_state:  # KIV
-    #     session_state.current_page = "All Trainings"
-    #     session_state.previous_page = "All Trainings"
 
     if "project" not in session_state:
         # TODO: query all project
-        session_state.project = Project(7)
-        session_state.editor = Editor(session_state.project.id)
+        session_state.project = Project(43)
         session_state.user = User(1)
         session_state.annotation = None
         session_state.new_annotation = None
@@ -96,16 +76,9 @@ def show():
     session_state.project.query_all_fields()
     session_state.project.dataset_list = session_state.project.load_dataset()
     # ******** SESSION STATE *********************************************************
-
-    # >>>> TRAINING SIDEBAR >>>>
-    # training_page_options = ("All Trainings", "New Training")
-    # with st.sidebar.expander("Training Page", expanded=True):
-    #     session_state.current_page = st.radio("", options=training_page_options,
-    #                                           index=0)
-    # <<<< TRAINING SIDEBAR <<<<
     # Page title
     st.write(f'# Project Name: {session_state.project.name}')
-    st.write("## **Image Labelling**")
+    st.write("### **Data Labelling**")
     dt_place, project_id_place = st.columns([3, 1])
     with dt_place:
         st.write("### __Deployment Type:__",
@@ -453,8 +426,51 @@ def show():
     # st.write(vars(session_state.user))
 
 
+def index():
+    RELEASE = False
+
+    # ****************** TEST ******************************
+    if not RELEASE:
+        log_info("At Labelling INDEX")
+
+        # ************************TO REMOVE************************
+        with st.sidebar.container():
+            st.image("resources/MSF-logo.gif", use_column_width=True)
+            st.title("Integrated Vision Inspection System", anchor='title')
+            st.header(
+                "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+            st.markdown("""___""")
+
+        # ************************TO REMOVE************************
+        project_id_tmp = 43
+        log_info(f"Entering Project {project_id_tmp}")
+
+        # session_state.append_project_flag = ProjectPermission.ViewOnly
+
+        if "project" not in session_state:
+            # Editor will be instantiated inside Project class at same instance
+            session_state.project = Project(project_id_tmp)
+
+            log_info(
+                f"NOT RELEASE: Instantiating Project {session_state.project.name}")
+        if 'user' not in session_state:
+            session_state.user = User(1)
+
+        # ****************************** HEADER **********************************************
+        st.write(f"# {session_state.project.name}")
+
+        project_description = session_state.project.desc if session_state.project.desc is not None else " "
+        st.write(f"{project_description}")
+
+        st.markdown("""___""")
+        # ****************************** HEADER **********************************************
+
+        st.write(f"## **Labelling Section:**")
+        editor()
+
+
 def main():
-    show()
+    index()
 
 
 if __name__ == "__main__":

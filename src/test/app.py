@@ -1,6 +1,6 @@
 
 import streamlit as st
-from label_studio_editor_test import labelstudio_editor
+from label_studio_editor import labelstudio_editor
 
 config = ''' <View>
 <Image name="img" value="$image"></Image>

@@ -111,6 +111,8 @@ all_task_columns = [
     },
 
 ]
+
+
 # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
 
@@ -118,7 +120,14 @@ def no_labelled(all_task):
     task_queue_dict = Project.get_labelled_task(all_task, False)
 
     # >>>> TASK QUEUE TABLE >>>>>>>>>>>>>>>>>>>>>>
-    st.write(f"### Labelled Task")
+    # >>>> All task table placeholders
+    task_queue_table_col1, task_queue_table_col2 = st.columns([3, 0.5])
+    length_of_queue = len(task_queue_dict)
+    total_task_length = len(all_task)
+
+    task_queue_table_col1.write(f"### Task Queue")
+    task_queue_table_col2.write(
+        f"### Total data: {length_of_queue}/{total_task_length}")
     data_table(task_queue_dict, all_task_columns,
                checkbox=False, key='labelled_task_table_key')
 
@@ -127,7 +136,16 @@ def labelled_table(all_task):
     labelled_task_dict = Project.get_labelled_task(all_task, True)
 
     # >>>> LABELLED TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
-    st.write(f"### Labelled Task")
+
+    # >>>> All task table placeholders
+    labelled_task_table_col1, labelled_task_table_col2 = st.columns([3, 0.5])
+
+    length_of_labelled = len(labelled_task_dict)
+    length_of_remaining = len(all_task) - len(labelled_task_dict)
+
+    labelled_task_table_col1.write(f"### Labelled Task")
+    labelled_task_table_col2.write(
+        f"### Total data: {length_of_labelled}/{length_of_remaining}")
     data_table(labelled_task_dict, all_task_columns,
                checkbox=False, key='labelled_task_table_key')
 
@@ -139,7 +157,13 @@ def all_task_table(all_task):
     # Query all task +user full name(concat)+ dataset name + annotation status
 
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
-    st.write(f"### All Task")
+
+    # >>>> All task table placeholders
+    all_task_table_col1, all_task_table_col2 = st.columns([3, 0.5])
+
+    all_task_table_col1.write(f"### All Task")
+    all_task_table_col2.write(f"### Total data: {len(all_task)}")
+
     data_table(all_task, all_task_columns,
                checkbox=False, key='all_task_table_key')
 
@@ -184,7 +208,7 @@ def index():
     # ************COLUMN PLACEHOLDERS *****************************************************
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
     all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _, start_labelling_button_col = st.columns([
-        1.5, 0.5, 2, 0.5, 1, 10, 2])
+        2, 0.5, 3, 0.5, 2, 5, 3])
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # TODO #90 Add Pagination for Labelling Section

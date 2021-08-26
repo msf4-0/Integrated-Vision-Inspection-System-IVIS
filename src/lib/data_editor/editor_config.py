@@ -28,6 +28,7 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
+from label_studio_editor import labelstudio_editor
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
@@ -56,13 +57,13 @@ def editor_config(project: Union[NewProject, Project]):
         "controls",
         "side-column"
 
-    ],
+    ]
 
     user = {
         'pk': 1,
         'firstName': "John",
         'lastName': "Snow"
-    },
+    }
 
     task = {
         "annotations":
@@ -72,7 +73,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-            }
+        }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -234,7 +235,8 @@ def editor_config(project: Union[NewProject, Project]):
 
     with col2:
         # st.text_input("Check column", key="column2")
-        st_labelstudio(config2, interfaces, user, task, key='editor_test')
+        labelstudio_editor(config2, interfaces, user,
+                           task, key='editor_config')
 
 
 def main():

@@ -31,7 +31,7 @@ interfaces = [
     "annotations:delete",
     "predictions:menu",
     "skip"
-],
+]
 
 #----------Image Classification----------------#
 

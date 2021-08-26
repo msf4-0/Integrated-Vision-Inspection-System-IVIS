@@ -429,7 +429,6 @@ class Project(BaseProject):
 
         return all_task, column_names
 
-    # NOTE Redundant
     @staticmethod
     def create_all_task_dataframe(all_task: Union[List[namedtuple], List[dict]], column_names: List = None) -> pd.DataFrame:
         """Generate Pandas DataFrame to store Annotation Task query
@@ -462,6 +461,7 @@ class Project(BaseProject):
         """
         all_task_df=Project.create_all_task_dataframe(all_task)
         labelled_task_df = all_task_df.loc[all_task_df['Is Labelled'] == is_labelled]
+        # labelled_task_df=labelled_task_df[["id","Task Name","Created By","Dataset Name","Date/Time"]]
 
         # labelled_task_dict = list(
         #     (labelled_task_df.to_dict(orient='index')).values())

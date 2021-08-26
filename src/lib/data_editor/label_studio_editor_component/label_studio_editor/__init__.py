@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit import session_state as session_state
@@ -32,7 +32,12 @@ else:
         "label_studio_editor", path=build_dir)
 
 
-def labelstudio_editor(config, interfaces, user, task, key=None) -> List:
+def labelstudio_editor(
+        config: str,
+        interfaces: List[str],
+        user: dict,
+        task: dict,
+        key=None) -> List:
     component_value = _component_func(
         config=config, interfaces=interfaces, user=user, task=task, key=key)
     if component_value:

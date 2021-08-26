@@ -62,15 +62,16 @@ def data_table(
         rows=rows, columns=columns, checkbox=checkbox, key=key, default=[])
     log_info("Inside data table function")
     # create unique key for previous value
-    # _prev_value_name = str(key) + "_prev_value"
-    # if _prev_value_name not in session_state:
-    #     session_state[_prev_value_name] = None
-    # log_info(
-    #     f"Current: {session_state[key]}; Prev: {session_state[_prev_value_name]}")
+    _prev_value_name = str(key) + "_prev_value"
+    if _prev_value_name not in session_state:
+        session_state[_prev_value_name] = None
+    log_info(
+        f"Current: {session_state[key]}; Prev: {session_state[_prev_value_name]}")
 
     # if session_state[_prev_value_name] != session_state[key]:
     #     """Should run method"""
-    if component_value:
+    log_info(session_state[_prev_value_name] != component_value)
+    if component_value and (session_state[_prev_value_name] != component_value):
         if on_change:
             log_info("Inside callback")
             wildcard = args if args else kwargs
@@ -82,15 +83,15 @@ def data_table(
                 on_change(*kwargs)
             else:
                 on_change()
-            st.experimental_rerun()
 
     # else:
     #     """nothing"""
 
-    # try:
-    #     session_state[_prev_value_name] = session_state[key]
-    # except:
-    #     pass
+    try:
+        session_state[_prev_value_name] = component_value
+        # st.experimental_rerun()
+    except:
+        pass
 
     return component_value
 

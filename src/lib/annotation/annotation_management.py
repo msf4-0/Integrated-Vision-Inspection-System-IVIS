@@ -17,6 +17,7 @@ import json
 from base64 import b64encode
 from PIL import Image
 from io import BytesIO
+import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -66,12 +67,13 @@ annotation_types = {
     AnnotationType.Masks: 'Segmentation Mask'
 }
 
+
 class LabellingPagination(IntEnum):
     AllTask = 0
     Labelled = 1
     Queue = 2
     Editor = 3
-    Performance=4
+    Performance = 4
 
     def __str__(self):
         return self.name
@@ -710,6 +712,47 @@ def load_buffer_image():
     return data_url
 
 
+def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
+    """Get data name from task_df dataframe (id,Task Name, Is Labelled, Skipped)
+
+    #### Disclaimer: Task name and Data name is interusable 
+
+    Args:
+        data_id (int): Task ID obtained from Data Table row selection
+        task_df (pd.DataFrame): DataFrame from create_all_task_dataframe() method from Dataset class
+
+    Raises:
+        TypeError: If data_id is not type (int)
+
+    Returns:
+        str: Name of data
+    """
+    # to obtain name data based on selection of data table
+    log_info(f"Obtaining data name from task_df")
+
+    # Handle data_id exceptions
+    if isinstance(data_id, int):
+        pass
+    elif isinstance(data_id, Union[List, tuple]):
+        assert len(data_id) <= 1, "Data selection should be singular"
+        data_id = data_id[0]
+    else:
+        raise TypeError("Data ID can only be int")
+
+    data_name = (task_df.loc[task_df["id"] == data_id])["Task Name"].values[0]
+
+    log_info(f"Currently serving data:{data_name}")
+
+    return data_name
+
+
+@st.cache
+def load_first_image(task_df: pd.DataFrame):
+    # For loading of interface from 'Start Labelling' where no data is selected
+    # Load first element
+    first_data_name = task_df['Task Name'].iloc[0]
+
+
 def get_image_size(image_path):
     """get dimension of image
 
@@ -722,3 +765,50 @@ def get_image_size(image_path):
     with Image.open(image_path) as img:
         original_width, original_height = img.size
     return original_width, original_height
+
+
+# ******************************** DATA TABLE COLUMNS CONFIG ********************************************
+task_labelling_columns = [
+    {
+        'field': "id",
+        'headerName': "ID",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 70,
+        'hideSortIcons': True,
+
+    },
+    {
+        'field': "Task Name",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 200,
+        'hideSortIcons': False,
+    },
+
+    {
+        'field': "Dataset Name",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 150,
+        'hideSortIcons': False,
+    },
+    {
+        'field': "Is Labelled",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 100,
+        'hideSortIcons': True,
+        'type': 'boolean',
+    },
+    {
+        'field': "Skipped",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 100,
+        'hideSortIcons': True,
+        'type': 'boolean',
+    },
+
+
+]
