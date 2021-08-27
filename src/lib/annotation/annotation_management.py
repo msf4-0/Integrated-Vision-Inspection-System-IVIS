@@ -37,6 +37,7 @@ else:
 
 from core.utils.dataset_handler import data_url_encoder_cv2, load_image_PIL
 from core.utils.log import log_error, log_info  # logger
+from core.utils.form_manager import reset_page_attributes
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from data_manager.dataset_management import (Dataset, FileTypes,
@@ -705,6 +706,14 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
     log_info(f"Currently serving data:{task_row['Task Name']}")
 
     return task_row
+
+
+def reset_editor_page():
+    editor_attributes = ["labelling_interface","new_annotation_flag", "task",
+                         "annotation", "data_labelling_table", 'labelling_prev_results','data_selection']
+
+    log_info(f"Resetting Editor Page......")
+    reset_page_attributes(editor_attributes)
 
 
 # ******************************** DATA TABLE COLUMNS CONFIG ********************************************

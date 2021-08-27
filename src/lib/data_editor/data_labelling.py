@@ -15,8 +15,8 @@ from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -34,10 +34,12 @@ from project.project_management import Project
 from data_editor.editor_management import EditorFlag
 from user.user_management import User
 from data_manager.database_manager import init_connection
-from annotation.annotation_management import Annotations, NewAnnotations, NewTask, Task, load_buffer_image, task_labelling_columns, get_data_name, get_task_row
+from annotation.annotation_management import (LabellingPagination, Annotations, NewAnnotations, Task,
+                                              load_buffer_image, task_labelling_columns,
+                                              get_task_row, reset_editor_page)
 from label_studio_editor import labelstudio_editor
 from data_table import data_table
-from data_manager.dataset_management import Dataset
+
 # <<<< User-defined Modules <<<<
 conn = init_connection(**st.secrets["postgres"])
 
@@ -51,14 +53,10 @@ def editor(data_id: List = []):
 
     # ******** SESSION STATE ***********************************************************
 
-    if 'data_list' not in session_state:
-        session_state.data_list = {}
     if "labelling_interface" not in session_state:
         session_state.labelling_interface = ([], [], [], 0)
     if "new_annotation_flag" not in session_state:
         session_state.new_annotation_flag = 0
-    if "data_selection" not in session_state:
-        session_state.data_selection = None
     if "data_labelling_table" not in session_state:
         session_state.data_labelling_table = data_id
     if "labelling_prev_result" not in session_state:
@@ -67,11 +65,24 @@ def editor(data_id: List = []):
     # ******** SESSION STATE *********************************************************
 
 # ************************************** COLUMN PLACEHOLDERS***************************************
+    back_to_labelling_dashboard_button_place = st.empty()
     main_col1, main_col2 = st.columns([2.5, 3])
-
+    main_col1.write("### **Data Labelling**")
 # ************************************** COLUMN PLACEHOLDERS***************************************
 
-    main_col1.write("### **Data Labelling**")
+# ************************** BACK TO LABELLING DASHBOARD CALLBACK******************************
+    def to_labelling_dashboard_page():
+        session_state.labelling_pagination = LabellingPagination.AllTask
+        reset_editor_page()
+        log_info(
+            f"Returning to labelling dashboard: {session_state.labelling_pagination}")
+
+    back_to_labelling_dashboard_button_place.button("Return to Labelling Dashboard",
+                                                    key='back_to_labelling_dashboard_page',
+                                                    on_click=to_labelling_dashboard_page)
+
+
+# ************************** BACK TO LABELLING DASHBOARD CALLBACK******************************
 
 # ************************** DATA TABLE ***********************************************
 
@@ -107,8 +118,8 @@ def editor(data_id: List = []):
             # Check if annotation exist
             if Annotations.check_if_annotation_exists(session_state.task.id, session_state.project.id, conn):
 
-            # Annotation exist if task is labelled
-            # if session_state.task.is_labelled:
+                # Annotation exist if task is labelled
+                # if session_state.task.is_labelled:
                 session_state.annotation = Annotations(
                     session_state.task)
                 log_info(
@@ -279,11 +290,13 @@ def editor(data_id: List = []):
             task = session_state.task.generate_editor_format(
                 annotations_dict=annotations_dict, predictions_dict=None)
 
+       # *************************************** LABELLING INTERFACE *******************************************
             with main_col2:
                 st.write(
                     f"### **{session_state.task.filetype.name}: {session_state.task.name}**")
                 labelstudio_editor(
                     session_state.project.editor.editor_config, interfaces, user, task, key="labelling_interface")
+        # *************************************** LABELLING INTERFACE *******************************************
 
         # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
     except Exception as e:
@@ -305,25 +318,9 @@ def editor(data_id: List = []):
 
 # ********************************************************************************************************
 
-    # >>>> IF editor XML config fails to be loaded into Editor Class / not available in DB
-    # else:
-    #     editor_no_load_warning = f"Image Labelling Interface failed to load"
-    #     log_error(editor_no_load_warning)
-    #     st.error(editor_no_load_warning)
-# NOTE: Load ^ into results.py
-
-# *************************EDITOR**********************************************
-
-    col1, col2, col3 = st.columns(3)
-    # col1.write(vars(session_state.project))
-    # # col1.write(session_state.project.dataset_list['My Third Dataset'])
-    # col2.write(vars(session_state.editor))
-    # # col3.write(vars(session_state.task))
-    # st.write(vars(session_state.user))
-
 
 def index():
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:

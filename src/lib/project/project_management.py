@@ -138,7 +138,6 @@ class BaseProject:
 
 # TODO KIV get_all_task() at Project class
 
-
     @st.cache(ttl=60)
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
@@ -369,34 +368,29 @@ class Project(BaseProject):
 
         ID_string = "id" if for_data_table else "ID"
         query_all_task_SQL = f"""
-            SELECT
-                t.id AS \"{ID_string}\",
-                t.name AS "Task Name",
-                (
                     SELECT
-                        CASE WHEN (
-                            SELECT
-                                first_name || ' ' || last_name AS "Created By"
-                            FROM
-                                public.users u
-                            WHERE
-                                u.id = a.users_id) IS NULL THEN
+                        t.id AS \"{ID_string}\",
+                        t.name AS "Task Name",
+                        CASE WHEN a.users_id IS NULL THEN
                             '-'
-                        END AS "Created By"),
-                (
-                    SELECT
-                        d.name AS "Dataset Name"
+                        ELSE
+                            u.first_name || ' ' || u.last_name
+                        END AS "Created By",
+                        (
+                            SELECT
+                                d.name AS "Dataset Name"
+                            FROM
+                                public.dataset d
+                            WHERE
+                                d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
                     FROM
-                        public.dataset d
+                        public.task t
+                        LEFT JOIN public.annotations a ON a.id = t.annotation_id
+                        LEFT JOIN public.users u ON u.id = a.users_id
                     WHERE
-                        d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
-            FROM
-                public.task t
-                LEFT JOIN public.annotations a ON a.id = t.annotation_id
-            WHERE
-                t.project_id = %s
-            ORDER BY
-                t.id;
+                        t.project_id = 43
+                    ORDER BY
+                        t.id;
                                 """
         query_all_task_vars = [project_id]
         log_info(
@@ -477,7 +471,9 @@ class Project(BaseProject):
         """
 
         project_attributes = ["all_project_table", "project", "editor", "project_name",
-                              "project_desc", "annotation_type", "project_dataset_page", "project_dataset", "existing_project_page_navigator_radio", "labelling_pagination"]
+                              "project_desc", "annotation_type", "project_dataset_page",
+                              "project_dataset", "existing_project_page_navigator_radio",
+                              "labelling_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
