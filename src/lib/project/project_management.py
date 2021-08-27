@@ -34,7 +34,7 @@ from path_desc import chdir_root, PROJECT_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.helper import get_directory_name, create_dataframe,dataframe2dict
+from core.utils.helper import get_directory_name, create_dataframe, dataframe2dict
 from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
@@ -365,7 +365,6 @@ class Project(BaseProject):
 
     # NOTE To determine if  ^ get_annotation_task_join required at BaseProject class
     @staticmethod
-    @st.cache(ttl=60)
     def query_all_task(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
 
         ID_string = "id" if for_data_table else "ID"
@@ -444,13 +443,13 @@ class Project(BaseProject):
         # returns Pandas DataFrame
         df = create_dataframe(all_task, column_names, date_time_format=True)
         df['Created By'] = df['Created By'].fillna("-")
-        df['Date/Time']=df['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        df['Date/Time'] = df['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
         return df
 
     @staticmethod
     @dataframe2dict(orient='index')
-    def get_labelled_task(all_task: Union[List[namedtuple], List[dict]],is_labelled:bool=True) -> List[Dict]:
+    def get_labelled_task(all_task: Union[List[namedtuple], List[dict]], is_labelled: bool = True) -> List[Dict]:
         """Get a List of Task-Annotations Dict where is_labelled is True
 
         Args:
@@ -459,8 +458,9 @@ class Project(BaseProject):
         Returns:
             List[Dict]: List of dictionaries based on Material UI Data Grid format
         """
-        all_task_df=Project.create_all_task_dataframe(all_task)
-        labelled_task_df = all_task_df.loc[all_task_df['Is Labelled'] == is_labelled]
+        all_task_df = Project.create_all_task_dataframe(all_task)
+        labelled_task_df = all_task_df.loc[all_task_df['Is Labelled']
+                                           == is_labelled]
         # labelled_task_df=labelled_task_df[["id","Task Name","Created By","Dataset Name","Date/Time"]]
 
         # labelled_task_dict = list(

@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict
+from typing import Callable, Optional, Tuple, List, Dict
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit import session_state as session_state
@@ -15,6 +15,7 @@ else:
     pass
 
 # >>>> User-defined modules >>>>>
+from core.utils.helper import check_args_kwargs
 from core.utils.log import log_info, log_error
 
 _RELEASE = True
@@ -37,12 +38,30 @@ def labelstudio_editor(
         interfaces: List[str],
         user: dict,
         task: dict,
-        key=None) -> List:
+        key=None,
+        on_change: Optional[Callable] = None,
+        args: Optional[Tuple] = None,
+        kwargs: Optional[Dict] = None
+) -> List:
     component_value = _component_func(
-        config=config, interfaces=interfaces, user=user, task=task, key=key)
+        config=config, interfaces=interfaces, user=user, task=task, key=key, default=[])
     if component_value:
         if component_value[0]:
             log_info(f"From LS Component: Flag {component_value[1]}")
+
+        if on_change:
+            log_info(f"Inside LS Editor Callback")
+            wildcard = args if args else kwargs
+            if args or kwargs:
+                check_args_kwargs(wildcards=wildcard, func=on_change)
+            if args:
+                on_change(*args)
+            elif kwargs:
+                on_change(*kwargs)
+            else:
+                on_change()
+         
+
     return component_value
 
 

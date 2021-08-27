@@ -360,7 +360,7 @@ CREATE TABLE IF NOT EXISTS public.annotations (
     MAXVALUE 9223372036854775807
     CACHE 1),
     result jsonb[],
-    annotation_type_id integer,
+    -- annotation_type_id integer,
     project_id bigint NOT NULL,
     users_id bigint NOT NULL,
     task_id bigint NOT NULL,
@@ -368,7 +368,7 @@ CREATE TABLE IF NOT EXISTS public.annotations (
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION,
-    CONSTRAINT fk_annotation_type_id FOREIGN KEY (annotation_type_id) REFERENCES public.annotation_type (id) ON DELETE NO ACTION,
+    -- CONSTRAINT fk_annotation_type_id FOREIGN KEY (annotation_type_id) REFERENCES public.annotation_type (id) ON DELETE NO ACTION,
     CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
     CONSTRAINT fk_task_id FOREIGN KEY (task_id) REFERENCES public.task (id) ON DELETE CASCADE)
 TABLESPACE image_labelling;
@@ -381,16 +381,16 @@ CREATE TRIGGER annotations_update
 ALTER TABLE public.annotations OWNER TO shrdc;
 
 -- ANNOTATION_TYPE table --------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.annotation_type (
-    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
-    MINVALUE 1
-    MAXVALUE 9223372036854775807
-    CACHE 1),
-    name character varying(100) NOT NULL,
-    PRIMARY KEY (id))
-TABLESPACE image_labelling;
+-- CREATE TABLE IF NOT EXISTS public.annotation_type (
+--     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
+--     MINVALUE 1
+--     MAXVALUE 9223372036854775807
+--     CACHE 1),
+--     name character varying(100) NOT NULL,
+--     PRIMARY KEY (id))
+-- TABLESPACE image_labelling;
 
-ALTER TABLE public.annotation_type OWNER TO shrdc;
+-- ALTER TABLE public.annotation_type OWNER TO shrdc;
 
 -- PROJECT_DATASET table (Many-to-Many) --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.project_dataset (

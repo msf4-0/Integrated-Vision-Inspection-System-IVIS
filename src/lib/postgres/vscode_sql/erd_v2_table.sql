@@ -328,17 +328,18 @@ CREATE TRIGGER annotations_update
 
 ALTER TABLE public.annotations OWNER TO shrdc;
 
+/* NOTE */
 -- ANNOTATION_TYPE table --------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.annotation_type (
-    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
-    MINVALUE 1
-    MAXVALUE 9223372036854775807
-    CACHE 1),
-    name character varying(100) NOT NULL,
-    PRIMARY KEY (id))
-TABLESPACE image_labelling;
+-- CREATE TABLE IF NOT EXISTS public.annotation_type (
+--     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
+--     MINVALUE 1
+--     MAXVALUE 9223372036854775807
+--     CACHE 1),
+--     name character varying(100) NOT NULL,
+--     PRIMARY KEY (id))
+-- TABLESPACE image_labelling;
 
-ALTER TABLE public.annotation_type OWNER TO shrdc;
+-- ALTER TABLE public.annotation_type OWNER TO shrdc;
 
 -- PROJECT_DATASET table (Many-to-Many) --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.project_dataset (

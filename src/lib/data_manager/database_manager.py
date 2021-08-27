@@ -11,8 +11,9 @@ from pathlib import Path
 import psycopg2
 from psycopg2.extras import DictCursor, NamedTupleCursor
 from psycopg2 import sql
+from collections import namedtuple
 import streamlit as st
-from typing import List, Dict, NamedTuple
+from typing import List
 # from config import config
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -84,7 +85,7 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
     #         print('Database connection closed.')
 
 
-def db_no_fetch(sql_message, conn, vars: List = None) -> None:
+def db_no_fetch(sql_message: str, conn, vars: List = None) -> None:
     with conn:
         with conn.cursor() as cur:
             try:
@@ -97,7 +98,7 @@ def db_no_fetch(sql_message, conn, vars: List = None) -> None:
                 log_error(e)
 
 
-def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> NamedTuple:
+def db_fetchone(sql_message: str, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> namedtuple:
 
     with conn:
         cursor_factory = DictCursor if return_dict else NamedTupleCursor
@@ -132,7 +133,7 @@ def db_fetchone(sql_message, conn, vars: List = None, fetch_col_name: bool = Fal
                 log_error(e)
 
 
-def db_fetchall(sql_message, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> NamedTuple:
+def db_fetchall(sql_message: str, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> namedtuple:
     with conn:
         cursor_factory = DictCursor if return_dict else NamedTupleCursor
         with conn.cursor(cursor_factory=cursor_factory) as cur:

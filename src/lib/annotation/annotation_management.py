@@ -13,6 +13,7 @@ from datetime import datetime
 from enum import IntEnum
 from io import BytesIO
 from pathlib import Path
+from time import sleep
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -36,8 +37,10 @@ else:
 
 from core.utils.dataset_handler import data_url_encoder_cv2, load_image_PIL
 from core.utils.log import log_error, log_info  # logger
-from data_manager.database_manager import db_fetchall, db_fetchone, db_no_fetch, init_connection
-from data_manager.dataset_management import Dataset, load_image, data_url_encoder, FileTypes
+from data_manager.database_manager import (db_fetchall, db_fetchone,
+                                           db_no_fetch, init_connection)
+from data_manager.dataset_management import (Dataset, FileTypes,
+                                             data_url_encoder, load_image)
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from user.user_management import User
@@ -230,6 +233,7 @@ class Task(BaseTask):
             log_error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
+    @st.cache
     def generate_data_url(self):
         """Generate data url from OpenCV numpy array
 
@@ -246,6 +250,7 @@ class Task(BaseTask):
             log_error(f"{e}: Failed to generate data url for {self.name}")
             return None
 
+    @st.cache
     def load_data(self):
         if self.filetype == FileTypes.Image:
             self.data_object = load_image(self.data_path, opencv_flag=True)
@@ -395,9 +400,10 @@ class BaseAnnotations:
         Returns:
             [type]: [description]
         """
+        log_info(f"Submitting results.......")
         # NOTE: Update class object: result + task
         self.result = result if result else None
-
+        self.task.is_labelled = True
         # TODO is it neccessary to have annotation type id?
         insert_annotations_SQL = """
                                     INSERT INTO public.annotations (
@@ -432,14 +438,20 @@ class BaseAnnotations:
                                 annotation_id = %s,
                                 is_labelled = %s
                             WHERE
-                                id = %s;
+                                id = %s
+                            RETURNING is_labelled;
                         """
-        self.task.is_labelled = True
+
         update_task_vars = [self.id,
                             self.task.is_labelled, self.task.id]
-        db_no_fetch(update_task_SQL, conn, update_task_vars)
 
-        return self.id
+        try:
+            self.task.is_labelled = db_fetchone(
+                update_task_SQL, conn, update_task_vars)
+        except TypeError as e:
+            log_error(f"{e}: Task update for Submit failed")
+
+        sleep(1)
 
     def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:
         """Update result for new annotations
@@ -452,9 +464,11 @@ class BaseAnnotations:
         Returns:
             tuple: [description]
         """
+
+        log_info(f"Updating results")
         self.result = result if result else None  # update result attribute
         result_serialised = [json.dumps(x) for x in result]
-        # TODO is it neccessary to have annotation type id?
+
         update_annotations_SQL = """
                                     UPDATE
                                         public.annotations
@@ -547,7 +561,7 @@ class BaseAnnotations:
         except Exception as e:
             log_error(
                 f"{e}: Failed to generate annotation dict for Annotation {self.id}")
-            annotation_dict = {}
+            annotation_dict = []
             return annotation_dict
 
 
@@ -581,14 +595,26 @@ class Annotations(BaseAnnotations):
         if self.task.is_labelled:
             self.query_annotations()  # get annotations id, results, user details, date/time
             self.completed_by = {
-                "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
+                "id": self.user["id"],
+                "email": self.user["email"],
+                "first_name": self.user["first_name"],
+                "last_name": self.user["last_name"]
+            }
         else:
             pass
 
-    # TODO: check if current image exists as a 'task' in DB
-
     @staticmethod
     def check_if_annotation_exists(task_id: int, project_id: int, conn=conn) -> bool:
+        """Check if annotation exists in annotations table
+
+        Args:
+            task_id (int): Task ID
+            project_id (int): Project ID
+            conn (psycopg2.connection, optional): PostgreSQL psycopg2 connection object. Defaults to conn.
+
+        Returns:
+            bool: True if annotation exist, False otherwise
+        """
         check_if_exists_SQL = """
                                 SELECT
                                     EXISTS (
@@ -606,12 +632,13 @@ class Annotations(BaseAnnotations):
 
         return exists_flag
 
-    def query_annotations(self):
-        """Query ID and Result
+    def query_annotations(self) -> namedtuple:
+        """Query all columns annotations table
 
         Returns:
-            [type]: [description]
+            namedtuple: Query return for annotations
         """
+
         query_annotation_SQL = """
                                 SELECT
                                     a.id,
@@ -621,8 +648,8 @@ class Annotations(BaseAnnotations):
                                     a.updated_at
                                 FROM
                                     public.annotations a
-                                inner join public.users u
-                                on a.users_id = u.id
+                                INNER JOIN public.users u
+                                ON a.users_id = u.id
                                 WHERE
                                     task_id = %s;
 
@@ -630,87 +657,18 @@ class Annotations(BaseAnnotations):
         query_annotation_vars = [self.task.id]
         query_return = db_fetchone(
             query_annotation_SQL, conn, query_annotation_vars, fetch_col_name=False)
+
         try:
-            # self.user is NamedTuple
+
             self.id, self.result, self.user["id"], self.user["email"], self.user[
                 "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
             log_info("Query annotations in class")
+
             return query_return
 
         except TypeError as e:
             log_error(
-                f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.project_id}")
-
-
-@st.cache
-def load_buffer_image():
-    """Load Image and generate Data URL in base64 bytes
-
-    Args:
-        image (bytes-like): BytesIO object
-
-    Returns:
-        bytes: UTF-8 encoded base64 bytes
-    """
-    chdir_root()  # ./image_labelling
-    log_info("Loading Sample Image")
-    sample_image = "resources/buffer.png"
-    with Image.open(sample_image) as img:
-        img_byte_arr = BytesIO()
-        img.save(img_byte_arr, format=img.format)
-
-    bb = img_byte_arr.getvalue()
-    b64code = b64encode(bb).decode('utf-8')
-    data_url = 'data:image/jpeg;base64,' + b64code
-    # data_url = f'data:image/jpeg;base64,{b64code}'
-    # st.write(f"\"{data_url}\"")
-
-    return data_url
-
-
-def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
-    """Get data name from task_df dataframe (id,Task Name, Is Labelled, Skipped)
-
-    #### Disclaimer: Task name and Data name is interusable 
-
-    Args:
-        data_id (int): Task ID obtained from Data Table row selection
-        task_df (pd.DataFrame): DataFrame from create_all_task_dataframe() method from Dataset class
-
-    Raises:
-        TypeError: If data_id is not type (int)
-
-    Returns:
-        str: Name of data
-    """
-    # to obtain name data based on selection of data table
-    log_info(f"Obtaining data name from task_df")
-
-    # Handle data_id exceptions
-    if isinstance(data_id, int):
-        pass
-    elif isinstance(data_id, Union[List, tuple]):
-        assert len(data_id) <= 1, "Data selection should be singular"
-        data_id = data_id[0]
-    else:
-        raise TypeError("Data ID can only be int")
-
-    data_name = (task_df.loc[task_df["id"] == data_id])["Task Name"].values[0]
-
-    log_info(f"Currently serving data:{data_name}")
-
-    return data_name
-
-# DEPRECATED
-
-
-@st.cache
-def get_first_task_row(task_df: pd.DataFrame):
-    # For loading of interface from 'Start Labelling' where no data is selected
-    # Load first element
-    first_data_row = task_df.iloc[0].to_dict()
-
-    return first_data_row
+                f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.task.project_id}")
 
 
 def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
@@ -736,30 +694,16 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
         pass
     elif isinstance(task_id, Union[List, tuple]):
         assert len(task_id) <= 1, "Data selection should be singular"
-        data_id = task_id[0]
+        task_id = task_id[0]
     else:
         raise TypeError("Data ID can only be int")
 
-    task_row = ((task_df.loc[task_df["id"] == data_id]
+    task_row = ((task_df.loc[task_df["id"] == task_id]
                  ).to_dict(orient='records'))[0]
 
     log_info(f"Currently serving data:{task_row['Task Name']}")
 
     return task_row
-
-
-def get_image_size(image_path):
-    """get dimension of image
-
-    Args:
-        image_path (str): path to image or byte_like object
-
-    Returns:
-        tuple: original_width and original_height
-    """
-    with Image.open(image_path) as img:
-        original_width, original_height = img.size
-    return original_width, original_height
 
 
 # ******************************** DATA TABLE COLUMNS CONFIG ********************************************
@@ -807,3 +751,92 @@ task_labelling_columns = [
 
 
 ]
+
+# *********************************NOTE REDUNDANT *********************************
+
+
+@st.cache
+def load_buffer_image():
+    """Load Image and generate Data URL in base64 bytes
+
+    Args:
+        image (bytes-like): BytesIO object
+
+    Returns:
+        bytes: UTF-8 encoded base64 bytes
+    """
+    chdir_root()  # ./image_labelling
+    log_info("Loading Sample Image")
+    sample_image = "resources/buffer.png"
+    with Image.open(sample_image) as img:
+        img_byte_arr = BytesIO()
+        img.save(img_byte_arr, format=img.format)
+
+    bb = img_byte_arr.getvalue()
+    b64code = b64encode(bb).decode('utf-8')
+    data_url = 'data:image/jpeg;base64,' + b64code
+    # data_url = f'data:image/jpeg;base64,{b64code}'
+    # st.write(f"\"{data_url}\"")
+
+    return data_url
+
+
+# NOTE REDUNDANT*********************************************************************************
+def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
+    """Get data name from task_df dataframe (id,Task Name, Is Labelled, Skipped)
+
+    #### Disclaimer: Task name and Data name is interusable 
+
+    Args:
+        data_id (int): Task ID obtained from Data Table row selection
+        task_df (pd.DataFrame): DataFrame from create_all_task_dataframe() method from Dataset class
+
+    Raises:
+        TypeError: If data_id is not type (int)
+
+    Returns:
+        str: Name of data
+    """
+    # to obtain name data based on selection of data table
+    log_info(f"Obtaining data name from task_df")
+
+    # Handle data_id exceptions
+    if isinstance(data_id, int):
+        pass
+    elif isinstance(data_id, Union[List, tuple]):
+        assert len(data_id) <= 1, "Data selection should be singular"
+        data_id = data_id[0]
+    else:
+        raise TypeError("Data ID can only be int")
+
+    data_name = (task_df.loc[task_df["id"] == data_id])["Task Name"].values[0]
+
+    log_info(f"Currently serving data:{data_name}")
+
+    return data_name
+
+
+# NOTE DEPRECATED *****************************************************************************
+@st.cache
+def get_first_task_row(task_df: pd.DataFrame):
+    # For loading of interface from 'Start Labelling' where no data is selected
+    # Load first element
+    first_data_row = task_df.iloc[0].to_dict()
+
+    return first_data_row
+
+# NOTE DEPRECATED *****************************************************************************
+
+
+def get_image_size(image_path):
+    """get dimension of image
+
+    Args:
+        image_path (str): path to image or byte_like object
+
+    Returns:
+        tuple: original_width and original_height
+    """
+    with Image.open(image_path) as img:
+        original_width, original_height = img.size
+    return original_width, original_height
