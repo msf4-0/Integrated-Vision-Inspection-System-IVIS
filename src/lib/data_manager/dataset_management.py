@@ -5,21 +5,28 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-from collections import namedtuple
-import sys
-from pathlib import Path
 import os
-from typing import Dict, Union, List
-from enum import IntEnum
-from PIL import Image
-from time import sleep
-from glob import iglob
+import sys
+from base64 import b64encode
+from collections import namedtuple
 from datetime import datetime
-from stqdm import stqdm
-from videoprops import get_audio_properties, get_video_properties
+from enum import IntEnum
+from glob import iglob
+from io import BytesIO
+from mimetypes import guess_type
+from pathlib import Path
+from time import sleep
+from typing import Any, Dict, List, Union
+
+import cv2
+import numpy as np
 import streamlit as st
+from PIL import Image
+from stqdm import stqdm
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
+from streamlit.uploaded_file_manager import UploadedFile
+from videoprops import get_audio_properties, get_video_properties
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -32,14 +39,17 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-# >>>> User-defined Modules >>>>
-from path_desc import chdir_root, MEDIA_ROOT, BASE_DATA_DIR, DATASET_DIR
-from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection, db_fetchone, db_fetchall
-from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
-from core.utils.helper import get_directory_name, get_mime
-from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from core.utils.dataset_handler import get_image_size
+from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
+from core.utils.form_manager import (check_if_exists, check_if_field_empty,
+                                     reset_page_attributes)
+from core.utils.helper import get_directory_name, get_filetype, get_mime
+from core.utils.log import log_error, log_info  # logger
+# >>>> User-defined Modules >>>>
+from path_desc import BASE_DATA_DIR, DATASET_DIR, MEDIA_ROOT, chdir_root
+
+from data_manager.database_manager import (db_fetchall, db_fetchone,
+                                           init_connection)
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 # initialise connection to Database
@@ -283,7 +293,18 @@ class Dataset(BaseDataset):
 
         return data_name_list_full
 
-    def glob_folder_data_list(self, data_name_list_full: Dict):
+    def glob_folder_data_list(self, data_name_list_full: Dict) -> Dict[List[str],Any]:
+        """#### Get data info for data table:
+            - id: Data Name
+            - filetype: Data filetype (Image, Video,Audio, Text)
+            - created: Date of modification in the filesystem
+
+        Args:
+            data_name_list_full (Dict): Existing list of data info
+
+        Returns:
+            Dict[List[str, Any]]:   Dictionary with dataset name as key and List of data info as value
+        """
         self.dataset_path = self.get_dataset_path(self.name)
         log_info(self.dataset_path)
         log_info(self.name)
@@ -297,22 +318,24 @@ class Dataset(BaseDataset):
             # {'id':data_name,'filetype':self.filetype,'created_at':os.stat().st_mtime}
 
             # Glob through dataset directory
-            for data_path in iglob(str(dataset_path)):
-                data_info = {}
+            # for data_path in iglob(str(dataset_path)):
+            for data_path in dataset_path.iterdir():
+                if data_path.is_file():
+                    data_info = {}
 
-                log_info(f"Globbing {data_path}......")
-                data_info['id'] = Path(data_path).name
-                data_info['filetype'] = self.filetype
+                    log_info(f"Listing files in {data_path}......")
+                    data_info['id'] = Path(data_path).name
+                    data_info['filetype'] = self.filetype
 
-                # Get File Modified Time
-                data_modified_time_epoch = os.stat(str(data_path)).st_mtime
-                data_modified_time = datetime.fromtimestamp(data_modified_time_epoch
-                                                            ).strftime('%Y-%m-%d')
-                data_info['created'] = data_modified_time
-                data_info_tmp.append(data_info)
+                    # Get File Modified Time
+                    data_modified_time_epoch = os.stat(str(data_path)).st_mtime
+                    data_modified_time = datetime.fromtimestamp(data_modified_time_epoch
+                                                                ).strftime('%Y-%m-%d')
+                    data_info['created'] = data_modified_time
+                    data_info_tmp.append(data_info)
 
-            data_name_list_full[self.name] = data_info_tmp
-            self.data_name_list = data_info_tmp
+                data_name_list_full[self.name] = data_info_tmp
+                self.data_name_list = data_info_tmp
 
             return data_name_list_full
 
@@ -510,6 +533,22 @@ class Dataset(BaseDataset):
             if file.is_file():
                 pass
 
+    @staticmethod
+    def get_filetype_enumerator(data_name: Union[str, Path, UploadedFile]) -> IntEnum:
+        """Query enumerated constants for FileTypes IntEnum class
+
+        Args:
+            data_name (Union[str, Path, UploadedFile]): Name of data with extensions (eg. IMG_20210831.png)
+
+        Returns:
+            (IntEnum): FileTypes constant
+        """
+
+        filetype = get_filetype(data_name).capitalize()
+        filetype = FileTypes.from_string(filetype)
+
+        return filetype
+
 
 # **************************** IMPORTANT ****************************
 # ************************ CANNOT CACHE !!!!!*************************
@@ -579,6 +618,79 @@ def get_dataset_name_list(dataset_list: List[namedtuple]):
             dataset_dict[dataset.Name] = dataset
         log_info("Generating list of dataset names and ID......")
     return dataset_dict
+
+
+def load_image(image_path: str, opencv_flag: bool = True) -> Union[Image.Image, np.ndarray]:
+    """Loads image via OpenCV into Numpy arrays or through PIL into Image class object
+
+    Args:
+        image_path (str): Path to image
+        opencv_flag (bool, optional): True to process by OpenCV. Defaults to True.
+
+    Returns:
+        Union[Image.Image, np.ndarray]: Image object
+    """
+    if opencv_flag:
+        image_path = str(image_path)
+        image = cv2.imread(image_path)
+
+    else:
+
+        image = Image.open(image_path)
+
+    return image
+
+
+def data_url_encoder(data_object, filetype: IntEnum, data_path: Union[str, Path]) -> str:
+    """Generate Data URL
+
+    Args:
+        data_object ([type]): Object holding raw data
+        filetype (IntEnum): FileTypes IntEnum class constants
+        data_path (Union[str, Path]): Path to data
+
+    Returns:
+        str: String of base64 encoded data url
+    """
+    if filetype == FileTypes.Image:
+        if isinstance(data_object, np.ndarray):
+            image_name = Path(data_path).name
+
+            log_info(f"Encoding image into bytes: {str(image_name)}")
+            extension = Path(image_name).suffix
+            _, buffer = cv2.imencode(extension, data_object)
+            log_info("Done enconding into bytes")
+
+            log_info("Start B64 Encoding")
+
+            b64code = b64encode(buffer).decode('utf-8')
+            log_info("Done B64 encoding")
+
+        elif isinstance(data_object, Image.Image):
+            img_byte = BytesIO()
+            image_name = Path(data_object.filename).name  # use Path().name
+            log_info(f"Encoding image into bytes: {str(image_name)}")
+            data_object.save(img_byte, format=data_object.format)
+            log_info("Done enconding into bytes")
+
+            log_info("Start B64 Encoding")
+            bb = img_byte.getvalue()
+            b64code = b64encode(bb).decode('utf-8')
+            log_info("Done B64 encoding")
+
+        mime = guess_type(image_name)[0]
+        log_info(f"{image_name} ; {mime}")
+        data_url = f"data:{mime};base64,{b64code}"
+        log_info("Data url generated")
+
+        return data_url
+
+    elif filetype == FileTypes.Video:
+        pass
+    elif filetype == FileTypes.Audio:
+        pass
+    elif filetype == FileTypes.Text:
+        pass
 
 
 def main():

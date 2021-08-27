@@ -135,8 +135,8 @@ ALTER TABLE IF EXISTS public.annotations
 
 ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_users_id;
 
-ALTER TABLE IF EXISTS public.annotations
-    ADD CONSTRAINT fk_annotation_type_id FOREIGN KEY (annotation_type_id) REFERENCES public.annotation_type (id) ON DELETE NO ACTION NOT VALID;
+-- ALTER TABLE IF EXISTS public.annotations
+--     ADD CONSTRAINT fk_annotation_type_id FOREIGN KEY (annotation_type_id) REFERENCES public.annotation_type (id) ON DELETE NO ACTION NOT VALID;
 
 ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_annotation_type_id;
 

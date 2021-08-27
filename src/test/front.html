@@ -173,10 +173,11 @@
           },
           onSubmitAnnotation: function (LS, annotations) {
             console.log("LS add:", { LS });
+            console.log("submit", annotations.serializeAnnotation());
+
             let flag = 1; //submission flag
             let status = "New Submission";
             return_results(annotations, flag, status);
-
             // console.log(annotations);
             // annotations = JSON.parse(JSON.stringify(annotations));
             // console.log("annotations add:", { annotations });
@@ -185,6 +186,8 @@
           },
           onUpdateAnnotation: function (LS, annotations) {
             console.log("LS update:", { LS });
+            console.log("update", annotations.serializeAnnotation());
+
             let flag = 2; //submission flag
             let status = "Update Submission";
             return_results(annotations, flag, status);

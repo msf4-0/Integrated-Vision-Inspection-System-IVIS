@@ -113,12 +113,14 @@ SELECT
         SELECT
             CASE WHEN (
                 SELECT
-                    first_name || ' ' || last_name AS "Created By"
+                    first_name || ' ' || last_name
                 FROM
                     public.users u
                 WHERE
                     u.id = a.users_id) IS NULL THEN
                 '-'
+            ELSE
+                first_name || ' ' || last_name
             END AS "Created By"),
     (
         SELECT
@@ -131,7 +133,31 @@ FROM
     public.task t
     LEFT JOIN public.annotations a ON a.id = t.annotation_id
 WHERE
-    t.project_id = %s
+    t.project_id = % s
+ORDER BY
+    t.id;
+
+SELECT
+    t.id AS "ID",
+    t.name AS "Task Name",
+    CASE WHEN a.users_id IS NULL THEN
+        '-'
+    ELSE
+        u.first_name || ' ' || u.last_name
+    END AS "Created By",
+    (
+        SELECT
+            d.name AS "Dataset Name"
+        FROM
+            public.dataset d
+        WHERE
+            d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+FROM
+    public.task t
+    LEFT JOIN public.annotations a ON a.id = t.annotation_id
+    LEFT JOIN public.users u ON u.id = a.users_id
+WHERE
+    t.project_id = 43
 ORDER BY
     t.id;
 

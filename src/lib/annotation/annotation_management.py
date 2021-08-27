@@ -5,21 +5,25 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-from collections import namedtuple
-import sys
-from pathlib import Path
-from typing import List, Dict, Union
-from enum import IntEnum
-from datetime import datetime
-import psycopg2
-from psycopg2.extras import Json
 import json
+import sys
 from base64 import b64encode
-from PIL import Image
+from collections import namedtuple
+from datetime import datetime
+from enum import IntEnum
 from io import BytesIO
+from pathlib import Path
+from time import sleep
+from typing import Any, Dict, List, Union
+
+import numpy as np
+import pandas as pd
+import psycopg2
 import streamlit as st
+from PIL import Image
+from psycopg2.extras import Json
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state as session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -31,12 +35,17 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+from core.utils.dataset_handler import data_url_encoder_cv2, load_image_PIL
+from core.utils.log import log_error, log_info  # logger
+from core.utils.form_manager import reset_page_attributes
+from data_manager.database_manager import (db_fetchall, db_fetchone,
+                                           db_no_fetch, init_connection)
+from data_manager.dataset_management import (Dataset, FileTypes,
+                                             data_url_encoder, load_image)
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import db_fetchall, db_no_fetch, init_connection, db_fetchone
 from user.user_management import User
-from core.utils.dataset_handler import data_url_encoder_cv2
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 conn = init_connection(**st.secrets['postgres'])
 
@@ -66,12 +75,13 @@ annotation_types = {
     AnnotationType.Masks: 'Segmentation Mask'
 }
 
+
 class LabellingPagination(IntEnum):
     AllTask = 0
     Labelled = 1
     Queue = 2
     Editor = 3
-    Performance=4
+    Performance = 4
 
     def __str__(self):
         return self.name
@@ -131,17 +141,37 @@ class NewTask(BaseTask):
 
 
 class Task(BaseTask):
-    def __init__(self, data_object, data_name, project_id, dataset_id, annotations=None, predictions=None) -> None:
+    def __init__(self, task_row: dict, dataset_dict: Dict[namedtuple, Any], project_id: int, annotations=None, predictions=None) -> None:
         super().__init__()
-        self.data = {'image': None}  # generate when call LS format generator
-        self.name = data_name
-        self.project_id = project_id
-        self.dataset_id = dataset_id
-        self.annotations = annotations
-        self.predictions = predictions
-        # holds raw data values for Data (Numpy array for images)
-        self.data_object = data_object
-        self.query_task()
+        """
+        - task_row: id,Task Name, Created By, Dataset Name, Is Labelled, Skipped, Date/Time
+        - dataset_dict (from project class object)-> namedtuple: 
+            - ID, Name,Dataset_Size,File_Type,Date_Time
+        
+        """
+        self.task_row = task_row
+        self.dataset_dict = dataset_dict
+        self.project_id: int = project_id
+        self.annotations: List = annotations
+        self.predictions: List = predictions
+
+        # generate when call LS format generator
+        self.data: dict = {'image': None}
+        self.id = task_row['id']
+        self.name: str = task_row['Task Name']
+        self.dataset_name: str = task_row['Dataset Name']
+        self.is_labelled: bool = task_row['Is Labelled']
+        self.skipped: bool = task_row["Skipped"]
+
+        self.dataset_id: int = dataset_dict[self.dataset_name].ID
+        self.dataset_path = Dataset.get_dataset_path(self.dataset_name)
+
+        self.data_path = self.dataset_path / self.name
+        self.filetype = Dataset.get_filetype_enumerator(self.name)
+
+        self.data_url = self.get_data()  # Get Data URL
+
+        # self.query_task()
 
     @staticmethod
     def check_if_task_exists(image_name: str, project_id: int, dataset_id: int, conn=conn) -> bool:
@@ -174,48 +204,6 @@ class Task(BaseTask):
 
         return exists_flag
 
-    # @staticmethod
-    # @st.cache(ttl=60)
-    # def query_all_task(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
-
-    #     ID_string = "id" if for_data_table else "ID"
-    #     query_all_task_SQL = f"""
-    #         SELECT
-    #             t.id,
-    #             t.name,
-    #             (
-    #                 SELECT
-    #                     first_name || ' ' || last_name AS "Created By"
-    #                 FROM
-    #                     public.users u
-    #                 WHERE
-    #                     u.id = a.users_id), (
-    #                 SELECT
-    #                     d.name
-    #                 FROM
-    #                     public.dataset d
-    #                 WHERE
-    #                     d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
-    #         FROM
-    #             public.task t
-    #             LEFT JOIN public.annotations a ON a.id = t.annotation_id
-    #         WHERE
-    #             t.project_id = %s
-    #         ORDER BY
-    #             id;
-    #                             """
-    #     query_all_task_vars = [project_id]
-
-    #     try:
-    #         all_task_query_return = db_fetchall(
-    #             query_all_task_SQL, conn, query_all_task_vars, fetch_col_name=False)
-
-    #     except Exception as e:
-    #         log_error(f"{e}: No task found for Project ")
-    #         all_task_query_return = None
-
-    #     return all_task_query_return
-
     def query_task(self):
         """Query ID, 'Is Labelled' flag and 'Skipped' flag
 
@@ -246,6 +234,7 @@ class Task(BaseTask):
             log_error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
+    @st.cache
     def generate_data_url(self):
         """Generate data url from OpenCV numpy array
 
@@ -254,34 +243,43 @@ class Task(BaseTask):
         """
 
         try:
-            data_url = data_url_encoder_cv2(self.data_object, self.name)
+            self.data_url = data_url_encoder(
+                self.data_object, self.filetype, self.data_path)
 
-            return data_url
+            return self.data_url
         except Exception as e:
             log_error(f"{e}: Failed to generate data url for {self.name}")
             return None
 
     @st.cache
+    def load_data(self):
+        if self.filetype == FileTypes.Image:
+            self.data_object = load_image(self.data_path, opencv_flag=True)
+
+        elif self.filetype == FileTypes.Video:
+            pass
+        elif self.filetype == FileTypes.Audio:
+            pass
+        elif self.filetype == FileTypes.Text:
+            pass
+
+        return self.data_object
+
+    @st.cache
     def get_data(self):
 
-        data = self.data_list.get(self.name)
+        # data = self.data_list.get(self.name)
 
-        if not data:
-            data = self.generate_data_url()
-            # add encoded image into dictionary
-            self.data_list[self.name] = data
+        # if not data:
+        self.data_object = self.load_data()
+        self.data_url = self.generate_data_url()
+        # add encoded image into dictionary
+        # self.data_list[self.name] = data
 
-        else:
-            log_info(f"Data {self.name} EXIST")
-
-        # if self.name in self.data_list.keys():
-        #     data = self.data_list[self.name]
-        #     log_info(f"Data {self.name} EXIST")
         # else:
-        #     data = self.generate_data_url()
-        #     # add encoded image into dictionary
-        #     self.data_list[self.name] = data
-        return data
+        # log_info(f"Data {self.name} EXIST")
+
+        return self.data_url
 
     def generate_editor_format(self, annotations_dict: List, predictions_dict: List = None):
         """Generate editor format based on Label Studio Frontend requirements
@@ -313,7 +311,7 @@ class Task(BaseTask):
                 'annotations': annotations_dict,
                 'predictions': [],
                 # 'file_upload': self.name,
-                "data": {"image": self.get_data()},
+                "data": {"image": self.data_url},  # NOTE
                 # 'data': {'image': None}
                 # 'meta': {},
                 # 'created_at': str(self.created_at),
@@ -403,9 +401,10 @@ class BaseAnnotations:
         Returns:
             [type]: [description]
         """
+        log_info(f"Submitting results.......")
         # NOTE: Update class object: result + task
         self.result = result if result else None
-
+        self.task.is_labelled = True
         # TODO is it neccessary to have annotation type id?
         insert_annotations_SQL = """
                                     INSERT INTO public.annotations (
@@ -440,14 +439,21 @@ class BaseAnnotations:
                                 annotation_id = %s,
                                 is_labelled = %s
                             WHERE
-                                id = %s;
+                                id = %s
+                            RETURNING is_labelled;
                         """
-        self.task.is_labelled = True
+
         update_task_vars = [self.id,
                             self.task.is_labelled, self.task.id]
-        db_no_fetch(update_task_SQL, conn, update_task_vars)
 
-        return self.id
+        try:
+            self.task.is_labelled = db_fetchone(
+                update_task_SQL, conn, update_task_vars)
+        except TypeError as e:
+            log_error(f"{e}: Task update for Submit failed")
+
+        sleep(1)
+        return self.result
 
     def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:
         """Update result for new annotations
@@ -460,9 +466,11 @@ class BaseAnnotations:
         Returns:
             tuple: [description]
         """
+
+        log_info(f"Updating results")
         self.result = result if result else None  # update result attribute
         result_serialised = [json.dumps(x) for x in result]
-        # TODO is it neccessary to have annotation type id?
+
         update_annotations_SQL = """
                                     UPDATE
                                         public.annotations
@@ -536,7 +544,7 @@ class BaseAnnotations:
 
     def generate_annotation_dict(self) -> Union[Dict, List]:
         try:
-            if self.task.is_labelled:
+            if self.result:
                 annotation_dict = [{"id": self.id,
                                     "completed_by": self.completed_by,
                                     "result": self.result,
@@ -555,42 +563,60 @@ class BaseAnnotations:
         except Exception as e:
             log_error(
                 f"{e}: Failed to generate annotation dict for Annotation {self.id}")
-            annotation_dict = {}
+            annotation_dict = []
             return annotation_dict
 
 
 class NewAnnotations(BaseAnnotations):
-    def __init__(self, task: Task) -> None:
+    def __init__(self, task: Task, user: User) -> None:
         super().__init__(task)
+        self.task: Task = task
+        # Current user
+        self.user: User = user
 
-    def generate_annotation_dict(self) -> Union[Dict, List]:
-        try:
-            annotation_dict = []
-            return annotation_dict
-        except Exception as e:
-            log_error(
-                f"{e}: Failed to generate annotation dict for Annotation {self.id}")
-            annotation_dict = []
-            return annotation_dict
+    # NOTE REDUNDANT
+    # def generate_annotation_dict(self) -> Union[Dict, List]:
+    #     try:
+    #         annotation_dict = []
+    #         return annotation_dict
+    #     except Exception as e:
+    #         log_error(
+    #             f"{e}: Failed to generate annotation dict for Annotation {self.id}")
+    #         annotation_dict = []
+    #         return annotation_dict
 
 
 class Annotations(BaseAnnotations):
     def __init__(self, task: Task) -> None:
         super().__init__(task)
-        log_info(f"Initialising New Task {self.task.name}")
+
+        log_info(f"Initialising Existing Annotations {self.task.name}")
+
         self.task = task  # 'Task' class object
         self.user = {}
         if self.task.is_labelled:
             self.query_annotations()  # get annotations id, results, user details, date/time
             self.completed_by = {
-                "id": self.user["id"], "email": self.user["email"], "first_name": self.user["first_name"], "last_name": self.user["last_name"]}
+                "id": self.user["id"],
+                "email": self.user["email"],
+                "first_name": self.user["first_name"],
+                "last_name": self.user["last_name"]
+            }
         else:
             pass
 
-    # TODO: check if current image exists as a 'task' in DB
-
     @staticmethod
     def check_if_annotation_exists(task_id: int, project_id: int, conn=conn) -> bool:
+        """Check if annotation exists in annotations table
+
+        Args:
+            task_id (int): Task ID
+            project_id (int): Project ID
+            conn (psycopg2.connection, optional): PostgreSQL psycopg2 connection object. Defaults to conn.
+
+        Returns:
+            bool: True if annotation exist, False otherwise
+        """
         check_if_exists_SQL = """
                                 SELECT
                                     EXISTS (
@@ -608,12 +634,13 @@ class Annotations(BaseAnnotations):
 
         return exists_flag
 
-    def query_annotations(self):
-        """Query ID and Result
+    def query_annotations(self) -> namedtuple:
+        """Query all columns annotations table
 
         Returns:
-            [type]: [description]
+            namedtuple: Query return for annotations
         """
+
         query_annotation_SQL = """
                                 SELECT
                                     a.id,
@@ -623,8 +650,8 @@ class Annotations(BaseAnnotations):
                                     a.updated_at
                                 FROM
                                     public.annotations a
-                                inner join public.users u
-                                on a.users_id = u.id
+                                INNER JOIN public.users u
+                                ON a.users_id = u.id
                                 WHERE
                                     task_id = %s;
 
@@ -632,56 +659,110 @@ class Annotations(BaseAnnotations):
         query_annotation_vars = [self.task.id]
         query_return = db_fetchone(
             query_annotation_SQL, conn, query_annotation_vars, fetch_col_name=False)
+
         try:
-            # self.user is NamedTuple
+
             self.id, self.result, self.user["id"], self.user["email"], self.user[
                 "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
-            log_info("Query in class")
+            log_info("Query annotations in class")
+
             return query_return
 
         except TypeError as e:
             log_error(
-                f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.project_id}")
-
-    # def generate_annotation_dict(self) -> Union[Dict, List]:
-    #     try:
-    #         annotation_dict = {"id": self.id,
-    #                            "completed_by": self.completed_by,
-    #                            "result": [self.result],
-    #                            "was_cancelled": self.was_cancelled,
-    #                            "ground_truth": self.ground_truth,
-    #                            "created_at": str(self.created_at),
-    #                            "updated_at": str(self.updated_at),
-    #                            "lead_time": str(self.updated_at - self.created_at),
-    #                            "prediction": {},
-    #                            "result_count": 0,
-    #                            "task": self.task.id
-    #                            }
-    #         return annotation_dict
-    #     except Exception as e:
-    #         log_error(
-    #             f"{e}: Failed to generate annotation dict for Annotation {self.id}")
-    #         annotation_dict = {}
-    #         return annotation_dict
-# ********************** External Function *************************
+                f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.task.project_id}")
 
 
-@st.cache
-def data_url_encoder(image):
-    """Load Image and generate Data URL in base64 bytes
+def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
+    """Get data name from task_df dataframe (id,Task Name, Is Labelled, Skipped)
+
+    #### Disclaimer: Task name and Data name is interusable 
 
     Args:
-        image (bytes-like): BytesIO object
+        task_id (int): Task ID obtained from Data Table row selection
+        task_df (pd.DataFrame): DataFrame from create_all_task_dataframe() method from Dataset class
+
+    Raises:
+        TypeError: If data_id is not type (int)
 
     Returns:
-        bytes: UTF-8 encoded base64 bytes
+        str: Name of data
     """
-    log_info("Loading sample image")
-    bb = image.read()
-    b64code = b64encode(bb).decode('utf-8')
-    data_url = 'data:' + image.type + ';base64,' + b64code
+    # to obtain name data based on selection of data table
+    log_info(f"Obtaining data name from task_df")
 
-    return data_url
+    # Handle data_id exceptions
+    if isinstance(task_id, int):
+        pass
+    elif isinstance(task_id, Union[List, tuple]):
+        assert len(task_id) <= 1, "Data selection should be singular"
+        task_id = task_id[0]
+    else:
+        raise TypeError("Data ID can only be int")
+
+    task_row = ((task_df.loc[task_df["id"] == task_id]
+                 ).to_dict(orient='records'))[0]
+
+    log_info(f"Currently serving data:{task_row['Task Name']}")
+
+    return task_row
+
+
+def reset_editor_page():
+    editor_attributes = ["labelling_interface","new_annotation_flag", "task",
+                         "annotation", "data_labelling_table", 'labelling_prev_results','data_selection']
+
+    log_info(f"Resetting Editor Page......")
+    reset_page_attributes(editor_attributes)
+
+
+# ******************************** DATA TABLE COLUMNS CONFIG ********************************************
+task_labelling_columns = [
+    {
+        'field': "id",
+        'headerName': "ID",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 70,
+        'hideSortIcons': True,
+
+    },
+    {
+        'field': "Task Name",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 200,
+        'hideSortIcons': False,
+    },
+
+    {
+        'field': "Dataset Name",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 150,
+        'hideSortIcons': False,
+    },
+    {
+        'field': "Is Labelled",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 100,
+        'hideSortIcons': True,
+        'type': 'boolean',
+    },
+    {
+        'field': "Skipped",
+        'headerAlign': "center",
+        'align': "center",
+        'flex': 100,
+        'hideSortIcons': True,
+        'type': 'boolean',
+    },
+
+
+]
+
+# *********************************NOTE REDUNDANT *********************************
 
 
 @st.cache
@@ -708,6 +789,53 @@ def load_buffer_image():
     # st.write(f"\"{data_url}\"")
 
     return data_url
+
+
+# NOTE REDUNDANT*********************************************************************************
+def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
+    """Get data name from task_df dataframe (id,Task Name, Is Labelled, Skipped)
+
+    #### Disclaimer: Task name and Data name is interusable 
+
+    Args:
+        data_id (int): Task ID obtained from Data Table row selection
+        task_df (pd.DataFrame): DataFrame from create_all_task_dataframe() method from Dataset class
+
+    Raises:
+        TypeError: If data_id is not type (int)
+
+    Returns:
+        str: Name of data
+    """
+    # to obtain name data based on selection of data table
+    log_info(f"Obtaining data name from task_df")
+
+    # Handle data_id exceptions
+    if isinstance(data_id, int):
+        pass
+    elif isinstance(data_id, Union[List, tuple]):
+        assert len(data_id) <= 1, "Data selection should be singular"
+        data_id = data_id[0]
+    else:
+        raise TypeError("Data ID can only be int")
+
+    data_name = (task_df.loc[task_df["id"] == data_id])["Task Name"].values[0]
+
+    log_info(f"Currently serving data:{data_name}")
+
+    return data_name
+
+
+# NOTE DEPRECATED *****************************************************************************
+@st.cache
+def get_first_task_row(task_df: pd.DataFrame):
+    # For loading of interface from 'Start Labelling' where no data is selected
+    # Load first element
+    first_data_row = task_df.iloc[0].to_dict()
+
+    return first_data_row
+
+# NOTE DEPRECATED *****************************************************************************
 
 
 def get_image_size(image_path):

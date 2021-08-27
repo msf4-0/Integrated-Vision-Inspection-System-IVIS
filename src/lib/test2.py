@@ -1,27 +1,37 @@
 """
     TEST
     """
+import sys
+from base64 import b64encode
+from io import BytesIO
+from mimetypes import guess_type
 from pathlib import Path
+from threading import Thread
+from timeit import timeit
+from typing import Union
+
+import cv2
+import numpy as np
 import streamlit as st
+from PIL import Image
 from streamlit import session_state as session_state
+from streamlit.report_thread import add_report_ctx
 
-st.write(Path.cwd())
+SRC = Path(__file__).resolve().parents[1]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
 
-html_string = """
-<svg height="210" width="500">
-  <polygon points="200,10 250,190 160,210" style="fill:lime;stroke:purple;stroke-width:1" />
-</svg>
-"""
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+else:
+    pass
 
-html_string2 = """
-<div>
-<div>
-<svg width="16" height="16">
-  <rect x="1" y="1" width="14" height="14" rx="1" color="#2876D4" style="stroke:pink;stroke-width:1;fill-opacity:0;stroke-opacity:0.9" />
-  Sorry, your browser does not support inline SVG.  
-</svg></div>
-"aruco"
-</div>"""
-x=[1,2,3,4]
-st.table(x)
-st.markdown(html_string2, unsafe_allow_html=True)
+from core.utils.log import log_info
+
+
+data_path = '/home/rchuzh/.local/share/integrated-vision-inspection-system/app_media/dataset/my-third-dataset/IMG_20210315_184149.jpg'
+file_uri='file://'
+href=file_uri+data_path
+
+a_DOM=f'<a href={href} download>Download</a>'
+
+st.markdown(a_DOM,unsafe_allow_html=True)

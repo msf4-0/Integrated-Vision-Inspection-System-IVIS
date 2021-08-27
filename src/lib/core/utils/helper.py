@@ -180,7 +180,6 @@ def get_mime(file: Union[str, Path]):
     return mime
 
 
-@st.cache
 # MIME: type/subtype
 # get filetype
 def get_filetype(file: Union[str, Path, UploadedFile]):

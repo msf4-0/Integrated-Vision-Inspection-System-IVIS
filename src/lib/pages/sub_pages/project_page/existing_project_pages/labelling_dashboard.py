@@ -6,20 +6,23 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 
 import sys
-from pathlib import Path
+from copy import deepcopy
 from enum import IntEnum
-from typing import List
+from pathlib import Path
 from time import sleep
+from typing import List
+
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 from data_table import data_table
+
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
@@ -30,18 +33,18 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
-from core.utils.form_manager import remove_newline_trailing_whitespace
-from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
-from annotation.annotation_management import LabellingPagination
-from project.project_management import ExistingProjectPagination, ProjectPermission, Project
-from data_editor.editor_management import Editor
+from annotation.annotation_management import (LabellingPagination,
+                                              reset_editor_page)
+from core.utils.log import log_error, log_info  # logger
+from data_editor.data_labelling import editor
 from data_editor.editor_config import editor_config
-from pages.sub_pages.dataset_page.new_dataset import new_dataset
+from data_manager.database_manager import init_connection
+from path_desc import chdir_root
+from project.project_management import (ExistingProjectPagination, Project,
+                                        ProjectPermission)
 
+# NOTE Temp
+from user.user_management import User
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -111,37 +114,88 @@ all_task_columns = [
     },
 
 ]
+
+
 # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
+# ************************* TO LABELLING CALLBACK ***********************************
+def to_labelling_editor_page(section_enum: IntEnum):
+    labelling_section_data_table_dict = {
+        LabellingPagination.AllTask: 'all_task_table_key',
+        LabellingPagination.Labelled: 'labelled_task_table_key',
+        LabellingPagination.Queue: 'task_queue_table_key'
+    }
 
-def no_labelled(all_task):
-    task_queue_dict = Project.get_labelled_task(all_task, False)
+    labelling_section_data_table = labelling_section_data_table_dict[section_enum]
+
+    # Get state value from the respective Data Table
+    session_state.data_selection = deepcopy(
+        session_state[labelling_section_data_table])
+    # Change pagination to Editor
+    session_state.labelling_pagination = LabellingPagination.Editor
+    # Reset selection at Data Table
+    if labelling_section_data_table in session_state:
+        del session_state[labelling_section_data_table]
+    if "new_annotation_flag" not in session_state:
+        session_state.new_annotation_flag = 0
+    else:
+        session_state.new_annotation_flag = 0
+    log_info(f"Data selected, entering editor for data {session_state.data_selection}")
+    st.experimental_rerun()
+
+# ************************* TO LABELLING CALLBACK ***********************************
+
+
+def no_labelled(all_task, labelled_task_dict, task_queue_dict):
 
     # >>>> TASK QUEUE TABLE >>>>>>>>>>>>>>>>>>>>>>
-    st.write(f"### Labelled Task")
+    # >>>> All task table placeholders
+    
+    task_queue_table_col1, task_queue_table_col2 = st.columns([3, 0.5])
+    length_of_queue = len(task_queue_dict)
+    total_task_length = len(all_task)
+
+    task_queue_table_col1.write(f"### Task Queue")
+    task_queue_table_col2.write(
+        f"### Total data: {length_of_queue}/{total_task_length}")
     data_table(task_queue_dict, all_task_columns,
-               checkbox=False, key='labelled_task_table_key')
+               checkbox=False, key='task_queue_table_key')
 
 
-def labelled_table(all_task):
-    labelled_task_dict = Project.get_labelled_task(all_task, True)
+def labelled_table(all_task, labelled_task_dict, task_queue_dict):
 
     # >>>> LABELLED TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
-    st.write(f"### Labelled Task")
+
+    # >>>> All task table placeholders
+    labelled_task_table_col1, labelled_task_table_col2 = st.columns([3, 0.5])
+
+    length_of_labelled = len(labelled_task_dict)
+    length_of_remaining = len(all_task) - len(labelled_task_dict)
+
+    labelled_task_table_col1.write(f"### Labelled Task")
+    labelled_task_table_col2.write(
+        f"### Total data: {length_of_labelled}/{len(all_task)}")
     data_table(labelled_task_dict, all_task_columns,
                checkbox=False, key='labelled_task_table_key')
 
 
-def all_task_table(all_task):
+def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
     # TODO 80 Add Labelling section
 
     # Query all task +user full name(concat)+ dataset name + annotation status
 
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
-    st.write(f"### All Task")
+
+    # >>>> All task table placeholders
+    all_task_table_col1, all_task_table_col2 = st.columns([3, 0.5])
+
+    all_task_table_col1.write(f"### All Task")
+    all_task_table_col2.write(f"### Total data: {len(all_task)}")
+
     data_table(all_task, all_task_columns,
-               checkbox=False, key='all_task_table_key')
+               checkbox=False, key='all_task_table_key', on_change=to_labelling_editor_page, args=(LabellingPagination.AllTask,))
+    st.write(all_task)
 
 
 def index():
@@ -169,7 +223,8 @@ def index():
         if "project" not in session_state:
             session_state.project = Project(project_id_tmp)
             log_info("Inside")
-
+        if 'user' not in session_state:
+            session_state.user = User(1)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -184,7 +239,7 @@ def index():
     # ************COLUMN PLACEHOLDERS *****************************************************
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
     all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _, start_labelling_button_col = st.columns([
-        1.5, 0.5, 2, 0.5, 1, 10, 2])
+        2, 0.5, 3, 0.5, 2, 5, 3])
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # TODO #90 Add Pagination for Labelling Section
@@ -192,15 +247,18 @@ def index():
         LabellingPagination.AllTask: all_task_table,
         LabellingPagination.Labelled: labelled_table,
         LabellingPagination.Queue: no_labelled,
-        LabellingPagination.Editor: None,
+        LabellingPagination.Editor: editor,
         LabellingPagination.Performance: None
     }
 
     # >>>> INSTANTIATE LABELLING PAGINATION
     if 'labelling_pagination' not in session_state:
         session_state.labelling_pagination = LabellingPagination.AllTask
-
+    if 'data_selection' not in session_state:
+        # state store for Data Table
+        session_state.data_selection = []
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     def to_labelling_section(section_name: IntEnum):
         session_state.labelling_pagination = section_name
 
@@ -223,10 +281,22 @@ def index():
     project_id = session_state.project.id
     all_task, all_task_column_names = Project.query_all_task(project_id,
                                                              return_dict=True, for_data_table=True)
-
+    labelled_task_dict = Project.get_labelled_task(all_task, True)
+    task_queue_dict = Project.get_labelled_task(all_task, False)
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     log_info(f"Navigator: {session_state.labelling_pagination}")
-    labelling_page[session_state.labelling_pagination](all_task)
+
+    if session_state.labelling_pagination == LabellingPagination.Editor:
+        # if "new_annotation_flag" not in session_state:
+        #     session_state.new_annotation_flag = 0
+        # else:
+        #     session_state.new_annotation_flag = 0
+        labelling_page[session_state.labelling_pagination](
+            session_state.data_selection)
+
+    else:
+        labelling_page[session_state.labelling_pagination](
+            all_task, labelled_task_dict, task_queue_dict)
 
 
 if __name__ == "__main__":
