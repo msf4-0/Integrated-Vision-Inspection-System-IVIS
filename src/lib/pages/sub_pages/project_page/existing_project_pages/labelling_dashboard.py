@@ -140,7 +140,8 @@ def to_labelling_editor_page(section_enum: IntEnum):
         session_state.new_annotation_flag = 0
     else:
         session_state.new_annotation_flag = 0
-    log_info(f"Data selected, entering editor for data {session_state.data_selection}")
+    log_info(
+        f"Data selected, entering editor for data {session_state.data_selection} for {labelling_section_data_table}")
     st.experimental_rerun()
 
 # ************************* TO LABELLING CALLBACK ***********************************
@@ -150,16 +151,16 @@ def no_labelled(all_task, labelled_task_dict, task_queue_dict):
 
     # >>>> TASK QUEUE TABLE >>>>>>>>>>>>>>>>>>>>>>
     # >>>> All task table placeholders
-    
-    task_queue_table_col1, task_queue_table_col2 = st.columns([3, 0.5])
+
+    task_queue_table_col1, task_queue_table_col2 = st.columns([3, 0.75])
     length_of_queue = len(task_queue_dict)
     total_task_length = len(all_task)
 
     task_queue_table_col1.write(f"### Task Queue")
     task_queue_table_col2.write(
-        f"### Total data: {length_of_queue}/{total_task_length}")
+        f"### Total remaining data: {length_of_queue}/{total_task_length}")
     data_table(task_queue_dict, all_task_columns,
-               checkbox=False, key='task_queue_table_key')
+               checkbox=False, key='task_queue_table_key', on_change=to_labelling_editor_page, args=(LabellingPagination.Queue,))
 
 
 def labelled_table(all_task, labelled_task_dict, task_queue_dict):
@@ -167,35 +168,35 @@ def labelled_table(all_task, labelled_task_dict, task_queue_dict):
     # >>>> LABELLED TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
 
     # >>>> All task table placeholders
-    labelled_task_table_col1, labelled_task_table_col2 = st.columns([3, 0.5])
+    labelled_task_table_col1, labelled_task_table_col2 = st.columns([3, 0.75])
 
     length_of_labelled = len(labelled_task_dict)
     length_of_remaining = len(all_task) - len(labelled_task_dict)
 
     labelled_task_table_col1.write(f"### Labelled Task")
     labelled_task_table_col2.write(
-        f"### Total data: {length_of_labelled}/{len(all_task)}")
+        f"### Total labelled data: {length_of_labelled}/{len(all_task)}")
     data_table(labelled_task_dict, all_task_columns,
-               checkbox=False, key='labelled_task_table_key')
+               checkbox=False, key='labelled_task_table_key', on_change=to_labelling_editor_page, args=(LabellingPagination.Labelled,))
 
 
 def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
-    # TODO 80 Add Labelling section
-
-    # Query all task +user full name(concat)+ dataset name + annotation status
 
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
 
     # >>>> All task table placeholders
-    all_task_table_col1, all_task_table_col2 = st.columns([3, 0.5])
+    all_task_table_col1, all_task_table_col2,all_task_table_col3,all_task_table_col4 = st.columns([2, 0.3,0.5,0.5])
+    _,all_task_table_bottom_col1, all_task_table_bottom_col2 = st.columns([3, 0.75,0.75])
 
     all_task_table_col1.write(f"### All Task")
     all_task_table_col2.write(f"### Total data: {len(all_task)}")
+    all_task_table_col3.write(f"### Total labelled data: {len(labelled_task_dict)}")
+    all_task_table_col4.write(f"### Total remaining data: {len(task_queue_dict)}")
 
     data_table(all_task, all_task_columns,
                checkbox=False, key='all_task_table_key', on_change=to_labelling_editor_page, args=(LabellingPagination.AllTask,))
-    st.write(all_task)
+  
 
 
 def index():
@@ -261,6 +262,7 @@ def index():
 
     def to_labelling_section(section_name: IntEnum):
         session_state.labelling_pagination = section_name
+        reset_editor_page()
 
     with all_task_button_col:
         st.button("All Task", key='all_task_button', on_click=to_labelling_section, args=(

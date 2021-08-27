@@ -134,7 +134,7 @@ def editor(data_id: List = []):
         # TODO Reset to 0 / del when switching back to dashboard
         session_state.new_annotation_flag = 1
 
-    st.write(session_state.new_annotation_flag)
+    # st.write(session_state.new_annotation_flag)
 
 # ************************ FIRST RENDER: ********************************************************
     if session_state.new_annotation_flag == 0:
@@ -186,7 +186,7 @@ def editor(data_id: List = []):
         'lastName': session_state.user.last_name
     }
 
-    main_col1.write(user)
+    
     try:
         # if session_state.labelling_interface[0] and session_state.new_annotation_flag != 0:
         if session_state.new_annotation_flag == 1:
@@ -195,22 +195,22 @@ def editor(data_id: List = []):
 
             if "labelling_interface" in session_state:
                 # This IF STATEMENT included as labelling interface reset at every change in data selection
-                st.write("Inside extra function")
+                # st.write("Inside extra function")
 
                 if (session_state.labelling_interface != session_state.labelling_prev_result):
                     # Compare present Editor component state with prev results state
 
                     # >>>> ASSIGN RESULTS TO INTERFACE >>>>>
                     results = session_state.labelling_interface
-                    st.write("Inside extra result update function")
+                    # st.write("Inside extra result update function")
                     result, flag = results if results else (None, None)
                     log_info(f"Flag at main: {flag}")
-                    st.write("Result", result)
+                    # st.write("Result", result)
 
                     # >>>> IF results exists => if there is submission / update
                     if result:
-                        st.write(
-                            "Inside extra result update function results exist")
+                        # st.write(
+                        #     "Inside extra result update function results exist")
 
                         if flag == EditorFlag.START:  # LOAD EDITOR
                             log_info("Editor Loaded (In result)")
@@ -281,9 +281,9 @@ def editor(data_id: List = []):
                         else:
                             pass
 
-                    with main_col1:
-                        st.write(results)
-                        st.write(flag)
+                    # with main_col1:
+                    #     st.write(results)
+                    #     st.write(flag)
             # ********************************** CRUD CALLBACK for annotation results *********************************************
 
             annotations_dict = session_state.annotation.generate_annotation_dict()
