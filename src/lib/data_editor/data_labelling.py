@@ -105,10 +105,10 @@ def editor(data_id: List = []):
         # >>>> INSTANTIATE TASK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             # Check if annotation exist
-            # if Annotations.check_if_annotation_exists(session_state.task.id, session_state.project.id, conn):
+            if Annotations.check_if_annotation_exists(session_state.task.id, session_state.project.id, conn):
 
             # Annotation exist if task is labelled
-            if session_state.task.is_labelled:
+            # if session_state.task.is_labelled:
                 session_state.annotation = Annotations(
                     session_state.task)
                 log_info(
@@ -207,13 +207,14 @@ def editor(data_id: List = []):
 
                         elif flag == EditorFlag.SUBMIT:  # NEW ANNOTATION
                             try:
-                                # Memoir prev results
-                                session_state.labelling_prev_result = session_state.labelling_interface
 
                                 # Submit annotations to DB
-                                session_state.annotation.submit_annotations(
+                                session_state.annotation.result = session_state.annotation.submit_annotations(
                                     result, session_state.user.id, conn)
 
+                                # Memoir prev results
+                                session_state.labelling_prev_result = session_state.labelling_interface
+                                log_info(f'{session_state.annotation.result}')
                                 log_info(
                                     f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
 

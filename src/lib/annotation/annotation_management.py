@@ -310,7 +310,7 @@ class Task(BaseTask):
                 'annotations': annotations_dict,
                 'predictions': [],
                 # 'file_upload': self.name,
-                "data": {"image": self.get_data()},
+                "data": {"image": self.data_url},  # NOTE
                 # 'data': {'image': None}
                 # 'meta': {},
                 # 'created_at': str(self.created_at),
@@ -452,6 +452,7 @@ class BaseAnnotations:
             log_error(f"{e}: Task update for Submit failed")
 
         sleep(1)
+        return self.result
 
     def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:
         """Update result for new annotations
@@ -542,7 +543,7 @@ class BaseAnnotations:
 
     def generate_annotation_dict(self) -> Union[Dict, List]:
         try:
-            if self.task.is_labelled:
+            if self.result:
                 annotation_dict = [{"id": self.id,
                                     "completed_by": self.completed_by,
                                     "result": self.result,
@@ -573,15 +574,15 @@ class NewAnnotations(BaseAnnotations):
         self.user: User = user
 
     # NOTE REDUNDANT
-    def generate_annotation_dict(self) -> Union[Dict, List]:
-        try:
-            annotation_dict = []
-            return annotation_dict
-        except Exception as e:
-            log_error(
-                f"{e}: Failed to generate annotation dict for Annotation {self.id}")
-            annotation_dict = []
-            return annotation_dict
+    # def generate_annotation_dict(self) -> Union[Dict, List]:
+    #     try:
+    #         annotation_dict = []
+    #         return annotation_dict
+    #     except Exception as e:
+    #         log_error(
+    #             f"{e}: Failed to generate annotation dict for Annotation {self.id}")
+    #         annotation_dict = []
+    #         return annotation_dict
 
 
 class Annotations(BaseAnnotations):
