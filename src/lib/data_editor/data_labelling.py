@@ -148,7 +148,7 @@ def editor(data_id: List = []):
             load_data(task_df)
 # ************************ FIRST RENDER: ********************************************************
 
-
+# TODO #102 Fix Data Table is_labelled not updated at re-run
 # ************************** DATA TABLE ********************************************************
     with main_col1:
         data_table(all_task, task_labelling_columns,
@@ -320,7 +320,7 @@ def editor(data_id: List = []):
 
 
 def index():
-    RELEASE = True
+    RELEASE = False
 
     # ****************** TEST ******************************
     if not RELEASE:
