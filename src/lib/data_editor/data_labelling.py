@@ -148,7 +148,7 @@ def editor(data_id: List = []):
             load_data(task_df)
 # ************************ FIRST RENDER: ********************************************************
 
-# TODO #102 Fix Data Table is_labelled not updated at re-run
+# TODO Fix Data Table is_labelled not updated at re-run
 # ************************** DATA TABLE ********************************************************
     with main_col1:
         data_table(all_task, task_labelling_columns,
@@ -186,7 +186,6 @@ def editor(data_id: List = []):
         'lastName': session_state.user.last_name
     }
 
-    
     try:
         # if session_state.labelling_interface[0] and session_state.new_annotation_flag != 0:
         if session_state.new_annotation_flag == 1:
@@ -263,6 +262,8 @@ def editor(data_id: List = []):
                         else:
                             pass
 
+                        st.experimental_rerun()
+
                     else:
                         if flag == EditorFlag.START:  # LOAD EDITOR
                             log_info("Editor Loaded")
@@ -276,6 +277,8 @@ def editor(data_id: List = []):
 
                                 log_info(
                                     f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
+                                st.experimental_rerun()
+
                             except Exception as e:
                                 log_error(e)
                         else:
