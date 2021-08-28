@@ -34,7 +34,8 @@ from data_manager.database_manager import init_connection
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
 
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
-from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard, labelling_dashboard
+from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard
+from pages.sub_pages.labelling_page import labelling_dashboard
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -99,7 +100,8 @@ def index():
     if 'existing_project_pagination' not in session_state:
         session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
 
-    log_info(f"Entering Project {session_state.project.id}: {session_state.existing_project_pagination}")
+    log_info(
+        f"Entering Project {session_state.project.id}: {session_state.existing_project_pagination}")
 
     session_state.append_project_flag = ProjectPermission.ViewOnly
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

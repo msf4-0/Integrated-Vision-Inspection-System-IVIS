@@ -388,7 +388,7 @@ class Project(BaseProject):
                         LEFT JOIN public.annotations a ON a.id = t.annotation_id
                         LEFT JOIN public.users u ON u.id = a.users_id
                     WHERE
-                        t.project_id = 43
+                        t.project_id = %s
                     ORDER BY
                         t.id;
                                 """
@@ -473,7 +473,7 @@ class Project(BaseProject):
         project_attributes = ["all_project_table", "project", "editor", "project_name",
                               "project_desc", "annotation_type", "project_dataset_page",
                               "project_dataset", "existing_project_page_navigator_radio",
-                              "labelling_pagination"]
+                              "labelling_pagination","existing_project_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
@@ -565,7 +565,10 @@ class NewProject(BaseProject):
                                             %s,
                                             %s);"""
 
-        for dataset in stqdm(self.dataset_chosen, unit='dataset', st_container=st.sidebar, desc="Attaching dataset to project"):
+        for dataset in stqdm(self.dataset_chosen,
+                             unit='dataset',
+                             st_container=st.sidebar,
+                             desc="Attaching dataset to project"):
             dataset_id = dataset_dict[dataset].ID
             dataset_name = dataset_dict[dataset].Name
 

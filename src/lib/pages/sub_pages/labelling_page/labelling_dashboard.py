@@ -18,14 +18,14 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 from data_table import data_table
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
-SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
+SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
 if str(LIB_PATH) not in sys.path:
@@ -182,26 +182,28 @@ def labelled_table(all_task, labelled_task_dict, task_queue_dict):
 
 def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
-
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
 
     # >>>> All task table placeholders
-    all_task_table_col1, all_task_table_col2,all_task_table_col3,all_task_table_col4 = st.columns([2, 0.3,0.5,0.5])
-    _,all_task_table_bottom_col1, all_task_table_bottom_col2 = st.columns([3, 0.75,0.75])
+    all_task_table_col1, all_task_table_col2, all_task_table_col3, all_task_table_col4 = st.columns([
+                                                                                                    2, 0.3, 0.5, 0.5])
+    _, all_task_table_bottom_col1, all_task_table_bottom_col2 = st.columns([
+                                                                           3, 0.75, 0.75])
 
     all_task_table_col1.write(f"### All Task")
     all_task_table_col2.write(f"### Total data: {len(all_task)}")
-    all_task_table_col3.write(f"### Total labelled data: {len(labelled_task_dict)}")
-    all_task_table_col4.write(f"### Total remaining data: {len(task_queue_dict)}")
+    all_task_table_col3.write(
+        f"### Total labelled data: {len(labelled_task_dict)}")
+    all_task_table_col4.write(
+        f"### Total remaining data: {len(task_queue_dict)}")
 
     data_table(all_task, all_task_columns,
                checkbox=False, key='all_task_table_key', on_change=to_labelling_editor_page, args=(LabellingPagination.AllTask,))
-  
 
 
 def index():
 
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -243,7 +245,6 @@ def index():
         2, 0.5, 3, 0.5, 2, 5, 3])
     # ************COLUMN PLACEHOLDERS *****************************************************
 
-    # TODO #90 Add Pagination for Labelling Section
     labelling_page = {
         LabellingPagination.AllTask: all_task_table,
         LabellingPagination.Labelled: labelled_table,

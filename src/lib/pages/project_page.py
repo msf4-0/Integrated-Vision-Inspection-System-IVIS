@@ -34,7 +34,8 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_table import data_table
 from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, ProjectPermission, query_all_projects
-from annotation.annotation_management import LabellingPagination
+from annotation.annotation_management import Annotations, LabellingPagination,reset_editor_page
+from user.user_management import User
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import new_project, existing_project
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -163,6 +164,7 @@ def dashboard():
         data_table_place.empty()
         if "all_project_table" in session_state:
             del session_state.all_project_table
+        st.experimental_rerun()
 
     if "all_project_table" not in session_state:
         session_state.all_project_table = None
@@ -188,6 +190,9 @@ def index():
     if 'project_status' not in session_state:
         session_state.project_status = None
 
+    if 'user' not in session_state:
+        session_state.user = User(1)
+
     project_page_options = ("Dashboard", "Create New Project")
 
     # NOTE DEPRECATED ******************************************************************************
@@ -210,6 +215,7 @@ def index():
         NewProject.reset_new_project_page()
         # TODO #81 Add reset to project page *************************************************************************************
         Project.reset_project_page()
+        reset_editor_page()
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
@@ -221,6 +227,7 @@ def index():
         st.button("Project", key="to_project_dashboard_sidebar",
                   on_click=to_project_dashboard)
     log_info(f"Navigator: {session_state.project_pagination}")
+    st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()
 
 

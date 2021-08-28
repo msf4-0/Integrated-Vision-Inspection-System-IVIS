@@ -1,5 +1,5 @@
 """
-Title: Editor
+Title: Data Labelling
 Date: 15/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
@@ -323,7 +323,7 @@ def editor(data_id: List = []):
 
 
 def index():
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
