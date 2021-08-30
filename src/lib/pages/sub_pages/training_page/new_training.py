@@ -35,7 +35,7 @@ else:
 
 import numpy as np  # TEMP for table viz
 from core.utils.code_generator import get_random_string
-from core.utils.helper import create_dataframe
+from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import MEDIA_ROOT, chdir_root
@@ -91,14 +91,23 @@ def new_training_page():
     # TODO Separate based on type?
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
 
+    info_dataset_divider = st.empty()
+
     # create 2 columns for "New Data Button"
     datasetcol1, datasetcol2, datasetcol3, _ = st.columns(
         [1.5, 1.75, 1.75, 0.5])
 
-    # COLUMNS for Dataframe buttons
+    # COLUMNS for Dataset Dataframe buttons
     _, dataset_button_col1, _, dataset_button_col2, _, dataset_button_col3, _ = st.columns(
         [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
 
+    # COLUMNS for Model section
+    modelcol1, modelcol2, modelcol3, _ = st.columns(
+        [1.5, 1.75, 1.75, 0.5])
+
+    # COLUMNS for Model Dataframe buttons
+    _, _, model_button_col1, _, model_button_col2, _, model_button_col3, _ = st.columns(
+        [1.5, 1.75, 0.15, 0.5, 0.45, 0.5, 0.15, 0.5])
     # ************COLUMN PLACEHOLDERS *****************************************************
     with dt_place:
         st.write("### __Deployment Type:__",
@@ -162,106 +171,106 @@ def new_training_page():
 
 
 # >>>>>>>> Choose Dataset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    st.write("___")
-    # include options to create new dataset on this page
-    # create 2 columns for "New Data Button"
-    outercol1, outercol2, outercol3, _ = st.columns(
-        [1.5, 1.75, 1.75, 0.5])
+    info_dataset_divider.write("___")
 
-    outercol1.write("## __Dataset :__")
+    datasetcol1.write("## __Dataset :__")
 
-    # >>>> Right Column to select dataset >>>>
-    with outercol3:
-        session_state.project.datasets, session_state.project.column_names = session_state.project.query_project_dataset_list()
-        session_state.project.dataset_name_list, session_state.project.dataset_name_id = session_state.project.get_dataset_name_list()
+    # ******************************* Right Column to select dataset *******************************
+    with datasetcol3:
 
+        # >>>> Store SELECTED DATASET >>>>
         session_state.new_training.dataset_chosen = st.multiselect(
-            "Dataset List", key="dataset", options=session_state.project.dataset_name_list, help="Assign dataset to the project")
-
-        # Button to create new dataset
-        new_data_button = st.button("Create New Dataset")
-        place["dataset_chosen"] = outercol3.empty()
-
-        # print choosen dataset
+            "Dataset List", key="new_training_dataset_chosen",
+            options=session_state.project.dataset_dict, help="Assign dataset to the training")
+        place["new_training_dataset_chosen"] = st.empty()
 
         if len(session_state.new_training.dataset_chosen) > 0:
 
-            # st.write("### Dataset Partition Ratio")
-            session_state.new_training.partition_ratio = outercol3.number_input(
+            # TODO #111 Dataset Partition Config
+            # >>>> DATASET PARTITION CONFIG >>>>
+            session_state.new_training.partition_ratio = st.number_input(
                 "Dataset Partition Ratio", min_value=0.5, max_value=1.0, value=0.8, step=0.1, key="partition_ratio")
-            with outercol3.expander("Partition info"):
+            with st.expander("Partition info"):
                 st.info("Ratio of Training datasets to Evaluation datasets. Example: '0.5' means the dataset are split randomly and equally into training and evaluation datasets.")
 
+            # >>>> DISPLAY DATASET CHOSEN >>>>
             st.write("### Dataset choosen:")
             for idx, data in enumerate(session_state.new_training.dataset_chosen):
                 st.write(f"{idx+1}. {data}")
+
         elif len(session_state.new_training.dataset_chosen) == 0:
-            place["dataset_chosen"].info("No dataset selected")
-    # <<<< Right Column to select dataset <<<<
+            place["new_training_dataset_chosen"].info("No dataset selected")
 
-    # >>>> Left Column to show full list of dataset and selection >>>>
+    # ******************************* Right Column to select dataset *******************************
+
+    # ******************* Left Column to show full list of dataset and selection *******************
     if "dataset_page" not in session_state:
-        session_state.dataset_page = 0
+        session_state.new_training_dataset_page = 0
 
-    def next_page():
-        session_state.dataset_page += 1
-
-    def prev_page():
-        session_state.dataset_page -= 1
-
-    with outercol2:
-        start = 10 * session_state.dataset_page
+    with datasetcol2:
+        start = 10 * session_state.new_training_dataset_page
         end = start + 10
 
-        df = create_dataframe(session_state.project.datasets, column_names=session_state.project.column_names,
+        # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        df = create_dataframe(session_state.project.datasets,
+                              column_names=session_state.project.column_names,
                               sort=True, sort_by='ID', asc=True, date_time_format=True)
 
         df_loc = df.loc[:, "ID":"Date/Time"]
         df_slice = df_loc.iloc[start:end]
 
+        # GET color from active theme
+        df_row_highlight_color = get_df_row_highlight_color()
+
         def highlight_row(x, selections):
 
             if x.Name in selections:
 
-                return ['background-color: #90a4ae'] * len(x)
+                return [f'background-color: {df_row_highlight_color}'] * len(x)
             else:
                 return ['background-color: '] * len(x)
 
-        # styler = df_slice.style.format(
-        #     {
-        #         "Date/Time": lambda t: t.strftime('%Y-%m-%d %H:%M:%S')
-
-        #     }
-        # )
         styler = df_slice.style.apply(
             highlight_row, selections=session_state.new_training.dataset_chosen, axis=1)
 
         # >>>>DATAFRAME
         st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
             [dict(selector='th', props=[('text-align', 'center')])]))
-    # <<<< Left Column to show full list of dataset and selection <<<<
+    # ******************* Left Column to show full list of dataset and selection *******************
 
-    # >>>> Dataset Pagination >>>>
-    _, col1, _, col2, _, col3, _ = st.columns(
-        [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
+    # **************************************** DATASET PAGINATION ****************************************
+
+    # >>>> PAGINATION CALLBACK >>>>
+    def next_page():
+        session_state.new_training_dataset_page += 1
+
+    def prev_page():
+        session_state.new_training_dataset_page -= 1
+
+    # _, col1, _, col2, _, col3, _ = st.columns(
+    #     [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
+
     num_dataset_per_page = 10
     num_dataset_page = len(
-        session_state.project.dataset_name_list) // num_dataset_per_page
-    # st.write(num_dataset_page)
+        session_state.project.dataset_dict) // num_dataset_per_page
+
     if num_dataset_page > 1:
-        if session_state.dataset_page < num_dataset_page:
-            col3.button(">", on_click=next_page)
+        if session_state.new_training_dataset_page < num_dataset_page:
+            dataset_button_col3.button(">", on_click=next_page)
         else:
-            col3.write("")  # this makes the empty column show up on mobile
+            # this makes the empty column show up on mobile
+            dataset_button_col3.write("")
 
-        if session_state.dataset_page > 0:
-            col1.button("<", on_click=prev_page)
+        if session_state.new_training_dataset_page > 0:
+            dataset_button_col1.button("<", on_click=prev_page)
         else:
-            col1.write("")  # this makes the empty column show up on mobile
+            # this makes the empty column show up on mobile
+            dataset_button_col1.write("")
 
-        col2.write(
-            f"Page {1+session_state.dataset_page} of {num_dataset_page}")
-    # <<<< Dataset Pagination <<<<
+        dataset_button_col2.write(
+            f"Page {1+session_state.new_training_dataset_page} of {num_dataset_page}")
+    # **************************************** DATASET PAGINATION ****************************************
+
 # <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>>>>>> Model >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

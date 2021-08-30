@@ -186,10 +186,10 @@ def new_project_entry_page():
     with datasetcol3:
 
         session_state.new_project.dataset_chosen = st.multiselect(
-            "Dataset List", key="new_project_dataset_chosen", options=dataset_dict, help="Assign dataset to the project")
+            "Dataset List", key="new_project_dataset_chosen",
+            options=dataset_dict, help="Assign dataset to the project")
         place["new_project_dataset_chosen"] = st.empty()
 
-        # TODO #55 Button to create new dataset
 
     # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
         def to_new_dataset_page():
@@ -220,7 +220,8 @@ def new_project_entry_page():
 
         # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         df = create_dataframe(existing_dataset,
-                              column_names=dataset_table_column_names, date_time_format=True)
+                              column_names=dataset_table_column_names, 
+                              date_time_format=True)
 
         df_loc = df.loc[:, "ID":"Date/Time"]
         df_slice = df_loc.iloc[start:end]
@@ -275,7 +276,6 @@ def new_project_entry_page():
             f"Page {1+session_state.new_project_dataset_page} of {num_dataset_page}")
     # **************************************** DATASET PAGINATION ****************************************
 
-    # TODO #52 Add Editor Config
 
     # ******************************** SUBMISSION *************************************************
     success_place = st.empty()
