@@ -39,7 +39,7 @@ from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import MEDIA_ROOT, chdir_root
-from project.model_management import Model, PreTrainedModel
+from project.model_management import MODEL_TYPE, Model, ModelType, PreTrainedModel
 from project.project_management import Project
 from training.training_management import NewTraining, TrainingParam
 from deployment.deployment_management import DeploymentType
@@ -100,6 +100,8 @@ def new_training_page():
     # COLUMNS for Dataset Dataframe buttons
     _, dataset_button_col1, _, dataset_button_col2, _, dataset_button_col3, _ = st.columns(
         [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
+
+    model_dataset_divider = st.empty()
 
     # COLUMNS for Model section
     modelcol1, modelcol2, modelcol3, _ = st.columns(
@@ -273,41 +275,44 @@ def new_training_page():
 
 # <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# >>>>>>>> Model >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    st.write("___")
-    outercol1, outercol2, outercol3, _ = st.columns(
-        [1.5, 1.75, 1.75, 0.5])
+# >>>>>>>> MODEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    model_dataset_divider.write("___")
+    modelcol1.write("## __Deep Learning Model Selection :__")
 
     if 'pt_model' not in session_state:
         session_state.pt_model = PreTrainedModel()
+    if 'model' not in session_state:
         session_state.model = Model()
-
-    outercol1.write("## __Deep Learning Model Selection :__")
 
     # ***********FRAMEWORK LIST *****************************************************************************
     framework_list = [framework.Name for framework in deepcopy(
         session_state.new_training.get_framework_list())]
     framework_list.insert(0, "")
-    framework = outercol2.selectbox("Select Deep Learning Framework", options=framework_list,
+    framework = modelcol2.selectbox("Select Deep Learning Framework", options=framework_list,
                                     format_func=lambda x: 'Select a framework' if x == "" else x)
     session_state.new_training.framework = framework if framework else None
     # ***********FRAMEWORK LIST *****************************************************************************
-    model_upload_select = outercol2.radio("",
-                                          options=["Pre-trained Models", "Project Models", "User Custom Deep Learning Model Upload"], key='model_selection')
+
+    # TODO #112 Add model upload widget
+
+    model_upload_select = modelcol2.radio("",
+                                          options=MODEL_TYPE,
+                                          key='model_selection',
+                                          format_func=lambda x: MODEL_TYPE[x])
 
     # empty() placeholder to dynamically display file upload if checkbox selected
-    place["model_selection"] = outercol2.empty()
+    place["new_training_model_selection"] = modelcol2.empty()
 
     # >>>>>>>>>>>> MODEL UPLOAD >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    if model_upload_select == 'User Custom Deep Learning Model Upload':
-        model = place["model_selection"].file_uploader("User Custom Model Upload", type=[
-            'zip', 'tar.gz', 'tar.bz2', 'tar.xz'], key='user_custom_upload')
+    if model_upload_select == ModelType.UserUpload:
+        model = place["new_training_model_selection"].file_uploader("User Custom Model Upload", type=[
+            'zip', 'tar.gz', 'tar.bz2', 'tar.xz'], key='user_custom_upload_model')
         if model:
             session_state.new_training.model_selected = deepcopy(
                 model)  # store in model attribute
             st.write(model)  # TODO
     # >>>>>>>>>>>> MODEL UPLOAD >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    elif model_upload_select == 'Pre-trained Models':
+    elif model_upload_select == ModelType.PreTrained:
 
         pre_trained_models, pt_column_names = session_state.pt_model.query_PT_table()
         pt_name_list = [
@@ -317,7 +322,7 @@ def new_training_page():
         # >>>>RIGHT: Pre-trained models selection >>>>
         pt_name_list.insert(0, "")
         try:
-            model_selection = outercol2.selectbox(
+            model_selection = modelcol2.selectbox(
                 "", options=pt_name_list, key='pre_trained_models', format_func=lambda x: 'Select a Model' if x == "" else x)
         except ValueError as e:
             pass
@@ -334,7 +339,7 @@ def new_training_page():
 
         def prev_pt_page():
             session_state.pt_page -= 1
-        with outercol3:
+        with modelcol3:
             start = 10 * session_state.pt_page
             end = start + 10
 
@@ -397,7 +402,7 @@ def new_training_page():
         # >>>>RIGHT: Project models selection >>>>
 
         try:
-            model_selection = outercol2.selectbox(
+            model_selection = modelcol2.selectbox(
                 "", options=project_model_name_list, key='project_models', format_func=lambda x: 'Select a Model' if x == "" else x)
         except ValueError as e:
             pass
@@ -414,7 +419,7 @@ def new_training_page():
 
         def prev_model_page():
             session_state.model_page -= 1
-        with outercol3:
+        with modelcol3:
             start = 10 * session_state.model_page
             end = start + 10
             if project_models:
@@ -465,7 +470,7 @@ def new_training_page():
 
                 col2.write(
                     f"Page {1+session_state.model_page} of {num_data_page}")
-    place["model"] = outercol2.empty()  # TODO :KIV
+    place["model"] = modelcol2.empty()  # TODO :KIV
 
     # >>>>>>>>>>>>>>>>>>WARNING>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     if not session_state.new_training.model_selected:
@@ -487,15 +492,16 @@ def new_training_page():
 
         place["model"].write(
             f"### **Deep Learning Model selected:** {session_state.new_training.model_selected} ")
-        outercol2.text_input(
+        modelcol2.text_input(
             "Exported Model Name", key="model_name", help="Enter the name of the exported model after training", on_change=check_if_model_name_exist, args=(place, conn,))
-        place["model_name"] = outercol2.empty()
+        place["model_name"] = modelcol2.empty()
 
     # <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     # TODO #104 Training Configuration and Data Augmentation Setup
 
     # >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # TODO !!!
     st.write("___")
     DATASET_LIST = []
     # **** Image Augmentation (Optional) ****
@@ -595,7 +601,7 @@ def index():
 
         project_description = session_state.project.desc if session_state.project.desc is not None else " "
         st.write(f"{project_description}")
-        st.write(vars(session_state.project))
+
         st.markdown("""___""")
         # ****************************** HEADER **********************************************
         new_training_page()

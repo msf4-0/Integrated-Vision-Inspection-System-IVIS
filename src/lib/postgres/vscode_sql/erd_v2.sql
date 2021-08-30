@@ -171,19 +171,30 @@ CREATE TABLE IF NOT EXISTS public.training (
     CACHE 1),
     name text NOT NULL UNIQUE,
     description text,
+    training_model_id bigint,
+    /* FK to 'model' table for model trained using current configuration */
+    model_type_id smallint,
+    /* FK to 'model_type' table */
     training_param jsonb[],
     augmentation jsonb[],
-    model_id bigint,
     partition_size real,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     project_id bigint NOT NULL,
     pre_trained_model_id bigint,
+    /* FK to 'pre_trained_models' table for pre_trained_models attached to current training */
+    user_upload_model_id bigint,
+    /* FK to 'user_upload_models' table for user_upload_models attached to current training */
+    model_id bigint,
+    /* FK to 'models' table for models attached to current training */
     framework_id bigint,
     PRIMARY KEY (id),
+    CONSTRAINT fk_model_type_id FOREIGN KEY (model_type_id) REFERENCES public.model_type (id) ON DELETE SET NULL,
+    CONSTRAINT fk_training_model_id FOREIGN KEY (training_model_id) REFERENCES public.models (id) ON DELETE SET NULL,
     CONSTRAINT fk_model_id FOREIGN KEY (model_id) REFERENCES public.models (id) ON DELETE SET NULL,
     CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE,
     CONSTRAINT fk_pre_trained_model_id FOREIGN KEY (pre_trained_model_id) REFERENCES public.pre_trained_models (id) ON DELETE SET NULL,
+    CONSTRAINT fk_user_upload_model_id FOREIGN KEY (user_upload_model_id) REFERENCES public.fk_user_upload_models (id) ON DELETE SET NULL,
     CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL)
 TABLESPACE image_labelling;
 
@@ -211,6 +222,18 @@ TABLESPACE image_labelling;
 
 ALTER TABLE public.training_log OWNER TO shrdc;
 
+-- MODEL_TYPE table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.model_type (
+    id smallint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
+    MINVALUE 1
+    MAXVALUE 32767
+    CACHE 1),
+    name character varying(50) NOT NULL,
+    PRIMARY KEY (id))
+TABLESPACE image_labelling;
+
+ALTER TABLE public.model_type OWNER TO shrdc;
+
 -- PRE-TRAINED MODELS table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.pre_trained_models (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (CYCLE INCREMENT 1 START 1
@@ -234,6 +257,30 @@ CREATE TRIGGER pre_trained_models_update
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
 ALTER TABLE public.pre_trained_models OWNER TO shrdc;
+
+-- USER_UPLOAD_MODELS table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_upload_models (
+    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (CYCLE INCREMENT 1 START 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1),
+    name text NOT NULL,
+    model_path text,
+    framework_id bigint,
+    deployment_id integer,
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL,
+    CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL)
+TABLESPACE image_labelling;
+
+CREATE TRIGGER pre_trained_models_update
+    BEFORE UPDATE ON public.user_upload_models
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_update_timestamp ();
+
+ALTER TABLE public.user_upload_models OWNER TO shrdc;
 
 -- MODELS table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.models (
@@ -389,9 +436,7 @@ ALTER TABLE public.annotations OWNER TO shrdc;
 --     name character varying(100) NOT NULL,
 --     PRIMARY KEY (id))
 -- TABLESPACE image_labelling;
-
 -- ALTER TABLE public.annotation_type OWNER TO shrdc;
-
 -- PROJECT_DATASET table (Many-to-Many) --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.project_dataset (
     project_id bigint NOT NULL,

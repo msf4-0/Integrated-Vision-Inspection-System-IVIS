@@ -28,18 +28,40 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root,MEDIA_ROOT
+from path_desc import chdir_root, MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_fetchall, init_connection, db_fetchone, db_no_fetch
 from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
 from core.utils.helper import get_directory_name
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
-# >>>> Variable Declaration >>>>
-
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
 
+# >>>> Variable Declaration >>>>
+
+
+class ModelType(IntEnum):
+    PreTrained = 0
+    ProjectTrained = 1
+    UserUpload = 2
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ModelType[s]
+        except KeyError:
+            raise ValueError()
+
+
+MODEL_TYPE = {
+    ModelType.PreTrained: "Pre-trained Models",
+    ModelType.ProjectTrained: "Project Models",
+    ModelType.UserUpload: "User Custom Deep Learning Model Upload"
+}
 # <<<< Variable Declaration <<<<
 
 # >>>> TODO >>>>
@@ -53,7 +75,7 @@ class BaseModel:
         self.training_id: int = None
         self.model_path: Path = None
         self.labelmap_path: Path = None
-        self.saved_model_dir:Path=None
+        self.saved_model_dir: Path = None
 
     @staticmethod
     def query_table(expression: str, column: str):

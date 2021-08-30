@@ -29,6 +29,16 @@ ALTER TABLE public.project VALIDATE CONSTRAINT fk_training_id;
 
 -- TRAINING
 ALTER TABLE IF EXISTS public.training
+    ADD CONSTRAINT fk_model_type_id FOREIGN KEY (model_type_id) REFERENCES public.model_type (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.training VALIDATE CONSTRAINT fk_model_type_id;
+
+ALTER TABLE IF EXISTS public.training
+    ADD CONSTRAINT fk_training_model_id FOREIGN KEY (training_model_id) REFERENCES public.models (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.training VALIDATE CONSTRAINT fk_training_model_id;
+
+ALTER TABLE IF EXISTS public.training
     ADD CONSTRAINT fk_model_id FOREIGN KEY (model_id) REFERENCES public.models (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.training VALIDATE CONSTRAINT fk_model_id;
@@ -42,6 +52,11 @@ ALTER TABLE IF EXISTS public.training
     ADD CONSTRAINT fk_pre_trained_model_id FOREIGN KEY (pre_trained_model_id) REFERENCES public.pre_trained_models (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.training VALIDATE CONSTRAINT fk_pre_trained_model_id;
+
+ALTER TABLE IF EXISTS public.training
+    ADD CONSTRAINT fk_user_upload_model_id FOREIGN KEY (user_upload_model_id) REFERENCES public.user_upload_models (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.training VALIDATE CONSTRAINT fk_user_upload_model_id;
 
 ALTER TABLE IF EXISTS public.training
     ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
@@ -85,6 +100,17 @@ ALTER TABLE IF EXISTS public.pre_trained_models
     ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.pre_trained_models VALIDATE CONSTRAINT fk_deployment_id;
+
+-- USER_UPLOAD_MODELS table
+ALTER TABLE IF EXISTS public.user_upload_models
+    ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.user_upload_models VALIDATE CONSTRAINT fk_framework_id;
+
+ALTER TABLE IF EXISTS public.user_upload_models
+    ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.user_upload_models VALIDATE CONSTRAINT fk_deployment_id;
 
 -- PREDICTIONS
 ALTER TABLE IF EXISTS public.predictions
@@ -137,7 +163,6 @@ ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_users_id;
 
 -- ALTER TABLE IF EXISTS public.annotations
 --     ADD CONSTRAINT fk_annotation_type_id FOREIGN KEY (annotation_type_id) REFERENCES public.annotation_type (id) ON DELETE NO ACTION NOT VALID;
-
 ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_annotation_type_id;
 
 ALTER TABLE IF EXISTS public.annotations
