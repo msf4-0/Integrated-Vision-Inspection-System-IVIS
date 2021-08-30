@@ -74,8 +74,8 @@ def check_if_field_empty(context: Dict, field_placeholder, check_if_exists=None)
                 f"Please do not leave field blank")
             empty_fields.append(k)
     log_info(empty_fields)
-    # if empty_fields not empty -> return False, else -> return True
-    return not empty_fields
+    # if empty_fields not empty -> return True, else -> return False (Negative Logic)
+    return not empty_fields  # Negative logic
 
 
 def remove_newline_trailing_whitespace(text: str) -> str:

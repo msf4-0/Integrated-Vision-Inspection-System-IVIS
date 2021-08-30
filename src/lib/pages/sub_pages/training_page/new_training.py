@@ -6,12 +6,13 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 
 import sys
-from pathlib import Path
-import pandas as pd
-import numpy as np  # TEMP for table viz
-from enum import IntEnum
-from time import sleep
 from copy import deepcopy
+from enum import IntEnum
+from pathlib import Path
+from time import sleep
+
+import numpy as np
+import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -26,22 +27,24 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
-# TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
     pass
 
-from path_desc import chdir_root,MEDIA_ROOT
-from core.utils.code_generator import get_random_string
-from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import create_dataframe
 import numpy as np  # TEMP for table viz
-from project.project_management import Project
-from project.training_management import NewTraining, TrainingParam
+from core.utils.code_generator import get_random_string
+from core.utils.helper import create_dataframe
+from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
-from project.model_management import PreTrainedModel, Model
+from path_desc import MEDIA_ROOT, chdir_root
+from project.model_management import Model, PreTrainedModel
+from project.project_management import Project
+from training.training_management import NewTraining, TrainingParam
+from deployment.deployment_management import DeploymentType
+from user.user_management import User
+from core.utils.form_manager import remove_newline_trailing_whitespace
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -54,52 +57,21 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
-class DeploymentType(IntEnum):
-    Image_Classification = 1
-    OD = 2
-    Instance = 3
-    Semantic = 4
+def new_training_page():
 
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return DeploymentType[s]
-        except KeyError:
-            raise ValueError()
-
-
-def show():
-
+    # >>>> INIT >>>>
     chdir_root()  # change to root directory
-
-    with st.sidebar.container():
-
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.container():
-        st.title("Integrated Vision Inspection System", anchor='title')
-
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-        st.markdown("""___""")
 
     # ******** SESSION STATE ***********************************************************
 
-    if "current_page" not in session_state:  # KIV
-        session_state.current_page = "All Trainings"
-        session_state.previous_page = "All Trainings"
-
     if "new_training" not in session_state:
-        # TODO: query all project
-        session_state.project = Project(7)
         session_state.new_training = NewTraining(get_random_string(
-            length=8), session_state.project)  # TODO move below
+            length=8), session_state.project)
         # set random project ID before getting actual from Database
-    session_state.project.query_all_fields()
+
     # ******** SESSION STATE *********************************************************
 
+    # TODO #107 move to Training Dashboard
     # >>>> TRAINING SIDEBAR >>>>
     training_page_options = ("All Trainings", "New Training")
     with st.sidebar.expander("Training Page", expanded=True):
@@ -107,55 +79,85 @@ def show():
                                               index=0)
     # <<<< TRAINING SIDEBAR <<<<
 
-# >>>> New Training INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # Page title
-    st.write(f'# Project Name: {session_state.project.name}')
-    st.write("## __Add New Training__")
-    dt_place, project_id_place = st.columns([3, 1])
+    st.write("# __Add New Training__")
+
+    # ************COLUMN PLACEHOLDERS *****************************************************
+    dt_place, _ = st.columns([3, 1])
+
+    # right-align the training ID relative to the page
+    id_blank, id_right = st.columns([3, 1])
+
+    # TODO Separate based on type?
+    infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
+
+    # create 2 columns for "New Data Button"
+    datasetcol1, datasetcol2, datasetcol3, _ = st.columns(
+        [1.5, 1.75, 1.75, 0.5])
+
+    # COLUMNS for Dataframe buttons
+    _, dataset_button_col1, _, dataset_button_col2, _, dataset_button_col3, _ = st.columns(
+        [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
+
+    # ************COLUMN PLACEHOLDERS *****************************************************
     with dt_place:
         st.write("### __Deployment Type:__",
                  f"{session_state.project.deployment_type}")
-    with project_id_place:
-        st.write(f"### **Project ID:** {session_state.project.id}")
     st.markdown("___")
 
-    # right-align the project ID relative to the page
-    id_blank, id_right = st.columns([3, 1])
     id_right.write(
         f"### __Training ID:__ {session_state.new_training.id}")
 
-    create_training_place = st.empty()
-    # if layout == 'wide':
-    outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
-    # else:
-    #     col2 = create_project_place
-    # with create_project_place.container():
-    outercol1.write("## __Training Information :__")
+    # <<<< INIT <<<<
+
+# >>>> New Training INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    infocol1.write("## __Training Information :__")
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
-        context = ['name', session_state.name]
-        if session_state.name:
+
+        context = {'column_name': 'name',
+                   'value': session_state.new_training_name}
+        log_info(f"New Training: {context}")
+
+        if session_state.new_training_name:
             if session_state.new_training.check_if_exist(context, conn):
-                field_placeholder['name'].error(
+
+                session_state.new_training.name = None
+                field_placeholder['new_training_name'].error(
                     f"Training name used. Please enter a new name")
                 sleep(1)
+                field_placeholder['new_training_name'].empty()
                 log_error(f"Training name used. Please enter a new name")
+
             else:
-                session_state.new_training.name = session_state.name
+                session_state.new_training.name = session_state.new_training_name
                 log_info(f"Training name fresh and ready to rumble")
 
-    outercol2.text_input(
-        "Training Title", key="name", help="Enter the name of the training", on_change=check_if_name_exist, args=(place, conn,))
-    place["name"] = outercol2.empty()
+        else:
+            pass
 
-    # **** Training Description (Optional) ****
-    description = outercol2.text_area(
-        "Description (Optional)", key="desc", help="Enter the description of the training")
-    if description:
-        session_state.new_training.desc = description
-    else:
-        pass
+    with infocol2:
+
+        # **** TRAINING TITLE ****
+        st.text_input(
+            "Training Title", key="new_training_name",
+            help="Enter the name of the training",
+            on_change=check_if_name_exist, args=(place, conn,))
+        place["new_training_name"] = st.empty()
+
+        # **** TRAINING DESCRIPTION (Optional) ****
+        description = st.text_area(
+            "Description (Optional)", key="new_training_desc",
+            help="Enter the description of the training")
+
+        if description:
+            session_state.new_training.desc = remove_newline_trailing_whitespace(
+                description)
+        else:
+            pass
+
 # <<<<<<<< New Training INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -482,6 +484,8 @@ def show():
 
     # <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+    # TODO #104 Training Configuration and Data Augmentation Setup
+
     # >>>>>>>> Training Configuration >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     st.write("___")
     DATASET_LIST = []
@@ -551,14 +555,48 @@ def show():
     col2.write(vars(session_state.new_training))
 
 
-def main():
-    show()
+def index():
+    RELEASE = False
+
+    # ****************** TEST ******************************
+    if not RELEASE:
+        log_info("At Labelling INDEX")
+
+        # ************************TO REMOVE************************
+        with st.sidebar.container():
+            st.image("resources/MSF-logo.gif", use_column_width=True)
+            st.title("Integrated Vision Inspection System", anchor='title')
+            st.header(
+                "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+            st.markdown("""___""")
+
+        # ************************TO REMOVE************************
+        project_id_tmp = 43
+        log_info(f"Entering Project {project_id_tmp}")
+
+        # session_state.append_project_flag = ProjectPermission.ViewOnly
+
+        if "project" not in session_state:
+            session_state.project = Project(project_id_tmp)
+            log_info("Inside")
+        if 'user' not in session_state:
+            session_state.user = User(1)
+        # ****************************** HEADER **********************************************
+        st.write(f"# {session_state.project.name}")
+
+        project_description = session_state.project.desc if session_state.project.desc is not None else " "
+        st.write(f"{project_description}")
+        st.write(vars(session_state.project))
+        st.markdown("""___""")
+        # ****************************** HEADER **********************************************
+        new_training_page()
+        # TODO #108 Add Return to Training Dashboard Button with Callback
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
 
-        main()
+        index()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

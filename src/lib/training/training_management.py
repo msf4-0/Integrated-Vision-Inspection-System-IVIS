@@ -5,22 +5,22 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-import sys
-from pathlib import Path
-from typing import Optional, Union, List, Dict
-import psycopg2
-from PIL import Image
-from time import sleep
-from enum import IntEnum
 import json
+import sys
 from copy import copy, deepcopy
+from enum import IntEnum
+from pathlib import Path
+from time import sleep
+from typing import Dict, List, Optional, Union
+
 import pandas as pd
+import psycopg2
 import streamlit as st
+from PIL import Image
+from project.model_management import Model
+from project.project_management import Project
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
-from project.model_management import Model
-
-from project.project_management import Project
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -32,12 +32,15 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-# >>>> User-defined Modules >>>>
-from path_desc import chdir_root,MEDIA_ROOT
-from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
-from core.utils.file_handler import bytes_divisor, create_folder_if_not_exist
+from core.utils.file_handler import create_folder_if_not_exist
+from core.utils.form_manager import check_if_exists, check_if_field_empty
 from core.utils.helper import get_directory_name
+from core.utils.log import log_error, log_info  # logger
+from data_manager.database_manager import (db_fetchall, db_fetchone,
+                                           db_no_fetch, init_connection)
+# >>>> User-defined Modules >>>>
+from path_desc import MEDIA_ROOT, chdir_root
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -46,11 +49,10 @@ from core.utils.helper import get_directory_name
 conn = init_connection(**st.secrets["postgres"])
 
 
-class DeploymentType(IntEnum):
-    Image_Classification = 1
-    OD = 2
-    Instance = 3
-    Semantic = 4
+class TrainingPagination(IntEnum):
+    Dashboard = 0
+    New = 1
+    Existing = 2
 
     def __str__(self):
         return self.name
@@ -58,10 +60,9 @@ class DeploymentType(IntEnum):
     @classmethod
     def from_string(cls, s):
         try:
-            return DeploymentType[s]
+            return TrainingPagination[s]
         except KeyError:
             raise ValueError()
-
 
 # <<<< Variable Declaration <<<<
 
@@ -133,6 +134,30 @@ class NewTraining(BaseTraining):
         self.model_selected = None  # TODO
     # TODO *************************************
 
+# TODO #109 Update Check if exist and check if field exist
+#  to be wrapper func of check_if_exist() in form_manager.py
+
+    # Wrapper for check_if_exists function from form_manager.py
+    def check_if_exists(self, context: Dict, conn) -> bool:
+        table = 'public.training'
+
+        exists_flag = check_if_exists(
+            table, context['column_name'], context['value'], conn)
+
+        # return True if exists
+        return exists_flag
+
+    # Wrapper for check_if_exists function from form_manager.py
+    def check_if_field_empty(self, context: Dict, field_placeholder):
+        check_if_exists = self.check_if_exists
+        empty_fields = check_if_field_empty(
+            context, field_placeholder, check_if_exists)
+
+        # True if not empty, False otherwise
+        return empty_fields
+
+    # NOTE DEPRECATED
+    # TODO Remove
     def check_if_field_empty(self, field: List, field_placeholder) -> bool:
         empty_fields = []
         keys = ["name", "dataset_chosen", "model"]
@@ -160,6 +185,8 @@ class NewTraining(BaseTraining):
         # if empty_fields not empty -> return False, else -> return True
         return not empty_fields
 
+    # NOTE DEPRECATED
+    # TODO Remove
     def check_if_exist(self, context: List, conn) -> bool:
         check_exist_SQL = """
                             SELECT

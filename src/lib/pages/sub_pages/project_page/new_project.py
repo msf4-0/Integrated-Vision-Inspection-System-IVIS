@@ -78,10 +78,7 @@ def new_project_entry_page():
         session_state.project_status = ProjectPagination.New
     else:
         session_state.project_status = ProjectPagination.New
-    # if 'project_pagination' not in session_state:
-    #     session_state.project_pagination = ProjectPagination.New
-    # else:
-    #     session_state.project_pagination = ProjectPagination.New
+
     # ******** SESSION STATE *********************************************************
     if session_state.new_project.has_submitted:
 
@@ -143,12 +140,16 @@ def new_project_entry_page():
 
         # **** PROJECT TITLE****
         st.text_input(
-            "Project Title", key="new_project_name", help="Enter the name of the project", on_change=check_if_name_exist, args=(place, conn,))
+            "Project Title", key="new_project_name",
+            help="Enter the name of the project",
+            on_change=check_if_name_exist, args=(place, conn,))
         place["new_project_name"] = st.empty()
 
         # **** PROJECT DESCRIPTION (OPTIONAL) ****
         description = st.text_area(
-            "Description (Optional)", key="new_project_desc", help="Enter the description of the project")
+            "Description (Optional)", key="new_project_desc",
+            help="Enter the description of the project")
+
         if description:
             session_state.new_project.desc = remove_newline_trailing_whitespace(
                 description)
@@ -290,7 +291,8 @@ def new_project_entry_page():
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
             if session_state.new_project.initialise_project(dataset_dict):
-                session_state.new_editor.project_id = session_state.new_project.id # Updated with Actual Project ID from DB
+                # Updated with Actual Project ID from DB
+                session_state.new_editor.project_id = session_state.new_project.id
                 # deployment type now IntEnum
                 if session_state.new_editor.init_editor(session_state.new_project.deployment_type):
                     session_state.new_project.editor = Editor(
@@ -335,7 +337,8 @@ def index():
         session_state.new_project_pagination = NewProjectPagination.Entry
 
     new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
-    log_info(f" New Project Pagination: {session_state.new_project_pagination}")
+    log_info(
+        f" New Project Pagination: {session_state.new_project_pagination}")
     # ******************** TOP PAGE NAV *******************************************************************************************************
     if (session_state.new_project_pagination == NewProjectPagination.Entry) or (session_state.new_project_pagination == NewProjectPagination.NewDataset):
         color = [current_page, non_current_page]
