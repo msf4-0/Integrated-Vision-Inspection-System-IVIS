@@ -22,46 +22,24 @@ ALTER TABLE IF EXISTS public.project
 
 ALTER TABLE public.project VALIDATE CONSTRAINT fk_deployment_id;
 
-ALTER TABLE IF EXISTS public.project
-    ADD CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL NOT VALID;
-
-ALTER TABLE public.project VALIDATE CONSTRAINT fk_training_id;
-
 -- TRAINING
-ALTER TABLE IF EXISTS public.training
-    ADD CONSTRAINT fk_model_type_id FOREIGN KEY (model_type_id) REFERENCES public.model_type (id) ON DELETE SET NULL NOT VALID;
-
-ALTER TABLE public.training VALIDATE CONSTRAINT fk_model_type_id;
-
+-- training model
 ALTER TABLE IF EXISTS public.training
     ADD CONSTRAINT fk_training_model_id FOREIGN KEY (training_model_id) REFERENCES public.models (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.training VALIDATE CONSTRAINT fk_training_model_id;
 
+-- attached model
 ALTER TABLE IF EXISTS public.training
-    ADD CONSTRAINT fk_model_id FOREIGN KEY (model_id) REFERENCES public.models (id) ON DELETE SET NULL NOT VALID;
+    ADD CONSTRAINT fk_attached_model_id FOREIGN KEY (attached_model_id) REFERENCES public.models (id) ON DELETE SET NULL NOT VALID;
 
-ALTER TABLE public.training VALIDATE CONSTRAINT fk_model_id;
+ALTER TABLE public.training VALIDATE CONSTRAINT fk_attached_model_id;
 
+-- project id
 ALTER TABLE IF EXISTS public.training
     ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.training VALIDATE CONSTRAINT fk_project_id;
-
-ALTER TABLE IF EXISTS public.training
-    ADD CONSTRAINT fk_pre_trained_model_id FOREIGN KEY (pre_trained_model_id) REFERENCES public.pre_trained_models (id) ON DELETE SET NULL NOT VALID;
-
-ALTER TABLE public.training VALIDATE CONSTRAINT fk_pre_trained_model_id;
-
-ALTER TABLE IF EXISTS public.training
-    ADD CONSTRAINT fk_user_upload_model_id FOREIGN KEY (user_upload_model_id) REFERENCES public.user_upload_models (id) ON DELETE SET NULL NOT VALID;
-
-ALTER TABLE public.training VALIDATE CONSTRAINT fk_user_upload_model_id;
-
-ALTER TABLE IF EXISTS public.training
-    ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
-
-ALTER TABLE public.training VALIDATE CONSTRAINT fk_framework_id;
 
 -- TRAINING_LOG
 ALTER TABLE IF EXISTS public.training_log
@@ -75,53 +53,60 @@ ALTER TABLE IF EXISTS public.training_log
 ALTER TABLE public.training_log VALIDATE CONSTRAINT fk_training_id;
 
 -- MODELS
+-- training id
 ALTER TABLE IF EXISTS public.models
     ADD CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.models VALIDATE CONSTRAINT fk_training_id;
 
+-- framework id
 ALTER TABLE IF EXISTS public.models
     ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.models VALIDATE CONSTRAINT fk_framework_id;
 
+-- deployment id
 ALTER TABLE IF EXISTS public.models
     ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.models VALIDATE CONSTRAINT fk_deployment_id;
 
--- PRE-TRAINED MODELS
+-- model type id
+ALTER TABLE IF EXISTS public.models
+    ADD CONSTRAINT fk_model_type_id FOREIGN KEY (model_type_id) REFERENCES public.model_type (id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE public.models VALIDATE CONSTRAINT fk_model_type_id;
+
+
+/*  NOTE DEPRECATED */
+/* -- PRE-TRAINED MODELS
 ALTER TABLE IF EXISTS public.pre_trained_models
-    ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
+ ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.pre_trained_models VALIDATE CONSTRAINT fk_framework_id;
 
 ALTER TABLE IF EXISTS public.pre_trained_models
-    ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
+ ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.pre_trained_models VALIDATE CONSTRAINT fk_deployment_id;
 
 -- USER_UPLOAD_MODELS table
 ALTER TABLE IF EXISTS public.user_upload_models
-    ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
+ ADD CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.user_upload_models VALIDATE CONSTRAINT fk_framework_id;
 
 ALTER TABLE IF EXISTS public.user_upload_models
-    ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
+ ADD CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.user_upload_models VALIDATE CONSTRAINT fk_deployment_id;
-
+ */
 -- PREDICTIONS
 ALTER TABLE IF EXISTS public.predictions
     ADD CONSTRAINT fk_model_id FOREIGN KEY (model_id) REFERENCES public.models (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.predictions VALIDATE CONSTRAINT fk_model_id;
 
-ALTER TABLE IF EXISTS public.predictions
-    ADD CONSTRAINT fk_pre_trained_model_id FOREIGN KEY (pre_trained_model_id) REFERENCES public.pre_trained_models (id) ON DELETE SET NULL NOT VALID;
-
-ALTER TABLE public.predictions VALIDATE CONSTRAINT fk_pre_trained_model_id;
 
 ALTER TABLE IF EXISTS public.predictions
     ADD CONSTRAINT fk_task_id FOREIGN KEY (task_id) REFERENCES public.task (id) ON DELETE CASCADE NOT VALID;
