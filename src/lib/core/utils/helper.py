@@ -152,9 +152,9 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
         return df
 
 
-def dataframe2dict(orient='index') -> List:
+def dataframe2dict(orient='index'):
 
-    def inner(func):
+    def inner(func) -> List[dict]:
         @wraps(func)
         def convert_to_dict(*args, **kwargs):
 

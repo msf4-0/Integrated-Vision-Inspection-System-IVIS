@@ -9,6 +9,7 @@ from collections import namedtuple
 import sys
 from pathlib import Path
 from typing import NamedTuple, Tuple, Union, List, Dict
+import pandas as pd
 import psycopg2
 from PIL import Image
 from time import sleep
@@ -33,7 +34,7 @@ else:
 from path_desc import chdir_root, MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_fetchall, init_connection, db_fetchone, db_no_fetch
-from core.utils.helper import get_directory_name, datetime_formatter
+from core.utils.helper import create_dataframe, dataframe2dict, get_directory_name, datetime_formatter
 from core.utils.form_manager import check_if_exists, check_if_field_empty
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -169,10 +170,52 @@ class Model(BaseModel):
         framework_list = db_fetchall(get_framework_list_SQL, conn)
         return framework_list
 
-# TODO #124 Create models dataframe and filter 
+# TODO #124 Create models dataframe and filter
     # create dataframe
     # create filter
+    @staticmethod
+    def create_models_dataframe(models: Union[List[namedtuple], List[dict]],
+                                column_names: List = None, sort_col: str = None
+                                ) -> pd.DataFrame:
+        """Generate Pandas DataFrame to store Models query
 
+        Args:
+            models (Union[List[namedtuple], List[dict]]): Models query from 'query_model_table()'
+            column_names (List, optional): Names of columns. Defaults to None.
+            sort_col (str, optional): Sort value. Defaults to None.
+
+        Returns:
+            pd.DataFrame: DataFrame of Models query
+        """
+        df = create_dataframe(models, column_names,
+                              date_time_format=True, sort=sort_col, asc=True)
+
+        df['Date/Time'] = df['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        return df
+
+    @staticmethod
+    @dataframe2dict(orient='index')
+    def filtered_models_dataframe(models: Union[List[namedtuple], List[dict]],
+                                  dataframe_col: str, filter_value: Union[str, int]
+                                  ):
+        """Get a List of filtered Models Dict using pandas.DataFrame.loc[]
+
+        Args:
+            models (Union[List[namedtuple], List[dict]]): models query from 'query_models_table'
+            dataframe_col (str): DataFrame column to be filtered
+            filter_value (Union[str, int]): Filter attribute
+
+        Returns:
+            List[Dict]: Filtered DataFrame
+        """
+
+        models_df = Model.create_models_dataframe(models)
+        filtered_models_df = models_df.loc[models_df[dataframe_col]
+                                           == filter_value]
+
+        return filtered_models_df
+    
     def get_model_path(self):
         query_model_project_training_SQL = """
                 SELECT
@@ -200,6 +243,7 @@ class Model(BaseModel):
         if model_path:
             labelmap_path = model_path / 'labelmap.pbtxt'
             self.labelmap_path = labelmap_path
+           
             return self.labelmap_path
 
 
