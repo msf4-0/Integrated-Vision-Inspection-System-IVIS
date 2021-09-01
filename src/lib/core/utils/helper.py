@@ -5,18 +5,22 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-import sys
-from pathlib import Path
-from typing import Union, List, Dict, Optional, NamedTuple, Callable, Any
-from time import perf_counter
-import pandas as pd
 import mimetypes
-from colorutils import hex_to_hsv
-from color_extract import color_extract
-from inspect import signature
+import sys
+from collections import namedtuple
+from enum import IntEnum
 from functools import wraps
-from streamlit.uploaded_file_manager import UploadedFile
+from inspect import signature
+from pathlib import Path
+from time import perf_counter
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
+
+import pandas as pd
 import streamlit as st
+from color_extract import color_extract
+from colorutils import hex_to_hsv
+from streamlit.uploaded_file_manager import UploadedFile
+
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
@@ -28,10 +32,10 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+from core.utils.log import log_error, log_info  # logger
+from data_manager.database_manager import db_fetchone, init_connection
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import db_fetchone, init_connection
 
 conn = init_connection(**st.secrets["postgres"])
 
@@ -165,6 +169,55 @@ def dataframe2dict(orient='index') -> List:
             return dataframe_dict
         return convert_to_dict
     return inner
+
+
+def datetime_formatter(data_list: Union[List[namedtuple], List[dict]], return_dict: bool = False) -> List:
+    """Convert datetime format to %Y-%m-%d %H:%M:%S for Dict and namedtuple from DB query
+
+    Args:
+        data_list (Union[List[namedtuple], List[dict]]): Query results from DB
+        return_dict (bool, optional): True if query results of type Dict. Defaults to False.
+
+    Returns:
+        List: List of Formatted Date/Time query results
+    """
+    data_tmp = []
+    for data in data_list:
+        # convert datetime with TZ to (2021-07-30 12:12:12) format
+        if return_dict:
+            converted_datetime = data["Date/Time"].strftime(
+                '%Y-%m-%d %H:%M:%S')
+            data["Date/Time"] = converted_datetime
+        else:
+            converted_datetime = data.Date_Time.strftime(
+                '%Y-%m-%d %H:%M:%S')
+
+            data = data._replace(
+                Date_Time=converted_datetime)
+        data_tmp.append(data)
+
+    return data_tmp
+
+
+def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
+                               enumerator_class: IntEnum, identifier_dictionary: Dict,
+                               string: bool = False):
+
+    if string:
+
+        # Get String form if deployment_type is type IntEnum class
+        if isinstance(identifier, enumerator_class):
+            identifier = [
+                k for k, v in identifier_dictionary.items() if v == identifier][0]
+
+    else:
+        # Get IntEnum class constant if deployment_type is string
+        if isinstance(identifier, str):
+            identifier = identifier_dictionary[identifier]
+
+    log_info(f"Deployment Type is :{identifier}")
+
+    return identifier
 
 
 def get_mime(file: Union[str, Path]):

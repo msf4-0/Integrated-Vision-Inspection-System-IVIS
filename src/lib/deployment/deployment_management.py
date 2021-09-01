@@ -32,9 +32,9 @@ else:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root, MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
-
+from core.utils.helper import get_identifier_str_IntEnum
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
-from project.model_management import Model
+from training.model_management import Model
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -117,6 +117,17 @@ class Deployment(BaseDeployment):
             project_model_list = []
             column_names = []
         return project_model_list, column_names
+
+    @staticmethod
+    def get_deployment_type(deployment_type: Union[str, DeploymentType], string: bool = False):
+
+        assert isinstance(
+            deployment_type, (str, DeploymentType)), f"deployment_type must be String or IntEnum"
+
+        deployment_type = get_identifier_str_IntEnum(
+            deployment_type, DeploymentType, DEPLOYMENT_TYPE, string=string)
+
+        return deployment_type
 
 
 def main():

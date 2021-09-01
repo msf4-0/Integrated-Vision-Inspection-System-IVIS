@@ -26,6 +26,9 @@
     "python.formatting.autopep8Args": ["--ignore", "E402"],
     "python.languageServer": "Pylance",
     "python.autoComplete.addBrackets": true,
-    "githubIssues.issueCompletionFormatScm": "${issueTitle} ${issueNumberLabel} ${user}"
+    "githubIssues.issueCompletionFormatScm": "${issueTitle} ${issueNumberLabel} ${user}",
+    "pgFormatter.commaBreak": true,
+    "pgFormatter.commaStart": true,
+    "sql-formatter.uppercase": true
   }
 }
