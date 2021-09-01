@@ -34,7 +34,7 @@ else:
 from path_desc import chdir_root, MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import db_fetchall, init_connection, db_fetchone, db_no_fetch
-from core.utils.helper import create_dataframe, dataframe2dict, get_directory_name, datetime_formatter
+from core.utils.helper import create_dataframe, dataframe2dict, get_directory_name, datetime_formatter, get_identifier_str_IntEnum
 from core.utils.form_manager import check_if_exists, check_if_field_empty
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -63,7 +63,7 @@ class ModelType(IntEnum):
 MODEL_TYPE = {
     ModelType.PreTrained: "Pre-trained Models",
     ModelType.ProjectTrained: "Project Models",
-    ModelType.UserUpload: "User Custom Deep Learning Model Upload"
+    ModelType.UserUpload: "User Deep Learning Model Upload"
 }
 # <<<< Variable Declaration <<<<
 
@@ -170,9 +170,6 @@ class Model(BaseModel):
         framework_list = db_fetchall(get_framework_list_SQL, conn)
         return framework_list
 
-# TODO #124 Create models dataframe and filter
-    # create dataframe
-    # create filter
     @staticmethod
     def create_models_dataframe(models: Union[List[namedtuple], List[dict]],
                                 column_names: List = None, sort_col: str = None
@@ -248,12 +245,24 @@ class Model(BaseModel):
 
             return self.labelmap_path
 
+    @staticmethod
+    def get_model_type(model_type: Union[str, ModelType], string: bool = False):
+
+        assert isinstance(
+            model_type, (str, ModelType)), f"deployment_type must be String or IntEnum"
+
+        model_type = get_identifier_str_IntEnum(
+            model_type, ModelType, MODEL_TYPE, string=string)
+
+        return model_type
+
 
 class PreTrainedModel(BaseModel):
     def __init__(self) -> None:
         super().__init__()
         self.pt_model_list, self.pt_model_column_names = self.query_PT_table()
 
+    # DEPRECATED?
     @st.cache
     def query_PT_table(self) -> NamedTuple:
         query_PT_table_SQL = """
