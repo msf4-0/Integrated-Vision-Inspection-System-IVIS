@@ -188,7 +188,7 @@ class Model(BaseModel):
             pd.DataFrame: DataFrame of Models query
         """
         df = create_dataframe(models, column_names,
-                              date_time_format=True, sort=sort_col, asc=True)
+                              date_time_format=True, sort_by=sort_col, asc=True)
 
         df['Date/Time'] = df['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -197,8 +197,9 @@ class Model(BaseModel):
     @staticmethod
     @dataframe2dict(orient='index')
     def filtered_models_dataframe(models: Union[List[namedtuple], List[dict]],
-                                  dataframe_col: str, filter_value: Union[str, int]
-                                  ):
+                                  dataframe_col: str, filter_value: Union[str, int],
+                                  column_names: List = None, sort_col: str = None
+                                  ) -> pd.DataFrame:
         """Get a List of filtered Models Dict using pandas.DataFrame.loc[]
 
         Args:
@@ -210,12 +211,13 @@ class Model(BaseModel):
             List[Dict]: Filtered DataFrame
         """
 
-        models_df = Model.create_models_dataframe(models)
+        models_df = Model.create_models_dataframe(
+            models, column_names, sort_col=sort_col)
         filtered_models_df = models_df.loc[models_df[dataframe_col]
                                            == filter_value]
 
         return filtered_models_df
-    
+
     def get_model_path(self):
         query_model_project_training_SQL = """
                 SELECT
@@ -243,7 +245,7 @@ class Model(BaseModel):
         if model_path:
             labelmap_path = model_path / 'labelmap.pbtxt'
             self.labelmap_path = labelmap_path
-           
+
             return self.labelmap_path
 
 

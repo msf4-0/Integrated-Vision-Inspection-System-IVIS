@@ -17,7 +17,7 @@ import pandas as pd
 import psycopg2
 import streamlit as st
 from PIL import Image
-from project.model_management import Model
+from training.model_management import Model
 from project.project_management import Project
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
