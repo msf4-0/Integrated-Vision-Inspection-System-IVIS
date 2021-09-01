@@ -169,6 +169,10 @@ class Model(BaseModel):
         framework_list = db_fetchall(get_framework_list_SQL, conn)
         return framework_list
 
+# TODO #124 Create models dataframe and filter 
+    # create dataframe
+    # create filter
+
     def get_model_path(self):
         query_model_project_training_SQL = """
                 SELECT
