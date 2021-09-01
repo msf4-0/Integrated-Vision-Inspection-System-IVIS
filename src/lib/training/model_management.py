@@ -211,6 +211,34 @@ class BaseModel:
 
         return model_path
 
+    @staticmethod
+    def query_project_model_path(model_id: int):
+        query_model_project_training_SQL = """
+            SELECT m.name AS "Name",
+                (SELECT p.name AS "Project Name"
+                    FROM public.project p
+                            INNER JOIN project_training pt ON p.id = pt.project_id
+                    WHERE m.training_id = pt.training_id),
+                (SELECT t.name AS "Training Name" FROM public.training t WHERE m.training_id = t.id),
+                (
+                    SELECT f.name AS "Framework"
+                    FROM public.framework f
+                    WHERE f.id = m.framework_id
+                )
+
+            FROM public.models m
+            WHERE m.id = %s;
+                                    """
+        query_model_project_training_vars = [model_id]
+        query_result = db_fetchone(query_model_project_training_SQL,
+                                   conn, query_model_project_training_vars)
+        if query_result:
+
+            project_model_path = PROJECT_DIR / \
+                get_directory_name(query_result.Project_Name) / get_directory_name(
+                    query_result.Training_Name) / get_directory_name(query_result.Framework) / 'exported_models' / query_result.Model_Path
+            return project_model_path
+
 
 class NewModel(BaseModel):
     def __init__(self, model_id: str) -> None:
@@ -307,27 +335,9 @@ class Model(BaseModel):
 
         return filtered_models_df
 
-    def get_model_path(self):
-        query_model_project_training_SQL = """
-                SELECT
-                    p.project_path,
-                    t.name
-                FROM
-                    public.models m
-                    INNER JOIN public.training t ON m.training_id = t.id
-                    INNER JOIN public.project p ON t.project_id = p.id
-                WHERE
-                    m.id = %s;
-                        """
-        query_model_project_training_vars = [self.id]
-        query = db_fetchone(query_model_project_training_SQL,
-                            conn, query_model_project_training_vars)
-        if query:
-            project_path, training_name = query
-            self.model_path = MEDIA_ROOT / \
-                project_path / get_directory_name(
-                    training_name) / 'exported_models' / get_directory_name(self.name)
-            return self.model_path
+    def get_project_model_path(self):
+        self.model_path = BaseModel.query_project_model_path(self.id)
+        return self.model_path
 
     def get_labelmap_path(self):
         model_path = self.get_model_path()
