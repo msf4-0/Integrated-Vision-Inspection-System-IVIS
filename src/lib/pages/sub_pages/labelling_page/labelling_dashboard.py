@@ -42,6 +42,7 @@ from data_manager.database_manager import init_connection
 from path_desc import chdir_root
 from project.project_management import (ExistingProjectPagination, Project,
                                         ProjectPermission)
+from annotation.annotation_management import Task
 
 # NOTE Temp
 from user.user_management import User
@@ -282,10 +283,10 @@ def index():
                   on_click=to_labelling_section, args=(LabellingPagination.Editor,))
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
-    all_task, all_task_column_names = Project.query_all_task(project_id,
-                                                             return_dict=True, for_data_table=True)
-    labelled_task_dict = Project.get_labelled_task(all_task, True)
-    task_queue_dict = Project.get_labelled_task(all_task, False)
+    all_task, all_task_column_names = Task.query_all_task(project_id,
+                                                          return_dict=True, for_data_table=True)
+    labelled_task_dict = Task.get_labelled_task(all_task, True)
+    task_queue_dict = Task.get_labelled_task(all_task, False)
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     log_info(f"Navigator: {session_state.labelling_pagination}")
 

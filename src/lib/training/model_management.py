@@ -119,11 +119,6 @@ class BaseModel:
         return empty_fields
 
 
-""" 
-Insert class to create new model
-"""
-
-
 class NewModel(BaseModel):
     def __init__(self, model_id: str) -> None:
         super().__init__(model_id)

@@ -86,9 +86,9 @@ def editor(data_id: List = []):
 
 # ************************** DATA TABLE ***********************************************
 
-    all_task, all_task_column_names = Project.query_all_task(session_state.project.id,
-                                                             return_dict=True, for_data_table=True)
-    task_df = Project.create_all_task_dataframe(
+    all_task, all_task_column_names = Task.query_all_task(session_state.project.id,
+                                                          return_dict=True, for_data_table=True)
+    task_df = Task.create_all_task_dataframe(
         all_task, all_task_column_names)
     # st.write(task_df)
 
