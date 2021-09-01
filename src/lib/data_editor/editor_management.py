@@ -39,7 +39,7 @@ from core.utils.code_generator import get_random_string
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchone, db_no_fetch,
                                            init_connection)
-from deployment.deployment_management import DEPLOYMENT_TYPE, DeploymentType
+from deployment.deployment_management import Deployment, DeploymentType
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 
@@ -216,17 +216,6 @@ class BaseEditor:
         return parent_tagname, child_tagname
 
     @staticmethod
-    def get_deployment_type(deployment_type: Union[str, IntEnum]):
-        if isinstance(deployment_type, IntEnum):
-            deployment_type = deployment_type
-        elif isinstance(deployment_type, str):
-            deployment_type = DEPLOYMENT_TYPE[deployment_type]
-
-        log_info(f"Deployment Type is :{deployment_type}")
-
-        return deployment_type
-
-    @staticmethod
     def get_editor_template(deployment_type_id: Union[int, IntEnum]) -> str:
         """Get editor template from config.yml
 
@@ -263,7 +252,7 @@ class BaseEditor:
         Returns:
             int: Editor class id
         """
-        self.deployment_type = self.get_deployment_type(
+        self.deployment_type = Deployment.get_deployment_type(
             self.deployment_type)  # convert to IntEnum
         labels_json = self.convert_labels_dict_to_JSON()
         init_editor_SQL = """
@@ -307,7 +296,7 @@ class Editor(BaseEditor):
         self.childNodes: minidom.Node = None
         # store query from 'labels' column
         self.labels_dict: Dict[List[str]] = {}
-        self.deployment_type = self.get_deployment_type(deployment_type)
+        self.deployment_type = Deployment.get_deployment_type(deployment_type)
         self.parent_tagname, self.child_tagname = self.get_annotation_tags(
             self.deployment_type)
         self.editor_config = self.load_raw_xml()

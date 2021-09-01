@@ -42,6 +42,8 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from data_manager.dataset_management import (Dataset, FileTypes,
                                              data_url_encoder, load_image)
+from core.utils.helper import create_dataframe, dataframe2dict
+
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from user.user_management import User
@@ -338,6 +340,107 @@ class Task(BaseTask):
 
         # return to confirm task is deleted
         return query_delete_return
+
+    @staticmethod
+    def query_all_task(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
+
+        ID_string = "id" if for_data_table else "ID"
+        query_all_task_SQL = f"""
+                    SELECT
+                        t.id AS \"{ID_string}\",
+                        t.name AS "Task Name",
+                        CASE WHEN a.users_id IS NULL THEN
+                            '-'
+                        ELSE
+                            u.first_name || ' ' || u.last_name
+                        END AS "Created By",
+                        (
+                            SELECT
+                                d.name AS "Dataset Name"
+                            FROM
+                                public.dataset d
+                            WHERE
+                                d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+                    FROM
+                        public.task t
+                        LEFT JOIN public.annotations a ON a.id = t.annotation_id
+                        LEFT JOIN public.users u ON u.id = a.users_id
+                    WHERE
+                        t.project_id = %s
+                    ORDER BY
+                        t.id;
+                                """
+        query_all_task_vars = [project_id]
+        log_info(
+            f"Querying annotations and tasks from database for Project {project_id}")
+
+        try:
+            all_task = []
+            all_task_query_return, column_names = db_fetchall(
+                query_all_task_SQL, conn, query_all_task_vars, fetch_col_name=True, return_dict=return_dict)
+
+            for task in all_task_query_return:
+                # convert datetime with TZ to (2021-07-30 12:12:12) format
+                if return_dict:
+                    converted_datetime = task["Date/Time"].strftime(
+                        '%Y-%m-%d %H:%M:%S')
+                    task["Date/Time"] = converted_datetime
+                else:
+                    converted_datetime = task.Date_Time.strftime(
+                        '%Y-%m-%d %H:%M:%S')
+
+                    task = task._replace(
+                        Date_Time=converted_datetime)
+                all_task.append(task)
+
+        except Exception as e:
+            log_error(f"{e}: No task found for Project {project_id} ")
+            all_task = []
+            column_names = []
+
+        return all_task, column_names
+
+    @staticmethod
+    def create_all_task_dataframe(all_task: Union[List[namedtuple], List[dict]], column_names: List = None) -> pd.DataFrame:
+        """Generate Pandas DataFrame to store Annotation Task query
+
+        Args:
+            all_task (Union[List[namedtuple], List[dict]]): Annotation Task query from 'query_all_task()'
+            column_names (List, optional): Names of columns. Defaults to None.
+
+        Returns:
+            pd.DataFrame: DataFrame of Annotation Task query
+        """
+        # create DF for All Task Table
+        # returns Pandas DataFrame
+        df = create_dataframe(all_task, column_names, date_time_format=True)
+        df['Created By'] = df['Created By'].fillna("-")
+        df['Date/Time'] = df['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        return df
+
+    @staticmethod
+    @dataframe2dict(orient='index')
+    def get_labelled_task(all_task: Union[List[namedtuple], List[dict]], is_labelled: bool = True) -> List[Dict]:
+        """Get a List of Task-Annotations Dict where is_labelled is True
+
+        Args:
+            all_task (Union[List[namedtuple], List[dict]]): all_task query from 'get_all_task()'
+            is_labelled (bool, optional): [description]. Defaults to True.
+
+        Returns:
+            List[Dict]: List of dictionaries based on Material UI Data Grid format
+        """       
+        
+        all_task_df = Task.create_all_task_dataframe(all_task)
+        labelled_task_df = all_task_df.loc[all_task_df['Is Labelled']
+                                           == is_labelled]
+        # labelled_task_df=labelled_task_df[["id","Task Name","Created By","Dataset Name","Date/Time"]]
+
+        # labelled_task_dict = list(
+        #     (labelled_task_df.to_dict(orient='index')).values())
+
+        return labelled_task_df
 
 
 class Result:
@@ -709,8 +812,8 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
 
 
 def reset_editor_page():
-    editor_attributes = ["labelling_interface","new_annotation_flag", "task",
-                         "annotation", "data_labelling_table", 'labelling_prev_results','data_selection']
+    editor_attributes = ["labelling_interface", "new_annotation_flag", "task",
+                         "annotation", "data_labelling_table", 'labelling_prev_results', 'data_selection']
 
     log_info(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)

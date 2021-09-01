@@ -179,7 +179,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
     }
     return frameHeight;
   }
-
+  
   const frameHeight = frameHeightCalc(pageSize) + offset;
   console.log("Rows length", rows.length);
 

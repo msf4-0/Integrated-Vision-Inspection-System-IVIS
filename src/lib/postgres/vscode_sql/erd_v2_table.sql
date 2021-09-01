@@ -87,9 +87,7 @@ CREATE TABLE IF NOT EXISTS public.project (
     CACHE 1),
     name text NOT NULL UNIQUE,
     description text,
-    project_path text NOT NULL,
     deployment_id integer,
-    training_id bigint,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))
@@ -110,19 +108,18 @@ CREATE TABLE IF NOT EXISTS public.training (
     CACHE 1),
     name text NOT NULL UNIQUE,
     description text,
-    training_param jsonb[],
-    augmentation jsonb[],
-    model_id bigint,
+    training_model_id bigint,
+    /* FK to 'model' table for model trained using current configuration */
+    attached_model_id bigint,
+    /* FK to 'models' table for models attached to current training */
+    training_param jsonb,
+    augmentation jsonb,
     partition_size real,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     project_id bigint NOT NULL,
-    pre_trained_model_id bigint,
-    framework_id bigint,
     PRIMARY KEY (id))
-TABLESPACE image_labelling;
-
-CREATE TRIGGER training_update
+TABLESPACE image_labelling CREATE TRIGGER training_update
     BEFORE UPDATE ON public.training
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
@@ -137,56 +134,101 @@ CREATE TABLE IF NOT EXISTS public.training_log (
     CACHE 1),
     users_id bigint NOT NULL,
     training_id bigint NOT NULL,
-    start_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP, --update using Python
+    start_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    --update using Python
     end_at timestamp with time zone NOT NULL,
     PRIMARY KEY (id))
 TABLESPACE image_labelling;
 
 ALTER TABLE public.training_log OWNER TO shrdc;
 
--- PRE-TRAINED MODELS table --------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.pre_trained_models (
-    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (CYCLE INCREMENT 1 START 1
+-- MODEL_TYPE table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.model_type (
+    id smallint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
     MINVALUE 1
-    MAXVALUE 9223372036854775807
+    MAXVALUE 32767
     CACHE 1),
-    name text NOT NULL,
-    model_path text,
-    framework_id bigint,
-    deployment_id integer,
-    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    name character varying(50) NOT NULL,
     PRIMARY KEY (id))
 TABLESPACE image_labelling;
 
-CREATE TRIGGER pre_trained_models_update
-    BEFORE UPDATE ON public.pre_trained_models
-    FOR EACH ROW
-    EXECUTE PROCEDURE trigger_update_timestamp ();
+ALTER TABLE public.model_type OWNER TO shrdc;
 
-ALTER TABLE public.pre_trained_models OWNER TO shrdc;
-
-INSERT INTO public.pre_trained_models (
-    name,
-    framework_id,
-    model_path,
-    deployment_id)
+INSERT INTO public.model_type (
+    name)
 VALUES (
-    '[TF] SSD MobileNet V2 FPNLite 320x320',
-    (
-        SELECT
-            f.id
-        FROM
-            public.framework f
-        WHERE
-            f.name = 'TensorFlow'), './pre-trained-models/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8', 2), ('[TF] SSD ResNet50 V1 FPN 640x640 (RetinaNet50)', (
-        SELECT
-            f.id
-        FROM
-            public.framework f
-        WHERE
-            f.name = 'TensorFlow'), './pre-trained-models/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8', 2);
+    'Pre-trained Models'),
+(
+    'Project Models'),
+(
+    'User Custom Deep Learning Model Upload');
 
+
+/* -- PRE-TRAINED MODELS table --------------------------------------------------
+ CREATE TABLE IF NOT EXISTS public.pre_trained_models (
+ id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (CYCLE INCREMENT 1 START 1
+ MINVALUE 1
+ MAXVALUE 9223372036854775807
+ CACHE 1),
+ name text NOT NULL,
+ model_path text,
+ framework_id bigint,
+ deployment_id integer,
+ created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY (id))
+ TABLESPACE image_labelling;
+ 
+ CREATE TRIGGER pre_trained_models_update
+ BEFORE UPDATE ON public.pre_trained_models
+ FOR EACH ROW
+ EXECUTE PROCEDURE trigger_update_timestamp ();
+ 
+ ALTER TABLE public.pre_trained_models OWNER TO shrdc;
+ 
+ INSERT INTO public.pre_trained_models (
+ name,
+ framework_id,
+ model_path,
+ deployment_id)
+ VALUES (
+ '[TF] SSD MobileNet V2 FPNLite 320x320',
+ (
+ SELECT
+ f.id
+ FROM
+ public.framework f
+ WHERE
+ f.name = 'TensorFlow'), './tensorflow/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8', 2), ('[TF] SSD ResNet50 V1 FPN 640x640 (RetinaNet50)', (
+ SELECT
+ f.id
+ FROM
+ public.framework f
+ WHERE
+ f.name = 'TensorFlow'), './tensorflow/ssd_resnet50_v1_fpn_640x640_coco17_tpu-8', 2);
+ */
+/* -- USER_UPLOAD_MODELS table --------------------------------------------------
+ CREATE TABLE IF NOT EXISTS public.user_upload_models (
+ id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (CYCLE INCREMENT 1 START 1
+ MINVALUE 1
+ MAXVALUE 9223372036854775807
+ CACHE 1),
+ name text NOT NULL,
+ model_path text,
+ framework_id bigint,
+ deployment_id integer,
+ created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY (id))
+ TABLESPACE image_labelling;
+ 
+ CREATE TRIGGER pre_trained_models_update
+ BEFORE UPDATE ON public.user_upload_models
+ FOR EACH ROW
+ EXECUTE PROCEDURE trigger_update_timestamp ();
+ 
+ ALTER TABLE public.user_upload_models OWNER TO shrdc; 
+ */
 -- MODELS table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.models (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
@@ -194,10 +236,14 @@ CREATE TABLE IF NOT EXISTS public.models (
     MAXVALUE 9223372036854775807
     CACHE 1),
     name text NOT NULL UNIQUE,
+    description text,
+    metrics jsonb,
+    /*to store evaluation metrics for model such as COCO mAP and Training Losses*/
     model_path text,
-    training_id bigint,
+    model_type_id smallint,
     framework_id bigint,
     deployment_id integer,
+    training_id bigint,
     created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id))
@@ -328,6 +374,7 @@ CREATE TRIGGER annotations_update
 
 ALTER TABLE public.annotations OWNER TO shrdc;
 
+
 /* NOTE */
 -- ANNOTATION_TYPE table --------------------------------------------------
 -- CREATE TABLE IF NOT EXISTS public.annotation_type (
@@ -338,9 +385,7 @@ ALTER TABLE public.annotations OWNER TO shrdc;
 --     name character varying(100) NOT NULL,
 --     PRIMARY KEY (id))
 -- TABLESPACE image_labelling;
-
 -- ALTER TABLE public.annotation_type OWNER TO shrdc;
-
 -- PROJECT_DATASET table (Many-to-Many) --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.project_dataset (
     project_id bigint NOT NULL,
@@ -488,11 +533,14 @@ ALTER TABLE public.filetype OWNER TO shrdc;
 INSERT INTO public.filetype (
     name)
 VALUES (
-    'Image'), --jpeg,jpg,png
+    'Image'),
+--jpeg,jpg,png
 (
-    'Video'), -- mp4,mpeg,webm*,ogg*
+    'Video'),
+-- mp4,mpeg,webm*,ogg*
 (
-    'Audio'), --* wav, aiff, mp3, au, flac, m4a, ogg
+    'Audio'),
+--* wav, aiff, mp3, au, flac, m4a, ogg
 (
     'Text') -- txt,csv,tsv,json*,html*
 ;

@@ -2,16 +2,13 @@
     TEST
     """
 import sys
-from base64 import b64encode
-from io import BytesIO
-from mimetypes import guess_type
 from pathlib import Path
-from threading import Thread
-from timeit import timeit
-from typing import Union
-
+from time import sleep
 import cv2
 import numpy as np
+import pandas as pd
+import datetime
+import psycopg2
 import streamlit as st
 from PIL import Image
 from streamlit import session_state as session_state
@@ -27,11 +24,45 @@ else:
 
 from core.utils.log import log_info
 
+random_place1 = st.empty()
 
-data_path = '/home/rchuzh/.local/share/integrated-vision-inspection-system/app_media/dataset/my-third-dataset/IMG_20210315_184149.jpg'
-file_uri='file://'
-href=file_uri+data_path
 
-a_DOM=f'<a href={href} download>Download</a>'
+with random_place1.container():
 
-st.markdown(a_DOM,unsafe_allow_html=True)
+    st.write("Hi")
+    st.write("Bye")
+    st.text_input("sdadfafas")
+    st.text_area("sfadfasdfadf")
+
+
+sleep(2)
+with random_place1.container():
+
+    st.write("Change")
+    st.write("Yeap")
+    st.text_input("dfghdfghd", key="sfgsfgdfg")
+    st.text_area("nfbncvncbvn", key='asfasdfadfadfadf')
+    z = [{'ID': 1,
+          'Task Name': 'IMG_20210316_082107.jpg',
+          'Created By': '-',
+          'Dataset Name': 'My Third Dataset',
+          'Is Labelled': False,
+          'Skipped': False,
+          'Date/Time': datetime.datetime(2021, 8, 20, 18, 15, 13, 952586, tzinfo=psycopg2.tz.FixedOffsetTimezone(offset=480, name=None))},
+         {'ID': 2,
+          'Task Name': 'IMG_20210315_184229.jpg',
+          'Created By': '-',
+          'Dataset Name': 'My Third Dataset',
+          'Is Labelled': False,
+          'Skipped': False,
+          'Date/Time': datetime.datetime(2021, 8, 20, 18, 15, 13, 955665, tzinfo=psycopg2.tz.FixedOffsetTimezone(offset=480, name=None))},
+         {'ID': 3,
+         'Task Name': 'IMG_20210315_184240.jpg',
+          'Created By': '-',
+          'Dataset Name': 'My Third Dataset',
+          'Is Labelled': False,
+          'Skipped': False,
+          'Date/Time': datetime.datetime(2021, 8, 20, 18, 15, 13, 957486, tzinfo=psycopg2.tz.FixedOffsetTimezone(offset=480, name=None))}]
+
+    df = pd.DataFrame(z)
+    st.write(df)

@@ -7,21 +7,23 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 
 """
-from pathlib import Path
-import sys
-import os
 import io
-from glob import glob, iglob
 import json
-import yaml
+import os
 import shutil
-from zipfile import ZipFile
+import sys
 import tarfile
 import urllib
+from glob import glob, iglob
+from pathlib import Path
+from tempfile import mkdtemp, mkstemp
+from typing import Dict, List, Union
+from zipfile import ZipFile
+
+import streamlit as st
+import yaml
 from appdirs import user_config_dir, user_data_dir
 
-from typing import Union, List, Dict
-import streamlit as st
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
@@ -34,14 +36,13 @@ else:
 
 # >>>> User-defined Modules >>>>
 
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import log_error, log_info  # logger
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 _DIR_APP_NAME = "integrated-vision-inspection-system"
 
 # REFERENCED LS
-
-# TODO #49 utilise this to create App dir during installation
 
 
 def get_config_dir():
@@ -54,6 +55,12 @@ def get_data_dir():
     data_dir = user_data_dir(appname=_DIR_APP_NAME)
     os.makedirs(data_dir, exist_ok=True)
     return data_dir
+
+
+def get_temp_dir():
+    dirpath = mkdtemp()
+    yield dirpath
+    shutil.rmtree(dirpath)
 
 
 # ************************** DEPRECATED **************************
