@@ -138,6 +138,7 @@ class BaseProject:
 
 # TODO KIV get_all_task() at Project class
 
+
     @st.cache(ttl=60)
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
@@ -193,6 +194,22 @@ class BaseProject:
         log_info(f"Project Path: {str(project_path)}")
 
         return project_path
+
+    # Wrapper for check_if_exists function from form_manager.py
+    def check_if_exists(self, context: Dict, conn) -> bool:
+        table = 'public.project'
+
+        exists_flag = check_if_exists(
+            table, context['column_name'], context['value'], conn)
+
+        return exists_flag
+
+    # Wrapper for check_if_exists function from form_manager.py
+    def check_if_field_empty(self, context: Dict, field_placeholder):
+        check_if_exists = self.check_if_exists
+        empty_fields = check_if_field_empty(
+            context, field_placeholder, check_if_exists)
+        return empty_fields
 
 
 class Project(BaseProject):
@@ -473,7 +490,7 @@ class Project(BaseProject):
         project_attributes = ["all_project_table", "project", "editor", "project_name",
                               "project_desc", "annotation_type", "project_dataset_page",
                               "project_dataset", "existing_project_page_navigator_radio",
-                              "labelling_pagination","existing_project_pagination"]
+                              "labelling_pagination", "existing_project_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
@@ -503,22 +520,6 @@ class NewProject(BaseProject):
                 query_id_SQL, conn, [self.deployment_type])[0]
         else:
             self.deployment_id = None
-
-    # Wrapper for check_if_exists function from form_manager.py
-    def check_if_exists(self, context: Dict, conn) -> bool:
-        table = 'public.project'
-
-        exists_flag = check_if_exists(
-            table, context['column_name'], context['value'], conn)
-
-        return exists_flag
-
-    # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict, field_placeholder):
-        check_if_exists = self.check_if_exists
-        empty_fields = check_if_field_empty(
-            context, field_placeholder, check_if_exists)
-        return empty_fields
 
     def insert_new_project_task(self, dataset_name: str, dataset_id: int):
         """Create New Task for Project

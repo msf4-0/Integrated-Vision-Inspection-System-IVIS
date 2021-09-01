@@ -709,8 +709,8 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
 
 
 def reset_editor_page():
-    editor_attributes = ["labelling_interface","new_annotation_flag", "task",
-                         "annotation", "data_labelling_table", 'labelling_prev_results','data_selection']
+    editor_attributes = ["labelling_interface", "new_annotation_flag", "task",
+                         "annotation", "data_labelling_table", 'labelling_prev_results', 'data_selection']
 
     log_info(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)

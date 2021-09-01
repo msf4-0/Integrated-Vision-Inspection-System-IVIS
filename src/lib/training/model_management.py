@@ -70,8 +70,8 @@ MODEL_TYPE = {
 
 
 class BaseModel:
-    def __init__(self,) -> None:
-        self.id: Union[str, int] = None
+    def __init__(self, model_id: Union[int, str]) -> None:
+        self.id: Union[str, int] = model_id
         self.name: str = None
         self.desc: str = None
         self.metrics: Dict = {}
@@ -81,19 +81,9 @@ class BaseModel:
         self.model_path: Path = None
         self.labelmap_path: Path = None
         self.saved_model_dir: Path = None
+        self.has_submitted: bool = False
 
-    @staticmethod
-    def query_table(expression: str, column: str):
-        query_table_SQL = """
-        SELECT
-            %s
-        FROM
-            %s;
-        """
-        query_table_vars = [expression, column]
-        return_all = db_fetchall(query_table_SQL, conn, query_table_vars)
-        return return_all
-
+    # TODO Method to generate Model Path #116
     @st.cache
     def get_model_path(self):
         query_model_project_training_SQL = """
@@ -113,19 +103,20 @@ class BaseModel:
 
         return query
 
-    def check_if_exist(self, context: List, conn) -> bool:
-        check_exist_SQL = """
-                            SELECT
-                                EXISTS (
-                                    SELECT
-                                        %s
-                                    FROM
-                                        public.models
-                                    WHERE
-                                        name = %s);
-                        """
-        exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
-        return exist_status
+    # Wrapper for check_if_exists function from form_manager.py
+    def check_if_exists(self, context: List, conn) -> bool:
+        table = 'public.models'
+        exists_flag = check_if_exists(
+            table, context['column_name'], context['value'], conn)
+
+        return exists_flag
+
+    # Wrapper for check_if_exists function from form_manager.py
+    def check_if_field_empty(self, context: Dict, field_placeholder):
+        check_if_exists = self.check_if_exists
+        empty_fields = check_if_field_empty(
+            context, field_placeholder, check_if_exists)
+        return empty_fields
 
 
 """ 
@@ -134,14 +125,13 @@ Insert class to create new model
 
 
 class NewModel(BaseModel):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, model_id: str) -> None:
+        super().__init__(model_id)
 
 
 class Model(BaseModel):
-    def __init__(self) -> None:
-        super().__init__()
-        self.p_model_list, self.p_model_column_names = self.query_model_table()
+    def __init__(self, model_id: int) -> None:
+        super().__init__(model_id)
 
     @staticmethod
     def query_model_table(for_data_table: bool = False, return_dict: bool = False, deployment_type: Union[str, IntEnum] = None) -> namedtuple:
