@@ -68,6 +68,10 @@ def new_training_page():
         session_state.new_training = NewTraining(get_random_string(
             length=8), session_state.project)
         # set random project ID before getting actual from Database
+    if 'pt_model' not in session_state:
+        session_state.pt_model = PreTrainedModel()
+    if 'model' not in session_state:
+        session_state.model = Model()
 
     # ******** SESSION STATE *********************************************************
 
@@ -88,7 +92,6 @@ def new_training_page():
     # right-align the training ID relative to the page
     id_blank, id_right = st.columns([3, 1])
 
-    # TODO Separate based on type?
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
 
     info_dataset_divider = st.empty()
@@ -279,11 +282,6 @@ def new_training_page():
     model_dataset_divider.write("___")
     modelcol1.write("## __Deep Learning Model Selection :__")
 
-    if 'pt_model' not in session_state:
-        session_state.pt_model = PreTrainedModel()
-    if 'model' not in session_state:
-        session_state.model = Model()
-
     # ***********FRAMEWORK LIST *****************************************************************************
     framework_list = [framework.Name for framework in deepcopy(
         session_state.new_training.get_framework_list())]
@@ -303,7 +301,7 @@ def new_training_page():
     # empty() placeholder to dynamically display file upload if checkbox selected
     place["new_training_model_selection"] = modelcol2.empty()
 
-    # >>>>>>>>>>>> MODEL UPLOAD >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # *********** USER CUSTOM DEEP LEARNING MODELS *****************************************************************************
     if model_upload_select == ModelType.UserUpload:
         model = place["new_training_model_selection"].file_uploader("User Custom Model Upload", type=[
             'zip', 'tar.gz', 'tar.bz2', 'tar.xz'], key='user_custom_upload_model')
@@ -311,7 +309,11 @@ def new_training_page():
             session_state.new_training.model_selected = deepcopy(
                 model)  # store in model attribute
             st.write(model)  # TODO
-    # >>>>>>>>>>>> MODEL UPLOAD >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # *********** USER CUSTOM DEEP LEARNING MODELS *****************************************************************************
+
+    # *********** PRE-TRAINED MODELS *****************************************************************************
+
+    # TODO #120 Fix selectbox session_state not iterable issue
     elif model_upload_select == ModelType.PreTrained:
 
         pre_trained_models, pt_column_names = session_state.pt_model.query_PT_table()
@@ -387,7 +389,9 @@ def new_training_page():
 
         # <<<<LEFT: Pre-trained models dataframe <<<<
 
-        # **********************************************************************************
+    # *********** PRE-TRAINED MODELS *****************************************************************************
+
+    # *********** PROJECT TRAINED MODELS *****************************************************************************
 
     else:
 
@@ -495,6 +499,7 @@ def new_training_page():
         modelcol2.text_input(
             "Exported Model Name", key="model_name", help="Enter the name of the exported model after training", on_change=check_if_model_name_exist, args=(place, conn,))
         place["model_name"] = modelcol2.empty()
+    # *********** PROJECT TRAINED MODELS *****************************************************************************
 
     # <<<<<<<< Model <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 

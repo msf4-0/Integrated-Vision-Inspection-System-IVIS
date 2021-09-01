@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+from collections import namedtuple
 import sys
 from pathlib import Path
 from typing import NamedTuple, Union, List, Dict
@@ -114,8 +115,8 @@ class Model(BaseModel):
         super().__init__()
         self.p_model_list, self.p_model_column_names = self.query_model_table()
 
-    @st.cache
-    def query_model_table(self) -> NamedTuple:
+    @st.cache(ttl=60)
+    def query_model_table(self) -> namedtuple:
         query_model_table_SQL = """
             SELECT
                 m.id AS "ID",
@@ -135,6 +136,24 @@ class Model(BaseModel):
             project_model_list = None
             column_names = None
         return project_model_list, column_names
+
+    @staticmethod
+    @st.cache
+    def get_framework_list() -> List[namedtuple]:
+        """Get list of Deep Learning frameworks from Database
+
+        Returns:
+            List[namedtuple]: List of framework in namedtuple (ID, Name)
+        """
+        get_framework_list_SQL = """
+            SELECT
+                id as "ID",
+                name as "Name"
+            FROM
+                public.framework;
+                    """
+        framework_list = db_fetchall(get_framework_list_SQL, conn)
+        return framework_list
 
     def check_if_exist(self, context: List, conn) -> bool:
         check_exist_SQL = """

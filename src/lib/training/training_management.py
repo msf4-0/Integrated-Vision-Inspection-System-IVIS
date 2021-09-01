@@ -113,7 +113,7 @@ class BaseTraining:
         self.dataset_chosen: List = None
         self.training_param_json: json = None
         self.augmentation_json: json = None
-
+# TODO #116 Method to generate Model Path
     @st.cache
     def get_framework_list(self):
         get_framework_list_SQL = """
