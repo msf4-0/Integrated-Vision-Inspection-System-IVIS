@@ -17,7 +17,6 @@ from enum import IntEnum
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
-from deployment.deployment_management import Deployment
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -31,11 +30,14 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root, MEDIA_ROOT
+from path_desc import chdir_root, MEDIA_ROOT, PROJECT_DIR, PRE_TRAINED_MODEL_DIR, USER_DEEP_LEARNING_MODEL_UPLOAD
 from core.utils.log import log_info, log_error  # logger
+from core.utils.helper import get_dataframe_row, get_directory_name
 from data_manager.database_manager import db_fetchall, init_connection, db_fetchone, db_no_fetch
 from core.utils.helper import create_dataframe, dataframe2dict, get_directory_name, datetime_formatter, get_identifier_str_IntEnum
 from core.utils.form_manager import check_if_exists, check_if_field_empty
+from deployment.deployment_management import Deployment
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # initialise connection to Database
@@ -64,6 +66,35 @@ MODEL_TYPE = {
     ModelType.PreTrained: "Pre-trained Models",
     ModelType.ProjectTrained: "Project Models",
     ModelType.UserUpload: "User Deep Learning Model Upload"
+}
+
+
+class Framework(IntEnum):
+    TensorFlow = 0
+    PyTorch = 1
+    Scikit_learn = 2
+    Caffe = 3
+    MXNet = 4
+    ONNX = 5
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return Framework[s]
+        except KeyError:
+            raise ValueError()
+
+
+FRAMEWORK = {
+    Framework.TensorFlow: "TensorFlow",
+    Framework.PyTorch: "PyTorch",
+    Framework.Scikit_learn: "Scikit-learn",
+    Framework.Caffe: "Caffe",
+    Framework.MXNet: "MXNet",
+    Framework.ONNX: "ONNX"
 }
 # <<<< Variable Declaration <<<<
 
@@ -118,6 +149,67 @@ class BaseModel:
         empty_fields = check_if_field_empty(
             context, field_placeholder, check_if_exists)
         return empty_fields
+
+    @staticmethod
+    def get_model_type(model_type: Union[str, ModelType], string: bool = False):
+
+        assert isinstance(
+            model_type, (str, ModelType)), f"deployment_type must be String or IntEnum"
+
+        model_type = get_identifier_str_IntEnum(
+            model_type, ModelType, MODEL_TYPE, string=string)
+
+        return model_type
+
+    @staticmethod
+    def get_framework(framework: Union[str, ModelType], string: bool = False):
+
+        assert isinstance(
+            framework, (str, Framework)), f"deployment_type must be String or IntEnum"
+
+        model_type = get_identifier_str_IntEnum(
+            framework, Framework, FRAMEWORK, string=string)
+
+        return model_type
+
+    def get_pt_user_model_path(model_path: Union[str, Path] = None, framework: str = None, model_type: Union[str, ModelType] = None, **model_row) -> Path:
+        """Get directory path for Pre-trained models and User Upload Deep Learning Models
+
+        Args:
+            model_path (Union[str, Path]): Relative path to model (queried from DB)
+            framework (str): Framework of model
+            model_type (Union[str, ModelType]): Type of model
+
+        Returns:
+            Path: Path-like object of model path
+        """
+
+        if model_row:
+            model_path = model_row['Model Path']
+            framework = model_row['Framework']
+            model_type = model_row['Model Type']
+
+        # Get IntEnum constant
+        model_type = BaseModel.get_model_type(
+            model_type=model_type, string=False)
+
+        framework = get_directory_name(framework)
+
+        if model_type == ModelType.PreTrained:
+            model_path = PRE_TRAINED_MODEL_DIR / framework / model_path
+
+        elif model_type == ModelType.UserUpload:
+            model_path = USER_DEEP_LEARNING_MODEL_UPLOAD / framework / model_path
+
+        # assert model_path.is_dir(), f"{str(model_path)} does not exists"
+
+        if not model_path.is_dir():
+            error_msg = f"{str(model_path)} does not exists"
+            log_error(error_msg)
+            st.error(error_msg)
+            model_path = None
+
+        return model_path
 
 
 class NewModel(BaseModel):
@@ -245,16 +337,23 @@ class Model(BaseModel):
 
             return self.labelmap_path
 
-    @staticmethod
-    def get_model_type(model_type: Union[str, ModelType], string: bool = False):
+    def get_model_row(model_id: int, model_df: pd.DataFrame) -> Dict:
+        """Get selected model row
 
-        assert isinstance(
-            model_type, (str, ModelType)), f"deployment_type must be String or IntEnum"
+        Args:
+            model_id (int): Model ID
+            model_df (pd.DataFrame): DataFrame for models
 
-        model_type = get_identifier_str_IntEnum(
-            model_type, ModelType, MODEL_TYPE, string=string)
+        Returns:
+            Dict: Data row from models DataFrame
+        """
+        log_info(f"Obtaining data row from model_df......")
 
-        return model_type
+        model_row = get_dataframe_row(model_id, model_df)
+
+        log_info(f"Currently serving data:{model_row['Name']}")
+
+        return model_row
 
 
 class PreTrainedModel(BaseModel):
