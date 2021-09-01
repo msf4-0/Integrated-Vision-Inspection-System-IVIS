@@ -42,7 +42,7 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from data_manager.dataset_management import (Dataset, FileTypes,
                                              data_url_encoder, load_image)
-from core.utils.helper import create_dataframe, dataframe2dict
+from core.utils.helper import create_dataframe, dataframe2dict, get_dataframe_row
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
@@ -430,8 +430,8 @@ class Task(BaseTask):
 
         Returns:
             List[Dict]: List of dictionaries based on Material UI Data Grid format
-        """       
-        
+        """
+
         all_task_df = Task.create_all_task_dataframe(all_task)
         labelled_task_df = all_task_df.loc[all_task_df['Is Labelled']
                                            == is_labelled]
@@ -776,7 +776,7 @@ class Annotations(BaseAnnotations):
                 f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.task.project_id}")
 
 
-def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
+def get_task_row(task_id: int, task_df: pd.DataFrame) -> Dict:
     """Get data name from task_df dataframe (id,Task Name, Is Labelled, Skipped)
 
     #### Disclaimer: Task name and Data name is interusable 
@@ -789,22 +789,12 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> str:
         TypeError: If data_id is not type (int)
 
     Returns:
-        str: Name of data
+        dict: Row of data
     """
     # to obtain name data based on selection of data table
-    log_info(f"Obtaining data name from task_df")
+    log_info(f"Obtaining data row from task_df")
 
-    # Handle data_id exceptions
-    if isinstance(task_id, int):
-        pass
-    elif isinstance(task_id, Union[List, tuple]):
-        assert len(task_id) <= 1, "Data selection should be singular"
-        task_id = task_id[0]
-    else:
-        raise TypeError("Data ID can only be int")
-
-    task_row = ((task_df.loc[task_df["id"] == task_id]
-                 ).to_dict(orient='records'))[0]
+    task_row = get_dataframe_row(task_id, task_df)
 
     log_info(f"Currently serving data:{task_row['Task Name']}")
 

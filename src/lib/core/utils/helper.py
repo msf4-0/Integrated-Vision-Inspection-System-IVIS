@@ -199,6 +199,35 @@ def datetime_formatter(data_list: Union[List[namedtuple], List[dict]], return_di
     return data_tmp
 
 
+def get_dataframe_row(row_id: int, df: pd.DataFrame) -> Dict:
+    """Get Data row from DataFrame
+
+    Args:
+        row_id (int): Row ID of DataFrame
+        df (pd.DataFrame): Pandas DataFrame of interest
+
+    Raises:
+        TypeError: Only type `int` supported for row_id
+
+    Returns:
+        Dict: Data row of type Dict
+    """
+
+    # Handle data_id exceptions
+    if isinstance(row_id, int):
+        pass
+    elif isinstance(row_id, Union[List, tuple]):
+        assert len(row_id) <= 1, "Data selection should be singular"
+        row_id = row_id[0]
+    else:
+        raise TypeError("Data ID can only be int")
+
+    df_row = ((df.loc[df["id"] == row_id]
+               ).to_dict(orient='records'))[0]
+
+    return df_row
+
+
 def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
                                enumerator_class: IntEnum, identifier_dictionary: Dict,
                                string: bool = False):

@@ -20,8 +20,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BASE_DATA_DIR = Path(get_data_dir())
 MEDIA_ROOT = BASE_DATA_DIR / 'app_media'
 DATASET_DIR = MEDIA_ROOT / 'dataset'
-PRE_TRAINED_MODEL_DIR = MEDIA_ROOT / 'pre-trained-models'
 PROJECT_DIR = MEDIA_ROOT / 'project'
+PRE_TRAINED_MODEL_DIR = MEDIA_ROOT / 'pre-trained-models'
+USER_DEEP_LEARNING_MODEL_UPLOAD = MEDIA_ROOT / 'user-deep-learning-model-upload'
+
+# PROJECT_MODELS=PROJECT_DIR/<PROJECT-NAME>/<TRAINING-NAME>/'exported-models'/<MODEL-NAME>
 
 
 def chdir_root():
