@@ -17,7 +17,7 @@ import pandas as pd
 import psycopg2
 import streamlit as st
 from PIL import Image
-from training.model_management import Model
+from training.model_management import Model, NewModel
 from project.project_management import Project
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
@@ -33,7 +33,7 @@ else:
     pass
 
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.form_manager import check_if_exists, check_if_field_empty
+from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from core.utils.helper import get_directory_name
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
@@ -53,6 +53,7 @@ class TrainingPagination(IntEnum):
     Dashboard = 0
     New = 1
     Existing = 2
+    NewModel = 3
 
     def __str__(self):
         return self.name
@@ -111,9 +112,11 @@ class BaseTraining:
         self.framework: str = None
         self.partition_ratio: float = 0.5
         self.dataset_chosen: List = None
-        self.training_param_json: json = None
-        self.augmentation_json: json = None
-# TODO #116 Method to generate Model Path
+        self.training_param_json: Dict = None
+        self.augmentation_json: Dict = None
+        self.is_started: bool = False
+        self.progress: Dict = {}
+
     @st.cache
     def get_framework_list(self):
         get_framework_list_SQL = """
@@ -313,6 +316,17 @@ class NewTraining(BaseTraining):
 
         return self.id
 
+
+class Training(BaseTraining):
+
+    def __init__(self, training_id, project: Project) -> None:
+        super().__init__(training_id, project)
+
+        # query training details
+        # get model attached
+        # is_started
+        # progress
+
     def initialise_training(self, model: Model, project: Project):
         '''
         training_dir
@@ -360,6 +374,13 @@ class NewTraining(BaseTraining):
             log_error(
                 f"Failed to stored **{self.name}** training information in database")
             return False
+
+    @staticmethod
+    def reset_training_page():
+        training_attributes = ["project_training_table", "training", "training_name",
+                               "training_desc", "labelling_pagination", "existing_training_pagination"]
+
+        reset_page_attributes(training_attributes)
 
 
 def main():

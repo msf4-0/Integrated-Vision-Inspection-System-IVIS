@@ -19,8 +19,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -39,7 +39,7 @@ from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import MEDIA_ROOT, chdir_root
-from project.model_management import MODEL_TYPE, Model, ModelType, PreTrainedModel
+from training.model_management import MODEL_TYPE, Model, ModelType, PreTrainedModel
 from project.project_management import Project
 from training.training_management import NewTraining, TrainingParam
 from deployment.deployment_management import DeploymentType

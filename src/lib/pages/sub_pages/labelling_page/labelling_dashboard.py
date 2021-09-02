@@ -52,7 +52,6 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
-new_project = {}  # store
 place = {}
 
 chdir_root()  # change to root directory
