@@ -32,7 +32,7 @@ from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
-from training.training_management import TrainingPagination,Training
+from training.training_management import TrainingPagination, Training
 from pages.sub_pages.training_page import new_training
 # >>>> TEMP
 from user.user_management import User
@@ -55,8 +55,6 @@ def dashboard():
     log_info(f"Top of Training Dashboard")
     st.write(f"### Dashboard")
 
-    # TODO To new training page
-
     # ******** SESSION STATE *********************************************************
     if "project_training_table" not in session_state:
         session_state.project_training_table = None
@@ -76,7 +74,8 @@ def dashboard():
             del session_state.project_training_table
 
     create_new_training_button_col1.button(
-        "Create New Training Session", key='create_new_training_from_training_dashboard', on_click=to_new_training_page, help="Create a new training session")
+        "Create New Training Session", key='create_new_training_from_training_dashboard',
+        on_click=to_new_training_page, help="Create a new training session")
     # ***************** CREATE NEW PROJECT BUTTON *********************************************************
 
 

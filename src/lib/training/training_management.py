@@ -7,18 +7,13 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import json
 import sys
-from copy import copy, deepcopy
 from enum import IntEnum
 from pathlib import Path
 from time import sleep
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
-import psycopg2
 import streamlit as st
-from PIL import Image
-from training.model_management import Model, NewModel
-from project.project_management import Project
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
 
@@ -33,13 +28,17 @@ else:
     pass
 
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
-from core.utils.helper import get_directory_name
+from core.utils.form_manager import (check_if_exists, check_if_field_empty,
+                                     reset_page_attributes)
+from core.utils.helper import datetime_formatter, get_directory_name
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
+from project.project_management import Project
+from training.model_management import Model, NewModel
+
 # >>>> User-defined Modules >>>>
-from path_desc import MEDIA_ROOT, chdir_root
+
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -334,6 +333,70 @@ class Training(BaseTraining):
         # get model attached
         # is_started
         # progress
+
+    @staticmethod
+    def query_all_project_training(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
+
+        ID_string = "id" if for_data_table else "ID"
+        query_all_project_training_SQL = f"""
+                    SELECT
+                        t.id AS \"{ID_string}\",
+                        t.name AS "Training Name",
+                        (
+                            SELECT
+                                CASE
+                                    WHEN t.training_model_id IS NULL THEN '-'
+                                    ELSE (
+                                        SELECT
+                                            m.name
+                                        FROM
+                                            public.models m
+                                        WHERE
+                                            m.id = t.training_model_id
+                                    )
+                                END AS "Model Name"
+                        ),
+                        (
+                            SELECT
+                                m.name AS "Base Model Name"
+                            FROM
+                                public.models m
+                            WHERE
+                                m.id = t.attached_model_id
+                        ),
+                        t.is_started AS "Is Started",
+                        CASE
+                            WHEN t.progress IS NULL THEN \'{{}}\'
+                            ELSE t.progress
+                        END AS "Progress",
+                        /*Give empty JSONB if training progress has not start*/
+                        t.updated_at AS "Date/Time"
+                    FROM
+                        public.project_training pro_train
+                        INNER JOIN training t ON t.id = pro_train.training_id
+                    WHERE
+                        pro_train.project_id = %s;
+                                                    """
+
+        query_all_project_training_vars = [project_id]
+        log_info(
+            f"Querying Training from database for Project {project_id}")
+        all_project_training = []
+        try:
+
+            all_project_training_query_return, column_names = db_fetchall(
+                query_all_project_training_SQL, conn,
+                query_all_project_training_vars, fetch_col_name=True, return_dict=return_dict)
+
+            all_project_training = datetime_formatter(
+                all_project_training_query_return, return_dict=return_dict)
+
+        except TypeError as e:
+
+            log_error(f"""{e}: Could not find any training for Project ID {project_id} / \
+                            Project ID: Project ID {project_id} does not exists""")
+
+        return all_project_training, column_names
 
     def initialise_training(self, model: Model, project: Project):
         '''
