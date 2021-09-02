@@ -111,10 +111,10 @@ def split_string(string: str) -> List:
     return list_string
 
 
-def join_string(list_string: List) -> str:
+def join_string(list_string: List,separator:str='-') -> str:
 
     # Join the string based on '-' delimiter
-    string = '-'.join(list_string)
+    string = separator.join(list_string)
 
     return string
 
@@ -171,7 +171,7 @@ def dataframe2dict(orient='index'):
     return inner
 
 
-def datetime_formatter(data_list: Union[List[namedtuple], List[dict]], return_dict: bool = False) -> List:
+def datetime_formatter(data_list: Union[List[namedtuple], List[Dict]], return_dict: bool = False) -> List:
     """Convert datetime format to %Y-%m-%d %H:%M:%S for Dict and namedtuple from DB query
 
     Args:

@@ -55,6 +55,14 @@ def dashboard():
     log_info(f"Top of Training Dashboard")
     st.write(f"### Dashboard")
 
+    # ********* QUERY PROJECT TRAINING ********************************************
+    # namedtuple of query from DB
+
+    all_project_training, project_training_column_names = Training.query_all_project_training(session_state.project.id,
+                                                                                              return_dict=True, for_data_table=True)
+
+    # ********* QUERY PROJECT TRAINING ********************************************
+
     # ******** SESSION STATE *********************************************************
     if "project_training_table" not in session_state:
         session_state.project_training_table = None
@@ -76,7 +84,73 @@ def dashboard():
     create_new_training_button_col1.button(
         "Create New Training Session", key='create_new_training_from_training_dashboard',
         on_click=to_new_training_page, help="Create a new training session")
+
+    # add function to preprocess progress column
+
     # ***************** CREATE NEW PROJECT BUTTON *********************************************************
+
+    # **************** DATA TABLE COLUMN CONFIG *********************************************************
+
+    project_training_columns = [
+        {
+            'field': "id",
+            'headerName': "ID",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 70,
+            'hideSortIcons': True,
+
+        },
+        {
+            'field': "Training Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 200,
+            'hideSortIcons': False,
+        },
+
+        {
+            'field': "Model Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': False,
+        },
+        {
+            'field': "Base Model Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': False,
+        },
+
+        {
+            'field': "Is Started",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 100,
+            'hideSortIcons': True,
+            'type': 'boolean',
+        },
+        {
+            'field': "Progress",
+            'headerName': "Steps / Checkpoint",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': False,
+        },
+        {
+            'field': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 100,
+            'hideSortIcons': True,
+            'type': 'date',
+        },
+
+
+    ]
 
 
 def index():

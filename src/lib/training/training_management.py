@@ -11,11 +11,13 @@ from enum import IntEnum
 from pathlib import Path
 from time import sleep
 from typing import Dict, List, Optional, Union
-
+from collections import namedtuple
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
+
+import project
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -30,12 +32,13 @@ else:
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
-from core.utils.helper import datetime_formatter, get_directory_name
+from core.utils.helper import datetime_formatter, get_directory_name, join_string
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from project.project_management import Project
 from training.model_management import Model, NewModel
+from deployment.deployment_management import Deployment, DeploymentType
 
 # >>>> User-defined Modules >>>>
 
@@ -64,6 +67,14 @@ class TrainingPagination(IntEnum):
         except KeyError:
             raise ValueError()
 
+
+# NOTE KIV
+PROGRESS_TAGS = {
+    DeploymentType.Image_Classification: ['Steps'],
+    DeploymentType.OD: ['Checkpoint', 'Steps'],
+    DeploymentType.Instance: ['Checkpoint', 'Steps'],
+    DeploymentType.Semantic: ['Checkpoint', 'Steps']
+}
 # <<<< Variable Declaration <<<<
 
 
@@ -335,7 +346,12 @@ class Training(BaseTraining):
         # progress
 
     @staticmethod
-    def query_all_project_training(project_id: int, return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
+    def query_all_project_training(project_id: int,
+                                   deployment_type: Union[str, IntEnum],
+                                   return_dict: bool = False,
+                                   for_data_table: bool = False,
+                                   progress_preprocessing: bool = False
+                                   ) -> Union[List[namedtuple], List[dict]]:
 
         ID_string = "id" if for_data_table else "ID"
         query_all_project_training_SQL = f"""
@@ -388,8 +404,12 @@ class Training(BaseTraining):
                 query_all_project_training_SQL, conn,
                 query_all_project_training_vars, fetch_col_name=True, return_dict=return_dict)
 
-            all_project_training = datetime_formatter(
-                all_project_training_query_return, return_dict=return_dict)
+            if progress_preprocessing:
+                all_project_training = Training.datetime_progress_preprocessing(
+                    all_project_training, return_dict)
+            else:
+                all_project_training = datetime_formatter(
+                    all_project_training_query_return, return_dict=return_dict)
 
         except TypeError as e:
 
@@ -445,6 +465,87 @@ class Training(BaseTraining):
             log_error(
                 f"Failed to stored **{self.name}** training information in database")
             return False
+
+    @staticmethod
+    def datetime_progress_preprocessing(all_project_training: Union[List[namedtuple], List[Dict]],
+                                        deployment_type: Union[str, IntEnum],
+                                        return_dict: bool = False
+                                        ) -> Union[List[namedtuple], List[Dict]]:
+        """Preprocess Date/Time and Progress column
+
+        Args:
+            all_project_training (Union[List[namedtuple], List[Dict]]): All Project Training query results
+            return_dict (bool, optional): True if all_project_training is type Dict. Defaults to False.
+
+        Returns:
+            Union[List[namedtuple], List[Dict]]: Formatted list of all_project_training
+        """
+        log_info(f"Formatting Date/Time and Progress column......")
+
+        deployment_type = Deployment.get_deployment_type(
+            deployment_type)  # Make sure it is IntEnum
+
+        # get progress tags based on Deployment Type
+        progress_tag = PROGRESS_TAGS[deployment_type]
+
+        formatted_all_project_training = []
+        for project_training in all_project_training:
+            # convert datetime with TZ to (2021-07-30 12:12:12) format
+            if return_dict:
+                converted_datetime = project_training["Date/Time"].strftime(
+                    '%Y-%m-%d %H:%M:%S')
+                project_training["Date/Time"] = converted_datetime
+
+                if project_training['Is Started'] == True:
+                    # Preprocess
+                    progress_value = []
+
+                    for tag in progress_tag:
+                        # for k, v in project_training["Progress"].items():
+
+                        # if k in progress_tag:
+
+                        v = project_training["Progress"].get(
+                            tag)if project_training["Progress"].get(
+                            tag) is not None else '-'
+                        progress_value.append(str(v))
+
+                    progress_row = join_string(progress_value, ' / ')
+
+                    project_training["Progress"] = progress_row
+                else:
+                    project_training["Progress"] = '-'
+
+            else:
+                converted_datetime = project_training.Date_Time.strftime(
+                    '%Y-%m-%d %H:%M:%S')
+
+                project_training = project_training._replace(
+                    Date_Time=converted_datetime)
+
+                if project_training.Is_Started == True:
+                    # Preprocess
+                    progress_value = []
+                    # for k, v in project_training.Progress.items():
+                    for tag in progress_tag:
+
+                        v = project_training.Progress.get(
+                            tag)if project_training.Progress.get(
+                            tag) is not None else '-'
+                        progress_value.append(str(v))
+
+                    progress_row = join_string(progress_value, ' / ')
+
+                    project_training = project_training._replace(
+                        Progress=progress_row)
+
+                else:
+                    project_training = project_training._replace(
+                        Progress='-')
+
+            formatted_all_project_training.append(project_training)
+
+        return formatted_all_project_training
 
     @staticmethod
     def reset_training_page():
