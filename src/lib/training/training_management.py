@@ -138,7 +138,6 @@ class NewTraining(BaseTraining):
     # TODO *************************************
 
 # TODO #109 Update Check if exist and check if field exist
-#  to be wrapper func of check_if_exist() in form_manager.py
 
     # Wrapper for check_if_exists function from form_manager.py
     def check_if_exists(self, context: Dict, conn) -> bool:
@@ -315,6 +314,15 @@ class NewTraining(BaseTraining):
                         insert_training_dataset_vars)
 
         return self.id
+
+    # TODO #133 Add New Training Reset
+    @staticmethod
+    def reset_new_training_page():
+
+        new_training_attributes = ["new_training", "new_training_name",
+                                   "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
+
+        reset_page_attributes(new_training_attributes)
 
 
 class Training(BaseTraining):
