@@ -236,7 +236,8 @@ class BaseModel:
 
             project_model_path = PROJECT_DIR / \
                 get_directory_name(query_result.Project_Name) / get_directory_name(
-                    query_result.Training_Name) / get_directory_name(query_result.Framework) / 'exported_models' / query_result.Model_Path
+                    query_result.Training_Name) / get_directory_name(query_result.Framework) /\
+                'exported_models' / query_result.Model_Path
             return project_model_path
 
 
