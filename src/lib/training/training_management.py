@@ -10,7 +10,7 @@ import sys
 from enum import IntEnum
 from pathlib import Path
 from time import sleep
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
 from collections import namedtuple
 import pandas as pd
 import streamlit as st
@@ -404,9 +404,11 @@ class Training(BaseTraining):
                 query_all_project_training_SQL, conn,
                 query_all_project_training_vars, fetch_col_name=True, return_dict=return_dict)
 
+
             if progress_preprocessing:
                 all_project_training = Training.datetime_progress_preprocessing(
-                    all_project_training, return_dict)
+                    all_project_training_query_return, deployment_type, return_dict)
+
             else:
                 all_project_training = datetime_formatter(
                     all_project_training_query_return, return_dict=return_dict)
@@ -467,10 +469,10 @@ class Training(BaseTraining):
             return False
 
     @staticmethod
-    def datetime_progress_preprocessing(all_project_training: Union[List[namedtuple], List[Dict]],
+    def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
                                         deployment_type: Union[str, IntEnum],
                                         return_dict: bool = False
-                                        ) -> Union[List[namedtuple], List[Dict]]:
+                                        ) -> Union[List[NamedTuple], List[Dict]]:
         """Preprocess Date/Time and Progress column
 
         Args:

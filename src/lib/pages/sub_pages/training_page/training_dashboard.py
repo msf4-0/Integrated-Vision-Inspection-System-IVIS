@@ -6,9 +6,10 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 
 import sys
-from pathlib import Path
 from enum import IntEnum
+from pathlib import Path
 from time import sleep
+
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -28,14 +29,16 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
-from project.project_management import ExistingProjectPagination, ProjectPermission, Project
-from training.training_management import TrainingPagination, Training
+from data_table import data_table
 from pages.sub_pages.training_page import new_training
+from path_desc import chdir_root
+from project.project_management import Project, ProjectPermission
+from training.training_management import Training, TrainingPagination
 # >>>> TEMP
 from user.user_management import User
+
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -44,9 +47,13 @@ conn = init_connection(**st.secrets["postgres"])
 # >>>> Variable Declaration >>>>
 
 place = {}
-DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-                   "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
+PROGRESS_COLUMN_HEADER = {
+    "Image Classification": 'Steps',
+    "Object Detection with Bounding Boxes": 'Checkpoint / Steps',
+    "Semantic Segmentation with Polygons": 'Checkpoint / Steps',
+    "Semantic Segmentation with Masks": 'Checkpoint / Steps'
+}
 
 chdir_root()  # change to root directory
 
@@ -54,40 +61,36 @@ chdir_root()  # change to root directory
 def dashboard():
     log_info(f"Top of Training Dashboard")
     st.write(f"### Dashboard")
-
-    # ********* QUERY PROJECT TRAINING ********************************************
+   
+    # >>>> QUERY PROJECT TRAINING >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # namedtuple of query from DB
-
     all_project_training, project_training_column_names = Training.query_all_project_training(session_state.project.id,
-                                                                                              return_dict=True, for_data_table=True)
-
-    # ********* QUERY PROJECT TRAINING ********************************************
+                                                                                              deployment_type=session_state.project.deployment_type,
+                                                                                              return_dict=True,
+                                                                                              for_data_table=True,
+                                                                                              progress_preprocessing=True)
 
     # ******** SESSION STATE *********************************************************
-    if "project_training_table" not in session_state:
-        session_state.project_training_table = None
-    # ******** SESSION STATE *********************************************************
+    if "training_dashboard_table" not in session_state:
+        session_state.training_dashboard_table = None
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     create_new_training_button_col1 = st.empty()
 
-    # ************COLUMN PLACEHOLDERS *****************************************************
-
     # ***************** CREATE NEW PROJECT BUTTON *********************************************************
+
     def to_new_training_page():
 
         session_state.training_pagination = TrainingPagination.New
 
-        if "project_training_table" in session_state:
-            del session_state.project_training_table
+        if "training_dashboard_table" in session_state:
+            del session_state.training_dashboard_table
 
     create_new_training_button_col1.button(
         "Create New Training Session", key='create_new_training_from_training_dashboard',
         on_click=to_new_training_page, help="Create a new training session")
 
     # add function to preprocess progress column
-
-    # ***************** CREATE NEW PROJECT BUTTON *********************************************************
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
@@ -97,7 +100,7 @@ def dashboard():
             'headerName': "ID",
             'headerAlign': "center",
             'align': "center",
-            'flex': 70,
+            'flex': 50,
             'hideSortIcons': True,
 
         },
@@ -114,14 +117,14 @@ def dashboard():
             'headerAlign': "center",
             'align': "center",
             'flex': 150,
-            'hideSortIcons': False,
+            'hideSortIcons': True,
         },
         {
             'field': "Base Model Name",
             'headerAlign': "center",
             'align': "center",
             'flex': 150,
-            'hideSortIcons': False,
+            'hideSortIcons': True,
         },
 
         {
@@ -134,11 +137,11 @@ def dashboard():
         },
         {
             'field': "Progress",
-            'headerName': "Steps / Checkpoint",
+            'headerName': f"{PROGRESS_COLUMN_HEADER[session_state.project.deployment_type]}",
             'headerAlign': "center",
             'align': "center",
             'flex': 150,
-            'hideSortIcons': False,
+            'hideSortIcons': True,
         },
         {
             'field': "Date/Time",
@@ -151,6 +154,10 @@ def dashboard():
 
 
     ]
+    training_dashboard_data_table_place = st.empty()
+    with training_dashboard_data_table_place:
+        data_table(all_project_training, project_training_columns,
+                   checkbox=False, key='training_dashboard_table')
 
 
 def index():

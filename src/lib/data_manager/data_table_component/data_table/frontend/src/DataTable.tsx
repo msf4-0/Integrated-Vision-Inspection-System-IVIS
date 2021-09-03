@@ -21,8 +21,9 @@ interface ComponentTheme {
   font: string | undefined;
 }
 
+// TODO #134 Pending Text Wrap for Cells 
+
 function DataTable({ args, theme }: ComponentProps): ReactElement {
-  // TODO #28 Get data from Streamlit Python
 
   //Define Rows and Columns
   const rows: GridRowsProp = args.rows;
