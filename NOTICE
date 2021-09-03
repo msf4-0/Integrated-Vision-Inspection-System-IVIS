@@ -16,11 +16,23 @@ limitations under the License.
 This product includes software developed at
 Copyright 2020-2021 Heartex, Inc (https://heartex.com/)
 
-   =========================================================================
-   ==  NOTICE file corresponding to the section 4 d of                    ==
-   ==  the Apache License, Version 2.0,                                   ==
-   ==  in this case for the Label Studio Frontend code.                   ==
-   =========================================================================
+=========================================================================
+== NOTICE file corresponding to the section 4 d of ==
+== the Apache License, Version 2.0, ==
+== in this case for the Label Studio Frontend code. ==
+=========================================================================
 
 These files are Copyright 2020-2021 Heartex, Inc, but released under
 the Apache2 License.
+
+This product includes software developed at
+Copyright © 2021 Material-UI (https://material-ui.com/)
+
+=========================================================================
+== NOTICE file corresponding to the section 4 d of ==
+== the Apache License, Version 2.0, ==
+== in this case for the Material-UI X DataGrid. ==
+=========================================================================
+
+These files are Copyright 2021 Heartex, Inc, but released under
+the MIT License.
