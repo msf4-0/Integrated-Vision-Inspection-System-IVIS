@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Callable, Optional, Tuple, List, Dict
 import streamlit as st
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                        page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 import streamlit.components.v1 as components
 from streamlit import session_state as session_state
 
@@ -124,7 +124,7 @@ def data_table(
 # if not _RELEASE:
 #     import streamlit as st
 #     from streamlit import session_state as session_state
-    
+
 
 #     import pandas as pd
 #     from pathlib import Path

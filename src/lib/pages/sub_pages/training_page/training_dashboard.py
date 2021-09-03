@@ -79,23 +79,24 @@ chdir_root()  # change to root directory
 def dashboard():
     log_info(f"Top of Training Dashboard")
     st.write(f"### Dashboard")
-   
+
     # >>>> QUERY PROJECT TRAINING >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # namedtuple of query from DB
-    all_project_training, project_training_column_names = Training.query_all_project_training(session_state.project.id,
-                                                                                              deployment_type=session_state.project.deployment_type,
-                                                                                              return_dict=True,
-                                                                                              for_data_table=True,
-                                                                                              progress_preprocessing=True)
+    all_project_training, project_training_column_names = \
+        Training.query_all_project_training(session_state.project.id,
+                                            deployment_type=session_state.project.deployment_type,
+                                            return_dict=True,
+                                            for_data_table=True,
+                                            progress_preprocessing=True)
 
-    # ******** SESSION STATE *********************************************************
+    # ************************* SESSION STATE ************************************************
     if "training_dashboard_table" not in session_state:
         session_state.training_dashboard_table = None
 
-    # ************COLUMN PLACEHOLDERS *****************************************************
+    # ***************************COLUMN PLACEHOLDERS *****************************************
     create_new_training_button_col1 = st.empty()
 
-    # ***************** CREATE NEW PROJECT BUTTON *********************************************************
+    # ****************************** CREATE NEW PROJECT BUTTON ****************************************
 
     def to_new_training_page():
 
@@ -126,7 +127,7 @@ def dashboard():
             'field': "Training Name",
             'headerAlign': "center",
             'align': "center",
-            'flex': 200,
+            'flex': 150,
             'hideSortIcons': False,
         },
 
@@ -134,14 +135,14 @@ def dashboard():
             'field': "Model Name",
             'headerAlign': "center",
             'align': "center",
-            'flex': 150,
+            'flex': 120,
             'hideSortIcons': True,
         },
         {
             'field': "Base Model Name",
             'headerAlign': "center",
             'align': "center",
-            'flex': 150,
+            'flex': 170,
             'hideSortIcons': True,
         },
 
@@ -149,7 +150,7 @@ def dashboard():
             'field': "Is Started",
             'headerAlign': "center",
             'align': "center",
-            'flex': 100,
+            'flex': 80,
             'hideSortIcons': True,
             'type': 'boolean',
         },
@@ -158,7 +159,7 @@ def dashboard():
             'headerName': f"{PROGRESS_COLUMN_HEADER[session_state.project.deployment_type]}",
             'headerAlign': "center",
             'align': "center",
-            'flex': 150,
+            'flex': 120,
             'hideSortIcons': True,
         },
         {
@@ -172,7 +173,10 @@ def dashboard():
 
 
     ]
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     training_dashboard_data_table_place = st.empty()
+
     with training_dashboard_data_table_place:
         data_table(all_project_training, project_training_columns,
                    checkbox=False, key='training_dashboard_table')

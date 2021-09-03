@@ -11,6 +11,7 @@
     "python.autoComplete.extraPaths": [
       "/home/rchuzh/programming/image_labelling_shrdc/src/lib/.",
       "/home/rchuzh/programming/image_labelling_shrdc/test/.",
+      "/home/rchuzh/programming/image_labelling_shrdc/src/lib/pages/sub_pages/.",
       "D:\\hao\\image_labelling_shrdc\\src\\test",
       "D:\\hao\\image_labelling_shrdc\\src\\lib",
       "D:\\hao\\image_labelling_shrdc\\src\\test\\test_page\\module"
@@ -18,6 +19,7 @@
     "python.analysis.extraPaths": [
       "/home/rchuzh/programming/image_labelling_shrdc/src/lib/.",
       "/home/rchuzh/programming/image_labelling_shrdc/test/.",
+      "/home/rchuzh/programming/image_labelling_shrdc/src/lib/pages/sub_pages/.",
       "D:\\hao\\image_labelling_shrdc\\src\\test",
       "D:\\hao\\image_labelling_shrdc\\src\\lib",
       "D:\\hao\\image_labelling_shrdc\\src\\test\\test_page\\module"
@@ -29,6 +31,8 @@
     "githubIssues.issueCompletionFormatScm": "${issueTitle} ${issueNumberLabel} ${user}",
     "pgFormatter.commaBreak": true,
     "pgFormatter.commaStart": true,
-    "sql-formatter.uppercase": true
+    "sql-formatter.uppercase": true,
+    "editor.bracketPairColorization.enabled": true,
+    "editor.suggest.preview": true
   }
 }

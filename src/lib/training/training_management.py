@@ -50,6 +50,8 @@ from deployment.deployment_management import Deployment, DeploymentType
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
 
+# *********************PAGINATION**********************
+
 
 class TrainingPagination(IntEnum):
     Dashboard = 0
@@ -64,6 +66,23 @@ class TrainingPagination(IntEnum):
     def from_string(cls, s):
         try:
             return TrainingPagination[s]
+        except KeyError:
+            raise ValueError()
+
+
+class NewTrainingPagination(IntEnum):
+    InfoDataset = 0
+    Model = 1
+    TrainingConfig = 2
+    AugmentationConfig = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return NewTrainingPagination[s]
         except KeyError:
             raise ValueError()
 
@@ -403,7 +422,6 @@ class Training(BaseTraining):
             all_project_training_query_return, column_names = db_fetchall(
                 query_all_project_training_SQL, conn,
                 query_all_project_training_vars, fetch_col_name=True, return_dict=return_dict)
-
 
             if progress_preprocessing:
                 all_project_training = Training.datetime_progress_preprocessing(
