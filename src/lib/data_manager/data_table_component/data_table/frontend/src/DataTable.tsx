@@ -30,7 +30,7 @@ import {
   GridColDef,
   GridRowId,
 } from "@material-ui/data-grid";
-import { makeStyles } from "@material-ui/styles";
+import { makeStyles, createStyles } from "@material-ui/styles";
 
 //To store object of Streamlit Theme props
 interface ComponentTheme {
@@ -106,68 +106,70 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
     };
   }
 
-  const useStyles = makeStyles({
-    root: {
-      //set border colour based on active background color from Streamlit
-      //supports Light and Dark mode
-      border: `1px solid ${
-        myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "#98989A"
-      }`,
-
-      height: "auto",
-      color:
-        myTheme.backgroundColor === "#ffffff"
-          ? "rgba(0,0,0,1)"
-          : "rgba(255,255,255,1)",
-      fontFamily: [
-        myTheme.font,
-        "-apple-system",
-        "BlinkMacSystemFont",
-        '"Segoe UI"',
-        "Roboto",
-        '"Helvetica Neue"',
-        "Arial",
-        "sans-serif",
-        '"Apple Color Emoji"',
-        '"Segoe UI Emoji"',
-        '"Segoe UI Symbol"',
-      ].join(","),
-      WebkitFontSmoothing: "auto",
-      letterSpacing: "normal",
-      "& .MuiDataGrid-columnsContainer": {
-        backgroundColor:
-          myTheme.backgroundColor === "#ffffff"
-            ? "#fafafa"
-            : myTheme.secondaryBackgroundColor, //working
-      },
-      "& .MuiDataGrid-iconSeparator": {
-        display: "none",
-      },
-      "& .MuiDataGrid-columnHeader, .MuiDataGrid-cell": {
-        //working
-        borderRight: `1px solid ${
-          myTheme.backgroundColor === "#ffffff"
-            ? "#f0f0f0"
-            : myTheme.secondaryBackgroundColor
+  const useStyles = makeStyles(() =>
+    createStyles({
+      root: {
+        //set border colour based on active background color from Streamlit
+        //supports Light and Dark mode
+        border: `1px solid ${
+          myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "#98989A"
         }`,
-      },
 
-      // "& .MuiDataGrid-columnsContainer, .MuiDataGrid-cell": {
-      //   borderBottom: `1px solid ${
-      //     myTheme.backgroundColor === "#ffffff"
-      //       ? "#f0f0f0"
-      //       : myTheme.secondaryBackgroundColor
-      //   }`,
-      // },
-      // "& .MuiDataGrid-cell": {
-      //   color: myTheme.textColor,
-      // },
-      "& .MuiPagination-root": {
-        color: "secondary",
+        height: "auto",
+        color:
+          myTheme.backgroundColor === "#ffffff"
+            ? "rgba(0,0,0,1)"
+            : "rgba(255,255,255,1)",
+        fontFamily: [
+          myTheme.font,
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          '"Helvetica Neue"',
+          "Arial",
+          "sans-serif",
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+        ].join(","),
+        WebkitFontSmoothing: "auto",
+        letterSpacing: "normal",
+        "& .MuiDataGrid-columnsContainer": {
+          backgroundColor:
+            myTheme.backgroundColor === "#ffffff"
+              ? "#fafafa"
+              : myTheme.secondaryBackgroundColor, //working
+        },
+        "& .MuiDataGrid-iconSeparator": {
+          display: "none",
+        },
+        "& .MuiDataGrid-columnHeader, .MuiDataGrid-cell": {
+          //working
+          borderRight: `1px solid ${
+            myTheme.backgroundColor === "#ffffff"
+              ? "#f0f0f0"
+              : myTheme.secondaryBackgroundColor
+          }`,
+        },
+
+        // "& .MuiDataGrid-columnsContainer, .MuiDataGrid-cell": {
+        //   borderBottom: `1px solid ${
+        //     myTheme.backgroundColor === "#ffffff"
+        //       ? "#f0f0f0"
+        //       : myTheme.secondaryBackgroundColor
+        //   }`,
+        // },
+        // "& .MuiDataGrid-cell": {
+        //   color: myTheme.textColor,
+        // },
+        "& .MuiPagination-root": {
+          color: "secondary",
+        },
+        ...customCheckbox(), // Custom Checkbox
       },
-      ...customCheckbox(), // Custom Checkbox
-    },
-  });
+    })
+  );
 
   // TODO #27 Add dark mode for Pagination
   const classes = useStyles();
