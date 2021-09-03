@@ -115,6 +115,9 @@ def index():
 
     if "new_training_pagination" not in session_state:
         session_state.new_training_pagination = NewTrainingPagination.InfoDataset
+
+    if "new_training_place" not in session_state:
+        session_state.new_training_place = {}
     # ******** SESSION STATE *********************************************************
 
     # >>>> Page title
@@ -126,8 +129,10 @@ def index():
     dt_place, id_right = st.columns([3, 1])
     # right-align the training ID relative to the page
 
+    # Placeholder for Training Sub-sections
     new_training_section_place = st.empty()
 
+    # Placeholder for Back and Next button for page navigation
     new_training_section_back_button_place, _,\
         new_training_section_next_button_place = st.columns([1, 3, 1])
     # ************COLUMN PLACEHOLDERS *****************************************************
@@ -161,7 +166,7 @@ def index():
 
     if session_state.new_training_pagination < NewTrainingPagination.AugmentationConfig:
         def to_new_training_next_page():
-            if session_state.new_training_pagination <NewTrainingPagination.AugmentationConfig:
+            if session_state.new_training_pagination < NewTrainingPagination.AugmentationConfig:
                 session_state.new_training_pagination += 1
 
         with new_training_section_next_button_place:
@@ -169,7 +174,8 @@ def index():
                       on_click=to_new_training_next_page)
     log_info(
         f" New Training Pagination: {NewTrainingPagination(session_state.new_training_pagination)}")
-    with new_training_section_place:
+
+    with new_training_section_place.container():
         new_training_page[session_state.new_training_pagination]()
 
 

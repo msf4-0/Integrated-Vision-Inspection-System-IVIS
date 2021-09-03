@@ -31,7 +31,6 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-import numpy as np  # TEMP for table viz
 from core.utils.code_generator import get_random_string
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.helper import create_dataframe, get_df_row_highlight_color
@@ -602,7 +601,7 @@ def index():
         st.markdown("""___""")
         # ****************************** HEADER **********************************************
         new_training_page()
-        # TODO #108 Add Return to Training Dashboard Button with Callback
+
 
 
 if __name__ == "__main__":
