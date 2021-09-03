@@ -153,10 +153,8 @@ class BaseProject:
         self.image_name_list: List = []  # for image_labelling
         self.annotation_task_join = []  # for image_labelling
 
-
-
-
     # DEPRECATED
+
     @st.cache(ttl=60)
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
@@ -267,6 +265,7 @@ class Project(BaseProject):
                 f"Project with ID: {self.id} does not exists in the database!!!")
         return project_field
 
+    @st.cache(ttl=60)
     def query_project_dataset_list(self) -> List:
         query_project_dataset_SQL = """
                                 SELECT
@@ -331,8 +330,8 @@ class Project(BaseProject):
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
 
-
     # DEPRECATED
+
     @st.cache
     def load_dataset(self) -> List:
         """Loads data from the dataset directory and stored as Numpy arrays using OpenCV. 
@@ -398,7 +397,6 @@ class Project(BaseProject):
                 data_name_list[d.Name] = sorted(data_name_tmp)
 
             return data_name_list
-
 
     # *************************************************************************************************************************
     # TODO #81 Add reset to project page *************************************************************************************

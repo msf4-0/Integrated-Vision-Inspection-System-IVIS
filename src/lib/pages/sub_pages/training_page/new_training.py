@@ -65,7 +65,6 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
-place = {}
 
 
 def index():
@@ -129,12 +128,6 @@ def index():
     dt_place, id_right = st.columns([3, 1])
     # right-align the training ID relative to the page
 
-    # Placeholder for Training Sub-sections
-    new_training_section_place = st.empty()
-
-    # Placeholder for Back and Next button for page navigation
-    new_training_section_back_button_place, _,\
-        new_training_section_next_button_place = st.columns([1, 3, 1])
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     with dt_place:
@@ -153,6 +146,13 @@ def index():
         NewTrainingPagination.TrainingConfig: new_training_training_config.training_configuration,
         NewTrainingPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration
     }
+
+    new_training_page[session_state.new_training_pagination]()
+
+# ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
+    # Placeholder for Back and Next button for page navigation
+    new_training_section_back_button_place, _,\
+        new_training_section_next_button_place = st.columns([1, 3, 1])
 
     if session_state.new_training_pagination > NewTrainingPagination.InfoDataset:
 
@@ -174,9 +174,6 @@ def index():
                       on_click=to_new_training_next_page)
     log_info(
         f" New Training Pagination: {NewTrainingPagination(session_state.new_training_pagination)}")
-
-    with new_training_section_place.container():
-        new_training_page[session_state.new_training_pagination]()
 
 
 if __name__ == "__main__":

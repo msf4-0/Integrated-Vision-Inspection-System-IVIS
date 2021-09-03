@@ -187,51 +187,6 @@ class NewTraining(BaseTraining):
         # True if not empty, False otherwise
         return empty_fields
 
-    # NOTE DEPRECATED
-    # TODO Remove
-    # def check_if_field_empty(self, field: List, field_placeholder) -> bool:
-    #     empty_fields = []
-    #     keys = ["name", "dataset_chosen", "model"]
-    #     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-    #     for i in field:
-    #         if i and i != "":
-    #             if field.index(i) == 0:
-    #                 context = ['name', field[0]]
-    #                 if self.check_if_exist(context, conn):
-    #                     field_placeholder[keys[0]].error(
-    #                         f"Project name used. Please enter a new name")
-    #                     log_error(
-    #                         f"Project name used. Please enter a new name")
-    #                     empty_fields.append(keys[0])
-
-    #             else:
-    #                 pass
-    #         else:
-
-    #             idx = field.index(i)
-    #             field_placeholder[keys[idx]].error(
-    #                 f"Please do not leave field blank")
-    #             empty_fields.append(keys[idx])
-
-    #     # if empty_fields not empty -> return False, else -> return True
-    #     return not empty_fields
-
-    # # NOTE DEPRECATED
-    # # TODO Remove
-    # def check_if_exist(self, context: List, conn) -> bool:
-    #     check_exist_SQL = """
-    #                         SELECT
-    #                             EXISTS (
-    #                                 SELECT
-    #                                     %s
-    #                                 FROM
-    #                                     public.training
-    #                                 WHERE
-    #                                     name = %s);
-    #                     """
-    #     exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
-    #     return exist_status
-
     def insert_training(self, model: Model, project: Project):
 
         # insert into training table

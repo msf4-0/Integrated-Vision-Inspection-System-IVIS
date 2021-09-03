@@ -60,7 +60,7 @@ chdir_root()
 def infodataset():
 
     # ************COLUMN PLACEHOLDERS *****************************************************
-
+    st.write("___")
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
 
     info_dataset_divider = st.empty()
@@ -103,8 +103,8 @@ def infodataset():
 
         else:
             pass
-   
-    with infocol2:
+
+    with infocol2.container():
 
         # **** TRAINING TITLE ****
         st.text_input(
@@ -125,6 +125,111 @@ def infodataset():
             pass
 
     # <<<<<<<< New Training INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# >>>>>>>> Choose Dataset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    info_dataset_divider.write("___")
+
+    datasetcol1.write("## __Dataset :__")
+
+    # ******************************* Right Column to select dataset *******************************
+    with datasetcol3.container():
+
+        # >>>> Store SELECTED DATASET >>>>
+        session_state.new_training.dataset_chosen = st.multiselect(
+            "Dataset List", key="new_training_dataset_chosen",
+            options=session_state.project.dataset_dict, help="Assign dataset to the training")
+        session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
+        )
+
+        if len(session_state.new_training.dataset_chosen) > 0:
+
+            # TODO #111 Dataset Partition Config
+            # >>>> DATASET PARTITION CONFIG >>>>
+            session_state.new_training.partition_ratio = st.number_input(
+                "Dataset Partition Ratio", min_value=0.5, max_value=1.0, value=0.8, step=0.1, key="partition_ratio")
+            with st.expander("Partition info"):
+                st.info("Ratio of Training datasets to Evaluation datasets. Example: '0.5' means the dataset are split randomly and equally into training and evaluation datasets.")
+
+            # >>>> DISPLAY DATASET CHOSEN >>>>
+            st.write("### Dataset choosen:")
+            for idx, data in enumerate(session_state.new_training.dataset_chosen):
+                st.write(f"{idx+1}. {data}")
+
+        elif len(session_state.new_training.dataset_chosen) == 0:
+            session_state.new_training_place["new_training_dataset_chosen"].info(
+                "No dataset selected")
+
+    # ******************************* Right Column to select dataset *******************************
+
+    # ******************* Left Column to show full list of dataset and selection *******************
+    if "dataset_page" not in session_state:
+        session_state.new_training_dataset_page = 0
+
+    with datasetcol2.container():
+        start = 10 * session_state.new_training_dataset_page
+        end = start + 10
+
+        # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        df = create_dataframe(session_state.project.datasets,
+                              column_names=session_state.project.column_names,
+                              sort=True, sort_by='ID', asc=True, date_time_format=True)
+
+        df_loc = df.loc[:, "ID":"Date/Time"]
+        df_slice = df_loc.iloc[start:end]
+
+        # GET color from active theme
+        df_row_highlight_color = get_df_row_highlight_color()
+
+        def highlight_row(x, selections):
+
+            if x.Name in selections:
+
+                return [f'background-color: {df_row_highlight_color}'] * len(x)
+            else:
+                return ['background-color: '] * len(x)
+
+        styler = df_slice.style.apply(
+            highlight_row, selections=session_state.new_training.dataset_chosen, axis=1)
+
+        # >>>>DATAFRAME
+        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+            [dict(selector='th', props=[('text-align', 'center')])]))
+    # ******************* Left Column to show full list of dataset and selection *******************
+
+    # **************************************** DATASET PAGINATION ****************************************
+
+    # >>>> PAGINATION CALLBACK >>>>
+    def next_page():
+        session_state.new_training_dataset_page += 1
+
+    def prev_page():
+        session_state.new_training_dataset_page -= 1
+
+    # _, col1, _, col2, _, col3, _ = st.columns(
+    #     [1.5, 0.15, 0.5, 0.45, 0.5, 0.15, 2.25])
+
+    num_dataset_per_page = 10
+    num_dataset_page = len(
+        session_state.project.dataset_dict) // num_dataset_per_page
+
+    if num_dataset_page > 1:
+        if session_state.new_training_dataset_page < num_dataset_page:
+            dataset_button_col3.button(">", on_click=next_page)
+        else:
+            # this makes the empty column show up on mobile
+            dataset_button_col3.write("")
+
+        if session_state.new_training_dataset_page > 0:
+            dataset_button_col1.button("<", on_click=prev_page)
+        else:
+            # this makes the empty column show up on mobile
+            dataset_button_col1.write("")
+
+        dataset_button_col2.write(
+            f"Page {1+session_state.new_training_dataset_page} of {num_dataset_page}")
+    # **************************************** DATASET PAGINATION ****************************************
+
+# <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
 if __name__ == "__main__":
