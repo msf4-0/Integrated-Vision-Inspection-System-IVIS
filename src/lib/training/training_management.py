@@ -166,7 +166,7 @@ class NewTraining(BaseTraining):
         self.model_selected = None  # TODO
     # TODO *************************************
 
-# TODO #109 Update Check if exist and check if field exist
+
 
     # Wrapper for check_if_exists function from form_manager.py
     def check_if_exists(self, context: Dict, conn) -> bool:
