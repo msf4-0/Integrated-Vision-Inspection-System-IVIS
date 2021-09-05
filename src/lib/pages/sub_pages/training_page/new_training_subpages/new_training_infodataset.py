@@ -144,17 +144,43 @@ def infodataset():
         if len(session_state.new_training.dataset_chosen) > 0:
 
             # TODO #111 Dataset Partition Config
-            # >>>> DATASET PARTITION CONFIG >>>>
-            session_state.new_training.partition_ratio = st.number_input(
-                "Dataset Partition Ratio", min_value=0.5, max_value=1.0, value=0.8, step=0.1, key="partition_ratio")
+
+            def update_dataset_partition_ratio():
+
+                # if session_state.test_partition == True:
+                session_state.new_training.partition_ratio['train'] = session_state.partition_slider[0]
+                session_state.new_training.partition_ratio['eval'] = round(session_state.partition_slider[1] -
+                                                                           session_state.partition_slider[0], 2)
+                session_state.new_training.partition_ratio['test'] = round(
+                    1.0 - session_state.partition_slider[1], 2)
+
+            # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            st.slider("Dataset Partition Ratio",
+                      min_value=0.5, max_value=1.0,
+                      value=(0.8, 0.9), step=0.1,
+                      key="partition_slider", on_change=update_dataset_partition_ratio)
+
             with st.expander("Partition info"):
                 st.info("Ratio of Training datasets to Evaluation datasets. Example: '0.5' means the dataset are split randomly and equally into training and evaluation datasets.")
+
+            session_state.new_training.calc_dataset_partition_size(
+                session_state.project.dataset_dict)
+
+            st.info(f"""
+            ### Train Dataset Ratio: {session_state.new_training.partition_ratio['train']} ({session_state.new_training.partition_size['train']} data)
+            ### Evaluation Dataset Ratio: {session_state.new_training.partition_ratio['eval']} ({session_state.new_training.partition_size['eval']} data)
+            ### Test Dataset Ratio: {session_state.new_training.partition_ratio['test']} ({session_state.new_training.partition_size['test']} data)
+            """)
+
+            if session_state.new_training.partition_ratio['eval'] <= 0:
+                st.error(
+                    f"Evaluation Dataset Partition Ratio should be more than 0.1")
 
             # >>>> DISPLAY DATASET CHOSEN >>>>
             st.write("### Dataset choosen:")
             for idx, data in enumerate(session_state.new_training.dataset_chosen):
                 st.write(f"{idx+1}. {data}")
-
+            # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         elif len(session_state.new_training.dataset_chosen) == 0:
             session_state.new_training_place["new_training_dataset_chosen"].info(
                 "No dataset selected")
@@ -228,7 +254,6 @@ def infodataset():
         dataset_button_col2.write(
             f"Page {1+session_state.new_training_dataset_page} of {num_dataset_page}")
     # **************************************** DATASET PAGINATION ****************************************
-
 # <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 

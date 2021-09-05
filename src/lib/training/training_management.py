@@ -12,6 +12,7 @@ from pathlib import Path
 from time import sleep
 from typing import Dict, List, NamedTuple, Optional, Union
 from collections import namedtuple
+from math import floor, ceil
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -139,7 +140,16 @@ class BaseTraining:
         self.model = None  # TODO
         self.model_path: str = None
         self.framework: str = None
-        self.partition_ratio: float = 0.5
+        self.partition_ratio: Dict = {
+            'train': 0.8,
+            'eval': 0.2,
+            'test': 0
+        }  # UPDATED
+        self.partition_size: Dict = {
+            'train': 0,
+            'eval': 0,
+            'test': 0
+        }
         self.dataset_chosen: List = None
         self.training_param_json: Dict = None
         self.augmentation_json: Dict = None
@@ -158,6 +168,37 @@ class BaseTraining:
         framework_list = db_fetchall(get_framework_list_SQL, conn)
         return framework_list
 
+    def calc_total_dataset_size(self, dataset_dict: Dict) -> int:
+        """Calculate the total dataset size for the current training configuration
+
+        Args:
+            dataset_dict (Dict): Dict of datasets attached to project
+
+        Returns:
+            int: Total size of the chosen datasets
+        """
+
+        total_dataset_size = 0
+        for dataset in self.dataset_chosen:
+            dataset_info = dataset_dict.get(dataset) # Get dataset namedtuple from dataset_dict
+            dataset_size = dataset_info.Dataset_Size # Obtain 'Dataset_Size' attribute from namedtuple
+            total_dataset_size += dataset_size
+
+        return total_dataset_size
+
+    def calc_dataset_partition_size(self, dataset_dict: Dict):
+
+        if self.dataset_chosen:
+            total_dataset_size = self.calc_total_dataset_size(dataset_dict)
+
+            self.partition_size['test'] = floor(
+                self.partition_ratio['test'] * total_dataset_size)
+            num_train_eval = total_dataset_size - self.partition_size['test']
+            self.partition_size['train'] = ceil(num_train_eval * (self.partition_ratio['train']) / (
+                self.partition_ratio['train'] + self.partition_ratio['eval']))
+            self.partition_size['eval'] = num_train_eval - \
+                self.partition_size['train']
+
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
@@ -166,9 +207,8 @@ class NewTraining(BaseTraining):
         self.model_selected = None  # TODO
     # TODO *************************************
 
-
-
     # Wrapper for check_if_exists function from form_manager.py
+
     def check_if_exists(self, context: Dict, conn) -> bool:
         table = 'public.training'
 
