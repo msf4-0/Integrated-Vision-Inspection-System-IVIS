@@ -293,6 +293,7 @@ def infodataset():
                 if new_training_infodataset_submission_dict.insert():
                     session_state.new_training_pagination += 1
 
+        # Update if Training has already been submitted prior to this
         elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
             if session_state.new_training.name:
 

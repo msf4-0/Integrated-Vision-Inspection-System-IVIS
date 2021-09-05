@@ -54,7 +54,7 @@ from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import (datetime_formatter, get_directory_name,
-                               join_string)
+                               join_string, NetChange, find_net_change)
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
@@ -124,10 +124,10 @@ class NewTrainingSubmissionHandlers(NamedTuple):
     update: Callable[..., Any]
     context: Dict
     name_key: str
-# <<<< Variable Declaration <<<<
 
+    # <<<< Variable Declaration <<<<
 
-# >>>> TODO >>>>
+    # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
 CLASSIFICATION_LOSS = []
@@ -230,52 +230,114 @@ class BaseTraining:
             self.partition_size['eval'] = num_train_eval - \
                 self.partition_size['train']
 
+    def update_dataset_chosen(self, submitted_dataset_chosen: List, dataset_dict: Dict):
+        # find net change in dataset_chosen List
+        appended_elements, append_flag = find_net_change(
+            self.dataset_chosen, submitted_dataset_chosen)
 
-class NewTraining(BaseTraining):
-    def __init__(self, training_id, project: Project) -> None:
-        super().__init__(training_id, project)
-        self.has_submitted: Dict = {
-            NewTrainingPagination.InfoDataset: False,
-            NewTrainingPagination.Model: False,
-            NewTrainingPagination.TrainingConfig: False,
-            NewTrainingPagination.AugmentationConfig: False
-        }
-        self.model_selected = None  # TODO
-    # TODO *************************************
+        self.dataset_chosen = submitted_dataset_chosen
+        if append_flag == NetChange.Addition:
+            self.insert_training_dataset(appended_elements)
 
-    # Wrapper for check_if_exists function from form_manager.py
+        elif append_flag == NetChange.Removal:
+            self.remove_training_dataset(appended_elements, dataset_dict)
 
-    def check_if_exists(self, context: Dict, conn) -> bool:
-        table = 'public.training'
+        else:
+            log_info(
+                f"There are no change in the dataset chosen {self.dataset_chosen}")
 
-        exists_flag = check_if_exists(
-            table, context['column_name'], context['value'], conn)
+    def remove_training_dataset(self, removed_dataset: List, dataset_dict: Dict):
+        #  remove row from training_dataset
+        remove_training_dataset_SQL = """
+                DELETE FROM public.training_dataset
+                WHERE training_id = %s
+                    AND dataset_id = (
+                        SELECT
+                            id
+                        FROM
+                            public.dataset d
+                        WHERE
+                            d.name = %s)
+                RETURNING
+                    dataset_id;
+                        """
+        for dataset in removed_dataset:
+            remove_training_dataset_vars = [self.id, dataset]
 
-        # return True if exists
-        return exists_flag
+            try:
+                query_return = db_fetchone(
+                    remove_training_dataset_SQL, conn, remove_training_dataset_vars)
 
-    # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str) -> bool:
-        """Check if Compulsory fields are filled and Unique information not 
-        duplicated in the database
+                true_dataset_id = dataset_dict[dataset].ID
+                assert query_return == true_dataset_id, f"Removed wrong dataset of ID {query_return}, should be {true_dataset_id}"
+                log_info(f"Removed Training Dataset {dataset}")
 
-        Args:
-            context (Dict): Dictionary with widget name as key and widget value as value
-            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value. 
-            *Key has same name as its respective widget
+            except Exception as e:
+                log_error(f"{e}")
 
-            name_key (str): Key of Database row name. Used to obtain value from 'context' Dictionary.
-            *Pass 'None' is not required to check row exists
+    def insert_training_dataset(self, added_dataset: List):
+        # submission handler for insertion of rows into training dataset table
+
+        insert_training_dataset_SQL = """
+                    INSERT INTO public.training_dataset (
+                        training_id
+                        , dataset_id)
+                    VALUES (
+                        %s
+                        , (
+                            SELECT
+                                id
+                            FROM
+                                public.dataset d
+                            WHERE
+                                d.name = %s)
+                        ON CONFLICT (training_id
+                            , dataset_id)
+                            DO NOTHING)
+                    """
+        for dataset in added_dataset:
+            insert_training_dataset_vars = [self.id, dataset]
+            db_no_fetch(insert_training_dataset_SQL, conn,
+                        insert_training_dataset_vars)
+
+            log_info(f"Inserted Training Dataset {dataset}")
+
+    def update_training_info(self) -> bool:
+        """Update Training Name, Description, and Partition Size into the database
 
         Returns:
-            bool: True if NOT EMPTY + NOT EXISTS, False otherwise.
+            bool: True is successful, otherwise False
         """
-        check_if_exists = self.check_if_exists
-        empty_fields = check_if_field_empty(
-            context, field_placeholder, name_key, check_if_exists)
+        update_training_info_SQL = """
+            UPDATE
+                public.training
+            SET
+                name = %s
+                , description = %s
+                , partition_size = %s
+            WHERE
+                id = %s
+            RETURNING
+                id;
+        
+                                """
+        partition_size_json = json.dumps(self.partition_size, indent=4)
+        update_training_info_vars = [self.name, self.desc, partition_size_json]
 
-        # True if not empty, False otherwise
-        return empty_fields
+        query_return = db_fetchone(update_training_info_SQL,
+                                   conn,
+                                   update_training_info_vars)
+
+        try:
+            assert self.id == query_return, f'Updated wrong Training of ID {query_return}, which should be {self.id}'
+            log_info(
+                f"Successfully updated New Training Name, Desc and Partition Size for {self.id} ")
+            return True
+
+        except Exception as e:
+            log_error(
+                f"{e}: Failed to update New Training Name, Desc and Partition Size for {self.id}")
+            return False
 
     def insert_training_info(self) -> bool:
         """Insert Training Name, Description and Partition Size into Training table
@@ -337,30 +399,82 @@ class NewTraining(BaseTraining):
         db_no_fetch(insert_project_training_SQL, conn,
                     insert_project_training_vars)
 
-    def insert_training_dataset(self):
-        # submission handler for insertion of rows into training dataset table
-        
-        insert_training_dataset_SQL = """
-                    INSERT INTO public.training_dataset (
-                        training_id
-                        , dataset_id)
-                    VALUES (
-                        %s
-                        , (
-                            SELECT
-                                id
-                            FROM
-                                public.dataset d
-                            WHERE
-                                d.name = %s)
-                        ON CONFLICT (training_id
-                            , dataset_id)
-                            DO NOTHING)
-                    """
-        for dataset in self.dataset_chosen:
-            insert_training_dataset_vars = [self.id, dataset]
-            db_no_fetch(insert_training_dataset_SQL, conn,
-                        insert_training_dataset_vars)
+    def update_training_info_dataset(self,
+                                     submitted_dataset_chosen: List,
+                                     dataset_dict: Dict) -> bool:
+        """Update Training Info and Dataset 
+
+        Args:
+            submitted_dataset_chosen (List): Modified List of Dataset Chosen
+            dataset_dict (Dict): Dictionary of dataset information
+
+        Returns:
+            bool: True upon successful update, False otherwise
+        """
+
+        try:
+
+            assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+
+            self.update_training_info()
+
+            self.update_dataset_chosen(submitted_dataset_chosen=submitted_dataset_chosen,
+                                       dataset_dict=dataset_dict)
+
+            return True
+
+        except Exception as e:
+            log_error(f"{e}")
+            traceback.print_exc()
+
+            return False
+
+
+class NewTraining(BaseTraining):
+    def __init__(self, training_id, project: Project) -> None:
+        super().__init__(training_id, project)
+        self.has_submitted: Dict = {
+            NewTrainingPagination.InfoDataset: False,
+            NewTrainingPagination.Model: False,
+            NewTrainingPagination.TrainingConfig: False,
+            NewTrainingPagination.AugmentationConfig: False
+        }
+        self.model_selected = None  # TODO
+    # TODO *************************************
+
+    # Wrapper for check_if_exists function from form_manager.py
+
+    def check_if_exists(self, context: Dict, conn) -> bool:
+        table = 'public.training'
+
+        exists_flag = check_if_exists(
+            table, context['column_name'], context['value'], conn)
+
+        # return True if exists
+        return exists_flag
+
+    # Wrapper for check_if_exists function from form_manager.py
+    def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str) -> bool:
+        """Check if Compulsory fields are filled and Unique information not 
+        duplicated in the database
+
+        Args:
+            context (Dict): Dictionary with widget name as key and widget value as value
+            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value. 
+            *Key has same name as its respective widget
+
+            name_key (str): Key of Database row name. Used to obtain value from 'context' Dictionary.
+            *Pass 'None' is not required to check row exists
+
+        Returns:
+            bool: True if NOT EMPTY + NOT EXISTS, False otherwise.
+        """
+        check_if_exists = self.check_if_exists
+        empty_fields = check_if_field_empty(
+            context, field_placeholder, name_key, check_if_exists)
+
+        # True if not empty, False otherwise
+        return empty_fields
 
     def insert_training_info_dataset(self):
 
@@ -377,7 +491,7 @@ class NewTraining(BaseTraining):
             self.insert_project_training()
 
             # Insert Training Dataset
-            self.insert_training_dataset()
+            self.insert_training_dataset(added_dataset=self.dataset_chosen)
 
             return True
 

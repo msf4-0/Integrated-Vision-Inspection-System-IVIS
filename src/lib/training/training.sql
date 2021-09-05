@@ -92,3 +92,30 @@ SET
 WHERE
     id = % s;
 
+
+/* Update Training Info */
+UPDATE
+    public.training
+SET
+    name = % s
+    , description = % s
+    , partition_size = % s
+WHERE
+    id = % s
+RETURNING
+    id;
+
+
+/* Delete Training Dataset */
+DELETE FROM public.training_dataset
+WHERE training_id = % s
+    AND dataset_id = (
+        SELECT
+            id
+        FROM
+            public.dataset d
+        WHERE
+            d.name = % s)
+RETURNING
+    dataset_id;
+
