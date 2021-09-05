@@ -26,18 +26,19 @@ SPDX-License-Identifier: Apache-2.0
 
 import json
 import sys
+import traceback
+from collections import namedtuple
 from enum import IntEnum
+from math import ceil, floor
 from pathlib import Path
 from time import sleep
-from typing import Dict, List, NamedTuple, Optional, Union
-from collections import namedtuple
-from math import floor, ceil
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
+
 import pandas as pd
+import project
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
-
-import project
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -52,13 +53,15 @@ else:
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
-from core.utils.helper import datetime_formatter, get_directory_name, join_string
+from core.utils.helper import (datetime_formatter, get_directory_name,
+                               join_string)
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
-from project.project_management import Project
-from training.model_management import Model, NewModel
 from deployment.deployment_management import Deployment, DeploymentType
+from project.project_management import Project
+
+from training.model_management import Model, NewModel
 
 # >>>> User-defined Modules >>>>
 
@@ -114,6 +117,13 @@ PROGRESS_TAGS = {
     DeploymentType.Instance: ['Checkpoint', 'Steps'],
     DeploymentType.Semantic: ['Checkpoint', 'Steps']
 }
+
+
+class NewTrainingSubmissionHandlers(NamedTuple):
+    insert: Callable[..., Any]
+    update: Callable[..., Any]
+    context: Dict
+    name_key: str
 # <<<< Variable Declaration <<<<
 
 
@@ -169,9 +179,9 @@ class BaseTraining:
             'eval': 0,
             'test': 0
         }
-        self.dataset_chosen: List = None
-        self.training_param_json: Dict = None
-        self.augmentation_json: Dict = None
+        self.dataset_chosen: List = []
+        self.training_param_dict: Dict = {}
+        self.augmentation_dict: Dict = {}
         self.is_started: bool = False
         self.progress: Dict = {}
 
@@ -245,7 +255,21 @@ class NewTraining(BaseTraining):
         return exists_flag
 
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str):
+    def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str) -> bool:
+        """Check if Compulsory fields are filled and Unique information not 
+        duplicated in the database
+
+        Args:
+            context (Dict): Dictionary with widget name as key and widget value as value
+            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value. 
+            *Key has same name as its respective widget
+
+            name_key (str): Key of Database row name. Used to obtain value from 'context' Dictionary.
+            *Pass 'None' is not required to check row exists
+
+        Returns:
+            bool: True if NOT EMPTY + NOT EXISTS, False otherwise.
+        """
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
             context, field_placeholder, name_key, check_if_exists)
@@ -253,16 +277,117 @@ class NewTraining(BaseTraining):
         # True if not empty, False otherwise
         return empty_fields
 
-    def insert_training_info(self):
+    def insert_training_info(self) -> bool:
+        """Insert Training Name, Description and Partition Size into Training table
+
+        Returns:
+            bool: True if successfully inserted into the database
+        """
+
+        insert_training_info_SQL = """
+                INSERT INTO public.training (
+                    name
+                    , description
+                    , partition_size)
+                VALUES (
+                    %s
+                    , %s
+                    , %s::JSONB)
+                ON CONFLICT (
+                    name)
+                    DO UPDATE SET
+                        description = %s
+                        , partition_size = %s
+                    RETURNING
+                        id;
+                                    """
+
+        partition_size_json = json.dumps(self.partition_size, indent=4)
+        insert_training_info_vars = [self.name, self.desc, partition_size_json]
 
         try:
-            assert self.partition_ratio['eval'] > 0.5, "Dataset Evaluation Ratio needs to be > 0"
+            query_return = db_fetchone(insert_training_info_SQL,
+                                       conn,
+                                       insert_training_info_vars)
+            self.id = query_return
+            log_info(
+                f"Successfully load New Training Name, Desc and Partition Size for {self.id} ")
             return True
-        except AssertionError as e:
-            log_error(f'{e} Dataset Evaluation Ratio needs to be > 0')
-            st.error(f'{e} Dataset Evaluation Ratio needs to be > 0')
+
+        except TypeError as e:
+            log_error(
+                f"{e}: Failed to load New Training Name, Desc and Partition Size for {self.id}")
             return False
 
+    def insert_project_training(self):
+        insert_project_training_SQL = """
+            INSERT INTO public.project_training (
+                project_id
+                , training_id)
+            VALUES (
+                %s
+                , %s)
+            ON CONFLICT (
+                project_id
+                , training_id)
+                DO NOTHING;
+        
+            """
+        insert_project_training_vars = [self.project_id, self.id]
+        db_no_fetch(insert_project_training_SQL, conn,
+                    insert_project_training_vars)
+
+    def insert_training_dataset(self):
+        # submission handler for insertion of rows into training dataset table
+        
+        insert_training_dataset_SQL = """
+                    INSERT INTO public.training_dataset (
+                        training_id
+                        , dataset_id)
+                    VALUES (
+                        %s
+                        , (
+                            SELECT
+                                id
+                            FROM
+                                public.dataset d
+                            WHERE
+                                d.name = %s)
+                        ON CONFLICT (training_id
+                            , dataset_id)
+                            DO NOTHING)
+                    """
+        for dataset in self.dataset_chosen:
+            insert_training_dataset_vars = [self.id, dataset]
+            db_no_fetch(insert_training_dataset_SQL, conn,
+                        insert_training_dataset_vars)
+
+    def insert_training_info_dataset(self):
+
+        # submission handler for insertion of Info and Dataset
+        try:
+            assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+
+            # insert Name, Desc, Partition Size
+            self.insert_training_info()
+            assert isinstance(
+                self.id, int), f"Training ID should be type Int but obtained {type(self.id)} ({self.id})"
+
+            # Insert Project Training
+            self.insert_project_training()
+
+            # Insert Training Dataset
+            self.insert_training_dataset()
+
+            return True
+
+        except AssertionError as e:
+            log_error(f'{e}')
+            traceback.print_exc()
+            st.error(f'{e}')
+            return False
+
+    # NOTE DEPRECATED
     def insert_training(self, model: Model, project: Project):
 
         # insert into training table

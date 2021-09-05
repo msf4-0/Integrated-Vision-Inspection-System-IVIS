@@ -24,6 +24,8 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
+from training.training_management import NewTrainingSubmissionHandlers
+
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -135,13 +137,13 @@ def infodataset():
     with datasetcol3.container():
 
         # >>>> Store SELECTED DATASET >>>>
-        session_state.new_training.dataset_chosen = st.multiselect(
+        st.multiselect(
             "Dataset List", key="new_training_dataset_chosen",
             options=session_state.project.dataset_dict, help="Assign dataset to the training")
         session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
         )
 
-        if len(session_state.new_training.dataset_chosen) > 0:
+        if len(session_state.new_training_dataset_chosen) > 0:
 
             # TODO #111 Dataset Partition Config
 
@@ -178,10 +180,10 @@ def infodataset():
 
             # >>>> DISPLAY DATASET CHOSEN >>>>
             st.write("### Dataset choosen:")
-            for idx, data in enumerate(session_state.new_training.dataset_chosen):
+            for idx, data in enumerate(session_state.new_training_dataset_chosen):
                 st.write(f"{idx+1}. {data}")
             # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        elif len(session_state.new_training.dataset_chosen) == 0:
+        elif len(session_state.new_training_dataset_chosen) == 0:
             session_state.new_training_place["new_training_dataset_chosen"].info(
                 "No dataset selected")
 
@@ -215,7 +217,7 @@ def infodataset():
                 return ['background-color: '] * len(x)
 
         styler = df_slice.style.apply(
-            highlight_row, selections=session_state.new_training.dataset_chosen, axis=1)
+            highlight_row, selections=session_state.new_training_dataset_chosen, axis=1)
 
         # >>>>DATAFRAME
         st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
@@ -255,6 +257,56 @@ def infodataset():
             f"Page {1+session_state.new_training_dataset_page} of {num_dataset_page}")
     # **************************************** DATASET PAGINATION ****************************************
 # <<<<<<<< Choose Dataset <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+# ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
+    # Placeholder for Back and Next button for page navigation
+    _, _, new_training_section_next_button_place = st.columns([1, 3, 1])
+
+    # typing.NamedTuple type
+    new_training_infodataset_submission_dict = NewTrainingSubmissionHandlers(
+        insert=session_state.new_training.insert_training_info_dataset,
+        update=None,
+        context={
+            'new_training_name': session_state.new_training_name,
+            'new_training_dataset_chosen': session_state.new_training_dataset_chosen
+        },
+        name_key='new_training_name'
+    )
+
+    # >>>> NEXT BUTTON >>>>
+
+    def to_new_training_next_page():
+
+        # Run submission according to current page
+        # NEXT page if constraints are met
+
+        # IF IT IS A NEW SUBMISSION
+        if not session_state.new_training.has_submitted[session_state.new_training_pagination]:
+            if session_state.new_training.check_if_field_empty(
+                    context=new_training_infodataset_submission_dict.context,
+                    field_placeholder=session_state.new_training_place,
+                    name_key=new_training_infodataset_submission_dict.name_key):
+                # INSERT Database
+                # Training Name,Desc, Dataset chosen, Partition Size
+                session_state.new_training.dataset_chosen = session_state.session_state.new_training_dataset_chosen
+                if new_training_infodataset_submission_dict.insert():
+                    session_state.new_training_pagination += 1
+
+        elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
+            if session_state.new_training.name:
+
+                # UPDATE Database
+                # Training Name,Desc, Dataset chosen, Partition Size
+                new_training_infodataset_submission_dict.update()
+                session_state.new_training_pagination += 1
+            else:
+                session_state.new_training_place['new_training_name'].error(
+                    'Training Name already exists, please enter a new name')
+
+    with new_training_section_next_button_place:
+        st.button("next", key="new_training_next_button",
+                  on_click=to_new_training_next_page)
 
 
 if __name__ == "__main__":
