@@ -139,7 +139,7 @@ def index():
 
     # <<<< INIT <<<<
 
-    # ************************ EXISTING PROJECT PAGINATION *************************
+    # ************************ NEW TRAINING PAGINATION *************************
     new_training_page = {
         NewTrainingPagination.InfoDataset: new_training_infodataset.infodataset,
         NewTrainingPagination.Model: models_page.models_page,
@@ -149,25 +149,47 @@ def index():
 
     new_training_page[session_state.new_training_pagination]()
 
+# ************************* NEW TRAINING SECTION SUBMISSION HANDLERS **********************
+    new_training_submission_handlers = {
+        NewTrainingPagination.InfoDataset: {
+            'func': session_state.new_training.insert_training_info,
+            'context': {
+                'new_training_name': session_state.new_training_name
+            }},
+        NewTrainingPagination.Model: True,
+        NewTrainingPagination.TrainingConfig: True,
+        NewTrainingPagination.AugmentationConfig: True
+    }
+
 # ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
     # Placeholder for Back and Next button for page navigation
     new_training_section_back_button_place, _,\
         new_training_section_next_button_place = st.columns([1, 3, 1])
 
+    # >>>> BACK BUTTON >>>>
     if session_state.new_training_pagination > NewTrainingPagination.InfoDataset:
 
         def to_new_training_back_page():
             if session_state.new_training_pagination > NewTrainingPagination.InfoDataset:
-                session_state.new_training_pagination -= 1
+
+                # Run submission according to current page
+                # BACK page if constraints are met
+                if new_training_submission_handlers[session_state.new_training_pagination]():
+                    session_state.new_training_pagination -= 1
 
         with new_training_section_back_button_place:
             st.button("back", key="new_training_back_button",
                       on_click=to_new_training_back_page)
 
+    # >>>> NEXT BUTTON >>>>
     if session_state.new_training_pagination < NewTrainingPagination.AugmentationConfig:
         def to_new_training_next_page():
             if session_state.new_training_pagination < NewTrainingPagination.AugmentationConfig:
-                session_state.new_training_pagination += 1
+
+                # Run submission according to current page
+                # NEXT page if constraints are met
+                if new_training_submission_handlers[session_state.new_training_pagination]():
+                    session_state.new_training_pagination += 1
 
         with new_training_section_next_button_place:
             st.button("next", key="new_training_next_button",

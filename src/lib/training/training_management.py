@@ -3,6 +3,25 @@ Title: Training Management
 Date: 23/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
+ 
 """
 
 import json
@@ -180,8 +199,10 @@ class BaseTraining:
 
         total_dataset_size = 0
         for dataset in self.dataset_chosen:
-            dataset_info = dataset_dict.get(dataset) # Get dataset namedtuple from dataset_dict
-            dataset_size = dataset_info.Dataset_Size # Obtain 'Dataset_Size' attribute from namedtuple
+            # Get dataset namedtuple from dataset_dict
+            dataset_info = dataset_dict.get(dataset)
+            # Obtain 'Dataset_Size' attribute from namedtuple
+            dataset_size = dataset_info.Dataset_Size
             total_dataset_size += dataset_size
 
         return total_dataset_size
@@ -203,7 +224,12 @@ class BaseTraining:
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
-        self.has_submitted = False
+        self.has_submitted: Dict = {
+            NewTrainingPagination.InfoDataset: False,
+            NewTrainingPagination.Model: False,
+            NewTrainingPagination.TrainingConfig: False,
+            NewTrainingPagination.AugmentationConfig: False
+        }
         self.model_selected = None  # TODO
     # TODO *************************************
 
@@ -219,13 +245,23 @@ class NewTraining(BaseTraining):
         return exists_flag
 
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict, field_placeholder):
+    def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str):
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
-            context, field_placeholder, check_if_exists)
+            context, field_placeholder, name_key, check_if_exists)
 
         # True if not empty, False otherwise
         return empty_fields
+
+    def insert_training_info(self):
+
+        try:
+            assert self.partition_ratio['eval'] > 0.5, "Dataset Evaluation Ratio needs to be > 0"
+            return True
+        except AssertionError as e:
+            log_error(f'{e} Dataset Evaluation Ratio needs to be > 0')
+            st.error(f'{e} Dataset Evaluation Ratio needs to be > 0')
+            return False
 
     def insert_training(self, model: Model, project: Project):
 

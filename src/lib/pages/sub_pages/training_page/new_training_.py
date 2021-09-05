@@ -546,6 +546,7 @@ def new_training_page():
     col1, col2 = st.columns([3, 0.5])
     submit_button = col2.button("Submit", key="submit")
 
+    # TODO to UPDATE CONTEXT
     if submit_button:
         session_state.new_training.has_submitted = session_state.new_training.check_if_field_empty(
             field, field_placeholder=place)
@@ -601,7 +602,6 @@ def index():
         st.markdown("""___""")
         # ****************************** HEADER **********************************************
         new_training_page()
-
 
 
 if __name__ == "__main__":

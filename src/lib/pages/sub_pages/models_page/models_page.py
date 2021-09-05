@@ -1,4 +1,9 @@
 """
+Title: Models Page
+Date: 5/9/2021
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
 Copyright (C) 2021 Selangor Human Resource Development Centre
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +22,6 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 
-
 """
 
 import sys
@@ -35,7 +39,6 @@ layout = 'wide'
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
 
 
 if str(LIB_PATH) not in sys.path:

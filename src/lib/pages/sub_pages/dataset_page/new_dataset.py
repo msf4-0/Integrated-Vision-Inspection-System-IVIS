@@ -248,7 +248,7 @@ def new_dataset():
     if submit_button:
         keys = ["name", "upload"]
         session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
-            context, field_placeholder=place)
+            context, field_placeholder=place, name_key='name')
 
         if session_state.new_dataset.has_submitted:
 
