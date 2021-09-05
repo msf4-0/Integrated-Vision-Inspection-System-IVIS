@@ -266,7 +266,7 @@ class BaseTraining:
 
             try:
                 query_return = db_fetchone(
-                    remove_training_dataset_SQL, conn, remove_training_dataset_vars)
+                    remove_training_dataset_SQL, conn, remove_training_dataset_vars).dataset_id
 
                 true_dataset_id = dataset_dict[dataset].ID
                 assert query_return == true_dataset_id, f"Removed wrong dataset of ID {query_return}, should be {true_dataset_id}"
@@ -321,12 +321,12 @@ class BaseTraining:
                 id;
         
                                 """
-        partition_size_json = json.dumps(self.partition_size, indent=4)
+        partition_size_json = json.dumps(self.partition_ratio, indent=4)
         update_training_info_vars = [self.name, self.desc, partition_size_json]
 
         query_return = db_fetchone(update_training_info_SQL,
                                    conn,
-                                   update_training_info_vars)
+                                   update_training_info_vars).id
 
         try:
             assert self.id == query_return, f'Updated wrong Training of ID {query_return}, which should be {self.id}'
@@ -350,11 +350,13 @@ class BaseTraining:
                 INSERT INTO public.training (
                     name
                     , description
-                    , partition_size)
+                    , partition_size,
+                    project_id)
                 VALUES (
                     %s
                     , %s
-                    , %s::JSONB)
+                    , %s::JSONB,
+                    %s)
                 ON CONFLICT (
                     name)
                     DO UPDATE SET
@@ -364,13 +366,14 @@ class BaseTraining:
                         id;
                                     """
 
-        partition_size_json = json.dumps(self.partition_size, indent=4)
-        insert_training_info_vars = [self.name, self.desc, partition_size_json]
+        partition_size_json = json.dumps(self.partition_ratio, indent=4)
+        insert_training_info_vars = [
+            self.name, self.desc, partition_size_json, self.project_id, self.desc, partition_size_json, ]
 
         try:
             query_return = db_fetchone(insert_training_info_SQL,
                                        conn,
-                                       insert_training_info_vars)
+                                       insert_training_info_vars).id
             self.id = query_return
             log_info(
                 f"Successfully load New Training Name, Desc and Partition Size for {self.id} ")
@@ -476,7 +479,12 @@ class NewTraining(BaseTraining):
         # True if not empty, False otherwise
         return empty_fields
 
-    def insert_training_info_dataset(self):
+    def insert_training_info_dataset(self) -> bool:
+        """Create New Training submission
+
+        Returns:
+            bool: True upon successful creation, False otherwise
+        """
 
         # submission handler for insertion of Info and Dataset
         try:
@@ -591,7 +599,7 @@ class NewTraining(BaseTraining):
             """
         insert_model_vars = [model.name, model.model_path,
                              self.training_id, self.framework, project.deployment_type]
-        model.id = db_fetchone(insert_model_SQL, conn, insert_model_vars)
+        model.id = db_fetchone(insert_model_SQL, conn, insert_model_vars).id
 
         # Insert into training_dataset table
         insert_training_dataset_SQL = """

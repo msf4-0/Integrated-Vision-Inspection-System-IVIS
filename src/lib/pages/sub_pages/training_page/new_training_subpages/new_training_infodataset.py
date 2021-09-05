@@ -159,7 +159,7 @@ def infodataset():
             # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             st.slider("Dataset Partition Ratio",
                       min_value=0.5, max_value=1.0,
-                      value=(0.8, 0.9), step=0.1,
+                      value=(0.8, 1.0), step=0.1,
                       key="partition_slider", on_change=update_dataset_partition_ratio)
 
             with st.expander("Partition info"):
@@ -266,7 +266,7 @@ def infodataset():
     # typing.NamedTuple type
     new_training_infodataset_submission_dict = NewTrainingSubmissionHandlers(
         insert=session_state.new_training.insert_training_info_dataset,
-        update=None,
+        update=session_state.new_training.update_training_info_dataset,
         context={
             'new_training_name': session_state.new_training_name,
             'new_training_dataset_chosen': session_state.new_training_dataset_chosen
@@ -281,7 +281,7 @@ def infodataset():
         # Run submission according to current page
         # NEXT page if constraints are met
 
-        # IF IT IS A NEW SUBMISSION
+        # >>>> IF IT IS A NEW SUBMISSION
         if not session_state.new_training.has_submitted[session_state.new_training_pagination]:
             if session_state.new_training.check_if_field_empty(
                     context=new_training_infodataset_submission_dict.context,
@@ -289,18 +289,19 @@ def infodataset():
                     name_key=new_training_infodataset_submission_dict.name_key):
                 # INSERT Database
                 # Training Name,Desc, Dataset chosen, Partition Size
-                session_state.new_training.dataset_chosen = session_state.session_state.new_training_dataset_chosen
+                session_state.new_training.dataset_chosen = session_state.new_training_dataset_chosen
                 if new_training_infodataset_submission_dict.insert():
                     session_state.new_training_pagination += 1
 
-        # Update if Training has already been submitted prior to this
+        # >>>> UPDATE if Training has already been submitted prior to this
         elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
             if session_state.new_training.name:
 
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
-                new_training_infodataset_submission_dict.update()
-                session_state.new_training_pagination += 1
+                if new_training_infodataset_submission_dict.update(session_state.new_training.dataset_chosen,
+                                                                   session_state.project.dataset_dict):
+                    session_state.new_training_pagination += 1
             else:
                 session_state.new_training_place['new_training_name'].error(
                     'Training Name already exists, please enter a new name')
