@@ -16,13 +16,11 @@ import tarfile
 import urllib
 from glob import glob, iglob
 from pathlib import Path
-from tempfile import mkdtemp, mkstemp
 from typing import Dict, List, Union
 from zipfile import ZipFile
 
 import streamlit as st
 import yaml
-from appdirs import user_config_dir, user_data_dir
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -37,30 +35,9 @@ else:
 # >>>> User-defined Modules >>>>
 
 from core.utils.log import log_error, log_info  # logger
+from path_desc import chdir_root
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
-
-_DIR_APP_NAME = "integrated-vision-inspection-system"
-
-# REFERENCED LS
-
-
-def get_config_dir():
-    config_dir = user_config_dir(appname=_DIR_APP_NAME)
-    os.makedirs(config_dir, exist_ok=True)
-    return config_dir
-
-
-def get_data_dir():
-    data_dir = user_data_dir(appname=_DIR_APP_NAME)
-    os.makedirs(data_dir, exist_ok=True)
-    return data_dir
-
-
-def get_temp_dir():
-    dirpath = mkdtemp()
-    yield dirpath
-    shutil.rmtree(dirpath)
 
 
 # ************************** DEPRECATED **************************
@@ -352,8 +329,23 @@ def file_unarchiver(filename, extract_dir):
     log_info("Successfully Unarchive")
 
 
-def single_file_archiver(archive_filename, target_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
-    archive_filename = Path(archive_filename).with_suffix(archive_extension)
+# NOTE DEPRECATED -> USE file_archive_handler
+def single_file_archiver(archive_filename: Path, target_filename: Path, target_root_dir, target_base_dir, archive_extension=".zip"):
+    """Archiver for single files
+
+    Args:
+        archive_filename (Path): Archive output file path with full extensions (.tar.gz,.tar.xz,.tar.bz2,.zip)
+        target_filename (Path): Filepath of file to be archived
+        target_root_dir (Path): Root directory of file
+        target_base_dir (Path): Base directory of file (Folder containing the file)
+        archive_extension (str, optional): Archive compression format type (.gz,.xz,.bz2,.zip). Defaults to ".zip".
+
+
+    """
+
+    os.chdir(target_root_dir)
+    archive_filename = Path(archive_filename).with_suffix(
+        archive_extension)  # return filename with extension
     if archive_extension == ".zip":  # zip file
         with ZipFile(file=archive_filename, mode='w') as zip:
             zip.write(target_filename,
@@ -379,15 +371,42 @@ def single_file_archiver(archive_filename, target_filename, target_root_dir, tar
             tar.add(target_filename, arcname=target_base_dir)
             log_info(f"Successfully archived folder: {archive_filename}")
             st.success(f"Successfully archived folder: {archive_filename}")
+    chdir_root()
 
 
-def batch_file_archiver(archive_filename, target_root_dir, target_base_dir, archive_format="zip"):
+def file_archiver(archive_filename: Path, target_root_dir: Path, target_base_dir: Path, archive_format: str = "zip"):
+    """Packed batched files into archived-format
+
+    ### Example:
+
+    >>> target_root_dir=Path('/home/macintosh/Desktop')
+    >>> target_base_dir=Path('testing/test.html')
+    >>> archive_filename=Path('./testing')
+    >>> file_archive(archive_filename,target_root_dir,target_base_dir,'.gz')
+
+    Folder path tree:
+
+    home \n
+    |- [.....some_intermediate_paths......]
+      |- usr (Root)
+        |- Downloads (Base)
+            |- file1  \n  
+            |- file2 \n
+            |- file3 \n
+
+    Args:
+        archive_filename (Path): Output Folder path to files without archive extension. Can be relative or absolute. eg: Folder to be archived: home/[.....some_intermediate_paths......]/usr/Downloads
+        target_root_dir (Path): Root directory to the 'archive_filename'. eg:home/[.....some_intermediate_paths......]/usr
+        target_base_dir (Path): Relative path of Folder-to-be-archived to Root dir. eg: ./Downloads
+        archive_extension (str, optional): Archive format extension (.gz, .xz, .bz2, .zip). Defaults to ".zip".
+    """
+
     current_working_dir = Path.cwd()  # save current working directory
     os.chdir(str(target_root_dir))  # change to target root directory
     try:
         archived_name = shutil.make_archive(base_name=str(
             archive_filename), format=archive_format, root_dir=target_root_dir, base_dir=target_base_dir)
-        log_info(f"Successfully archived{archived_name}")
+        log_info(f"Successfully archived {archived_name}")
         # return back to initial working directory
         os.chdir(current_working_dir)
         return(archived_name)
@@ -396,28 +415,69 @@ def batch_file_archiver(archive_filename, target_root_dir, target_base_dir, arch
         log_info(error_msg)
         st.error(error_msg)
         # return back to initial working directory
-        os.chdir(current_working_dir)
+        # os.chdir(current_working_dir)
+    chdir_root()
 
 
-def file_archive(archive_filename, target_root_dir, target_base_dir, archive_extension=".zip"):
-    # combine to form complete target file directory
-    target_filename = Path(target_root_dir, target_base_dir).resolve()
+def file_archive_handler(archive_filename: Path, target_filename: Path, archive_extension: str = ".zip"):
+    """File archive handler for single / batch files
+
+    - Will change directory to 'target_root_dir'
+    - if archive_filename = './some_archive_name'. The output file path will be '<target_root_dir> / some_archive_name.<archive_extension>
+    - else if archive_filename is absolute = 'some_root/...../some_archive_name'. The output file path will be 'some_root/...../some_archive_name.<archive_extension>'
+    - .gz, .xz, .bz2 formats are file compression of TAR files. Resultant file extensions will be '.tar.<archive_extension>'. eg. '.tar.gx'
+
+    ### Example:
+
+    >>> target_root_dir=Path('/home/macintosh/Desktop')
+    >>> target_base_dir=Path('testing/test.html')
+    >>> target_filename=target_root_dir / target_base_dir eg: /home/macintosh/Desktop/testing/test.html for single file ; /home/macintosh/Desktop/testing for batch files
+    >>> archive_filename=Path('./testing') => Relative to target_root_dir
+    >>> file_archive_handler(archive_filename,target_filename,'.gz')
+
+    Folder path tree:
+
+    home \n
+    |- [.....some_intermediate_paths......]
+      |- usr (Root)
+        |- Downloads (Base)
+            |- file1  \n  
+            |- file2 \n
+            |- file3 \n
+
+
+    Args:
+        archive_filename (Path): Output Folder path to files without archive extension. Can be relative or absolute. eg: Folder to be archived: home/[.....some_intermediate_paths......]/usr/Downloads
+        target_root_dir (Path): Root directory to the 'archive_filename'. eg:home/[.....some_intermediate_paths......]/usr
+        target_base_dir (Path): Relative path of Folder-to-be-archived to Root dir. eg: ./Downloads
+        archive_extension (str, optional): Archive compression format extension (.gz, .xz, .bz2, .zip). Defaults to ".zip".
+    """
+
     archive_filename = Path(archive_filename).resolve()
     archive_format = check_archiver_format(
         archive_extension)  # get archive file extension
 
+    # >>>> SINGLE FILE
     if target_filename.is_file():
-        log_info("Path is file")
-        single_file_archiver(
+        log_info(f"Path is file {target_filename}")
+        target_root_dir = target_filename.parents[1]
+        target_base_dir = Path(target_filename).resolve(
+        ).parent.relative_to(target_root_dir)
+        file_archiver(
             archive_filename, target_filename, target_root_dir,
             target_base_dir, archive_extension)
-
+     
+    # >>>> BATCH FILE
     elif target_filename.is_dir():
-        log_info("Path is directory")
-        batch_file_archiver(archive_filename, target_root_dir,
-                            target_base_dir, archive_format)
+        target_root_dir = target_filename.parent
+        target_base_dir = target_filename.relative_to(target_root_dir)
+        log_info(f"Path is directory {target_filename}")
+        file_archiver(archive_filename, target_root_dir,
+                      target_base_dir, archive_format)
 
     else:
-        error_msg = f"{FileNotFoundError}File does not exist"
+        error_msg = f"{FileNotFoundError} File does not exist"
         log_error(error_msg)
         st.error(error_msg)
+
+    chdir_root()

@@ -7,20 +7,18 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import json
 import sys
-from copy import copy, deepcopy
 from enum import IntEnum
 from pathlib import Path
 from time import sleep
-from typing import Dict, List, Optional, Union
-
+from typing import Dict, List, NamedTuple, Optional, Union
+from collections import namedtuple
+from math import floor, ceil
 import pandas as pd
-import psycopg2
 import streamlit as st
-from PIL import Image
-from training.model_management import Model
-from project.project_management import Project
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as SessionState
+
+import project
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -33,13 +31,18 @@ else:
     pass
 
 from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.form_manager import check_if_exists, check_if_field_empty
-from core.utils.helper import get_directory_name
+from core.utils.form_manager import (check_if_exists, check_if_field_empty,
+                                     reset_page_attributes)
+from core.utils.helper import datetime_formatter, get_directory_name, join_string
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
+from project.project_management import Project
+from training.model_management import Model, NewModel
+from deployment.deployment_management import Deployment, DeploymentType
+
 # >>>> User-defined Modules >>>>
-from path_desc import MEDIA_ROOT, chdir_root
+
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -48,11 +51,14 @@ from path_desc import MEDIA_ROOT, chdir_root
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
 
+# *********************PAGINATION**********************
+
 
 class TrainingPagination(IntEnum):
     Dashboard = 0
     New = 1
     Existing = 2
+    NewModel = 3
 
     def __str__(self):
         return self.name
@@ -64,6 +70,31 @@ class TrainingPagination(IntEnum):
         except KeyError:
             raise ValueError()
 
+
+class NewTrainingPagination(IntEnum):
+    InfoDataset = 0
+    Model = 1
+    TrainingConfig = 2
+    AugmentationConfig = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return NewTrainingPagination[s]
+        except KeyError:
+            raise ValueError()
+
+
+# NOTE KIV
+PROGRESS_TAGS = {
+    DeploymentType.Image_Classification: ['Steps'],
+    DeploymentType.OD: ['Checkpoint', 'Steps'],
+    DeploymentType.Instance: ['Checkpoint', 'Steps'],
+    DeploymentType.Semantic: ['Checkpoint', 'Steps']
+}
 # <<<< Variable Declaration <<<<
 
 
@@ -109,11 +140,22 @@ class BaseTraining:
         self.model = None  # TODO
         self.model_path: str = None
         self.framework: str = None
-        self.partition_ratio: float = 0.5
+        self.partition_ratio: Dict = {
+            'train': 0.8,
+            'eval': 0.2,
+            'test': 0
+        }  # UPDATED
+        self.partition_size: Dict = {
+            'train': 0,
+            'eval': 0,
+            'test': 0
+        }
         self.dataset_chosen: List = None
-        self.training_param_json: json = None
-        self.augmentation_json: json = None
-# TODO #116 Method to generate Model Path
+        self.training_param_json: Dict = None
+        self.augmentation_json: Dict = None
+        self.is_started: bool = False
+        self.progress: Dict = {}
+
     @st.cache
     def get_framework_list(self):
         get_framework_list_SQL = """
@@ -126,6 +168,37 @@ class BaseTraining:
         framework_list = db_fetchall(get_framework_list_SQL, conn)
         return framework_list
 
+    def calc_total_dataset_size(self, dataset_dict: Dict) -> int:
+        """Calculate the total dataset size for the current training configuration
+
+        Args:
+            dataset_dict (Dict): Dict of datasets attached to project
+
+        Returns:
+            int: Total size of the chosen datasets
+        """
+
+        total_dataset_size = 0
+        for dataset in self.dataset_chosen:
+            dataset_info = dataset_dict.get(dataset) # Get dataset namedtuple from dataset_dict
+            dataset_size = dataset_info.Dataset_Size # Obtain 'Dataset_Size' attribute from namedtuple
+            total_dataset_size += dataset_size
+
+        return total_dataset_size
+
+    def calc_dataset_partition_size(self, dataset_dict: Dict):
+
+        if self.dataset_chosen:
+            total_dataset_size = self.calc_total_dataset_size(dataset_dict)
+
+            self.partition_size['test'] = floor(
+                self.partition_ratio['test'] * total_dataset_size)
+            num_train_eval = total_dataset_size - self.partition_size['test']
+            self.partition_size['train'] = ceil(num_train_eval * (self.partition_ratio['train']) / (
+                self.partition_ratio['train'] + self.partition_ratio['eval']))
+            self.partition_size['eval'] = num_train_eval - \
+                self.partition_size['train']
+
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
@@ -134,10 +207,8 @@ class NewTraining(BaseTraining):
         self.model_selected = None  # TODO
     # TODO *************************************
 
-# TODO #109 Update Check if exist and check if field exist
-#  to be wrapper func of check_if_exist() in form_manager.py
-
     # Wrapper for check_if_exists function from form_manager.py
+
     def check_if_exists(self, context: Dict, conn) -> bool:
         table = 'public.training'
 
@@ -155,51 +226,6 @@ class NewTraining(BaseTraining):
 
         # True if not empty, False otherwise
         return empty_fields
-
-    # NOTE DEPRECATED
-    # TODO Remove
-    def check_if_field_empty(self, field: List, field_placeholder) -> bool:
-        empty_fields = []
-        keys = ["name", "dataset_chosen", "model"]
-        # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-        for i in field:
-            if i and i != "":
-                if field.index(i) == 0:
-                    context = ['name', field[0]]
-                    if self.check_if_exist(context, conn):
-                        field_placeholder[keys[0]].error(
-                            f"Project name used. Please enter a new name")
-                        log_error(
-                            f"Project name used. Please enter a new name")
-                        empty_fields.append(keys[0])
-
-                else:
-                    pass
-            else:
-
-                idx = field.index(i)
-                field_placeholder[keys[idx]].error(
-                    f"Please do not leave field blank")
-                empty_fields.append(keys[idx])
-
-        # if empty_fields not empty -> return False, else -> return True
-        return not empty_fields
-
-    # NOTE DEPRECATED
-    # TODO Remove
-    def check_if_exist(self, context: List, conn) -> bool:
-        check_exist_SQL = """
-                            SELECT
-                                EXISTS (
-                                    SELECT
-                                        %s
-                                    FROM
-                                        public.training
-                                    WHERE
-                                        name = %s);
-                        """
-        exist_status = db_fetchone(check_exist_SQL, conn, context)[0]
-        return exist_status
 
     def insert_training(self, model: Model, project: Project):
 
@@ -313,6 +339,100 @@ class NewTraining(BaseTraining):
 
         return self.id
 
+    # TODO #133 Add New Training Reset
+    @staticmethod
+    def reset_new_training_page():
+
+        new_training_attributes = ["new_training", "new_training_name",
+                                   "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
+
+        reset_page_attributes(new_training_attributes)
+
+
+class Training(BaseTraining):
+
+    def __init__(self, training_id, project: Project) -> None:
+        super().__init__(training_id, project)
+
+        # query training details
+        # get model attached
+        # is_started
+        # progress
+
+    @staticmethod
+    def query_all_project_training(project_id: int,
+                                   deployment_type: Union[str, IntEnum],
+                                   return_dict: bool = False,
+                                   for_data_table: bool = False,
+                                   progress_preprocessing: bool = False
+                                   ) -> Union[List[namedtuple], List[dict]]:
+
+        ID_string = "id" if for_data_table else "ID"
+        query_all_project_training_SQL = f"""
+                    SELECT
+                        t.id AS \"{ID_string}\",
+                        t.name AS "Training Name",
+                        (
+                            SELECT
+                                CASE
+                                    WHEN t.training_model_id IS NULL THEN '-'
+                                    ELSE (
+                                        SELECT
+                                            m.name
+                                        FROM
+                                            public.models m
+                                        WHERE
+                                            m.id = t.training_model_id
+                                    )
+                                END AS "Model Name"
+                        ),
+                        (
+                            SELECT
+                                m.name AS "Base Model Name"
+                            FROM
+                                public.models m
+                            WHERE
+                                m.id = t.attached_model_id
+                        ),
+                        t.is_started AS "Is Started",
+                        CASE
+                            WHEN t.progress IS NULL THEN \'{{}}\'
+                            ELSE t.progress
+                        END AS "Progress",
+                        /*Give empty JSONB if training progress has not start*/
+                        t.updated_at AS "Date/Time"
+                    FROM
+                        public.project_training pro_train
+                        INNER JOIN training t ON t.id = pro_train.training_id
+                    WHERE
+                        pro_train.project_id = %s;
+                                                    """
+
+        query_all_project_training_vars = [project_id]
+        log_info(
+            f"Querying Training from database for Project {project_id}")
+        all_project_training = []
+        try:
+
+            all_project_training_query_return, column_names = db_fetchall(
+                query_all_project_training_SQL, conn,
+                query_all_project_training_vars, fetch_col_name=True, return_dict=return_dict)
+
+            if progress_preprocessing:
+                all_project_training = Training.datetime_progress_preprocessing(
+                    all_project_training_query_return, deployment_type, return_dict)
+
+            else:
+                all_project_training = datetime_formatter(
+                    all_project_training_query_return, return_dict=return_dict)
+
+        except TypeError as e:
+
+            log_error(f"""{e}: Could not find any training for Project ID {project_id} / \
+                            Project ID: Project ID {project_id} does not exists""")
+
+        return all_project_training, column_names
+
     def initialise_training(self, model: Model, project: Project):
         '''
         training_dir
@@ -360,6 +480,94 @@ class NewTraining(BaseTraining):
             log_error(
                 f"Failed to stored **{self.name}** training information in database")
             return False
+
+    @staticmethod
+    def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
+                                        deployment_type: Union[str, IntEnum],
+                                        return_dict: bool = False
+                                        ) -> Union[List[NamedTuple], List[Dict]]:
+        """Preprocess Date/Time and Progress column
+
+        Args:
+            all_project_training (Union[List[namedtuple], List[Dict]]): All Project Training query results
+            return_dict (bool, optional): True if all_project_training is type Dict. Defaults to False.
+
+        Returns:
+            Union[List[namedtuple], List[Dict]]: Formatted list of all_project_training
+        """
+        log_info(f"Formatting Date/Time and Progress column......")
+
+        deployment_type = Deployment.get_deployment_type(
+            deployment_type)  # Make sure it is IntEnum
+
+        # get progress tags based on Deployment Type
+        progress_tag = PROGRESS_TAGS[deployment_type]
+
+        formatted_all_project_training = []
+        for project_training in all_project_training:
+            # convert datetime with TZ to (2021-07-30 12:12:12) format
+            if return_dict:
+                converted_datetime = project_training["Date/Time"].strftime(
+                    '%Y-%m-%d %H:%M:%S')
+                project_training["Date/Time"] = converted_datetime
+
+                if project_training['Is Started'] == True:
+                    # Preprocess
+                    progress_value = []
+
+                    for tag in progress_tag:
+                        # for k, v in project_training["Progress"].items():
+
+                        # if k in progress_tag:
+
+                        v = project_training["Progress"].get(
+                            tag)if project_training["Progress"].get(
+                            tag) is not None else '-'
+                        progress_value.append(str(v))
+
+                    progress_row = join_string(progress_value, ' / ')
+
+                    project_training["Progress"] = progress_row
+                else:
+                    project_training["Progress"] = '-'
+
+            else:
+                converted_datetime = project_training.Date_Time.strftime(
+                    '%Y-%m-%d %H:%M:%S')
+
+                project_training = project_training._replace(
+                    Date_Time=converted_datetime)
+
+                if project_training.Is_Started == True:
+                    # Preprocess
+                    progress_value = []
+                    # for k, v in project_training.Progress.items():
+                    for tag in progress_tag:
+
+                        v = project_training.Progress.get(
+                            tag)if project_training.Progress.get(
+                            tag) is not None else '-'
+                        progress_value.append(str(v))
+
+                    progress_row = join_string(progress_value, ' / ')
+
+                    project_training = project_training._replace(
+                        Progress=progress_row)
+
+                else:
+                    project_training = project_training._replace(
+                        Progress='-')
+
+            formatted_all_project_training.append(project_training)
+
+        return formatted_all_project_training
+
+    @staticmethod
+    def reset_training_page():
+        training_attributes = ["project_training_table", "training", "training_name",
+                               "training_desc", "labelling_pagination", "existing_training_pagination"]
+
+        reset_page_attributes(training_attributes)
 
 
 def main():

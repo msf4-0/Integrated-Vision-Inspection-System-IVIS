@@ -18,7 +18,7 @@ from copy import copy, deepcopy
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state as session_state
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -34,7 +34,6 @@ from path_desc import chdir_root, MEDIA_ROOT
 from core.utils.log import log_info, log_error  # logger
 from core.utils.helper import get_identifier_str_IntEnum
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
-from training.model_management import Model
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -75,7 +74,7 @@ class BaseDeployment:
     def __init__(self) -> None:
         self.id: int = None
         self.name: str = None
-        self.model_selected: Model = Model()
+        self.model_selected=None
 
 
 class Deployment(BaseDeployment):

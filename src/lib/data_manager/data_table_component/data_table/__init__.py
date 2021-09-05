@@ -1,8 +1,32 @@
+
+""" 
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
+ """
+
 import os
 import sys
 from pathlib import Path
 from typing import Callable, Optional, Tuple, List, Dict
 import streamlit as st
+layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                        page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 import streamlit.components.v1 as components
 from streamlit import session_state as session_state
 
@@ -100,13 +124,11 @@ def data_table(
 # if not _RELEASE:
 #     import streamlit as st
 #     from streamlit import session_state as session_state
-#     layout = 'wide'
-#     st.set_page_config(page_title="Integrated Vision Inspection System",
-#                        page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
 
 #     import pandas as pd
 #     from pathlib import Path
-#     SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
+#     SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 #     LIB_PATH = SRC / "lib"
 
 #     if str(LIB_PATH) not in sys.path:
@@ -131,7 +153,7 @@ def data_table(
 #         {'id': 7, 'lastName': "Clifford", 'firstName': "Ferrara", 'age': 44},
 #         {'id': 8, 'lastName': "Frances", 'firstName': "Rossini", 'age': 36},
 #         {'id': 9, 'lastName': "Roxie", 'firstName': "Harvey", 'age': 65},
-#         {'id': 10, 'lastName': "Roxie", 'firstName': "Harvey", 'age': 65},
+#         {'id': 10, 'lastName': "Roxie", 'firstName': "Harvey", 'age': 652222222222222222222222222222222222222222222222222222222222222222222222222222222222222},
 #         {'id': 11, 'lastName': "Roxie", 'firstName': "Harvey", 'age': 65},
 #         {'id': 12, 'lastName': "Roxie", 'firstName': "Harvey", 'age': 65},
 #         {'id': 13, 'lastName': "Roxie", 'firstName': "Harvey", 'age': 65},
@@ -195,6 +217,6 @@ def data_table(
 #         },
 #     ]
 
-#     rows = data_table(rows, columns, key='test_table')
+#     rows = data_table(rows, columns, key='test_table',checkbox=False)
 #     if rows:
 #         st.write("You have selected", rows)

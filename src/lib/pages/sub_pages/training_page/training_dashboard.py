@@ -24,17 +24,18 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
-from pathlib import Path
 from enum import IntEnum
+from pathlib import Path
 from time import sleep
+
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -46,32 +47,144 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
-from project.project_management import ExistingProjectPagination, ProjectPermission, Project
+from data_table import data_table
+from pages.sub_pages.training_page import new_training
+from path_desc import chdir_root
+from project.project_management import Project, ProjectPermission
+from training.training_management import Training, TrainingPagination
+# >>>> TEMP
+from user.user_management import User
 
-from pages.sub_pages.dataset_page.new_dataset import new_dataset
-from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard
-from pages.sub_pages.labelling_page import labelling_dashboard
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
-new_project = {}  # store
-place = {}
-DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-                   "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
+place = {}
+
+PROGRESS_COLUMN_HEADER = {
+    "Image Classification": 'Steps',
+    "Object Detection with Bounding Boxes": 'Checkpoint / Steps',
+    "Semantic Segmentation with Polygons": 'Checkpoint / Steps',
+    "Semantic Segmentation with Masks": 'Checkpoint / Steps'
+}
 
 chdir_root()  # change to root directory
 
 
+def dashboard():
+    log_info(f"Top of Training Dashboard")
+    st.write(f"### Dashboard")
+
+    # >>>> QUERY PROJECT TRAINING >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # namedtuple of query from DB
+    all_project_training, project_training_column_names = \
+        Training.query_all_project_training(session_state.project.id,
+                                            deployment_type=session_state.project.deployment_type,
+                                            return_dict=True,
+                                            for_data_table=True,
+                                            progress_preprocessing=True)
+
+    # ************************* SESSION STATE ************************************************
+    if "training_dashboard_table" not in session_state:
+        session_state.training_dashboard_table = None
+
+    # ***************************COLUMN PLACEHOLDERS *****************************************
+    create_new_training_button_col1 = st.empty()
+
+    # ****************************** CREATE NEW PROJECT BUTTON ****************************************
+
+    def to_new_training_page():
+
+        session_state.training_pagination = TrainingPagination.New
+
+        if "training_dashboard_table" in session_state:
+            del session_state.training_dashboard_table
+
+    create_new_training_button_col1.button(
+        "Create New Training Session", key='create_new_training_from_training_dashboard',
+        on_click=to_new_training_page, help="Create a new training session")
+
+    # add function to preprocess progress column
+
+    # **************** DATA TABLE COLUMN CONFIG *********************************************************
+
+    project_training_columns = [
+        {
+            'field': "id",
+            'headerName': "ID",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 50,
+            'hideSortIcons': True,
+
+        },
+        {
+            'field': "Training Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': False,
+        },
+
+        {
+            'field': "Model Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Base Model Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 170,
+            'hideSortIcons': True,
+        },
+
+        {
+            'field': "Is Started",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 80,
+            'hideSortIcons': True,
+            'type': 'boolean',
+        },
+        {
+            'field': "Progress",
+            'headerName': f"{PROGRESS_COLUMN_HEADER[session_state.project.deployment_type]}",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 100,
+            'hideSortIcons': True,
+            'type': 'date',
+        },
+
+
+    ]
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    training_dashboard_data_table_place = st.empty()
+
+    with training_dashboard_data_table_place:
+        data_table(all_project_training, project_training_columns,
+                   checkbox=False, key='training_dashboard_table')
+
+
 def index():
-    RELEASE = True
-    log_info("At Exisiting Project Dashboard INDEX")
+    RELEASE = False
+    log_info("At Training Dashboard INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
 
@@ -84,7 +197,7 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 7
+        project_id_tmp = 43
         log_info(f"Entering Project {project_id_tmp}")
 
         session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -92,58 +205,50 @@ def index():
         if "project" not in session_state:
             session_state.project = Project(project_id_tmp)
             log_info("Inside")
+        if 'user' not in session_state:
+            session_state.user = User(1)
+        # ****************************** HEADER **********************************************
+        st.write(f"# {session_state.project.name}")
 
-        # else:
-        #     session_state.project = Project(project_id_tmp)
+        project_description = session_state.project.desc if session_state.project.desc is not None else " "
+        st.write(f"{project_description}")
 
+        st.markdown("""___""")
+        # ****************************** HEADER **********************************************
+    st.write(f"## **Training Section:**")
     # ************************ EXISTING PROJECT PAGINATION *************************
-    existing_project_page = {
-        ExistingProjectPagination.Dashboard: existing_project_dashboard.dashboard,
-        ExistingProjectPagination.Labelling: labelling_dashboard.index,
-        ExistingProjectPagination.Training: None,
-        ExistingProjectPagination.Models: None,
-        ExistingProjectPagination.Export: None,
-        ExistingProjectPagination.Settings: None
+    training_page = {
+        TrainingPagination.Dashboard: dashboard,
+        TrainingPagination.New: new_training.new_training_page,
+        TrainingPagination.Existing: None,
+        TrainingPagination.NewModel: None
     }
 
-    # ****************************** HEADER **********************************************
-    st.write(f"# {session_state.project.name}")
+    if 'training_pagination' not in session_state:
+        session_state.training_pagination = TrainingPagination.Dashboard
 
-    project_description = session_state.project.desc if session_state.project.desc is not None else " "
-    st.write(f"{project_description}")
+    # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    st.markdown("""___""")
-    # ****************************** HEADER **********************************************
+    training_dashboard_back_button_place = st.empty()
 
-    if 'existing_project_pagination' not in session_state:
-        session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
+    if session_state.training_pagination != TrainingPagination.Dashboard:
+
+        def to_training_dashboard_page():
+            # TODO #133 Add New Training Reset
+            session_state.training_pagination = TrainingPagination.Dashboard
+
+        training_dashboard_back_button_place.button("Back to Training Dashboard", key="back_to_training_dashboard_page",
+                                                    on_click=to_training_dashboard_page)
+
+    else:
+        training_dashboard_back_button_place.empty()
 
     log_info(
-        f"Entering Project {session_state.project.id}: {session_state.existing_project_pagination}")
+        f"Entering Training Page:{session_state.training_pagination}")
 
-    session_state.append_project_flag = ProjectPermission.ViewOnly
-    # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    existing_project_page_options = (
-        "Overview", "Labelling", "Training", "Models", "Export", "Settings")
-
-    # >>>> CALLBACK for RADIO >>>>
-    def existing_project_page_navigator():
-
-        # NOTE: TO RESET SUB-PAGES AFTER EXIT
-
-        session_state.existing_project_pagination = existing_project_page_options.index(
-            session_state.existing_project_page_navigator_radio)
-
-        if "dataset_page_navigator_radio" in session_state:
-            del session_state.existing_project_page_navigator_radio
-
-    with st.sidebar.expander(session_state.project.name, expanded=True):
-        st.radio("", options=existing_project_page_options,
-                 index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
-    # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
+    # TODO #132 Add reset to training session state
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    existing_project_page[session_state.existing_project_pagination]()
+    training_page[session_state.training_pagination]()
 
 
 if __name__ == "__main__":

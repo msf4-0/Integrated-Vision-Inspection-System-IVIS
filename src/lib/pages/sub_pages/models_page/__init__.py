@@ -1,4 +1,4 @@
-/* 
+""" 
 Copyright (C) 2021 Selangor Human Resource Development Centre
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,5 +16,4 @@ limitations under the License.
 Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
-*/
-declare module 'label-studio';
+ """

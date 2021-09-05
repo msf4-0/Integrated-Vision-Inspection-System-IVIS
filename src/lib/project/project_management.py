@@ -3,6 +3,24 @@ Title: Project Management
 Date: 21/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
 """
 
 import sys
@@ -135,10 +153,8 @@ class BaseProject:
         self.image_name_list: List = []  # for image_labelling
         self.annotation_task_join = []  # for image_labelling
 
-
-
-
     # DEPRECATED
+
     @st.cache(ttl=60)
     def get_annotation_task_list(self):
         query_annotation_task_JOIN_SQL = """
@@ -249,6 +265,7 @@ class Project(BaseProject):
                 f"Project with ID: {self.id} does not exists in the database!!!")
         return project_field
 
+    @st.cache(ttl=60)
     def query_project_dataset_list(self) -> List:
         query_project_dataset_SQL = """
                                 SELECT
@@ -313,8 +330,8 @@ class Project(BaseProject):
         self.data_name_list = self.get_data_name_list()
         self.query_all_fields()
 
-
     # DEPRECATED
+
     @st.cache
     def load_dataset(self) -> List:
         """Loads data from the dataset directory and stored as Numpy arrays using OpenCV. 
@@ -380,7 +397,6 @@ class Project(BaseProject):
                 data_name_list[d.Name] = sorted(data_name_tmp)
 
             return data_name_list
-
 
     # *************************************************************************************************************************
     # TODO #81 Add reset to project page *************************************************************************************

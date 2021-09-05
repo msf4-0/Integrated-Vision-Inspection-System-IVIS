@@ -1,3 +1,23 @@
+/* 
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
+*/
+
 import { ReactElement, useEffect, useState } from "react";
 import {
   Streamlit,
@@ -10,7 +30,7 @@ import {
   GridColDef,
   GridRowId,
 } from "@material-ui/data-grid";
-import { makeStyles } from "@material-ui/styles";
+import { makeStyles, createStyles } from "@material-ui/styles";
 
 //To store object of Streamlit Theme props
 interface ComponentTheme {
@@ -21,9 +41,9 @@ interface ComponentTheme {
   font: string | undefined;
 }
 
-function DataTable({ args, theme }: ComponentProps): ReactElement {
-  // TODO #28 Get data from Streamlit Python
+// TODO #134 Pending Text Wrap for Cells
 
+function DataTable({ args, theme }: ComponentProps): ReactElement {
   //Define Rows and Columns
   const rows: GridRowsProp = args.rows;
   console.log(rows);
@@ -86,68 +106,70 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
     };
   }
 
-  const useStyles = makeStyles({
-    root: {
-      //set border colour based on active background color from Streamlit
-      //supports Light and Dark mode
-      border: `1px solid ${
-        myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "#98989A"
-      }`,
-
-      height: "auto",
-      color:
-        myTheme.backgroundColor === "#ffffff"
-          ? "rgba(0,0,0,1)"
-          : "rgba(255,255,255,1)",
-      fontFamily: [
-        myTheme.font,
-        "-apple-system",
-        "BlinkMacSystemFont",
-        '"Segoe UI"',
-        "Roboto",
-        '"Helvetica Neue"',
-        "Arial",
-        "sans-serif",
-        '"Apple Color Emoji"',
-        '"Segoe UI Emoji"',
-        '"Segoe UI Symbol"',
-      ].join(","),
-      WebkitFontSmoothing: "auto",
-      letterSpacing: "normal",
-      "& .MuiDataGrid-columnsContainer": {
-        backgroundColor:
-          myTheme.backgroundColor === "#ffffff"
-            ? "#fafafa"
-            : myTheme.secondaryBackgroundColor, //working
-      },
-      "& .MuiDataGrid-iconSeparator": {
-        display: "none",
-      },
-      "& .MuiDataGrid-columnHeader, .MuiDataGrid-cell": {
-        //working
-        borderRight: `1px solid ${
-          myTheme.backgroundColor === "#ffffff"
-            ? "#f0f0f0"
-            : myTheme.secondaryBackgroundColor
+  const useStyles = makeStyles(() =>
+    createStyles({
+      root: {
+        //set border colour based on active background color from Streamlit
+        //supports Light and Dark mode
+        border: `1px solid ${
+          myTheme.backgroundColor === "#ffffff" ? "#d9d9d9" : "#98989A"
         }`,
-      },
 
-      // "& .MuiDataGrid-columnsContainer, .MuiDataGrid-cell": {
-      //   borderBottom: `1px solid ${
-      //     myTheme.backgroundColor === "#ffffff"
-      //       ? "#f0f0f0"
-      //       : myTheme.secondaryBackgroundColor
-      //   }`,
-      // },
-      // "& .MuiDataGrid-cell": {
-      //   color: myTheme.textColor,
-      // },
-      "& .MuiPagination-root": {
-        color: "secondary",
+        height: "auto",
+        color:
+          myTheme.backgroundColor === "#ffffff"
+            ? "rgba(0,0,0,1)"
+            : "rgba(255,255,255,1)",
+        fontFamily: [
+          myTheme.font,
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          '"Helvetica Neue"',
+          "Arial",
+          "sans-serif",
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+        ].join(","),
+        WebkitFontSmoothing: "auto",
+        letterSpacing: "normal",
+        "& .MuiDataGrid-columnsContainer": {
+          backgroundColor:
+            myTheme.backgroundColor === "#ffffff"
+              ? "#fafafa"
+              : myTheme.secondaryBackgroundColor, //working
+        },
+        "& .MuiDataGrid-iconSeparator": {
+          display: "none",
+        },
+        "& .MuiDataGrid-columnHeader, .MuiDataGrid-cell": {
+          //working
+          borderRight: `1px solid ${
+            myTheme.backgroundColor === "#ffffff"
+              ? "#f0f0f0"
+              : myTheme.secondaryBackgroundColor
+          }`,
+        },
+
+        // "& .MuiDataGrid-columnsContainer, .MuiDataGrid-cell": {
+        //   borderBottom: `1px solid ${
+        //     myTheme.backgroundColor === "#ffffff"
+        //       ? "#f0f0f0"
+        //       : myTheme.secondaryBackgroundColor
+        //   }`,
+        // },
+        // "& .MuiDataGrid-cell": {
+        //   color: myTheme.textColor,
+        // },
+        "& .MuiPagination-root": {
+          color: "secondary",
+        },
+        ...customCheckbox(), // Custom Checkbox
       },
-      ...customCheckbox(), // Custom Checkbox
-    },
-  });
+    })
+  );
 
   // TODO #27 Add dark mode for Pagination
   const classes = useStyles();
@@ -179,7 +201,7 @@ function DataTable({ args, theme }: ComponentProps): ReactElement {
     }
     return frameHeight;
   }
-  
+
   const frameHeight = frameHeightCalc(pageSize) + offset;
   console.log("Rows length", rows.length);
 
