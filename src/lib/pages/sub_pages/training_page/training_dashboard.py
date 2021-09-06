@@ -216,7 +216,7 @@ def index():
         st.markdown("""___""")
         # ****************************** HEADER **********************************************
     st.write(f"## **Training Section:**")
-    # ************************ EXISTING PROJECT PAGINATION *************************
+    # ************************ TRAINING PAGINATION *************************
     training_page = {
         TrainingPagination.Dashboard: dashboard,
         TrainingPagination.New: new_training.new_training_page,
@@ -237,7 +237,8 @@ def index():
             # TODO #133 Add New Training Reset
             session_state.training_pagination = TrainingPagination.Dashboard
 
-        training_dashboard_back_button_place.button("Back to Training Dashboard", key="back_to_training_dashboard_page",
+        training_dashboard_back_button_place.button("Back to Training Dashboard",
+                                                    key="back_to_training_dashboard_page",
                                                     on_click=to_training_dashboard_page)
 
     else:

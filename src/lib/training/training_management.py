@@ -133,6 +133,7 @@ class DatasetPath(NamedTuple):
     test: Path
     # <<<< Variable Declaration <<<<
 
+
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
@@ -377,7 +378,7 @@ class BaseTraining:
             SET
                 name = %s
                 , description = %s
-                , partition_size = %s
+                , partition_ratio = %s
             WHERE
                 id = %s
             RETURNING
@@ -414,7 +415,7 @@ class BaseTraining:
                 INSERT INTO public.training (
                     name
                     , description
-                    , partition_size,
+                    , partition_ratio,
                     project_id)
                 VALUES (
                     %s
@@ -425,7 +426,7 @@ class BaseTraining:
                     name)
                     DO UPDATE SET
                         description = %s
-                        , partition_size = %s
+                        , partition_ratio = %s
                     RETURNING
                         id;
                                     """
@@ -758,6 +759,7 @@ class Training(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
 
+        self.query_all_fields()
         self.training_path['ROOT'] = self.get_training_path(
             self.project_path, self.name)
 
@@ -765,6 +767,54 @@ class Training(BaseTraining):
         # get model attached
         # is_started
         # progress
+
+    def query_all_fields(self) -> NamedTuple:
+        """Query fields of current Training
+        - name
+        - description
+        - training_param
+        - augmentation
+        - is_started
+        - progress
+        - partition_ratio
+
+        Returns:
+            NamedTuple: Query results from Training table
+        """
+        query_all_fields_SQL = """
+                SELECT
+                    name
+                    , description
+                    , training_param
+                    , augmentation
+                    , is_started
+                    , progress
+                    , partition_ratio
+                FROM
+                    public.training
+                WHERE
+                    id = %s;
+        
+                             """
+        assert (isinstance(self.id, int)
+                ), f"Training ID should be type int but {type(self.id)} obtained ({self.id})"
+
+        query_all_fields_vars = [self.id]
+
+        training_field = db_fetchone(
+            query_all_fields_SQL, conn, query_all_fields_vars)
+
+        if training_field:
+            self.name, self.desc,\
+                self.training_param_dict, self.augmentation_dict,\
+                self.is_started, self.progress, self.partition_ratio = training_field
+        else:
+            log_error(
+                f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")
+
+            training_field = None
+
+        return training_field
 
     @staticmethod
     def query_all_project_training(project_id: int,

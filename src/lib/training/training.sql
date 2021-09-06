@@ -120,3 +120,19 @@ WHERE training_id = % s
 RETURNING
     dataset_id;
 
+
+/* Query all fields Training Table */
+SELECT
+    id
+    , name
+    , description
+    , training_param
+    , augmentation
+    , is_started
+    , progress
+    , partition_size
+FROM
+    public.training
+WHERE
+    id = %s;
+

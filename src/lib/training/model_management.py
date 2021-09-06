@@ -96,6 +96,22 @@ FRAMEWORK = {
     Framework.MXNet: "MXNet",
     Framework.ONNX: "ONNX"
 }
+
+
+class ModelsPagination(IntEnum):
+    Dashboard = 0
+    ExistingModels = 1
+    ModelUpload = 2
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ModelsPagination[s]
+        except KeyError:
+            raise ValueError()
 # <<<< Variable Declaration <<<<
 
 # >>>> TODO >>>>

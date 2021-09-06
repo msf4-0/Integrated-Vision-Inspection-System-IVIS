@@ -30,6 +30,8 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
+
+
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -53,12 +55,16 @@ from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from project.project_management import Project
 from user.user_management import User
+from training.model_management import ModelsPagination
+from training.training_management import Training
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
 
 # <<<< Variable Declaration <<<<
-
+def existing_models():
+    pass
 
 def index():
 
@@ -67,7 +73,7 @@ def index():
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("At Training INDEX")
+        log_info("At Models INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -79,6 +85,7 @@ def index():
 
         # ************************TO REMOVE************************
         project_id_tmp = 43
+        training_id_tmp = 18
         log_info(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -88,6 +95,9 @@ def index():
             log_info("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
+        if 'training' not in session_state:
+            session_state.training = Training(training_id_tmp,
+                                              project=session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -96,6 +106,13 @@ def index():
 
         st.markdown("""___""")
         # ****************************** HEADER **********************************************
+        st.write(f"## **Training Section:**")
+
+    # ************************ MODEL PAGINATION *************************
+    models_page={
+        ModelsPagination.Dashboard:dashboard,
+
+    }
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
