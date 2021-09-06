@@ -224,6 +224,22 @@ class BaseTraining:
 
         return training_path
 
+    def get_all_training_path(self) -> Dict:
+        # >>>> TRAINING PATH
+        self.training_path['ROOT'] = self.get_training_path(
+            self.project_path, self.name)
+        # >>>> MODEL PATH
+        self.training_path['models'] = self.training_path['ROOT'] / 'models'
+        # PARTITIONED DATASET PATH
+        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
+        # EXPORTED MODEL PATH
+        self.training_path['exported_models'] = self.training_path['ROOT'] / \
+            'exported_models'
+        # ANNOTATIONS PATH
+        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
+
+        return self.training_path
+
     @st.cache
     def get_framework_list(self):
         get_framework_list_SQL = """
@@ -760,8 +776,7 @@ class Training(BaseTraining):
         super().__init__(training_id, project)
 
         self.query_all_fields()
-        self.training_path['ROOT'] = self.get_training_path(
-            self.project_path, self.name)
+        self.training_path = self.get_all_training_path()
 
         # TODO #136 query training details
         # get model attached

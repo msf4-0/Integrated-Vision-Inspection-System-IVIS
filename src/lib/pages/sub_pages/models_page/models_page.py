@@ -26,11 +26,10 @@ SPDX-License-Identifier: Apache-2.0
 
 import sys
 from pathlib import Path
+
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
-
-
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -50,21 +49,107 @@ else:
 
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+
+from core.utils.log import log_error, log_info  # logger
+from data_import.models_upload_module import model_uploader
 from data_manager.database_manager import init_connection
+from data_table import data_table
+from path_desc import chdir_root
 from project.project_management import Project
-from user.user_management import User
-from training.model_management import ModelsPagination
+from training.model_management import Model, ModelsPagination
 from training.training_management import Training
+from user.user_management import User
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
-
+# initialise connection to Database
+conn = init_connection(**st.secrets["postgres"])
 # <<<< Variable Declaration <<<<
+
+
 def existing_models():
-    pass
+    log_info(f"At Existing Model Page")
+    existing_models, existing_models_column_names = Model.query_model_table(for_data_table=True,
+                                                                            return_dict=True,
+                                                                            deployment_type=session_state.training.deployment_type)
+    # st.write(vars(session_state.training))
+
+    # ************************* SESSION STATE ************************************************
+    if "existing_models_table" not in session_state:
+        session_state.existing_models_table = None
+    # ************************* SESSION STATE ************************************************
+
+    def to_model_upload_page():
+        session_state.models_pagination = ModelsPagination.ModelUpload
+
+        if "existing_models_table" not in session_state:
+            del session_state.existing_models_table
+
+    st.button(label="Upload Deep Learning Model",
+              key="upload_new_model",
+              on_click=to_model_upload_page)
+    # **************** DATA TABLE COLUMN CONFIG *********************************************************
+    existing_models_columns = [
+        {
+            'field': "id",
+            'headerName': "ID",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 50,
+            'hideSortIcons': True,
+
+        },
+
+
+        {
+            'field': "Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Framework",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Model Type",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+
+
+        {
+            'field': "Training Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': False,
+        },
+        {
+            'field': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 100,
+            'hideSortIcons': True,
+            'type': 'date',
+        },
+
+
+    ]
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    data_table(rows=existing_models,
+               columns=existing_models_columns,
+               checkbox=False,
+               key='existing_models_table')
+
 
 def index():
 
@@ -109,10 +194,39 @@ def index():
         st.write(f"## **Training Section:**")
 
     # ************************ MODEL PAGINATION *************************
-    models_page={
-        ModelsPagination.Dashboard:dashboard,
-
+    models_page = {
+        ModelsPagination.ExistingModels: existing_models,
+        ModelsPagination.ModelUpload: model_uploader
     }
+
+    # ********************** SESSION STATE ******************************
+    if 'models_pagination' not in session_state:
+        session_state.models_pagination = ModelsPagination.ExistingModels
+    if 'models_place' not in session_state:
+        session_state.models_place = {}
+    # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    existing_models_back_button_place = st.empty()
+
+    if session_state.models_pagination != ModelsPagination.ExistingModels:
+
+        def to_existing_model_page():
+
+            session_state.models_pagination = ModelsPagination.ExistingModels
+
+        existing_models_back_button_place.button("Back to Existing Models Dashboard",
+                                                 key="back_to_existing_models_page",
+                                                 on_click=to_existing_model_page)
+
+    else:
+        existing_models_back_button_place.empty()
+
+    log_info(
+        f"Entering Models Page:{session_state.models_pagination}")
+
+    st.write(f"### Models Selection")
+    # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    models_page[session_state.models_pagination]()
+
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

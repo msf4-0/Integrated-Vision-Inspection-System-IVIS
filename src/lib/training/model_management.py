@@ -529,7 +529,7 @@ def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None,
                         )
                     END AS "Training Name"
             ),
-            --        m.updated_at  AS "Date/Time",
+                   m.updated_at  AS "Date/Time",
             m.description AS "Description",
             m.metrics AS "Metrics",
             m.model_path AS "Model Path"
