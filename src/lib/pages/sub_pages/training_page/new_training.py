@@ -231,7 +231,7 @@ def index():
     #                   on_click=to_new_training_next_page)
     log_info(
         f" New Training Pagination: {NewTrainingPagination(session_state.new_training_pagination)}")
-    st.write(vars(session_state.new_training))
+    st.write(vars(session_state.project))
     
 
 

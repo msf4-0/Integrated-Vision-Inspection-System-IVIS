@@ -38,7 +38,7 @@ import pandas as pd
 import project
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state as session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -53,12 +53,13 @@ else:
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
-from core.utils.helper import (datetime_formatter, get_directory_name,
-                               join_string, NetChange, find_net_change)
+from core.utils.helper import (NetChange, datetime_formatter, find_net_change,
+                               get_directory_name, join_string)
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
+from path_desc import PROJECT_DIR
 from project.project_management import Project
 
 from training.model_management import Model, NewModel
@@ -125,7 +126,13 @@ class NewTrainingSubmissionHandlers(NamedTuple):
     context: Dict
     name_key: str
 
+
+class DatasetPath(NamedTuple):
+    train: Path
+    eval: Path
+    test: Path
     # <<<< Variable Declaration <<<<
+
 
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
@@ -147,6 +154,7 @@ class TrainingParam:
         self.classification_loss: str = 'weighted_sigmoid_focal'
         self.training_param_optional: List = []
 
+
 # >>>> TODO >>>>
 
 
@@ -163,6 +171,7 @@ class BaseTraining:
         self.training_param: Optional[TrainingParam] = TrainingParam()
         self.augmentation: Optional[Augmentation] = Augmentation()  # TODO
         self.project_id: int = project.id
+        self.project_path = project.project_path
         self.model_id: int = None
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: int = project.deployment_type
@@ -184,6 +193,36 @@ class BaseTraining:
         self.augmentation_dict: Dict = {}
         self.is_started: bool = False
         self.progress: Dict = {}
+        self.training_path: Dict = {
+            'ROOT': None,
+            'annotations': None,
+            'dataset': None,
+            'exported_models': None,
+            'models': None
+        }
+
+    @staticmethod
+    def get_training_path(project_path: Path, training_name: str) -> Path:
+        """Get training path from training name and project name
+
+
+        Args:
+            project_path (Path): project_path from Project object class
+            training_name (str): Name of Training
+
+        Returns:
+            Path: Path-like object for Training path
+        """
+        directory_name = get_directory_name(
+            training_name)  # change name to lowercase
+        # join directory name with '-' dash
+
+        project_path = Path(project_path)  # make sure it is Path() object
+
+        training_path = project_path / 'training' / str(directory_name)
+        log_info(f"Training Path: {str(training_path)}")
+
+        return training_path
 
     @st.cache
     def get_framework_list(self):
@@ -322,7 +361,8 @@ class BaseTraining:
         
                                 """
         partition_size_json = json.dumps(self.partition_ratio, indent=4)
-        update_training_info_vars = [self.name, self.desc, partition_size_json,self.id]
+        update_training_info_vars = [self.name,
+                                     self.desc, partition_size_json, self.id]
 
         query_return = db_fetchone(update_training_info_SQL,
                                    conn,
@@ -440,11 +480,10 @@ class NewTraining(BaseTraining):
             NewTrainingPagination.TrainingConfig: False,
             NewTrainingPagination.AugmentationConfig: False
         }
-        self.model_selected = None  # TODO
+        self.model_selected = None  # TODO add as Model() class?
     # TODO *************************************
 
     # Wrapper for check_if_exists function from form_manager.py
-
     def check_if_exists(self, context: Dict, conn) -> bool:
         table = 'public.training'
 
@@ -506,6 +545,63 @@ class NewTraining(BaseTraining):
             traceback.print_exc()
             st.error(f'{e}')
             return False
+
+    def initialise_training_folder(self):
+        '''
+        training_dir
+        |
+        |-annotations/
+        | |-labelmap
+        | |-TFRecords*
+        |
+        |-exported_models/
+        |-dataset
+        | |-train/
+        | |-evaluation/
+        |
+        |-models/
+
+        '''
+        # directory_name = get_directory_name(
+        #     self.name)  # Generate Training Folder name
+
+        # self.training_path = project.project_path / 'training' / \
+        #     str(directory_name)  # use training name
+
+        # >>>> TRAINING PATH
+        self.training_path['ROOT'] = self.get_training_path(self.project_path)
+        # >>>> MODEL PATH
+        self.training_path['models'] = self.training_path['ROOT'] / 'models'
+        # PARTITIONED DATASET PATH
+        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
+        # EXPORTED MODEL PATH
+        self.training_path['exported_models'] = self.training_path['ROOT'] / \
+            'exported_models'
+        # ANNOTATIONS PATH
+        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
+
+        # CREATE Training directory recursively
+        for path in self.training_path.values():
+            create_folder_if_not_exist(path)
+            log_info(
+                f"Successfully created **{str(path)}**")
+
+        try:
+            assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
+                len(self.training_path - 1))), f"Failed to create all folders"
+            log_info(
+                f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
+
+        except AssertionError as e:
+
+            # Create a list of sub-folders excluding Training Root
+            directory_structure = [
+                x for x in self.training_path.values() if x != self.training_path['ROOT']]
+
+            missing_folders = [x for x in self.training_path['ROOT'].iterdir(
+            ) if x.is_dir() and (x not in directory_structure)]
+
+            log_error(f"{e}: Missing {missing_folders}")
 
     # NOTE DEPRECATED
     def insert_training(self, model: Model, project: Project):
@@ -634,8 +730,10 @@ class Training(BaseTraining):
 
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
+        self.training_path = self.get_training_path(
+            self.project_path, self.name)
 
-        # query training details
+        # TODO #136 query training details
         # get model attached
         # is_started
         # progress
@@ -714,6 +812,7 @@ class Training(BaseTraining):
 
         return all_project_training, column_names
 
+    # NOTE DEPRECATED
     def initialise_training(self, model: Model, project: Project):
         '''
         training_dir
