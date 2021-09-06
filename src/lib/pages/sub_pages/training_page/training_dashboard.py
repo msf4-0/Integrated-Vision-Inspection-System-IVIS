@@ -109,7 +109,7 @@ def dashboard():
         "Create New Training Session", key='create_new_training_from_training_dashboard',
         on_click=to_new_training_page, help="Create a new training session")
 
-    # add function to preprocess progress column
+
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
@@ -216,10 +216,10 @@ def index():
         st.markdown("""___""")
         # ****************************** HEADER **********************************************
     st.write(f"## **Training Section:**")
-    # ************************ EXISTING PROJECT PAGINATION *************************
+    # ************************ TRAINING PAGINATION *************************
     training_page = {
         TrainingPagination.Dashboard: dashboard,
-        TrainingPagination.New: new_training.new_training_page,
+        TrainingPagination.New: new_training.index,
         TrainingPagination.Existing: None,
         TrainingPagination.NewModel: None
     }
@@ -237,7 +237,8 @@ def index():
             # TODO #133 Add New Training Reset
             session_state.training_pagination = TrainingPagination.Dashboard
 
-        training_dashboard_back_button_place.button("Back to Training Dashboard", key="back_to_training_dashboard_page",
+        training_dashboard_back_button_place.button("Back to Training Dashboard",
+                                                    key="back_to_training_dashboard_page",
                                                     on_click=to_training_dashboard_page)
 
     else:

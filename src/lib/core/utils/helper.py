@@ -13,7 +13,7 @@ from functools import wraps
 from inspect import signature
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import pandas as pd
 import streamlit as st
@@ -111,7 +111,7 @@ def split_string(string: str) -> List:
     return list_string
 
 
-def join_string(list_string: List,separator:str='-') -> str:
+def join_string(list_string: List, separator: str = '-') -> str:
 
     # Join the string based on '-' delimiter
     string = separator.join(list_string)
@@ -291,7 +291,7 @@ def get_filetype(file: Union[str, Path, UploadedFile]):
 
 
 def compare_filetypes(file_tuple: tuple):
-    """Compare if 2 instances are equal, else break loop 
+    """Compare if 2 instances are equal, else break loop
 
     Args:
         file_tuple (tuple): A pair of elements to be compared -> 2 elements zip of a List or Dict
@@ -360,3 +360,65 @@ def check_args_kwargs(wildcards: Union[List, Dict] = None, func: Callable[..., A
     if wildcards and func:
         assert len(wildcards) == len(signature(
             func).parameters), "Length of wildcards does not meet length of arguments required by callback function"
+
+
+class NetChange(IntEnum):
+    NoChange = 0
+    Addition = 1
+    Removal = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return NetChange[s]
+        except KeyError:
+            raise ValueError()
+
+
+def find_net_change(initial_list: List, submitted_list: List) -> Tuple:
+    """ Determine whether Element was removed or added into/from the list
+
+
+    Args:
+        initial_list (List): List of elements before modification
+        submitted_list (List): List of elements after modification
+
+    Returns:
+        Tuple: ([List of added/removed elements] , NetChange IntEnum constant)
+    """
+
+    # Let Set 1 = Initial List
+    # Let set 2 =Newly submitted List
+
+    # set 1 - set 2 REMOVAL
+    # {1,2,3,4,5,6,7,8} - {1,2,3,4,5} = {6, 7, 8}
+    diff_12 = set(initial_list).difference(submitted_list)
+
+    # set 2 - set 1 ADDITION
+    # {1,2,3,4,5,6,7,8} - {1,2,3,4,5} = {6, 7, 8}
+    diff_21 = set(submitted_list).difference(initial_list)
+
+    # ****************** REMOVAL ***********************
+    if diff_12:
+
+        removed_elements = list(diff_12)
+        flag = NetChange.Removal
+        log_info(f"REMOVAL: {flag}")
+
+        return removed_elements, flag
+
+    # ****************** ADDITION ***********************
+    elif diff_21:
+        added_elements = list(diff_21)
+        flag = NetChange.Addition
+        log_info(f"ADDITION: {flag}")
+
+        return added_elements, flag
+
+    else:
+        flag = NetChange.NoChange
+        log_info(f"No Change: {flag}")
+        return None, flag

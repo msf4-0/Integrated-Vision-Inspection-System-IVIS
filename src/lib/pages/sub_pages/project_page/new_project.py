@@ -190,8 +190,8 @@ def new_project_entry_page():
             options=dataset_dict, help="Assign dataset to the project")
         place["new_project_dataset_chosen"] = st.empty()
 
-
     # >>>> CREATE NEW DATASET AND SELECT DATASET >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
         def to_new_dataset_page():
             session_state.new_project_pagination = NewProjectPagination.NewDataset
 
@@ -220,7 +220,7 @@ def new_project_entry_page():
 
         # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         df = create_dataframe(existing_dataset,
-                              column_names=dataset_table_column_names, 
+                              column_names=dataset_table_column_names,
                               date_time_format=True)
 
         df_loc = df.loc[:, "ID":"Date/Time"]
@@ -276,17 +276,19 @@ def new_project_entry_page():
             f"Page {1+session_state.new_project_dataset_page} of {num_dataset_page}")
     # **************************************** DATASET PAGINATION ****************************************
 
-
     # ******************************** SUBMISSION *************************************************
     success_place = st.empty()
-    context = {'new_project_name': session_state.new_project.name,
-               'new_project_deployment_type': session_state.new_project.deployment_type, 'new_project_dataset_chosen': session_state.new_project.dataset_chosen}
+    context = {
+        'new_project_name': session_state.new_project.name,
+        'new_project_deployment_type': session_state.new_project.deployment_type,
+        'new_project_dataset_chosen': session_state.new_project.dataset_chosen
+    }
 
     submit_col1, submit_col2 = st.columns([3, 0.5])
 
     def new_project_submit():
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
-            context, field_placeholder=place)
+            context, field_placeholder=place, name_key='new_project_name')
 
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project

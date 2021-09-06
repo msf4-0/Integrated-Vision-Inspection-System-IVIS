@@ -45,13 +45,13 @@ def check_if_exists(table: str, column_name: str, condition, conn=conn):
     return exist_flag
 
 
-def check_if_field_empty(context: Dict, field_placeholder, check_if_exists=None):
+def check_if_field_empty(context: Dict, field_placeholder, name_key:str='name',check_if_exists=None):
     empty_fields = []
 
     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
     for k, v in context.items():
         if v and v != "":
-            if (k == 'name'):
+            if (k == name_key):
                 context = {'column_name': 'name', 'value': v}
 
                 if check_if_exists(context, conn):

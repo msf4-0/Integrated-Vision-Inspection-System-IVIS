@@ -221,10 +221,10 @@ class BaseProject:
         return exists_flag
 
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict, field_placeholder):
+    def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str):
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
-            context, field_placeholder, check_if_exists)
+            context, field_placeholder,name_key, check_if_exists)
         return empty_fields
 
 
