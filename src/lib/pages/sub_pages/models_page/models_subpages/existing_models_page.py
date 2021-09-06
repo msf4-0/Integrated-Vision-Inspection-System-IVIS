@@ -1,5 +1,5 @@
 """
-Title: Models Page (Index)
+Title: Models Page
 Date: 5/9/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
@@ -32,8 +32,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -51,8 +51,7 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
-from project.project_management import Project
-from user.user_management import User
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
@@ -60,46 +59,13 @@ from user.user_management import User
 # <<<< Variable Declaration <<<<
 
 
-def index():
+def models_page():
+    st.write("MODELS")
 
-    chdir_root()  # change to root directory
-    RELEASE = False
-
-    # ****************** TEST ******************************
-    if not RELEASE:
-        log_info("At Training INDEX")
-
-        # ************************TO REMOVE************************
-        with st.sidebar.container():
-            st.image("resources/MSF-logo.gif", use_column_width=True)
-            st.title("Integrated Vision Inspection System", anchor='title')
-            st.header(
-                "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-            st.markdown("""___""")
-
-        # ************************TO REMOVE************************
-        project_id_tmp = 43
-        log_info(f"Entering Project {project_id_tmp}")
-
-        # session_state.append_project_flag = ProjectPermission.ViewOnly
-
-        if "project" not in session_state:
-            session_state.project = Project(project_id_tmp)
-            log_info("Inside")
-        if 'user' not in session_state:
-            session_state.user = User(1)
-        # ****************************** HEADER **********************************************
-        st.write(f"# {session_state.project.name}")
-
-        project_description = session_state.project.desc if session_state.project.desc is not None else " "
-        st.write(f"{project_description}")
-
-        st.markdown("""___""")
-        # ****************************** HEADER **********************************************
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        index()
+        models_page()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
