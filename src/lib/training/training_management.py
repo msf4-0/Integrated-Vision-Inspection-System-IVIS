@@ -197,7 +197,7 @@ class BaseTraining:
         framework_list = db_fetchall(get_framework_list_SQL, conn)
         return framework_list
 
-    def calc_total_dataset_size(self, dataset_dict: Dict) -> int:
+    def calc_total_dataset_size(self, dataset_chosen: List, dataset_dict: Dict) -> int:
         """Calculate the total dataset size for the current training configuration
 
         Args:
@@ -208,7 +208,7 @@ class BaseTraining:
         """
 
         total_dataset_size = 0
-        for dataset in self.dataset_chosen:
+        for dataset in dataset_chosen:
             # Get dataset namedtuple from dataset_dict
             dataset_info = dataset_dict.get(dataset)
             # Obtain 'Dataset_Size' attribute from namedtuple
@@ -217,10 +217,11 @@ class BaseTraining:
 
         return total_dataset_size
 
-    def calc_dataset_partition_size(self, dataset_dict: Dict):
+    def calc_dataset_partition_size(self, dataset_chosen: List, dataset_dict: Dict):
 
-        if self.dataset_chosen:
-            total_dataset_size = self.calc_total_dataset_size(dataset_dict)
+        if dataset_chosen:
+            total_dataset_size = self.calc_total_dataset_size(
+                dataset_chosen, dataset_dict)
 
             self.partition_size['test'] = floor(
                 self.partition_ratio['test'] * total_dataset_size)
@@ -286,14 +287,13 @@ class BaseTraining:
                         %s
                         , (
                             SELECT
-                                id
+                                d.id
                             FROM
                                 public.dataset d
                             WHERE
-                                d.name = %s)
-                        ON CONFLICT (training_id
-                            , dataset_id)
-                            DO NOTHING)
+                                d.name = %s))
+                    ON CONFLICT ON CONSTRAINT training_dataset_pkey
+                        DO NOTHING;
                     """
         for dataset in added_dataset:
             insert_training_dataset_vars = [self.id, dataset]
@@ -322,7 +322,7 @@ class BaseTraining:
         
                                 """
         partition_size_json = json.dumps(self.partition_ratio, indent=4)
-        update_training_info_vars = [self.name, self.desc, partition_size_json]
+        update_training_info_vars = [self.name, self.desc, partition_size_json,self.id]
 
         query_return = db_fetchone(update_training_info_SQL,
                                    conn,
@@ -392,9 +392,7 @@ class BaseTraining:
             VALUES (
                 %s
                 , %s)
-            ON CONFLICT (
-                project_id
-                , training_id)
+            ON CONFLICT ON CONSTRAINT project_training_pkey
                 DO NOTHING;
         
             """

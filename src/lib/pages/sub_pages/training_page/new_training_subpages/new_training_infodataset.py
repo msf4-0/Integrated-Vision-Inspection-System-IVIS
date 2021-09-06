@@ -165,8 +165,8 @@ def infodataset():
             with st.expander("Partition info"):
                 st.info("Ratio of Training datasets to Evaluation datasets. Example: '0.5' means the dataset are split randomly and equally into training and evaluation datasets.")
 
-            session_state.new_training.calc_dataset_partition_size(
-                session_state.project.dataset_dict)
+            session_state.new_training.calc_dataset_partition_size(session_state.new_training_dataset_chosen,
+                                                                   session_state.project.dataset_dict)
 
             st.info(f"""
             ### Train Dataset Ratio: {session_state.new_training.partition_ratio['train']} ({session_state.new_training.partition_size['train']} data)
@@ -186,6 +186,11 @@ def infodataset():
         elif len(session_state.new_training_dataset_chosen) == 0:
             session_state.new_training_place["new_training_dataset_chosen"].info(
                 "No dataset selected")
+            session_state.new_training.partition_ratio = {
+                'train': 0.8,
+                'eval': 0.2,
+                'test': 0
+            }
 
     # ******************************* Right Column to select dataset *******************************
 
@@ -291,7 +296,10 @@ def infodataset():
                 # Training Name,Desc, Dataset chosen, Partition Size
                 session_state.new_training.dataset_chosen = session_state.new_training_dataset_chosen
                 if new_training_infodataset_submission_dict.insert():
-                    session_state.new_training_pagination += 1
+                    # session_state.new_training_pagination += 1
+                    session_state.new_training.has_submitted[session_state.new_training_pagination] = True
+                    log_info(
+                        f"Successfully created new training {session_state.new_training.id}")
 
         # >>>> UPDATE if Training has already been submitted prior to this
         elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
@@ -299,9 +307,11 @@ def infodataset():
 
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
-                if new_training_infodataset_submission_dict.update(session_state.new_training.dataset_chosen,
+                if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
                                                                    session_state.project.dataset_dict):
-                    session_state.new_training_pagination += 1
+                    # session_state.new_training_pagination += 1
+                    log_info(
+                        f"Successfully updated new training {session_state.new_training.id}")
             else:
                 session_state.new_training_place['new_training_name'].error(
                     'Training Name already exists, please enter a new name')
@@ -310,7 +320,7 @@ def infodataset():
         st.button("next", key="new_training_next_button",
                   on_click=to_new_training_next_page)
 
-
+    st.write(session_state.new_training_dataset_chosen)
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
         infodataset()

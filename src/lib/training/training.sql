@@ -74,14 +74,15 @@ VALUES (
     % s
     , (
         SELECT
-            id
+            d.id
         FROM
             public.dataset d
         WHERE
-            d.name = % s)
-    ON CONFLICT (training_id
-        , dataset_id)
-        DO NOTHING)
+            d.name = % s))
+ON CONFLICT ON CONSTRAINT training_dataset_pkey
+    DO NOTHING;
+
+
 /* Update Training Table */
 UPDATE
     public.training
