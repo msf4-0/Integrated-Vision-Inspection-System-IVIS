@@ -133,7 +133,6 @@ class DatasetPath(NamedTuple):
     test: Path
     # <<<< Variable Declaration <<<<
 
-
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
@@ -538,6 +537,9 @@ class NewTraining(BaseTraining):
             # Insert Training Dataset
             self.insert_training_dataset(added_dataset=self.dataset_chosen)
 
+            # Create Training Folder
+            self.initialise_training_folder()
+
             return True
 
         except AssertionError as e:
@@ -547,6 +549,8 @@ class NewTraining(BaseTraining):
             return False
 
     def initialise_training_folder(self):
+        """Create Training Folder
+        """
         '''
         training_dir
         |
@@ -562,14 +566,11 @@ class NewTraining(BaseTraining):
         |-models/
 
         '''
-        # directory_name = get_directory_name(
-        #     self.name)  # Generate Training Folder name
-
-        # self.training_path = project.project_path / 'training' / \
-        #     str(directory_name)  # use training name
+    # >>>> GENERATE TRAINING PATHS >>>>
 
         # >>>> TRAINING PATH
-        self.training_path['ROOT'] = self.get_training_path(self.project_path)
+        self.training_path['ROOT'] = self.get_training_path(
+            self.project_path, self.name)
         # >>>> MODEL PATH
         self.training_path['models'] = self.training_path['ROOT'] / 'models'
         # PARTITIONED DATASET PATH
@@ -580,15 +581,16 @@ class NewTraining(BaseTraining):
         # ANNOTATIONS PATH
         self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
 
-        # CREATE Training directory recursively
+    # >>>> CREATE Training directory recursively
         for path in self.training_path.values():
             create_folder_if_not_exist(path)
             log_info(
                 f"Successfully created **{str(path)}**")
 
+    # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
         try:
             assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
-                len(self.training_path - 1))), f"Failed to create all folders"
+                len(self.training_path) - 1)), f"Failed to create all folders"
             log_info(
                 f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
 
