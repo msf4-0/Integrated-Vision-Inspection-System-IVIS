@@ -73,6 +73,7 @@ def existing_models():
     existing_models, existing_models_column_names = Model.query_model_table(for_data_table=True,
                                                                             return_dict=True,
                                                                             deployment_type=session_state.training.deployment_type)
+
     # st.write(vars(session_state.training))
 
     # ************************* SESSION STATE ************************************************
@@ -145,10 +146,37 @@ def existing_models():
     ]
     # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+    # Returns model_id -> store inside model class
+    def instantiate_model():
+        model_df_row = Model.filtered_models_dataframe(models=existing_models,
+                                                       dataframe_col="id",
+                                                       filter_value=session_state.existing_models_table[0],
+                                                       column_names=existing_models_column_names)
+        log_info(f"{model_df_row[0]}")
+        
+        if 'attached_model' not in session_state:
+            session_state.attached_model = Model(model_row=model_df_row[0])
+
+        else:
+            session_state.attached_model = Model(model_row=model_df_row[0])
+        st.write(vars(session_state.attached_model))
+
     data_table(rows=existing_models,
                columns=existing_models_columns,
                checkbox=False,
-               key='existing_models_table')
+               key='existing_models_table',on_change=instantiate_model)
+
+    if 'attached_model' in session_state:
+
+        model_information = f"""
+        ### Model Information:
+        #### Name: {session_state.attached_model.name}
+        #### Framework: {session_state.attached_model.framework}
+        #### Model Input Size: {session_state.attached_model.model_input_size}
+        #### Metrics: {session_state.attached_model.metrics.get('evaluation')}
+        """
+        st.info(model_information)
+
 
 
 def index():

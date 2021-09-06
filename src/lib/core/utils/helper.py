@@ -234,17 +234,17 @@ def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
 
     if string:
 
-        # Get String form if deployment_type is type IntEnum class
+        # Get String form if is type IntEnum class
         if isinstance(identifier, enumerator_class):
             identifier = [
                 k for k, v in identifier_dictionary.items() if v == identifier][0]
 
     else:
-        # Get IntEnum class constant if deployment_type is string
+        # Get IntEnum class constant if is string
         if isinstance(identifier, str):
             identifier = identifier_dictionary[identifier]
 
-    log_info(f"Deployment Type is :{identifier}")
+    log_info(f"Type is :{identifier}")
 
     return identifier
 

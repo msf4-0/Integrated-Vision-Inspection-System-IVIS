@@ -5,18 +5,20 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
-from collections import namedtuple
 import sys
+from collections import namedtuple
+from datetime import datetime
+from enum import IntEnum
 from pathlib import Path
-from typing import NamedTuple, Tuple, Union, List, Dict
+from time import sleep
+from typing import Dict, List, NamedTuple, Tuple, Union
+
 import pandas as pd
 import psycopg2
-from PIL import Image
-from time import sleep
-from enum import IntEnum
 import streamlit as st
+from PIL import Image
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state as session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -29,14 +31,17 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-# >>>> User-defined Modules >>>>
-from path_desc import chdir_root, MEDIA_ROOT, PROJECT_DIR, PRE_TRAINED_MODEL_DIR, USER_DEEP_LEARNING_MODEL_UPLOAD
-from core.utils.log import log_info, log_error  # logger
-from core.utils.helper import get_dataframe_row, get_directory_name
-from data_manager.database_manager import db_fetchall, init_connection, db_fetchone, db_no_fetch
-from core.utils.helper import create_dataframe, dataframe2dict, get_directory_name, datetime_formatter, get_identifier_str_IntEnum
 from core.utils.form_manager import check_if_exists, check_if_field_empty
+from core.utils.helper import (create_dataframe, dataframe2dict,
+                               datetime_formatter, get_dataframe_row,
+                               get_directory_name, get_identifier_str_IntEnum)
+from core.utils.log import log_error, log_info  # logger
+from data_manager.database_manager import (db_fetchall, db_fetchone,
+                                           db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment
+# >>>> User-defined Modules >>>>
+from path_desc import (MEDIA_ROOT, PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
+                       USER_DEEP_LEARNING_MODEL_UPLOAD, chdir_root)
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -63,9 +68,9 @@ class ModelType(IntEnum):
 
 
 MODEL_TYPE = {
-    ModelType.PreTrained: "Pre-trained Models",
-    ModelType.ProjectTrained: "Project Models",
-    ModelType.UserUpload: "User Deep Learning Model Upload"
+    "Pre-trained Models": ModelType.PreTrained,
+    "Project Models": ModelType.ProjectTrained,
+    "User Deep Learning Model Upload": ModelType.UserUpload
 }
 
 
@@ -130,6 +135,7 @@ class BaseModel:
         self.labelmap_path: Path = None
         self.saved_model_dir: Path = None
         self.has_submitted: bool = False
+        self.updated_at: datetime = None
 
     # TODO Method to generate Model Path #116
     @st.cache
@@ -188,6 +194,7 @@ class BaseModel:
 
         return model_type
 
+    @staticmethod
     def get_pt_user_model_path(model_path: Union[str, Path] = None, framework: str = None, model_type: Union[str, ModelType] = None, **model_row) -> Path:
         """Get directory path for Pre-trained models and User Upload Deep Learning Models
 
@@ -212,10 +219,11 @@ class BaseModel:
         framework = get_directory_name(framework)
 
         if model_type == ModelType.PreTrained:
-            model_path = PRE_TRAINED_MODEL_DIR / framework / model_path
+            model_path = PRE_TRAINED_MODEL_DIR / framework / str(model_path)
 
         elif model_type == ModelType.UserUpload:
-            model_path = USER_DEEP_LEARNING_MODEL_UPLOAD / framework / model_path
+            model_path = USER_DEEP_LEARNING_MODEL_UPLOAD / \
+                framework / str(model_path)
 
         # assert model_path.is_dir(), f"{str(model_path)} does not exists"
 
@@ -228,7 +236,15 @@ class BaseModel:
         return model_path
 
     @staticmethod
-    def query_project_model_path(model_id: int):
+    def query_project_model_path(model_id: int) -> Path:
+        """Get path to Project Models
+
+        Args:
+            model_id (int): Model ID
+
+        Returns:
+            Path: Path-like object of the Project Model Path
+        """
         query_model_project_training_SQL = """
             SELECT m.name AS "Name",
                 (SELECT p.name AS "Project Name"
@@ -240,7 +256,8 @@ class BaseModel:
                     SELECT f.name AS "Framework"
                     FROM public.framework f
                     WHERE f.id = m.framework_id
-                )
+                ),
+                m.model_path AS "Model Path"
 
             FROM public.models m
             WHERE m.id = %s;
@@ -263,8 +280,104 @@ class NewModel(BaseModel):
 
 
 class Model(BaseModel):
-    def __init__(self, model_id: int) -> None:
-        super().__init__(model_id)
+    def __init__(self, model_id: int = None, model_row: Dict = None) -> None:
+
+        # IF GIVEN DATAFRAME ROW
+        if model_row:
+            self.id: int = model_row['id']
+            self.name: str = model_row['Name']
+            self.desc: str = model_row['Description']
+            self.metrics: Dict = model_row['Metrics']
+            self.model_type: str = model_row['Model Type']
+            self.framework: str = model_row['Framework']
+            self.training_name: str = model_row['Training Name']
+            self.updated_at: datetime = model_row['Date/Time']
+            self.model_path_relative: str = model_row['Model Path']
+        # IF GIVEN MODEL ID
+        elif model_id:
+            assert (isinstance(
+                model_id, int)), f"Model ID should be type int but type {type(model_id)} obtained ({model_id})"
+            self.id = model_id
+            self.query_all_fields()
+
+        # Get model type constant
+        model_type_constant: IntEnum = self.get_model_type(
+            self.model_type, string=False)
+
+        # Get respective model path
+        if (model_type_constant == ModelType.PreTrained) or (model_type_constant == ModelType.UserUpload):
+            self.model_path = self.get_pt_user_model_path(self.model_path_relative,
+                                                          self.framework,
+                                                          self.model_type)
+        elif (model_type_constant == ModelType.ProjectTrained):
+            self.model_path = self.get_project_model_path()
+
+        # Get Model Input Size
+        self.model_input_size = self.metrics.get('metadata').get('input_size')
+
+    def query_all_fields(self) -> NamedTuple:
+
+        query_all_fields_SQL = """
+                SELECT
+                    m.id AS "ID"
+                    , m.name AS "Name"
+                    , (
+                        SELECT
+                            f.name AS "Framework"
+                        FROM
+                            public.framework f
+                        WHERE
+                            f.id = m.framework_id) , (
+                        SELECT
+                            mt.name AS "Model Type"
+                        FROM
+                            public.model_type mt
+                        WHERE
+                            mt.id = m.model_type_id) , (
+                        SELECT
+                            dt.name AS "Deployment Type"
+                        FROM
+                            public.deployment_type dt
+                        WHERE
+                            dt.id = m.deployment_id) , (
+                        /* Replace NULL with '-' */
+                        SELECT
+                            CASE WHEN m.training_id IS NULL THEN
+                                '-'
+                            ELSE
+                                (
+                                    SELECT
+                                        t.name
+                                    FROM
+                                        public.training t
+                                    WHERE
+                                        t.id = m.training_id)
+                            END AS "Training Name")
+                    , m.updated_at AS "Date/Time"
+                    , m.description AS "Description"
+                    , m.metrics AS "Metrics"
+                    , m.model_path AS "Model Path"
+                FROM
+                    public.models m
+                WHERE
+                    m.id = %s;
+                """
+        query_all_fields_vars = [self.id]
+
+        model_field = db_fetchone(query_all_fields_SQL,
+                                  conn,
+                                  query_all_fields_vars)
+
+        if model_field:
+
+            self.id, self.name, self.framework, self.model_type, self.deployment_type, self.training_name, self.updated_at, self.desc, self.metrics, self.model_path_relative = model_field
+        else:
+            log_error(
+                f"Model with ID {self.id} does not exists in the Database!!!")
+
+            model_field = None
+
+        return model_field
 
     @staticmethod
     def query_model_table(for_data_table: bool = False, return_dict: bool = False, deployment_type: Union[str, IntEnum] = None) -> namedtuple:
@@ -494,7 +607,7 @@ def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None,
         deployment_type=deployment_type, string=True)
     ID_string = "id" if for_data_table else "ID"
 
-    model_dt_SQL = f"""
+    model_dt_SQL = """
         SELECT
             m.id AS \"{ID_string}\",
             m.name AS "Name",
@@ -535,10 +648,10 @@ def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None,
             m.model_path AS "Model Path"
         FROM
             public.models m
-            INNER JOIN public.deployment_type dt ON dt.name = 'Object Detection with Bounding Boxes'
+            INNER JOIN public.deployment_type dt ON dt.name = %s
         ORDER BY
             m.id ASC;        
-                """
+                """.format(ID_string=ID_string)
 
     model_dt_vars = [deployment_type]
 
