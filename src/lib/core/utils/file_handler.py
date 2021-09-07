@@ -39,8 +39,11 @@ from path_desc import chdir_root
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
+SUPPORTED_ARCHIVE_EXT = ['.zip', '.gz', '.bz2', '.xz']
 
 # ************************** DEPRECATED **************************
+
+
 def bytes_divisor(value: Union[int, float], power: int = 1) -> Union[int, float]:
     """Convert bytes size
 
@@ -329,6 +332,56 @@ def file_unarchiver(filename, extract_dir):
     log_info("Successfully Unarchive")
 
 
+def list_files_in_archived(archived_filepath: Path) -> List[str]:
+    """List files in the zip (.zip) and tar archives.
+
+    Supported tar compressions:
+    1. gzip (.tar.gz)
+    2. bz2 (.tar.bz2)
+    3. xz (.tar.xz)
+
+
+    Args:
+        archived_filepath (Path): Filepath to archives
+
+    Returns:
+        List[str]: A list of member files in the archives.
+    """
+
+    file_list = []
+    # Make sure it is Path() object
+    archived_filepath = Path(archived_filepath)
+
+    # get extension of the archive file
+    archive_extension = archived_filepath.suffix
+
+    if (archive_extension not in SUPPORTED_ARCHIVE_EXT):
+
+        # RETURN TO CALLER IF ARCHIVE FORMAT NOT SUPPORTED !!!!
+        error_msg = f"Archiving format {archive_extension} is not supported"
+        log_error(error_msg)
+        st.error(error_msg)
+        return
+
+    if archive_extension == '.zip':
+        with ZipFile(file=archived_filepath, mode='r') as zipObj:
+            file_list = sorted(zipObj.namelist())
+
+    else:
+        tar_read_format_list = {
+            ".gz": "r:gz",
+            ".bz2": "r:bz2",
+            ".xz": "r:xz"
+        }
+
+        tar_mode = tar_read_format_list.get(archive_extension)
+
+        with tarfile.open(name=archived_filepath, mode=tar_mode) as tarObj:
+            file_list = sorted(tarObj.getnames())
+
+    return file_list
+
+
 # NOTE DEPRECATED -> USE file_archive_handler
 def single_file_archiver(archive_filename: Path, target_filename: Path, target_root_dir, target_base_dir, archive_extension=".zip"):
     """Archiver for single files
@@ -354,14 +407,14 @@ def single_file_archiver(archive_filename: Path, target_filename: Path, target_r
             st.success(f"Successfully archived folder: {archive_filename}")
 
     else:  # remaining is tarball
-        tar_format_list = {
+        tar_write_format_list = {
             ".gz": "w:gz",
             ".bz2": "w:bz2",
             ".xz": "w:xz"
         }
-        if archive_extension in tar_format_list.keys():
+        if archive_extension in tar_write_format_list.keys():
 
-            tar_mode = tar_format_list[archive_extension]
+            tar_mode = tar_write_format_list[archive_extension]
 
         else:
             log_error("Archive format invalid!")
@@ -466,7 +519,7 @@ def file_archive_handler(archive_filename: Path, target_filename: Path, archive_
         file_archiver(
             archive_filename, target_filename, target_root_dir,
             target_base_dir, archive_extension)
-     
+
     # >>>> BATCH FILE
     elif target_filename.is_dir():
         target_root_dir = target_filename.parent

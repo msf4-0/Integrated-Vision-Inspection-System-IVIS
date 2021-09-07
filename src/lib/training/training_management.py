@@ -40,6 +40,7 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
+
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -61,7 +62,7 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 from project.project_management import Project
-
+from training.model_management import Model, NewModel
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -168,9 +169,10 @@ class BaseTraining:
         self.project_id: int = project.id
         self.project_path = project.project_path
         self.model_id: int = None
+        self.attached_model: Model = None
+        self.project_model: Model = None
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: str = project.deployment_type
-        self.model: Model = None
         self.model_path: str = None
         self.framework: str = None
         self.partition_ratio: Dict = {
@@ -235,17 +237,6 @@ class BaseTraining:
 
         return self.training_path
 
-    @st.cache
-    def get_framework_list(self):
-        get_framework_list_SQL = """
-            SELECT
-                id as "ID",
-                name as "Name"
-            FROM
-                public.framework;
-                    """
-        framework_list = db_fetchall(get_framework_list_SQL, conn)
-        return framework_list
 
     def calc_total_dataset_size(self, dataset_chosen: List, dataset_dict: Dict) -> int:
         """Calculate the total dataset size for the current training configuration
@@ -516,7 +507,10 @@ class NewTraining(BaseTraining):
             NewTrainingPagination.TrainingConfig: False,
             NewTrainingPagination.AugmentationConfig: False
         }
-        self.model_selected = None  # TODO add as Model() class?
+
+        self.model_selected: NewModel = None  # DEPRECATED
+        self.attached_model: Model = None
+        self.project_model: NewModel = None
     # TODO *************************************
 
     # Wrapper for check_if_exists function from form_manager.py
@@ -772,6 +766,8 @@ class Training(BaseTraining):
 
         self.query_all_fields()
         self.training_path = self.get_all_training_path()
+        self.attached_model: Model = None
+        self.project_model: Model = None
 
         # TODO #136 query training details
         # get model attached

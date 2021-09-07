@@ -3,6 +3,25 @@ Title: Model Management
 Date: 20/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
+
 """
 
 import sys
@@ -40,9 +59,9 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 # >>>> User-defined Modules >>>>
-from path_desc import (MEDIA_ROOT, PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
-                       USER_DEEP_LEARNING_MODEL_UPLOAD, chdir_root)
-
+from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
+                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root)
+from core.utils.code_generator import get_random_string
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # initialise connection to Database
@@ -100,6 +119,46 @@ FRAMEWORK = {
     Framework.Caffe: "Caffe",
     Framework.MXNet: "MXNet",
     Framework.ONNX: "ONNX"
+}
+
+# .pkl => Pickle format
+MODEL_FILES = {
+    Framework.TensorFlow: {
+        'model_extension': ['.pb', 'h5'],
+        'checkpoint': './checkpoint',
+        'config': 'pipeline.config',
+        'labelmap': ['.pbtxt']
+    },
+    Framework.PyTorch: {
+        'model_extension': ['.pt', '.pth', '.pkl'],
+        'checkpoint': [],
+        'config': [],
+        'labelmap': []
+    },
+    Framework.Scikit_learn: {
+        'model_extension': ['.pkl', 'json'],
+        'checkpoint': [],
+        'config': [],
+        'labelmap': []
+    },
+    Framework.Caffe: {
+        'model_extension': ['.caffemodel', '.pb', '.pbtxt'],
+        'checkpoint': [],
+        'config': [],
+        'labelmap': []
+    },
+    Framework.MXNet: {
+        'model_extension': ['.onnx', '.json', '.params'],
+        'checkpoint': [],
+        'config': [],
+        'labelmap': []
+    },
+    Framework.ONNX: {
+        'model_extension': ['.onnx'],
+        'checkpoint': [],
+        'config': [],
+        'labelmap': []
+    }
 }
 
 
@@ -184,10 +243,19 @@ class BaseModel:
         return empty_fields
 
     @staticmethod
-    def get_model_type(model_type: Union[str, ModelType], string: bool = False):
+    def get_model_type(model_type: Union[str, ModelType], string: bool = False) -> Union[str, ModelType]:
+        """Get Model Type string or IntEnum constants
+
+        Args:
+            model_type (Union[str, ModelType]): Model Type string or IntEnum constant
+            string (bool, optional): True if to obtain type string, False to obtain IntEnum constant. Defaults to False.
+
+        Returns:
+            Union[str, ModelType]: Converted Model Type
+        """
 
         assert isinstance(
-            model_type, (str, ModelType)), f"deployment_type must be String or IntEnum"
+            model_type, (str, ModelType)), f"model_type must be String or IntEnum"
 
         model_type = get_identifier_str_IntEnum(
             model_type, ModelType, MODEL_TYPE, string=string)
@@ -195,15 +263,42 @@ class BaseModel:
         return model_type
 
     @staticmethod
-    def get_framework(framework: Union[str, ModelType], string: bool = False):
+    def get_framework(framework: Union[str, Framework], string: bool = False) -> Union[str, Framework]:
+        """Get Framework string or IntEnum constants
+
+        Args:
+            framework (Union[str, Framework]): Framework string or IntEnum constant
+            string (bool, optional): True if to obtain type string, False to obtain IntEnum constant. Defaults to False.
+
+        Returns:
+            Union[str, Framework]: Converted Framework
+        """
 
         assert isinstance(
-            framework, (str, Framework)), f"deployment_type must be String or IntEnum"
+            framework, (str, Framework)), f"framework must be String or IntEnum"
 
         model_type = get_identifier_str_IntEnum(
             framework, Framework, FRAMEWORK, string=string)
 
         return model_type
+
+    @staticmethod
+    @st.cache
+    def get_framework_list() -> List[NamedTuple]:
+        """Get a list of framework
+
+        Returns:
+            List[NamedTuple]: List of Framework
+        """
+        get_framework_list_SQL = """
+            SELECT
+             
+                name as "Name"
+            FROM
+                public.framework;
+                    """
+        framework_list = db_fetchall(get_framework_list_SQL, conn)
+        return framework_list
 
     @staticmethod
     def get_pt_user_model_path(model_path: Union[str, Path] = None, framework: str = None, model_type: Union[str, ModelType] = None, **model_row) -> Path:
@@ -286,14 +381,17 @@ class BaseModel:
 
 
 class NewModel(BaseModel):
-    def __init__(self, model_id: str) -> None:
+    def __init__(self, model_id: str = get_random_string(length=8)) -> None:
         super().__init__(model_id)
+        self.has_submitted: bool = False
+        self.deployment_type: str = False
+
+    # need to add methods to create New Model Row
 
 
 class Model(BaseModel):
     def __init__(self, model_id: int = None, model_row: Dict = None) -> None:
-        
-        
+
         # ******************************IF GIVEN DATAFRAME ROW******************************
         if model_row:
             self.id: int = model_row['id']
@@ -305,7 +403,7 @@ class Model(BaseModel):
             self.training_name: str = model_row['Training Name']
             self.updated_at: datetime = model_row['Date/Time']
             self.model_path_relative: str = model_row['Model Path']
-            self.deployment_type:str=model_row['Deployment Type']
+            self.deployment_type: str = model_row['Deployment Type']
 
         # ****************************** IF GIVEN MODEL ID******************************
         elif model_id:
@@ -328,7 +426,8 @@ class Model(BaseModel):
 
         # ******************************Get Model Input Size******************************
         self.model_input_size = self.metrics.get('metadata').get('input_size')
-        self.perf_metrics=self.get_perf_metrics()
+        self.perf_metrics = self.get_perf_metrics()
+
     def query_all_fields(self) -> NamedTuple:
 
         query_all_fields_SQL = """
@@ -426,7 +525,7 @@ class Model(BaseModel):
         """
         get_framework_list_SQL = """
             SELECT
-                id as "ID",
+             
                 name as "Name"
             FROM
                 public.framework;
@@ -510,8 +609,9 @@ class Model(BaseModel):
         return model_row
 
     def get_perf_metrics(self):
-        perf_metrics=[]
-        deployment_type=Deployment.get_deployment_type(self.deployment_type,string=False)
+        perf_metrics = []
+        deployment_type = Deployment.get_deployment_type(
+            self.deployment_type, string=False)
         if self.metrics.get('evaluation'):
             for name, values in self.metrics.get('evaluation').items():
                 if name in EVALUATION_TAGS[deployment_type]:
@@ -521,9 +621,14 @@ class Model(BaseModel):
         return perf_metrics
 
     @staticmethod
-    def create_perf_metrics_table():
-        data=Model.get_perf_metrics()
+    def create_perf_metrics_table(data: List) -> pd.DataFrame:
+        df_metrics = pd.DataFrame(
+            data, columns=['metrics', 'name', 'value', 'unit'])
+        df_metrics['value'].map(
+            "{:.2f}".format)  # Only show 2 DP for DataFrame
+        df_metrics = df_metrics.set_index(['metrics'])
 
+        return df_metrics
 
 
 # ********************************** DEPRECATED ********************************

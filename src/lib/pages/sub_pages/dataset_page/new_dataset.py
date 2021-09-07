@@ -3,6 +3,25 @@ Title: New Dataset Page
 Date: 7/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
+
 """
 
 import sys
@@ -124,34 +143,11 @@ def new_dataset():
     else:
         pass
 
-
-# NOTE: Deployment Type removed
-#     deployment_type = outercol2.selectbox(
-#         "Deployment Type", key="deployment_type", options=DEPLOYMENT_TYPE, format_func=lambda x: 'Select an option' if x == '' else x, help="Select the type of deployment of the dataset")
-#     if deployment_type is not None:
-#         session_state.new_dataset.deployment_type = deployment_type
-#         session_state.new_dataset.query_deployment_id()
-#         # st.write(session_state.new_dataset.deployment_id)
-
-#     else:
-#         pass
-#     outercol2.warning("Deployment Type cannot be modified after submission of the dataset")
-#     place["deployment_type"] = outercol2.empty()
-
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
     # >>>>>>>> New Dataset Upload >>>>>>>>
-    # with st.container():
 
-    # upload_dataset_place = st.empty()
-    # if layout == 'wide':
     outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
-    # else:
-    # pass
-    # if 'webcam_flag' not in session_state:
-    #     session_state.webcam_flag = False
-    #     session_state.file_upload_flag = False
-    #     # session_state.img1=True
 
     outercol1.write("## __Dataset Upload:__")
     data_source_options = ["Webcam 📷", "File Upload 📂"]
@@ -269,40 +265,9 @@ def new_dataset():
                 st.error(
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
 
-    # TODO Move to dataset_page
-    # def to_dataset_dashboard_page():
-
-    #     # Check project status:
-    #     # if New Project => return to Entry page
-    #     # else => return to Dataset Dashboard
-    #     # try:
-    #     #     if "project_status" not in session_state:
-    #     #         session_state.project_status = None
-    #     #     if session_state.project_status:
-    #     #         if session_state.project_status == ProjectPagination.New:
-    #     #             # If New Project
-    #     #             session_state.new_project_pagination = NewProjectPagination.Entry
-
-    #     #         elif session_state.project_status == ProjectPagination.Existing:
-    #     #             # If Existing Project
-    #     #             # NOTE
-    #     #             session_state.project_pagination = ProjectPagination.Existing
-
-    #     # except Exception as e:
-    #     #     log_error(
-    #     #         f"""{e}: Either New Dataset Page entered from Dataset Dashboard or
-    #     #         session_state.new_project is not initialised or nullified""")
-
-    #     # >>>> CLEAR ALL CLASS ATTRIBUTES AND WIDGET STATES >>>>
-    #     NewDataset.reset_new_dataset_page()
-    #     session_state.dataset_pagination = DatasetPagination.Dashboard
-
-    # st.button("Back", key='back_to_dataset_dashboard',
-    #           on_click=to_dataset_dashboard_page)
 
     st.write(vars(session_state.new_dataset))
-    # for img in session_state.new_dataset.dataset:
-    #     st.image(img)
+
 
 
 def main():

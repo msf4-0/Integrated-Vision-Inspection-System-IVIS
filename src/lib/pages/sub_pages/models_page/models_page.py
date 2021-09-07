@@ -74,7 +74,7 @@ def existing_models():
     log_info(f"At Existing Model Page")
     existing_models, existing_models_column_names = Model.query_model_table(for_data_table=True,
                                                                             return_dict=True,
-                                                                            deployment_type=session_state.training.deployment_type)
+                                                                            deployment_type=session_state.new_training.deployment_type)
 
     # st.write(vars(session_state.training))
 
@@ -161,11 +161,13 @@ def existing_models():
                                                        column_names=existing_models_column_names)
 
         if 'attached_model' not in session_state:
-            session_state.attached_model = Model(model_row=model_df_row[0])
+            session_state.new_training.attached_model = Model(
+                model_row=model_df_row[0])
 
         else:
-            session_state.attached_model = Model(model_row=model_df_row[0])
-        st.write(vars(session_state.attached_model))
+            session_state.new_training.attached_model = Model(
+                model_row=model_df_row[0])
+        # st.write(vars(session_state.attached_model))
 
     with main_col1:
         data_table(rows=existing_models,
@@ -175,28 +177,22 @@ def existing_models():
 
     with main_col2:
         if 'attached_model' in session_state:
-            # metrics = session_state.attached_model.metrics.get(
-            #     'evaluation').get('COCO')
-            # y=[]
-            # for i in metrics:
-            #     i['metrics']='COCO'
-            #     y.append(i)
 
-            y = session_state.attached_model.get_perf_metrics()
-            df_metrics = pd.DataFrame(y)
-            df_metrics['value'].map(
-                "{:.2f}".format)  # Only show 2 DP for DataFrame
+            y = session_state.new_training.attached_model.get_perf_metrics()
 
+            df_metrics = Model.create_perf_metrics_table(y)
             model_information = f"""
             ### Model Information:
-            #### Name: {session_state.attached_model.name}
-            #### Framework: {session_state.attached_model.framework}
-            #### Model Input Size: {session_state.attached_model.model_input_size}
+            #### Name: {session_state.new_training.attached_model.name}
+            #### Framework: {session_state.new_training.attached_model.framework}
+            #### Model Input Size: {session_state.new_training.attached_model.model_input_size}
                     
             """
             st.info(model_information)
             st.write(f"#### Metrics:")
-            st.table(df_metrics.set_index(['metrics']))
+            st.table(df_metrics)
+
+            # Add Model Name Input
 
 
 def index():
@@ -228,8 +224,8 @@ def index():
             log_info("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
-        if 'training' not in session_state:
-            session_state.training = Training(training_id_tmp,
+        if 'new_training' not in session_state:
+            session_state.new_training = Training(training_id_tmp,
                                               project=session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
