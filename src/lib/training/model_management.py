@@ -38,7 +38,7 @@ from core.utils.helper import (create_dataframe, dataframe2dict,
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
-from deployment.deployment_management import Deployment
+from deployment.deployment_management import Deployment, DeploymentType
 # >>>> User-defined Modules >>>>
 from path_desc import (MEDIA_ROOT, PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD, chdir_root)
@@ -117,9 +117,19 @@ class ModelsPagination(IntEnum):
             return ModelsPagination[s]
         except KeyError:
             raise ValueError()
-# <<<< Variable Declaration <<<<
 
-# >>>> TODO >>>>
+
+# ********************************************************************
+# ****************** TODO: TO be UPDATED ****************************
+# ********************************************************************
+EVALUATION_TAGS = {
+    DeploymentType.Image_Classification: ['Confusion Matrix', 'Accuracy', 'Precision', 'Recall', 'FLOPS'],
+    DeploymentType.OD: ['COCO', 'Pascal VOC', 'Accuracy', 'Precision', 'Recall', 'FLOPS'],
+    DeploymentType.Instance: ['COCO', 'Pascal VOC', 'Accuracy', 'Precision', 'Recall', 'FLOPS'],
+    DeploymentType.Semantic: ['COCO', 'Pascal VOC',
+                              'Accuracy', 'Precision', 'Recall', 'FLOPS']
+}
+# <<<< Variable Declaration <<<<
 
 
 class BaseModel:
@@ -128,6 +138,7 @@ class BaseModel:
         self.name: str = None
         self.desc: str = None
         self.metrics: Dict = {}
+        self.perf_metrics: List = []
         self.model_type: str = None
         self.framework: str = None
         self.training_id: int = None
@@ -281,8 +292,9 @@ class NewModel(BaseModel):
 
 class Model(BaseModel):
     def __init__(self, model_id: int = None, model_row: Dict = None) -> None:
-
-        # IF GIVEN DATAFRAME ROW
+        
+        
+        # ******************************IF GIVEN DATAFRAME ROW******************************
         if model_row:
             self.id: int = model_row['id']
             self.name: str = model_row['Name']
@@ -293,18 +305,20 @@ class Model(BaseModel):
             self.training_name: str = model_row['Training Name']
             self.updated_at: datetime = model_row['Date/Time']
             self.model_path_relative: str = model_row['Model Path']
-        # IF GIVEN MODEL ID
+            self.deployment_type:str=model_row['Deployment Type']
+
+        # ****************************** IF GIVEN MODEL ID******************************
         elif model_id:
             assert (isinstance(
                 model_id, int)), f"Model ID should be type int but type {type(model_id)} obtained ({model_id})"
             self.id = model_id
             self.query_all_fields()
 
-        # Get model type constant
+        # ******************************Get model type constant******************************
         model_type_constant: IntEnum = self.get_model_type(
             self.model_type, string=False)
 
-        # Get respective model path
+        # ****************************** Get respective model path******************************
         if (model_type_constant == ModelType.PreTrained) or (model_type_constant == ModelType.UserUpload):
             self.model_path = self.get_pt_user_model_path(self.model_path_relative,
                                                           self.framework,
@@ -312,9 +326,9 @@ class Model(BaseModel):
         elif (model_type_constant == ModelType.ProjectTrained):
             self.model_path = self.get_project_model_path()
 
-        # Get Model Input Size
+        # ******************************Get Model Input Size******************************
         self.model_input_size = self.metrics.get('metadata').get('input_size')
-
+        self.perf_metrics=self.get_perf_metrics()
     def query_all_fields(self) -> NamedTuple:
 
         query_all_fields_SQL = """
@@ -495,6 +509,25 @@ class Model(BaseModel):
 
         return model_row
 
+    def get_perf_metrics(self):
+        perf_metrics=[]
+        deployment_type=Deployment.get_deployment_type(self.deployment_type,string=False)
+        if self.metrics.get('evaluation'):
+            for name, values in self.metrics.get('evaluation').items():
+                if name in EVALUATION_TAGS[deployment_type]:
+                    for i in values:
+                        i['metrics'] = name
+                        perf_metrics.append(i)
+        return perf_metrics
+
+    @staticmethod
+    def create_perf_metrics_table():
+        data=Model.get_perf_metrics()
+
+
+
+# ********************************** DEPRECATED ********************************
+
 
 class PreTrainedModel(BaseModel):
     def __init__(self) -> None:
@@ -645,7 +678,8 @@ def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None,
                    m.updated_at  AS "Date/Time",
             m.description AS "Description",
             m.metrics AS "Metrics",
-            m.model_path AS "Model Path"
+            m.model_path AS "Model Path",
+            dt.name AS "Deployment Type"
         FROM
             public.models m
             INNER JOIN public.deployment_type dt ON dt.name = %s

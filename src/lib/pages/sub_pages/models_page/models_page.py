@@ -24,9 +24,11 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import json
 import sys
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
@@ -81,15 +83,20 @@ def existing_models():
         session_state.existing_models_table = None
     # ************************* SESSION STATE ************************************************
 
+    # ************************ COLUMN PLACEHOLDER ********************************************
+    to_model_upload_page_button_place = st.empty()
+    main_col1, main_col2 = st.columns([3, 1])
+    # ************************ COLUMN PLACEHOLDER ********************************************
+
     def to_model_upload_page():
         session_state.models_pagination = ModelsPagination.ModelUpload
 
         if "existing_models_table" not in session_state:
             del session_state.existing_models_table
 
-    st.button(label="Upload Deep Learning Model",
-              key="upload_new_model",
-              on_click=to_model_upload_page)
+    to_model_upload_page_button_place.button(label="Upload Deep Learning Model",
+                                             key="upload_new_model",
+                                             on_click=to_model_upload_page)
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
     existing_models_columns = [
         {
@@ -152,8 +159,7 @@ def existing_models():
                                                        dataframe_col="id",
                                                        filter_value=session_state.existing_models_table[0],
                                                        column_names=existing_models_column_names)
-        log_info(f"{model_df_row[0]}")
-        
+
         if 'attached_model' not in session_state:
             session_state.attached_model = Model(model_row=model_df_row[0])
 
@@ -161,22 +167,36 @@ def existing_models():
             session_state.attached_model = Model(model_row=model_df_row[0])
         st.write(vars(session_state.attached_model))
 
-    data_table(rows=existing_models,
-               columns=existing_models_columns,
-               checkbox=False,
-               key='existing_models_table',on_change=instantiate_model)
+    with main_col1:
+        data_table(rows=existing_models,
+                   columns=existing_models_columns,
+                   checkbox=False,
+                   key='existing_models_table', on_change=instantiate_model)
 
-    if 'attached_model' in session_state:
+    with main_col2:
+        if 'attached_model' in session_state:
+            # metrics = session_state.attached_model.metrics.get(
+            #     'evaluation').get('COCO')
+            # y=[]
+            # for i in metrics:
+            #     i['metrics']='COCO'
+            #     y.append(i)
 
-        model_information = f"""
-        ### Model Information:
-        #### Name: {session_state.attached_model.name}
-        #### Framework: {session_state.attached_model.framework}
-        #### Model Input Size: {session_state.attached_model.model_input_size}
-        #### Metrics: {session_state.attached_model.metrics.get('evaluation')}
-        """
-        st.info(model_information)
+            y = session_state.attached_model.get_perf_metrics()
+            df_metrics = pd.DataFrame(y)
+            df_metrics['value'].map(
+                "{:.2f}".format)  # Only show 2 DP for DataFrame
 
+            model_information = f"""
+            ### Model Information:
+            #### Name: {session_state.attached_model.name}
+            #### Framework: {session_state.attached_model.framework}
+            #### Model Input Size: {session_state.attached_model.model_input_size}
+                    
+            """
+            st.info(model_information)
+            st.write(f"#### Metrics:")
+            st.table(df_metrics.set_index(['metrics']))
 
 
 def index():

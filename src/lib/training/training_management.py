@@ -50,6 +50,7 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+# >>>> User-defined Modules >>>>
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
@@ -59,12 +60,7 @@ from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
-from path_desc import PROJECT_DIR
 from project.project_management import Project
-
-from training.model_management import Model, NewModel
-
-# >>>> User-defined Modules >>>>
 
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -132,7 +128,6 @@ class DatasetPath(NamedTuple):
     eval: Path
     test: Path
     # <<<< Variable Declaration <<<<
-
 
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
