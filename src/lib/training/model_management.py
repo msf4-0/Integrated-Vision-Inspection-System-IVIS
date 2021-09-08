@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+from logging import error
 import sys
 from collections import namedtuple
 from datetime import datetime
@@ -56,12 +57,12 @@ from core.utils.form_manager import check_if_exists, check_if_field_empty
 from core.utils.helper import (create_dataframe, dataframe2dict,
                                datetime_formatter, get_dataframe_row,
                                get_directory_name, get_identifier_str_IntEnum)
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import log_error, log_info, log_warning  # logger
 from core.utils.file_handler import list_files_in_archived
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
-from training.model_management import ModelType, Model
+
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root)
@@ -117,57 +118,58 @@ class Framework(IntEnum):
 
 
 FRAMEWORK = {
-    Framework.TensorFlow: "TensorFlow",
-    Framework.PyTorch: "PyTorch",
-    Framework.Scikit_learn: "Scikit-learn",
-    Framework.Caffe: "Caffe",
-    Framework.MXNet: "MXNet",
-    Framework.ONNX: "ONNX"
+    "TensorFlow": Framework.TensorFlow,
+    "PyTorch": Framework.PyTorch,
+    "Scikit-learn": Framework.Scikit_learn,
+    "Caffe": Framework.Caffe,
+    "MXNet": Framework.MXNet,
+    "ONNX": Framework.ONNX
 }
 # **************************************************************************************
-# .pkl => Pickle format to serialise weights and biases of the model graph
-# .pt and .pth are also serialised model graph by PyTorch
-# .pkl are compatible with PyTorch but .pt and .pth recommended for PyTorch
+# `.pkl` => Pickle format to serialise weights and biases of the model graph
+# `.pt` and `.pth` are also serialised model graph by PyTorch
+# `.pkl` are compatible with PyTorch but .pt and .pth recommended for PyTorch
 # NOTE ONLY model_extensions are COMPULSORY check !!! [~~Line 198 of user_model_upload.py]
 # Others can be updated otherwise
 # **************************************************************************************
 
 MODEL_FILES = {
     Framework.TensorFlow: {
-        'model_extension': ['.pb', 'h5'],
-        'checkpoint': './checkpoint',
+        'model_extension': ('.pb', 'h5'),
+        'checkpoint': 'checkpoint',
         'config': 'pipeline.config',
-        'labelmap': ['.pbtxt']
+        'labelmap': ('labelmap.pbtxt')
     },
     Framework.PyTorch: {
-        'model_extension': ['.pt', '.pth', '.pkl'],
-        'checkpoint': [],
-        'config': [],
-        'labelmap': []
+        'model_extension': ('.pt', '.pth', '.pkl'),
+        'checkpoint': (),
+        'config': (),
+        'labelmap': ('.json')  # NOTE KIV index_to_name.json
     },
     Framework.Scikit_learn: {
-        'model_extension': ['.pkl', 'json'],
-        'checkpoint': [],
-        'config': [],
-        'labelmap': []
+        'model_extension': ('.pkl', 'json'),
+        'checkpoint': (),
+        'config': (),
+        'labelmap': ()
     },
     Framework.Caffe: {
-        'model_extension': ['.caffemodel', '.pb', '.pbtxt'],
-        'checkpoint': [],
-        'config': [],
-        'labelmap': []
+        'model_extension': ('.caffemodel', '.pb', '.pbtxt'),
+        'checkpoint': (),
+        'config': (),
+        'labelmap': ()
     },
     Framework.MXNet: {
-        'model_extension': ['.onnx', '.json', '.params'],
-        'checkpoint': [],
-        'config': [],
-        'labelmap': []
+        # `json` for model graph, `params` for weights and biases
+        'model_extension': ('.onnx', '.json', '.params'),
+        'checkpoint': (),
+        'config': (),
+        'labelmap': ()
     },
     Framework.ONNX: {
-        'model_extension': ['.onnx'],
-        'checkpoint': [],
-        'config': [],
-        'labelmap': []
+        'model_extension': ('.onnx'),
+        'checkpoint': (),
+        'config': (),
+        'labelmap': ()
     }
 }
 
@@ -255,15 +257,87 @@ class BaseModel:
 
     def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> bool:
         # check if necessary files required included in the package
+        # Load list of files
         # Check Models
         # Check checkpoint
         # Check pipeline
         # Check labelmap
         # CHECK at submission
 
-        framework_const = Model.get_framework(self.framework)
+        framework_const = Model.get_framework(self.framework, string=False)
         deployment_type_const = Deployment.get_deployment_type(
             self.deployment_type)
+
+        with st.spinner("Check compatible files in uploaded model"):
+            file_list = list_files_in_archived(archived_filepath=uploaded_file.name,
+                                               file_object=uploaded_file)
+            try:
+                # Currently supports TensorFlow for Object Detection
+                if framework_const == Framework.TensorFlow:
+                    framework_check_list = MODEL_FILES[Framework.TensorFlow]
+                    model_files = []  # use to temporariy store detected files, raise Error if length>1!!!
+                    checkpoint_files = []
+                    config_files = []
+                    labelmap_files = []
+
+                    for file in file_list:
+                        if file.endswith(framework_check_list['model_extension']):
+                            model_files.append(file)
+                            log_info(model_files)
+                        assert len(
+                            model_files) <= 1, "There should only be one model file"
+
+                        if Path(file).name == framework_check_list['checkpoint']:
+                            checkpoint_files.append(file)
+                            log_info(checkpoint_files)
+
+                        if deployment_type_const in [DeploymentType.Image_Classification, DeploymentType.OD,
+                                                     DeploymentType.Instance, DeploymentType.Semantic]:
+
+                            # OPTIONAL
+                            if Path(file).name == framework_check_list['config']:
+                                config_files.append(file)
+                                log_info(config_files)
+
+                            if Path(file).name == framework_check_list['labelmap']:
+                                labelmap_files.append(file)
+                                log_info(labelmap_files)
+
+                    assert 0 < len(model_files) <= 1, "Model file missing"
+                    assert len(
+                        checkpoint_files) >= 1, "Checkpoint files missing"
+                    if deployment_type_const in [DeploymentType.Image_Classification, DeploymentType.OD,
+                                                 DeploymentType.Instance, DeploymentType.Semantic]:
+                        if len(config_files) == 0:
+                            st.warning(
+                                f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
+                            log_warning(
+                                f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
+                        if len(labelmap_files) == 0:
+                            st.warning(
+                                f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                            log_warning(
+                                f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                    st.success(
+                        f"{uploaded_file.name} contains the required files for Training")
+                    return True
+
+                elif framework_const == Framework.PyTorch:
+                    pass
+                elif framework_const == Framework.Scikit_learn:
+                    pass
+                elif framework_const == Framework.Caffe:
+                    pass
+                elif framework_const == Framework.MXNet:
+                    pass
+                elif framework_const == Framework.ONNX:
+                    pass
+
+            except Exception as e:
+                error_msg = f"{e}"
+                log_error(error_msg)
+                st.error(error_msg)
+                return False
 
     @staticmethod
     def get_model_type(model_type: Union[str, ModelType], string: bool = False) -> Union[str, ModelType]:

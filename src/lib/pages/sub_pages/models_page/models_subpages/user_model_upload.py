@@ -204,6 +204,14 @@ def user_model_upload_page():
                                        accept_multiple_files=False,
                                        key='model_upload_widget')
 
+        if file_upload:
+            def check_files():
+                with model_upload_col2:
+                    some = session_state.model_upload.check_if_required_files_exist(
+                        uploaded_file=file_upload)
+
+            st.button("Check compatible files",
+                      key='check_files', on_click=check_files)
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
     # IMAGE CLASSIFICATION, OBJECT DETECTION, IMAGE SEGMENTATION HAS SPECIFIC INPUT IMAGE SIZE

@@ -26,67 +26,33 @@ else:
     pass
 
 from core.utils.log import log_info
-path_to_archive = Path(
-    "/home/rchuzh/Desktop/testing")
-path_to_archive_dir = path_to_archive.parent
-path_to_text = Path("/home/rchuzh/tf_list.txt")
-st.write(path_to_archive_dir)
+my_bar=st.progress(0)
+
+x=[1,2,3,4,5]
+y=[4,5,6,7,8]
+z=5
+list_of_groups=(x,y)
+def test_find_file():
+    with st.spinner(text='Finding in x'):
+        if z in x:
+            st.balloons()
+            sleep(0.5)
+            my_bar.progress(1/2)
+    with st.spinner(text='Finding in y'):
+        if z in y:
+            st.balloons()
+
+            sleep(0.5)
+            my_bar.progress(2/2)
+
+test_find_file()
 
 
-def testing():
-    print("This first")
-    os.chdir("/home/rchuzh/Desktop")
-    make_archive(base_name='some',
-                 format='zip',
-                 root_dir=path_to_archive_dir,
-                 base_dir=path_to_archive.relative_to(path_to_archive_dir))
+
+    
 
 
-st.button('archive', on_click=testing)
 
-from typing import NamedTuple
-
-
-if 'partition_size' not in session_state:
-    session_state.partition_size = {'train': 0.8,
-                                    'eval': 0.2,
-                                    'test': 0
-                                    }
-if 'test_partition' not in session_state:
-    session_state.test_partition = 0.1
-
-
-def update_dataset_partition_ratio():
-
-    # if session_state.test_partition == True:
-    session_state.partition_size['train'] = session_state.partition_slider[0]
-    session_state.partition_size['eval'] = round(session_state.partition_slider[1] -
-                                                 session_state.partition_slider[0], 2)
-    session_state.partition_size['test'] = round(
-        1.0 - session_state.partition_slider[1], 2)
-
-
-st.slider('Ratio', key='partition_slider',
-             min_value=0.5,
-             max_value=1.0,
-             value=(0.8, 0.9),
-             step=0.1,
-             on_change=update_dataset_partition_ratio)
-
-st.write(session_state.partition_slider)
-
-
-st.info(f"""
-### Train Dataset Ratio: {session_state.partition_size['train']}
-### Evaluation Dataset Ratio: {session_state.partition_size['eval']}
-### Test Dataset Ratio: {session_state.partition_size['test']}
-""")
-
-if session_state.partition_size['eval'] <= 0:
-    st.error(f"Evaluation Dataset Partition Ratio should be more than 0.1")
-
-st.write('Partition Size')
-st.write(session_state.partition_size)
 
 
 # Store in dictionary
