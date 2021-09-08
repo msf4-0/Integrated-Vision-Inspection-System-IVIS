@@ -38,6 +38,8 @@ import streamlit as st
 from PIL import Image
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
+from streamlit.uploaded_file_manager import UploadedFile
+
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -55,9 +57,11 @@ from core.utils.helper import (create_dataframe, dataframe2dict,
                                datetime_formatter, get_dataframe_row,
                                get_directory_name, get_identifier_str_IntEnum)
 from core.utils.log import log_error, log_info  # logger
+from core.utils.file_handler import list_files_in_archived
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
+from training.model_management import ModelType, Model
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root)
@@ -120,8 +124,14 @@ FRAMEWORK = {
     Framework.MXNet: "MXNet",
     Framework.ONNX: "ONNX"
 }
+# **************************************************************************************
+# .pkl => Pickle format to serialise weights and biases of the model graph
+# .pt and .pth are also serialised model graph by PyTorch
+# .pkl are compatible with PyTorch but .pt and .pth recommended for PyTorch
+# NOTE ONLY model_extensions are COMPULSORY check !!! [~~Line 198 of user_model_upload.py]
+# Others can be updated otherwise
+# **************************************************************************************
 
-# .pkl => Pickle format
 MODEL_FILES = {
     Framework.TensorFlow: {
         'model_extension': ['.pb', 'h5'],
@@ -196,6 +206,7 @@ class BaseModel:
         self.id: Union[str, int] = model_id
         self.name: str = None
         self.desc: str = None
+        self.deployment_type: str = None
         self.metrics: Dict = {}
         self.perf_metrics: List = []
         self.model_type: str = None
@@ -241,6 +252,18 @@ class BaseModel:
         empty_fields = check_if_field_empty(
             context, field_placeholder, check_if_exists)
         return empty_fields
+
+    def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> bool:
+        # check if necessary files required included in the package
+        # Check Models
+        # Check checkpoint
+        # Check pipeline
+        # Check labelmap
+        # CHECK at submission
+
+        framework_const = Model.get_framework(self.framework)
+        deployment_type_const = Deployment.get_deployment_type(
+            self.deployment_type)
 
     @staticmethod
     def get_model_type(model_type: Union[str, ModelType], string: bool = False) -> Union[str, ModelType]:
@@ -328,7 +351,7 @@ class BaseModel:
             model_path = PRE_TRAINED_MODEL_DIR / framework / str(model_path)
 
         elif model_type == ModelType.UserUpload:
-            model_path = USER_DEEP_LEARNING_MODEL_UPLOAD / \
+            model_path = USER_DEEP_LEARNING_MODEL_UPLOAD_DIR / \
                 framework / str(model_path)
 
         # assert model_path.is_dir(), f"{str(model_path)} does not exists"

@@ -332,7 +332,7 @@ def file_unarchiver(filename, extract_dir):
     log_info("Successfully Unarchive")
 
 
-def list_files_in_archived(archived_filepath: Path) -> List[str]:
+def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> List[str]:
     """List files in the zip (.zip) and tar archives.
 
     Supported tar compressions:
@@ -342,7 +342,8 @@ def list_files_in_archived(archived_filepath: Path) -> List[str]:
 
 
     Args:
-        archived_filepath (Path): Filepath to archives
+        archived_filepath (Path): Filepath to archives or filename(to get extensions). Defaults to None.
+        file_object (Any) : file-like object of archives. Defaults to None.
 
     Returns:
         List[str]: A list of member files in the archives.
@@ -364,7 +365,10 @@ def list_files_in_archived(archived_filepath: Path) -> List[str]:
         return
 
     if archive_extension == '.zip':
-        with ZipFile(file=archived_filepath, mode='r') as zipObj:
+
+        file = file_object if file_object else archived_filepath
+
+        with ZipFile(file=file, mode='r') as zipObj:
             file_list = sorted(zipObj.namelist())
 
     else:
@@ -376,7 +380,13 @@ def list_files_in_archived(archived_filepath: Path) -> List[str]:
 
         tar_mode = tar_read_format_list.get(archive_extension)
 
-        with tarfile.open(name=archived_filepath, mode=tar_mode) as tarObj:
+        if file_object:
+            fileobj = file_object
+            name = None
+
+        with tarfile.open(name=name,
+                          fileobj=fileobj,
+                          mode=tar_mode) as tarObj:
             file_list = sorted(tarObj.getnames())
 
     return file_list

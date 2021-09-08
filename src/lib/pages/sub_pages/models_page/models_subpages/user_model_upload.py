@@ -53,6 +53,7 @@ else:
 from core.utils.code_generator import get_random_string
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import log_error, log_info  # logger
+from core.utils.file_handler import list_files_in_archived
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root, USER_DEEP_LEARNING_MODEL_UPLOAD_DIR
 from training.model_management import NewModel, Model, Framework
@@ -169,13 +170,18 @@ def user_model_upload_page():
 
         place["model_upload_deployment_type"] = st.empty()
         session_state.model_upload.deployment_type = session_state.model_upload_deployment_type
+
+        if session_state.model_upload_deployment_type:
+            deployment_type_constant = Deployment.get_deployment_type(
+                deployment_type=session_state.model_upload.deployment_type,
+                string=False)
     # ************************* FRAMEWORK *************************
 
     framework_col1.write("## __Framework :__")
 
     with framework_col2:
         framework_list_query = Model.get_framework_list()
-        log_info(framework_list_query)
+
         framework_list = [
             frameworks.Name for frameworks in framework_list_query]
         framework_list.insert(0, "")
@@ -190,25 +196,19 @@ def user_model_upload_page():
     # ************************* MODEL UPLOAD *************************
     model_upload_col1.write("## __Model Upload :__")
 
-    def check_important_files():
-        #check if necessary files required included in the package
-        pass
-
+    # ***********************ONLY ALLOW SINGLE FILE UPLOAD***********************
     with model_upload_col2:
-        st.file_uploader(label='Upload Model',
-                         type=['zip', 'tar.gz',
-                               'tar.xz', 'tar.bz2'],
-                         accept_multiple_files=False,
-                         key='model_upload_widget')
+        file_upload = st.file_uploader(label='Upload Model',
+                                       type=['zip', 'tar.gz',
+                                             'tar.xz', 'tar.bz2'],
+                                       accept_multiple_files=False,
+                                       key='model_upload_widget')
 
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
     # IMAGE CLASSIFICATION, OBJECT DETECTION, IMAGE SEGMENTATION HAS SPECIFIC INPUT IMAGE SIZE
 
     if session_state.model_upload_deployment_type:
-        deployment_type_constant = Deployment.get_deployment_type(
-            deployment_type=session_state.model_upload.deployment_type,
-            string=False)
 
         if deployment_type_constant in [DeploymentType.Image_Classification, DeploymentType.OD,
                                         DeploymentType.Instance, DeploymentType.Semantic]:
