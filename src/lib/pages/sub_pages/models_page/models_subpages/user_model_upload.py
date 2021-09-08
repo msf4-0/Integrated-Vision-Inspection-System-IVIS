@@ -204,6 +204,19 @@ def user_model_upload_page():
                                        accept_multiple_files=False,
                                        key='model_upload_widget')
 
+        # TODO AMMEND when adding compatibility for other Deep Learning Frameworks
+        model_folder_structure_info = f"""
+        ### Please ensure your files meets according to the following convention:
+        #### 1. TensorFlow
+        - Model Extension: `.pb` / `.h5`
+        - Config Name: pipeline.config*
+        - Labelmap Name: labelmap.pbtxt*
+
+        *for Object Detection API (Object Detection with Bounding Boxes, Semantic Segmentation, Instance Segmentation)
+        """
+        with st.expander(label='Model Folder Structure'):
+            st.info(model_folder_structure_info)
+
         if file_upload:
             def check_files():
                 with model_upload_col2:
