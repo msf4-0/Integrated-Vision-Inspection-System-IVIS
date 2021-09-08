@@ -1,6 +1,6 @@
 """
-Title: New Models Page
-Date: 5/7/2021
+Title: User Deep Learning Model Upload Page
+Date: 6/9/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 
@@ -241,6 +241,8 @@ def user_model_upload_page():
                 1.55, 1.2, 1.2, 1.2, 0.5])
             model_input_size_title.write(f"### Model Input Size")
 
+            # *******************************************************************************************
+            # NOTE KIV Design decision
             # with model_input_size_col1:
             #     st.number_input(
             #         label="Width (W)", key="model_input_width-", min_value=0, step=1)
@@ -269,13 +271,15 @@ def user_model_upload_page():
                 'model_upload_height': session_state.model_upload.model_input_size['height'],
                 'model_upload_channel': session_state.model_upload.model_input_size['channel'],
             }
-
+        # *******************************************************************************************
         # NOTE KIV FOR OTHER DEPLOYMENTS
         # else:
         #     # Columns for Model Input Size
         #     # For Other deployments
         #     model_input_size_col1, model_input_size_col2, model_input_size_col3 = st.columns([
         #         1.5, 3.5, 0.5])
+        # *******************************************************************************************
+
         place['model_upload_input_size'] = st.empty()
     # <<<<<<<< New Project INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 

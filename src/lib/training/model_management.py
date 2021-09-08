@@ -457,7 +457,10 @@ class BaseModel:
         return framework_list
 
     @staticmethod
-    def get_pt_user_model_path(model_path: Union[str, Path] = None, framework: str = None, model_type: Union[str, ModelType] = None, **model_row) -> Path:
+    def get_pt_user_model_path(model_path: Union[str, Path] = None,
+                               framework: str = None,
+                               model_type: Union[str, ModelType] = None,
+                               **model_row) -> Path:
         """Get directory path for Pre-trained models and User Upload Deep Learning Models
 
         Args:
@@ -534,6 +537,11 @@ class BaseModel:
                     query_result.Training_Name) / get_directory_name(query_result.Framework) /\
                 'exported_models' / query_result.Model_Path
             return project_model_path
+
+    def create_new_model(self):
+        # create new row in Models table
+
+        pass
 
 
 class NewModel(BaseModel):

@@ -34,6 +34,7 @@ else:
 
 # >>>> User-defined Modules >>>>
 
+from core.utils.helper import remove_suffix
 from core.utils.log import log_error, log_info  # logger
 from path_desc import chdir_root
 
@@ -163,6 +164,57 @@ def create_folder_if_not_exist(path: Path) -> None:
         pass
 
 
+def move_file(src: Union[str, Path], dst: Union[str, Path]) -> bool:
+    """Move files from src to dst
+
+    Args:
+        src (Union[str, Path]): Source path
+        dst (Union[str, Path]): Destination path
+
+    Returns:
+        bool: True if successfully moved all files
+
+    Raises:
+        AssertationError: "Failed to moved all files"
+    """
+
+    # For assertation of number of contents moved
+    initial_foldersize = len([x for x in src.rglob('*')])
+
+    # Iterate to all contents in `dst`
+    for file in src.iterdir():
+        dest_path = dst / file.relative_to(src)  # get destination file path
+
+        # returns file path to destination for each file moved
+        dst_return = shutil.move(src=str(file),
+                                 dst=str(dest_path))
+        log_info(f"Moved {file.name} to {dst_return}")
+
+    assert len([x for x in dst.rglob('*')]
+               ) == initial_foldersize, "Failed to moved all files"
+
+    return True
+
+
+def write_file(filename: str, dst: Union[str, Path], file: str = None, byte_stream=None):
+    """Write files to disk
+
+    Args:
+        filename (str): Name of file with extension
+        dst (Union[str,Path]): Destination on the disk
+        file (str, optional): String contents. Defaults to None.
+        byte_stream (file-like object, optional): File-like object or BytesIO object. Defaults to None.
+    """
+
+    dst_path = Path(dst) / str(filename)
+    mode = 'wb' if byte_stream else 'w'
+
+    log_info(f"Writing file to {str(dst_path)}")
+    with open(file=dst_path, mode=mode) as f:
+        f.seek(0)
+        f.write(byte_stream.read())
+
+
 def json_load(file, int_keys=False):
     with io.open(file, encoding='utf8') as f:
         data = json.load(f)
@@ -246,7 +298,7 @@ def download_file(url, download_to: Path, expected_size=None):
 #------------------------File Archiver----------------------#
 
 
-def check_archiver_format(filename:str=None):
+def check_archiver_format(filename: str = None):
     """Extract archiver format
 
     Args:
@@ -289,7 +341,7 @@ def check_archiver_format(filename:str=None):
         st.error(error_msg)
 
 
-def file_unarchiver(filename:Union[str,Path], extract_dir:Union[str,Path]):
+def file_unarchiver(filename: Union[str, Path], extract_dir: Union[str, Path]):
     """Unpack archive file
 
     Args:
