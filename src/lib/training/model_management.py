@@ -200,6 +200,24 @@ EVALUATION_TAGS = {
     DeploymentType.Semantic: ['COCO', 'Pascal VOC',
                               'Accuracy', 'Precision', 'Recall', 'FLOPS']
 }
+
+
+class ModelCompatibility(IntEnum):
+    Compatible = 0
+    MissingModel = 1
+    MissingExtraFiles_ModelExists = 2
+    MissingExtraFiles_MissingModel = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ModelCompatibility[s]
+        except KeyError:
+            raise ValueError()
+
 # <<<< Variable Declaration <<<<
 
 
@@ -210,6 +228,7 @@ class BaseModel:
         self.desc: str = None
         self.deployment_type: str = None
         self.metrics: Dict = {}
+        self.model_input_size: Dict = {}
         self.perf_metrics: List = []
         self.model_type: str = None
         self.framework: str = None
@@ -219,6 +238,7 @@ class BaseModel:
         self.saved_model_dir: Path = None
         self.has_submitted: bool = False
         self.updated_at: datetime = None
+        self.compatibility_flag = None
 
     # TODO Method to generate Model Path #116
     @st.cache
@@ -268,7 +288,7 @@ class BaseModel:
         deployment_type_const = Deployment.get_deployment_type(
             self.deployment_type)
 
-        with st.spinner("Check compatible files in uploaded model"):
+        with st.spinner("Checking compatible files in uploaded model"):
             file_list = list_files_in_archived(archived_filepath=uploaded_file.name,
                                                file_object=uploaded_file)
             try:
@@ -306,6 +326,8 @@ class BaseModel:
                     assert 0 < len(model_files) <= 1, "Model file missing"
                     assert len(
                         checkpoint_files) >= 1, "Checkpoint files missing"
+                    self.compatibility_flag = ModelCompatibility.Compatible  # Set flag as Compatible
+
                     if deployment_type_const in [DeploymentType.Image_Classification, DeploymentType.OD,
                                                  DeploymentType.Instance, DeploymentType.Semantic]:
                         if len(config_files) == 0:
@@ -318,8 +340,11 @@ class BaseModel:
                                 f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
                             log_warning(
                                 f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                        self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
+
                     st.success(
-                        f"{uploaded_file.name} contains the required files for Training")
+                        f"**{uploaded_file.name}** contains the required files for Training")
+
                     return True
 
                 elif framework_const == Framework.PyTorch:
@@ -337,6 +362,7 @@ class BaseModel:
                 error_msg = f"{e}"
                 log_error(error_msg)
                 st.error(error_msg)
+                self.compatibility_flag = ModelCompatibility.MissingModel
                 return False
 
     @staticmethod

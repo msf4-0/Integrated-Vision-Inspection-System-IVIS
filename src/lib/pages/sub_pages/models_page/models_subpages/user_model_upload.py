@@ -210,7 +210,7 @@ def user_model_upload_page():
                     some = session_state.model_upload.check_if_required_files_exist(
                         uploaded_file=file_upload)
 
-            st.button("Check compatible files",
+            st.button("Check compatibility",
                       key='check_files', on_click=check_files)
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
@@ -235,11 +235,13 @@ def user_model_upload_page():
             #     st.number_input(
             #         label="Channels (C)", key="model_input_channel-", min_value=0, step=1)
 
-            model_input_size_col1.number_input(
+            session_state.model_upload.model_input_size['width'] = model_input_size_col1.number_input(
                 label="Width (W)", key="model_input_width", min_value=0, step=1)
-            model_input_size_col2.number_input(
+            session_state.model_upload.model_input_size['height'] = model_input_size_col2.number_input(
                 label="Height (H)", key="model_input_height", min_value=0, step=1)
-            model_input_size_col3.number_input(
+
+            # NOTE OPTIONAL
+            session_state.model_upload.model_input_size['channel'] = model_input_size_col3.number_input(
                 label="Channels (C)", key="model_input_channel", min_value=0, step=1)
 
         # NOTE KIV FOR OTHER DEPLOYMENTS
