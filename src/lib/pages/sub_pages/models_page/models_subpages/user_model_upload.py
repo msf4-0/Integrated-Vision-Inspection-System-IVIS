@@ -53,7 +53,7 @@ else:
 from core.utils.code_generator import get_random_string
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import log_error, log_info  # logger
-from core.utils.file_handler import list_files_in_archived
+from core.utils.file_handler import list_files_in_archived, save_uploaded_extract_files
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root, USER_DEEP_LEARNING_MODEL_UPLOAD_DIR
 from training.model_management import NewModel, Model, Framework
@@ -217,6 +217,13 @@ def user_model_upload_page():
         with st.expander(label='Model Folder Structure'):
             st.info(model_folder_structure_info)
 
+        def save_file():
+            with model_upload_col2:
+                with st.spinner(text='Storing uploaded model'):
+                    save_uploaded_extract_files(dst='/home/rchuzh/Desktop/test2',
+                                                filename=session_state.model_upload_widget.name,
+                                                fileObj=session_state.model_upload_widget)
+
         if session_state.model_upload.file_upload:
             def check_files():
                 with model_upload_col2:
@@ -225,6 +232,8 @@ def user_model_upload_page():
 
             st.button("Check compatibility",
                       key='check_files', on_click=check_files)
+
+            st.button("Save file", key='save_file', on_click=save_file)
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
     # IMAGE CLASSIFICATION, OBJECT DETECTION, IMAGE SEGMENTATION HAS SPECIFIC INPUT IMAGE SIZE

@@ -12,7 +12,7 @@ import shutil
 import sys
 from pathlib import Path
 from tempfile import mkdtemp, mkstemp
-
+from contextlib import contextmanager
 from appdirs import user_config_dir, user_data_dir
 
 from core.utils.log import log_error, log_info
@@ -34,6 +34,7 @@ def get_data_dir():
     return data_dir
 
 
+@contextmanager
 def get_temp_dir():
     dirpath = mkdtemp()
     yield dirpath
@@ -49,20 +50,15 @@ MEDIA_ROOT = BASE_DATA_DIR / 'app_media'
 DATASET_DIR = MEDIA_ROOT / 'dataset'
 PROJECT_DIR = MEDIA_ROOT / 'project'
 PRE_TRAINED_MODEL_DIR = MEDIA_ROOT / 'pre-trained-models'
-USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / 'user-deep-learning-model-upload'
+USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
+    'user-deep-learning-model-upload'
 # PROJECT_MODELS=PROJECT_DIR/<PROJECT-NAME>/<TRAINING-NAME>/'exported-models'/<MODEL-NAME>
-
-
-
-
 
 
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))
     log_info(f"Current working directory: {str(PROJECT_ROOT)} ")
     log_info(f"Data Directory set to \'{BASE_DATA_DIR}\'")
-
-
 
 
 def add_path(node: str, parent_node: int = 0) -> None:

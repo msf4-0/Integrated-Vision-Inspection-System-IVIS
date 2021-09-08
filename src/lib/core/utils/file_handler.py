@@ -20,6 +20,7 @@ from typing import Dict, List, Union
 from zipfile import ZipFile
 
 import streamlit as st
+from streamlit.uploaded_file_manager import UploadedFile
 import yaml
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -36,7 +37,7 @@ else:
 
 from core.utils.helper import remove_suffix
 from core.utils.log import log_error, log_info  # logger
-from path_desc import chdir_root
+from path_desc import chdir_root, get_temp_dir
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -190,7 +191,7 @@ def move_file(src: Union[str, Path], dst: Union[str, Path]) -> bool:
                                  dst=str(dest_path))
         log_info(f"Moved {file.name} to {dst_return}")
 
-    assert len([x for x in dst.rglob('*')]
+    assert len([x for x in Path(dst).rglob('*')]
                ) == initial_foldersize, "Failed to moved all files"
 
     return True
@@ -213,6 +214,27 @@ def write_file(filename: str, dst: Union[str, Path], file: str = None, byte_stre
     with open(file=dst_path, mode=mode) as f:
         f.seek(0)
         f.write(byte_stream.read())
+
+
+def save_uploaded_extract_files(dst: Union[str, Path], filename: Union[str, Path] = None, fileObj: UploadedFile = None) -> bool:
+    """Save file object locally to disk. Supports extraction of local archived files to dst.
+
+    Args:
+        filename (Union[str, Path]): Name of file
+        fileObj (UploadedFile): Bytes-like object
+        dst (Union[str, Path]): Destination to store extracted files
+
+    Returns:
+        bool: True if successful. False otherwise.
+    """
+    filename = Path(filename).name
+    with get_temp_dir() as tmp_dir:
+
+        tmp_dir = Path(tmp_dir)
+        folder_name = remove_suffix(filename)
+        src = tmp_dir / folder_name
+        extract_archive(tmp_dir, filename, file_object=fileObj)
+        move_file(src=src, dst=dst)
 
 
 def json_load(file, int_keys=False):
@@ -382,6 +404,56 @@ def file_unarchiver(filename: Union[str, Path], extract_dir: Union[str, Path]):
         st.error(error_msg)
 
     log_info("Successfully Unarchive")
+
+
+def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_object=None):
+    """Extract archive to folder
+
+    Args:
+        dst (Union[str, Path]): Destination to store unpacked files
+        archived_filepath (Path, optional): Path to archive file. Neglected if file_object passed. Defaults to None.
+        file_object (byte-like/file, optional): Byte-stream object / file-like object. Defaults to None.
+    """
+
+    # Make sure it is Path() object
+    archived_filepath = Path(archived_filepath)
+    dst = Path(dst)
+
+    archive_extension = archived_filepath.suffix
+
+    if (archive_extension not in SUPPORTED_ARCHIVE_EXT):
+
+        # RETURN TO CALLER IF ARCHIVE FORMAT NOT SUPPORTED !!!!
+        error_msg = f"Archiving format {archive_extension} is not supported"
+        log_error(error_msg)
+        st.error(error_msg)
+        return
+
+    if archive_extension == '.zip':
+        file = file_object if file_object else archived_filepath
+        with ZipFile(file=file, mode='r') as zipObj:
+            zipObj.extractall(path=dst)
+            log_info(f"Extracting {str(archived_filepath.name)} to {str(dst)}")
+
+    else:
+        tar_read_format_list = {
+            ".gz": "r:gz",
+            ".bz2": "r:bz2",
+            ".xz": "r:xz"
+        }
+
+        # get correct compression  read mode
+        tar_mode = tar_read_format_list.get(archive_extension)
+
+        if file_object:
+            fileobj = file_object
+            name = None
+
+        with tarfile.open(name=name,
+                          fileobj=fileobj,
+                          mode=tar_mode) as tarObj:
+            tarObj.extractall(path=dst)
+            log_info(f"Extracting {str(archived_filepath.name)} to {str(dst)}")
 
 
 def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> List[str]:
