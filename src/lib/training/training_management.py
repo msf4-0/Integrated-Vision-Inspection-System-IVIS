@@ -237,7 +237,6 @@ class BaseTraining:
 
         return self.training_path
 
-
     def calc_total_dataset_size(self, dataset_chosen: List, dataset_dict: Dict) -> int:
         """Calculate the total dataset size for the current training configuration
 
@@ -524,7 +523,10 @@ class NewTraining(BaseTraining):
         return exists_flag
 
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str) -> bool:
+    def check_if_field_empty(self, context: Dict,
+                             field_placeholder: Dict,
+                             name_key: str
+                             ) -> bool:
         """Check if Compulsory fields are filled and Unique information not 
         duplicated in the database
 

@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 from logging import error
+from os import name
 import sys
 from collections import namedtuple
 from datetime import datetime
@@ -137,7 +138,7 @@ MODEL_FILES = {
     Framework.TensorFlow: {
         'model_extension': ('.pb', 'h5'),
         'checkpoint': 'checkpoint',
-        'config': 'pipeline.config',
+        'config': '.config',
         'labelmap': ('labelmap.pbtxt')
     },
     Framework.PyTorch: {
@@ -204,8 +205,8 @@ EVALUATION_TAGS = {
 
 class ModelCompatibility(IntEnum):
     Compatible = 0
-    MissingModel = 1
-    MissingExtraFiles_ModelExists = 2
+    MissingExtraFiles_ModelExists = 1
+    MissingModel = 2
     MissingExtraFiles_MissingModel = 3
 
     def __str__(self):
@@ -238,6 +239,7 @@ class BaseModel:
         self.saved_model_dir: Path = None
         self.has_submitted: bool = False
         self.updated_at: datetime = None
+        self.file_upload: UploadedFile = None
         self.compatibility_flag = None
 
     # TODO Method to generate Model Path #116
@@ -269,10 +271,41 @@ class BaseModel:
         return exists_flag
 
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict, field_placeholder):
+    def check_if_field_empty(self, context: Dict,
+                             field_placeholder: Dict,
+                             name_key: str,
+                             deployment_type_constant: DeploymentType = None,
+                             input_size_context: Dict = {}) -> bool:
+        """Check if Compulsory fields are filled and Unique information not 
+        duplicated in the database
+
+        Args:
+            context (Dict): Dictionary with widget name as key and widget value as value**
+            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value. 
+            *Key has same name as its respective widget
+
+            name_key (str): Key of Database row name. Used to obtain value from 'context' Dictionary.
+            *Pass 'None' is not required to check row exists
+
+            deployment_type_constant (DeploymentType, optional): DeploymentType IntEnum class constant. Defaults to None.
+            input_size_context (Dict, optional): Context to check Model Input Size depending on Deployment Type (refer to `context` args ** above). Defaults to {}.
+
+        Returns:
+            bool: True if NOT EMPTY + NOT EXISTS, False otherwise.
+        """
+
+        empty_fields = []
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
-            context, field_placeholder, check_if_exists)
+            context, field_placeholder, name_key, check_if_exists)
+
+        if deployment_type_constant in [DeploymentType.Image_Classification, DeploymentType.OD,
+                                        DeploymentType.Instance, DeploymentType.Semantic]:
+            empty_fields += check_if_field_empty(
+                input_size_context, field_placeholder)
+
+        sleep(0.5)
+
         return empty_fields
 
     def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> bool:
@@ -315,7 +348,7 @@ class BaseModel:
                                                      DeploymentType.Instance, DeploymentType.Semantic]:
 
                             # OPTIONAL
-                            if Path(file).name == framework_check_list['config']:
+                            if file.endswith(framework_check_list['config']):
                                 config_files.append(file)
                                 log_info(config_files)
 

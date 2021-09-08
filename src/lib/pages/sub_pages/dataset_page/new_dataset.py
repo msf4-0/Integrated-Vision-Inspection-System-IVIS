@@ -119,7 +119,8 @@ def new_dataset():
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
-        context = {'column_name': 'name', 'value': session_state.name}
+        context = {'column_name': 'name',
+                   'value': session_state.name}
         if session_state.name:
             if session_state.new_dataset.check_if_exists(context, conn):
                 session_state.new_dataset.name = None
@@ -265,9 +266,7 @@ def new_dataset():
                 st.error(
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
 
-
     st.write(vars(session_state.new_dataset))
-
 
 
 def main():

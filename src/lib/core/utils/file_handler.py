@@ -246,7 +246,7 @@ def download_file(url, download_to: Path, expected_size=None):
 #------------------------File Archiver----------------------#
 
 
-def check_archiver_format(filename=None):
+def check_archiver_format(filename:str=None):
     """Extract archiver format
 
     Args:
@@ -289,7 +289,7 @@ def check_archiver_format(filename=None):
         st.error(error_msg)
 
 
-def file_unarchiver(filename, extract_dir):
+def file_unarchiver(filename:Union[str,Path], extract_dir:Union[str,Path]):
     """Unpack archive file
 
     Args:

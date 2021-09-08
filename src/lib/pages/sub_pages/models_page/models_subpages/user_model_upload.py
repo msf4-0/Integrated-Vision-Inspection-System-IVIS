@@ -122,7 +122,7 @@ def user_model_upload_page():
     def check_if_name_exist(field_placeholder, conn):
         context = {'column_name': 'name',
                    'value': session_state.model_upload_name}
-        log_info(context)
+
         if session_state.model_upload_name:
             if session_state.model_upload.check_if_exists(context, conn):
                 session_state.model_upload.name = None
@@ -159,7 +159,7 @@ def user_model_upload_page():
 
     # ******************************** DEPLOYMENT TYPE  ********************************
     DTcol1.write("## __Deployment Type :__")
-
+    deployment_type_constant = None
     with DTcol2:
         st.selectbox(label="Deployment Type",
                      options=DEPLOYMENT_TYPE,
@@ -198,12 +198,12 @@ def user_model_upload_page():
 
     # ***********************ONLY ALLOW SINGLE FILE UPLOAD***********************
     with model_upload_col2:
-        file_upload = st.file_uploader(label='Upload Model',
-                                       type=['zip', 'tar.gz',
-                                             'tar.xz', 'tar.bz2'],
-                                       accept_multiple_files=False,
-                                       key='model_upload_widget')
-
+        session_state.model_upload.file_upload = st.file_uploader(label='Upload Model',
+                                                                  type=['zip', 'tar.gz',
+                                                                        'tar.xz', 'tar.bz2'],
+                                                                  accept_multiple_files=False,
+                                                                  key='model_upload_widget')
+        place['model_upload_file_upload'] = st.empty()
         # TODO AMMEND when adding compatibility for other Deep Learning Frameworks
         model_folder_structure_info = f"""
         ### Please ensure your files meets according to the following convention:
@@ -217,17 +217,18 @@ def user_model_upload_page():
         with st.expander(label='Model Folder Structure'):
             st.info(model_folder_structure_info)
 
-        if file_upload:
+        if session_state.model_upload.file_upload:
             def check_files():
                 with model_upload_col2:
-                    some = session_state.model_upload.check_if_required_files_exist(
-                        uploaded_file=file_upload)
+                    session_state.model_upload.check_if_required_files_exist(
+                        uploaded_file=session_state.model_upload.file_upload)
 
             st.button("Check compatibility",
                       key='check_files', on_click=check_files)
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
     # IMAGE CLASSIFICATION, OBJECT DETECTION, IMAGE SEGMENTATION HAS SPECIFIC INPUT IMAGE SIZE
+    input_size_context = {}
 
     if session_state.model_upload_deployment_type:
 
@@ -247,15 +248,27 @@ def user_model_upload_page():
             #         label="Height (H)", key="model_input_height-", min_value=0, step=1)
             #     st.number_input(
             #         label="Channels (C)", key="model_input_channel-", min_value=0, step=1)
+            with model_input_size_col1:
+                session_state.model_upload.model_input_size['width'] = st.number_input(
+                    label="Width (W)", key="model_input_width", min_value=0, step=1)
+                place['model_upload_width'] = st.empty()
 
-            session_state.model_upload.model_input_size['width'] = model_input_size_col1.number_input(
-                label="Width (W)", key="model_input_width", min_value=0, step=1)
-            session_state.model_upload.model_input_size['height'] = model_input_size_col2.number_input(
-                label="Height (H)", key="model_input_height", min_value=0, step=1)
+            with model_input_size_col2:
+                session_state.model_upload.model_input_size['height'] = st.number_input(
+                    label="Height (H)", key="model_input_height", min_value=0, step=1)
+                place['model_upload_height'] = st.empty()
 
-            # NOTE OPTIONAL
-            session_state.model_upload.model_input_size['channel'] = model_input_size_col3.number_input(
-                label="Channels (C)", key="model_input_channel", min_value=0, step=1)
+            with model_input_size_col3:
+                # NOTE OPTIONAL
+                session_state.model_upload.model_input_size['channel'] = st.number_input(
+                    label="Channels (C)", key="model_input_channel", min_value=0, step=1)
+                place['model_upload_channel'] = st.empty()
+
+            input_size_context = {
+                'model_upload_width': session_state.model_upload.model_input_size['width'],
+                'model_upload_height': session_state.model_upload.model_input_size['height'],
+                'model_upload_channel': session_state.model_upload.model_input_size['channel'],
+            }
 
         # NOTE KIV FOR OTHER DEPLOYMENTS
         # else:
@@ -263,48 +276,36 @@ def user_model_upload_page():
         #     # For Other deployments
         #     model_input_size_col1, model_input_size_col2, model_input_size_col3 = st.columns([
         #         1.5, 3.5, 0.5])
-
+        place['model_upload_input_size'] = st.empty()
     # <<<<<<<< New Project INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     # ******************************** SUBMISSION *************************************************
-    # success_place = st.empty()
-    # context = {
-    #     'model_upload_name': session_state.model_upload.name,
-    #     'model_upload_deployment_type': session_state.model_upload.deployment_type,
-    #     'new_project_dataset_chosen': session_state.model_upload.dataset_chosen
-    # }
+    success_place = st.empty()
+    context = {
+        'model_upload_name': session_state.model_upload.name,
+        'model_upload_deployment_type': session_state.model_upload.deployment_type,
+        'model_upload_framework': session_state.model_upload.framework,
+        'model_upload_file_upload': session_state.model_upload.file_upload,
 
-    # submit_col1, submit_col2 = st.columns([3, 0.5])
+    }
 
-    # def new_project_submit():
-    #     session_state.model_upload.has_submitted = session_state.model_upload.check_if_field_empty(
-    #         context, field_placeholder=place, name_key='model_upload_name')
+    submit_col1, submit_col2 = st.columns([3, 0.5])
 
-    #     if session_state.model_upload.has_submitted:
-    #         # TODO #13 Load Task into DB after creation of project
-    #         if session_state.model_upload.initialise_project(dataset_dict):
-    #             # Updated with Actual Project ID from DB
-    #             session_state.new_editor.project_id = session_state.model_upload.id
-    #             # deployment type now IntEnum
-    #             if session_state.new_editor.init_editor(session_state.model_upload.deployment_type):
-    #                 session_state.model_upload.editor = Editor(
-    #                     session_state.model_upload.id, session_state.model_upload.deployment_type)
-    #                 success_place.success(
-    #                     f"Successfully stored **{session_state.model_upload.name}** project information in database")
-    #                 sleep(1)
-    #                 success_place.empty()
+    def model_upload_submit():
 
-    #                 session_state.new_project_pagination = NewProjectPagination.EditorConfig  # TODO
-    #             else:
-    #                 success_place.error(
-    #                     f"Failed to stored **{session_state.new_editor.name}** editor config in database")
+        # >>>> IF IT IS A NEW SUBMISSION
+        if not session_state.model_upload.has_submitted:
+            if session_state.model_upload.check_if_field_empty(context,
+                                                               field_placeholder=place,
+                                                               name_key='model_upload_name',
+                                                               deployment_type_constant=deployment_type_constant,
+                                                               input_size_context=input_size_context):
+                pass
 
-    #         else:
-    #             success_place.error(
-    #                 f"Failed to stored **{session_state.model_upload.name}** project information in database")
+    submit_button_name = 'Submit' if session_state.model_upload.has_submitted == False else 'Update'
     # # TODO #72 Change to 'Update' when 'has_submitted' == True
-    # submit_button = submit_col2.button(
-    #     "Submit", key="submit", on_click=new_project_submit)
+    submit_button = submit_col2.button(
+        label=submit_button_name, key="submit", on_click=model_upload_submit)
 
     # # >>>> Removed
     # # session_state.model_upload.has_submitted = False
