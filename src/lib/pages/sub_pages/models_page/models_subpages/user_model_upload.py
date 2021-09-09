@@ -31,9 +31,10 @@ from pathlib import Path
 from time import sleep
 
 import streamlit as st
-from pandas.core import frame
+import pandas as pd
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -59,7 +60,7 @@ from data_manager.database_manager import init_connection
 from deployment.deployment_management import COMPUTER_VISION_LIST, Deployment
 from path_desc import USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root
 from training.model_management import Framework, Model, NewModel
-
+from training.labelmap_management import Labels, TensorFlow
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -83,6 +84,9 @@ def user_model_upload_page():
 
     if "model_upload" not in session_state:
         session_state.model_upload = NewModel(get_random_string(length=8))
+
+    if 'labelmap' not in session_state:
+        session_state.labelmap = Labels()
 
     # ******** SESSION STATE *********************************************************
 
@@ -208,8 +212,8 @@ def user_model_upload_page():
         place['model_upload_file_upload'] = st.empty()
         # TODO AMMEND when adding compatibility for other Deep Learning Frameworks
         model_folder_structure_info = f"""
-        # Please ensure your files meets according to the following convention:
-        # 1. TensorFlow
+        ### Please ensure your files meets according to the following convention:
+        #### 1. TensorFlow
         - Model Extension: `.pb` / `.h5`
         - Config Name: pipeline.config*
         - Labelmap Name: labelmap.pbtxt*
@@ -222,8 +226,26 @@ def user_model_upload_page():
         if session_state.model_upload.file_upload:
             def check_files():
                 with model_upload_col2:
-                    session_state.model_upload.check_if_required_files_exist(
+                    _, label_map_files = session_state.model_upload.check_if_required_files_exist(
                         uploaded_file=session_state.model_upload.file_upload)
+
+                    if label_map_files:
+                        session_state.labelmap.filename = label_map_files[0]
+                        # log_info(session_state.labelmap.filename)
+                        with st.spinner(text='Loading Labelmap'):
+                            if session_state.model_upload.framework and session_state.model_upload.deployment_type:
+                                label_map_string = session_state.labelmap.get_labelmap_member_from_archived(name=session_state.labelmap.filename,
+                                                                                                            archived_filepath=session_state.model_upload_widget.name,
+                                                                                                            file_object=session_state.model_upload_widget)
+                                # log_info(label_map_string)
+                                if label_map_string:
+                                    if session_state.model_upload.framework == 'TensorFlow':
+                                        session_state.labelmap.dict = TensorFlow.read_labelmap_file(
+                                            label_map_string=label_map_string)
+                                        # log_info(
+                                        #     f"labelmap_dict:{session_state.labelmap.dict}")
+                    else:
+                        session_state.labelmap.dict={}
 
             st.button("Check compatibility",
                       key='check_files', on_click=check_files)  # NOTE KIV
@@ -241,6 +263,16 @@ def user_model_upload_page():
 
             # *********************************TEMP*********************************
 
+            # ************************* SHOW TABLE OF LABELS *********************************
+
+            if session_state.labelmap.dict:
+                with model_upload_col2:
+                    df = pd.DataFrame(session_state.labelmap.dict)
+                    df.set_index('id')
+                    st.write(f"Labelmap from Model:")
+                    st.dataframe(df)
+
+            # ************************* SHOW TABLE OF LABELS *********************************
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
     # IMAGE CLASSIFICATION, OBJECT DETECTION, IMAGE SEGMENTATION HAS SPECIFIC INPUT IMAGE SIZE

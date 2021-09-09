@@ -44,6 +44,8 @@ from streamlit import session_state as session_state
 from streamlit.uploaded_file_manager import UploadedFile
 
 
+
+
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -252,6 +254,7 @@ class BaseModel:
         self.updated_at: datetime = None
         self.file_upload: UploadedFile = None
         self.compatibility_flag = None
+        self.labelmap=None
 
     # TODO Method to generate Model Path #116
     @st.cache
@@ -389,7 +392,7 @@ class BaseModel:
                     st.success(
                         f"**{uploaded_file.name}** contains the required files for Training")
 
-                    return True
+                    return True, labelmap_files
 
                 elif framework_const == Framework.PyTorch:
                     pass

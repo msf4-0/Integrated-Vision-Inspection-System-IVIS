@@ -16,7 +16,7 @@ import tarfile
 import urllib
 from glob import glob, iglob
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import IO, Dict, List, Union
 from zipfile import ZipFile
 
 import streamlit as st
@@ -514,6 +514,72 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> 
             file_list = sorted(tarObj.getnames())
 
     return file_list
+
+
+def get_member(name: str, archived_filepath: Path = None, file_object: IO = None, decode: str = 'utf-8') -> Union[IO, str]:
+    """Obtain bytes-stream of file member in the archived file without extraction
+
+    Args:
+        name (str): Name of file (obtained from `list_files_in_archived()`)
+        archived_filepath (Path, optional): Path to archive file. Neglected if file_object passed. Defaults to None.
+        file_object (IO, optional): Byte-stream object / file-like object. Defaults to None.
+        decode (str, optional): Decode format. Defaults to 'utf-8'.
+
+    Returns:
+        Union[IO,str]: Byte-stream of file member
+    """
+
+    # Make sure it is Path() object
+    archived_filepath = Path(archived_filepath)
+
+    # get extension of the archive file
+    archive_extension = archived_filepath.suffix
+
+    if (archive_extension not in SUPPORTED_ARCHIVE_EXT):
+
+        # RETURN TO CALLER IF ARCHIVE FORMAT NOT SUPPORTED !!!!
+        error_msg = f"Archiving format {archive_extension} is not supported"
+        log_error(error_msg)
+        st.error(error_msg)
+        return
+
+    if archive_extension == '.zip':
+
+        file = file_object if file_object else archived_filepath
+
+        with ZipFile(file=file, mode='r') as zipObj:
+            file_bytes = zipObj.read(str(name))
+
+            if decode:
+                try:
+                    file_bytes = file_bytes.decode(decode)
+                except Exception as e:
+                    log_error(f"{e}")
+
+    else:
+        tar_read_format_list = {
+            ".gz": "r:gz",
+            ".bz2": "r:bz2",
+            ".xz": "r:xz"
+        }
+
+        tar_mode = tar_read_format_list.get(archive_extension)
+
+        if file_object:
+            fileobj = file_object
+            filename = None
+
+        with tarfile.open(name=filename,
+                          fileobj=fileobj,
+                          mode=tar_mode) as tarObj:
+            file_bytes = tarObj.extractfile(str(name)).read()
+            if decode:
+                try:
+                    file_bytes = file_bytes.decode(decode)
+                except Exception as e:
+                    log_error(f"{e}")
+
+    return file_bytes
 
 
 # NOTE DEPRECATED -> USE file_archive_handler
