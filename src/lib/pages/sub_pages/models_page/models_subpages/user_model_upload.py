@@ -59,8 +59,9 @@ from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from deployment.deployment_management import COMPUTER_VISION_LIST, Deployment
 from path_desc import USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root
-from training.model_management import Framework, Model, NewModel
-from training.labelmap_management import Labels, TensorFlow
+from training.model_management import Model, NewModel, ModelCompatibility
+from training.labelmap_management import Labels
+from training.labelmap_generator import labelmap_generator
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -111,6 +112,9 @@ def user_model_upload_page():
     # Columns for Model Upload
     model_upload_col1, model_upload_col2, model_upload_col3 = st.columns([
                                                                          1.5, 3.5, 0.5])
+    # Columns for Labelmap Dataframe
+    labelmap_col1, labelmap_col2, labelmap_col3 = st.columns([
+        1.5, 3.5, 0.5])
     # Columns for Model Input Size
     model_input_size_col1, model_input_size_col2, model_input_size_col3 = st.columns([
         1.5, 3.5, 0.5])
@@ -203,12 +207,14 @@ def user_model_upload_page():
     model_upload_col1.write("## __Model Upload :__")
 
     # ***********************ONLY ALLOW SINGLE FILE UPLOAD***********************
-    with model_upload_col2:
-        session_state.model_upload.file_upload = st.file_uploader(label='Upload Model',
-                                                                  type=['zip', 'tar.gz',
-                                                                        'tar.xz', 'tar.bz2'],
-                                                                  accept_multiple_files=False,
-                                                                  key='model_upload_widget')
+
+    with model_upload_col2.container():
+
+        st.file_uploader(label='Upload Model',
+                         type=['zip', 'tar.gz',
+                               'tar.xz', 'tar.bz2'],
+                         accept_multiple_files=False,
+                         key='model_upload_widget')
         place['model_upload_file_upload'] = st.empty()
         # TODO AMMEND when adding compatibility for other Deep Learning Frameworks
         model_folder_structure_info = f"""
@@ -223,11 +229,14 @@ def user_model_upload_page():
         with st.expander(label='Model Folder Structure'):
             st.info(model_folder_structure_info)
 
-        if session_state.model_upload.file_upload:
-            def check_files():
-                with model_upload_col2:
+        def check_files():
+            with model_upload_col2:
+                if session_state.model_upload_widget:
                     _, label_map_files = session_state.model_upload.check_if_required_files_exist(
-                        uploaded_file=session_state.model_upload.file_upload)
+                        uploaded_file=session_state.model_upload_widget)
+
+                    if session_state.model_upload.compatibility_flag <= 1:
+                        session_state.model_upload.file_upload = session_state.model_upload_widget
 
                     if label_map_files:
                         session_state.labelmap.filename = label_map_files[0]
@@ -239,38 +248,44 @@ def user_model_upload_page():
                                                                                                             file_object=session_state.model_upload_widget)
                                 # log_info(label_map_string)
                                 if label_map_string:
-                                    if session_state.model_upload.framework == 'TensorFlow':
-                                        session_state.labelmap.dict = TensorFlow.read_labelmap_file(
-                                            label_map_string=label_map_string)
-                                        # log_info(
-                                        #     f"labelmap_dict:{session_state.labelmap.dict}")
+
+                                    session_state.labelmap.dict = session_state.labelmap.generate_labelmap_dict(
+                                        label_map_string=label_map_string,
+                                        framework=session_state.model_upload.framework)
+                                    # log_info(
+                                    #     f"labelmap_dict:{session_state.labelmap.dict}")
                     else:
-                        session_state.labelmap.dict={}
+                        session_state.labelmap.dict = {}
 
-            st.button("Check compatibility",
-                      key='check_files', on_click=check_files)  # NOTE KIV
+        st.button("Check compatibility",
+                  key='check_files', on_click=check_files)  # NOTE KIV
 
-            # *********************************TEMP*********************************
+        # *********************************TEMP*********************************
 
-            def save_file():
+        def save_file():
+            if session_state.model_upload_widget:
                 with model_upload_col2:
                     with st.spinner(text='Storing uploaded model'):
                         save_uploaded_extract_files(dst='/home/rchuzh/Desktop/test2',
                                                     filename=session_state.model_upload_widget.name,
                                                     fileObj=session_state.model_upload_widget)
 
-            st.button("Save file", key='save_file', on_click=save_file)
+        st.button("Save file", key='save_file', on_click=save_file)
 
-            # *********************************TEMP*********************************
+        # *********************************TEMP*********************************
 
-            # ************************* SHOW TABLE OF LABELS *********************************
-
-            if session_state.labelmap.dict:
-                with model_upload_col2:
-                    df = pd.DataFrame(session_state.labelmap.dict)
-                    df.set_index('id')
-                    st.write(f"Labelmap from Model:")
-                    st.dataframe(df)
+        # ************************* SHOW TABLE OF LABELS *********************************
+    if (not session_state.labelmap.dict) and ((session_state.model_upload.compatibility_flag != ModelCompatibility.Compatible) and (session_state.model_upload.compatibility_flag != ModelCompatibility.MissingModel)):
+        with labelmap_col2:
+            label_map_string = labelmap_generator(framework=session_state.model_upload.framework,
+                                                  deployment_type=session_state.model_upload.deployment_type)
+    if session_state.labelmap.dict and session_state.model_upload_widget:
+        if session_state.model_upload_widget.name == session_state.model_upload.file_upload.name:
+            with labelmap_col2:
+                df = pd.DataFrame(session_state.labelmap.dict)
+                df.set_index('id')
+                st.write(f"Labelmap from Model:")
+                st.dataframe(df)
 
             # ************************* SHOW TABLE OF LABELS *********************************
     # ************************* MODEL INPUT SIZE *************************
@@ -360,6 +375,7 @@ def user_model_upload_page():
         label=submit_button_name, key="submit", on_click=model_upload_submit)
 
     st.write(vars(session_state.model_upload))
+    st.write(vars(session_state.labelmap))
 
 
 if __name__ == "__main__":

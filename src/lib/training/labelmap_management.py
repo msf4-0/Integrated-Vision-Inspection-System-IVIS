@@ -168,6 +168,17 @@ class Labels:
             name=name, archived_filepath=archived_filepath, file_object=file_object, decode=decode)
         return label_map_string
 
+    @staticmethod
+    def generate_labelmap_dict(label_map_string: str, framework: Union[str, Framework]) -> List:
+        label_map_dict = []
+        framework = Model.get_framework(framework=framework,
+                                        string=False)
+        if framework == Framework.TensorFlow:
+            label_map_dict = TensorFlow.read_labelmap_file(
+                label_map_string=label_map_string)
+
+        return label_map_dict
+
 
 class TensorFlow(object):
 

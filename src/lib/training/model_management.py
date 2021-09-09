@@ -25,12 +25,12 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import json
-from logging import error
-from os import name
 import sys
 from collections import namedtuple
 from datetime import datetime
 from enum import IntEnum
+from logging import error
+from os import name
 from pathlib import Path
 from time import sleep
 from typing import Dict, List, NamedTuple, Tuple, Union
@@ -43,9 +43,6 @@ from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 from streamlit.uploaded_file_manager import UploadedFile
 
-
-
-
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -57,20 +54,21 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+from core.utils.code_generator import get_random_string
+from core.utils.file_handler import list_files_in_archived
 from core.utils.form_manager import check_if_exists, check_if_field_empty
 from core.utils.helper import (create_dataframe, dataframe2dict,
                                datetime_formatter, get_dataframe_row,
                                get_directory_name, get_identifier_str_IntEnum)
 from core.utils.log import log_error, log_info, log_warning  # logger
-from core.utils.file_handler import list_files_in_archived
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
-from deployment.deployment_management import Deployment, DeploymentType
-
+from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
+                                              DeploymentType)
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root)
-from core.utils.code_generator import get_random_string
+
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # initialise connection to Database
@@ -253,7 +251,7 @@ class BaseModel:
         self.has_submitted: bool = False
         self.updated_at: datetime = None
         self.file_upload: UploadedFile = None
-        self.compatibility_flag = None
+        self.compatibility_flag = ModelCompatibility.MissingModel
         self.labelmap=None
 
     # TODO Method to generate Model Path #116
@@ -375,19 +373,20 @@ class BaseModel:
                         checkpoint_files) >= 1, "Checkpoint files missing"
                     self.compatibility_flag = ModelCompatibility.Compatible  # Set flag as Compatible
 
-                    if deployment_type_const in [DeploymentType.Image_Classification, DeploymentType.OD,
-                                                 DeploymentType.Instance, DeploymentType.Semantic]:
+                    if deployment_type_const in COMPUTER_VISION_LIST:
                         if len(config_files) == 0:
                             st.warning(
                                 f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
                             log_warning(
                                 f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
+                            self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
                         if len(labelmap_files) == 0:
                             st.warning(
                                 f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
                             log_warning(
                                 f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
-                        self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
+                            self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
+                        
 
                     st.success(
                         f"**{uploaded_file.name}** contains the required files for Training")
