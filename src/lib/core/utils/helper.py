@@ -33,6 +33,7 @@ else:
     pass
 
 from core.utils.log import log_error, log_info  # logger
+from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import db_fetchone, init_connection
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
@@ -103,10 +104,25 @@ def get_theme():
     return backgroundColor
 
 
-def split_string(string: str) -> List:
+def remove_suffix(filename: Union[str, Path]) -> str:
+    """Remove suffix/suffixes from a string
+
+    Args:
+        filename (Union[str, Path]): Filename or path-like object
+
+    Returns:
+        str: Formatted string without suffixes
+    """
+    suffix_removed = str(filename).replace(
+        ''.join(Path(filename).suffixes), '')
+
+    return suffix_removed
+
+
+def split_string(string: str, separator: str = ' ') -> List:
 
     # Split the string based on space delimiter
-    list_string = string.split(' ')
+    list_string = string.split(separator)
 
     return list_string
 
@@ -120,7 +136,8 @@ def join_string(list_string: List, separator: str = '-') -> str:
 
 
 def get_directory_name(name: str) -> str:
-    directory_name = join_string(split_string(str(name))).lower()
+    directory_name = join_string(split_string(
+        remove_newline_trailing_whitespace(str(name)))).lower()
     return directory_name
 
 
@@ -234,17 +251,17 @@ def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
 
     if string:
 
-        # Get String form if deployment_type is type IntEnum class
+        # Get String form if is type IntEnum class
         if isinstance(identifier, enumerator_class):
             identifier = [
                 k for k, v in identifier_dictionary.items() if v == identifier][0]
 
     else:
-        # Get IntEnum class constant if deployment_type is string
+        # Get IntEnum class constant if is string
         if isinstance(identifier, str):
             identifier = identifier_dictionary[identifier]
 
-    log_info(f"Deployment Type is :{identifier}")
+    log_info(f"Type is :{identifier}")
 
     return identifier
 

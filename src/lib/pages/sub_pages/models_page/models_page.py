@@ -24,9 +24,11 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import json
 import sys
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
@@ -72,7 +74,8 @@ def existing_models():
     log_info(f"At Existing Model Page")
     existing_models, existing_models_column_names = Model.query_model_table(for_data_table=True,
                                                                             return_dict=True,
-                                                                            deployment_type=session_state.training.deployment_type)
+                                                                            deployment_type=session_state.new_training.deployment_type)
+
     # st.write(vars(session_state.training))
 
     # ************************* SESSION STATE ************************************************
@@ -80,15 +83,20 @@ def existing_models():
         session_state.existing_models_table = None
     # ************************* SESSION STATE ************************************************
 
+    # ************************ COLUMN PLACEHOLDER ********************************************
+    to_model_upload_page_button_place = st.empty()
+    main_col1, main_col2 = st.columns([3, 1])
+    # ************************ COLUMN PLACEHOLDER ********************************************
+
     def to_model_upload_page():
         session_state.models_pagination = ModelsPagination.ModelUpload
 
         if "existing_models_table" not in session_state:
             del session_state.existing_models_table
 
-    st.button(label="Upload Deep Learning Model",
-              key="upload_new_model",
-              on_click=to_model_upload_page)
+    to_model_upload_page_button_place.button(label="Upload Deep Learning Model",
+                                             key="upload_new_model",
+                                             on_click=to_model_upload_page)
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
     existing_models_columns = [
         {
@@ -145,10 +153,46 @@ def existing_models():
     ]
     # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    data_table(rows=existing_models,
-               columns=existing_models_columns,
-               checkbox=False,
-               key='existing_models_table')
+    # Returns model_id -> store inside model class
+    def instantiate_model():
+        model_df_row = Model.filtered_models_dataframe(models=existing_models,
+                                                       dataframe_col="id",
+                                                       filter_value=session_state.existing_models_table[0],
+                                                       column_names=existing_models_column_names)
+
+        if 'attached_model' not in session_state:
+            session_state.new_training.attached_model = Model(
+                model_row=model_df_row[0])
+
+        else:
+            session_state.new_training.attached_model = Model(
+                model_row=model_df_row[0])
+        # st.write(vars(session_state.attached_model))
+
+    with main_col1:
+        data_table(rows=existing_models,
+                   columns=existing_models_columns,
+                   checkbox=False,
+                   key='existing_models_table', on_change=instantiate_model)
+
+    with main_col2:
+        if 'attached_model' in session_state:
+
+            y = session_state.new_training.attached_model.get_perf_metrics()
+
+            df_metrics = Model.create_perf_metrics_table(y)
+            model_information = f"""
+            ### Model Information:
+            #### Name: {session_state.new_training.attached_model.name}
+            #### Framework: {session_state.new_training.attached_model.framework}
+            #### Model Input Size: {session_state.new_training.attached_model.model_input_size}
+                    
+            """
+            st.info(model_information)
+            st.write(f"#### Metrics:")
+            st.table(df_metrics)
+
+            # Add Model Name Input
 
 
 def index():
@@ -180,8 +224,8 @@ def index():
             log_info("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
-        if 'training' not in session_state:
-            session_state.training = Training(training_id_tmp,
+        if 'new_training' not in session_state:
+            session_state.new_training = Training(training_id_tmp,
                                               project=session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")

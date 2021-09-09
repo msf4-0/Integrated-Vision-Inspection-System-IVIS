@@ -60,7 +60,7 @@ def check_if_field_empty(context: Dict, field_placeholder, name_key:str='name',c
                     sleep(1)
                     field_placeholder[k].empty()
                     log_error(
-                        f"Project name used. Please enter a new name")
+                        f" name used. Please enter a new name")
                     empty_fields.append(k)
                 else:
                     log_error('escaped check')
