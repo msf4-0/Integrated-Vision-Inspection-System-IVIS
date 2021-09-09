@@ -43,7 +43,7 @@ if str(LIB_PATH) not in sys.path:
 from core.utils.file_handler import get_member
 # >>>> User-defined Modules >>>>
 from core.utils.form_manager import remove_newline_trailing_whitespace
-from core.utils.helper import split_string
+from core.utils.helper import split_string, get_identifier_str_IntEnum
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
@@ -58,7 +58,6 @@ from object_detection.utils.label_map_util import (
     create_categories_from_labelmap)
 from path_desc import chdir_root
 
-from training.model_management import Model
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -84,7 +83,48 @@ class Framework(IntEnum):
         except KeyError:
             raise ValueError()
 
+
+# Names to for file storing Labelmaps
+LABELMAP_NAME = {
+    Framework.TensorFlow: 'labelmap.pbtxt',
+    Framework.PyTorch: 'labelmap.json',  # pickle,json or txt
+    Framework.Scikit_learn: '',
+    Framework.Caffe: '',
+    Framework.MXNet: '',
+    Framework.ONNX: '',
+    Framework.YOLO: 'labelmap.txt',
+
+}
+FRAMEWORK = {
+    "TensorFlow": Framework.TensorFlow,
+    "PyTorch": Framework.PyTorch,
+    "Scikit-learn": Framework.Scikit_learn,
+    "Caffe": Framework.Caffe,
+    "MXNet": Framework.MXNet,
+    "ONNX": Framework.ONNX,
+    "YOLO": Framework.YOLO
+}
 # <<<< Variable Declaration <<<<
+
+
+def get_framework(framework: Union[str, Framework], string: bool = False) -> Union[str, Framework]:
+    """Get Framework string or IntEnum constants
+
+    Args:
+        framework (Union[str, Framework]): Framework string or IntEnum constant
+        string (bool, optional): True if to obtain type string, False to obtain IntEnum constant. Defaults to False.
+
+    Returns:
+        Union[str, Framework]: Converted Framework
+    """
+
+    assert isinstance(
+        framework, (str, Framework)), f"framework must be String or IntEnum"
+
+    model_type = get_identifier_str_IntEnum(
+        framework, Framework, FRAMEWORK, string=string)
+
+    return model_type
 
 
 class Labels:
@@ -93,6 +133,7 @@ class Labels:
         self.filename: str = None
         self.filePath: Path = None
         self.dict: List = []
+        self.label_map_string:str=None
 
     @staticmethod
     def generate_list_of_labels(comma_separated_string: str) -> List:
@@ -126,8 +167,8 @@ class Labels:
         # Generate string of labelmap
         # strip comma separated string
 
-        framework = Model.get_framework(framework=framework,
-                                        string=False)
+        framework = get_framework(framework=framework,
+                                  string=False)
         deployment_type = Deployment.get_deployment_type(deployment_type=deployment_type,
                                                          string=False)
 
@@ -145,8 +186,8 @@ class Labels:
                                deployment_type: Union[str, DeploymentType]
                                ) -> bool:
 
-        framework = Model.get_framework(framework=framework,
-                                        string=False)
+        framework = get_framework(framework=framework,
+                                  string=False)
         deployment_type = Deployment.get_deployment_type(deployment_type=deployment_type,
                                                          string=False)
         dst = Path(dst)
@@ -162,7 +203,6 @@ class Labels:
                                               filepath=filepath)
 
     @staticmethod
-    @st.cache
     def get_labelmap_member_from_archived(name: str, archived_filepath: Path = None, file_object: IO = None, decode: str = 'utf-8'):
         label_map_string = get_member(
             name=name, archived_filepath=archived_filepath, file_object=file_object, decode=decode)
@@ -171,8 +211,8 @@ class Labels:
     @staticmethod
     def generate_labelmap_dict(label_map_string: str, framework: Union[str, Framework]) -> List:
         label_map_dict = []
-        framework = Model.get_framework(framework=framework,
-                                        string=False)
+        framework = get_framework(framework=framework,
+                                  string=False)
         if framework == Framework.TensorFlow:
             label_map_dict = TensorFlow.read_labelmap_file(
                 label_map_string=label_map_string)

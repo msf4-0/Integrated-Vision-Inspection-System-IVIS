@@ -55,8 +55,10 @@ else:
     pass
 
 from core.utils.code_generator import get_random_string
-from core.utils.file_handler import list_files_in_archived, save_uploaded_extract_files
-from core.utils.form_manager import check_if_exists, check_if_field_empty
+from core.utils.file_handler import (list_files_in_archived,
+                                     save_uploaded_extract_files)
+from core.utils.form_manager import (check_if_exists, check_if_field_empty,
+                                     reset_page_attributes)
 from core.utils.helper import (create_dataframe, dataframe2dict,
                                datetime_formatter, get_dataframe_row,
                                get_directory_name, get_identifier_str_IntEnum)
@@ -68,6 +70,8 @@ from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root)
+
+from training.labelmap_management import Labels
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -308,17 +312,17 @@ class BaseModel:
 
         empty_fields = []
         check_if_exists = self.check_if_exists
-        empty_fields = check_if_field_empty(
-            context, field_placeholder, name_key, check_if_exists)
+        empty_fields.append(check_if_field_empty(
+            context, field_placeholder, name_key, check_if_exists))
 
         if input_size_context:
             if deployment_type_constant in COMPUTER_VISION_LIST:
-                empty_fields = check_if_field_empty(
-                    input_size_context, field_placeholder)
+                empty_fields.append(check_if_field_empty(
+                    input_size_context, field_placeholder))
 
         sleep(0.5)
 
-        return empty_fields
+        return sorted(empty_fields)[0]
 
     def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> bool:
         # check if necessary files required included in the package
@@ -512,7 +516,7 @@ class BaseModel:
         if not model_path.is_dir():
             error_msg = f"{str(model_path)} does not exists"
             log_error(error_msg)
-            st.error(error_msg)
+
             # model_path = None
 
         return model_path
@@ -653,32 +657,41 @@ class BaseModel:
                 f"{e}: Failed to create new row in Models table for {self.name}")
             return False
 
-    def create_new_model_pipeline(self):
-        # get destination folder
-        progress_bar = st.progress(0)
-        self.model_type = "User Deep Learning Model Upload"
+    def create_new_model_pipeline(self, label_map_string: str = None):
 
-        self.model_path = self.get_pt_user_model_path(model_path=self.name,
-                                                      framework=self.framework,
-                                                      model_type=self.model_type,
-                                                      new_model_flag=True)
-        log_info(f"Model Path: {self.model_path}")
-        # unpack
-        progress_bar.progress(1 / 3)
-        with st.spinner(text='Storing uploaded model'):
-            save_uploaded_extract_files(dst=self.model_path,
-                                        filename=self.file_upload.name,
-                                        fileObj=self.file_upload)
+        with st.container():
+            # get destination folder
+            progress_bar = st.progress(0)
+            self.model_type = "User Deep Learning Model Upload"
 
-        # Create new row in DB
-        progress_bar.progress(2 / 3)
-        with st.spinner(text='Storing uploaded model'):
-            self.insert_new_model(model_type=self.model_type)
+            self.model_path = self.get_pt_user_model_path(model_path=self.name,
+                                                          framework=self.framework,
+                                                          model_type=self.model_type,
+                                                          new_model_flag=True)
+            log_info(f"Model Path: {self.model_path}")
+            # unpack
+            progress_bar.progress(1 / 3)
+            with st.spinner(text='Storing uploaded model'):
+                save_uploaded_extract_files(dst=self.model_path,
+                                            filename=self.file_upload.name,
+                                            fileObj=self.file_upload)
+            if label_map_string:
+                # generate labelmap
+                # move labelmap to dst
+                Labels.generate_labelmap_file(labelmap_string=label_map_string,
+                                              dst=self.model_path,
+                                              framework=self.framework,
+                                              deployment_type=self.deployment_type)
 
-        # Success msg
-        progress_bar.progress(3 / 3)
-        self.has_submitted = True
-        st.success(f"Successfully uploaded new model: {self.name}")
+            # Create new row in DB
+            progress_bar.progress(2 / 3)
+            with st.spinner(text='Storing uploaded model'):
+                self.insert_new_model(model_type=self.model_type)
+
+            # Success msg
+            progress_bar.progress(3 / 3)
+            self.has_submitted = True
+            st.success(f"Successfully uploaded new model: {self.name}")
 
         return True
 
@@ -689,7 +702,12 @@ class NewModel(BaseModel):
         self.has_submitted: bool = False
         self.deployment_type: str = False
 
-    # need to add methods to create New Model Row
+    @staticmethod
+    def reset_new_model_page():
+        new_model_attributes = ["new_training", "new_training_name",
+                                   "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
+
+        reset_page_attributes(new_model_attributes)
 
 
 class Model(BaseModel):

@@ -102,7 +102,7 @@ def labelmap_generator(framework: Union[str, IntEnum] = None, deployment_type: U
 
             st.code(body=labelmap_string, language='json')
 
-    return labelmap_string
+    return session_state.generate_labelmap_checkbox,labelmap_string
 
 
 if __name__ == "__main__":

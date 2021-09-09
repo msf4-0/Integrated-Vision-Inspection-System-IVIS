@@ -18,7 +18,7 @@ from glob import glob, iglob
 from pathlib import Path
 from typing import IO, Dict, List, Union
 from zipfile import ZipFile
-
+from copy import deepcopy
 import streamlit as st
 from streamlit.uploaded_file_manager import UploadedFile
 import yaml
@@ -228,7 +228,7 @@ def save_uploaded_extract_files(dst: Union[str, Path], filename: Union[str, Path
         bool: True if successful. False otherwise.
     """
     filename = Path(filename).name
-    dst=Path(dst)
+    dst = Path(dst)
     create_folder_if_not_exist(dst)
     with get_temp_dir() as tmp_dir:
 
@@ -449,7 +449,7 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
         tar_mode = tar_read_format_list.get(archive_extension)
 
         if file_object:
-            fileobj = file_object
+            fileobj = deepcopy(file_object)
             name = None
 
         with tarfile.open(name=name,
@@ -508,13 +508,14 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> 
         tar_mode = tar_read_format_list.get(archive_extension)
 
         if file_object:
-            fileobj = file_object
+            fileobj = deepcopy(file_object)
             name = None
 
         with tarfile.open(name=name,
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:
             file_list = sorted(tarObj.getnames())
+            # file_object.seek(0, 0)
 
     return file_list
 
@@ -551,6 +552,7 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
         file = file_object if file_object else archived_filepath
 
         with ZipFile(file=file, mode='r') as zipObj:
+
             file_bytes = zipObj.read(str(name))
 
             if decode:
@@ -569,18 +571,21 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
         tar_mode = tar_read_format_list.get(archive_extension)
 
         if file_object:
-            fileobj = file_object
+            fileobj = deepcopy(file_object)
             filename = None
-
+        log_info(file_object)
         with tarfile.open(name=filename,
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:
+
             file_bytes = tarObj.extractfile(str(name)).read()
+
             if decode:
                 try:
                     file_bytes = file_bytes.decode(decode)
                 except Exception as e:
                     log_error(f"{e}")
+            # file_object.seek(0)
 
     return file_bytes
 
