@@ -228,6 +228,8 @@ def save_uploaded_extract_files(dst: Union[str, Path], filename: Union[str, Path
         bool: True if successful. False otherwise.
     """
     filename = Path(filename).name
+    dst=Path(dst)
+    create_folder_if_not_exist(dst)
     with get_temp_dir() as tmp_dir:
 
         tmp_dir = Path(tmp_dir)
@@ -418,6 +420,7 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
     # Make sure it is Path() object
     archived_filepath = Path(archived_filepath)
     dst = Path(dst)
+    create_folder_if_not_exist(dst)
 
     archive_extension = archived_filepath.suffix
 

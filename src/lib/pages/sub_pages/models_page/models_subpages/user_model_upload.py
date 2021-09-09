@@ -229,6 +229,7 @@ def user_model_upload_page():
         with st.expander(label='Model Folder Structure'):
             st.info(model_folder_structure_info)
 
+    # ********************************* CHECK UPLOADED MODELS COMPATIBILITY ***********************************************
         def check_files():
             with model_upload_col2:
                 if session_state.model_upload_widget:
@@ -254,6 +255,8 @@ def user_model_upload_page():
                                         framework=session_state.model_upload.framework)
                                     # log_info(
                                     #     f"labelmap_dict:{session_state.labelmap.dict}")
+
+                    # CLEAR LABELMAP DICT IF LABELMAP FILES DOES NOT EXISTS
                     else:
                         session_state.labelmap.dict = {}
 
@@ -274,20 +277,24 @@ def user_model_upload_page():
 
         # *********************************TEMP*********************************
 
-        # ************************* SHOW TABLE OF LABELS *********************************
+    # *********************************************** SHOW TABLE OF LABELS ***********************************************
     if (not session_state.labelmap.dict) and ((session_state.model_upload.compatibility_flag != ModelCompatibility.Compatible) and (session_state.model_upload.compatibility_flag != ModelCompatibility.MissingModel)):
-        with labelmap_col2:
+        with labelmap_col2.container():
             label_map_string = labelmap_generator(framework=session_state.model_upload.framework,
                                                   deployment_type=session_state.model_upload.deployment_type)
+
+            # TODO create labelmap file and move to dst folder
+
     if session_state.labelmap.dict and session_state.model_upload_widget:
         if session_state.model_upload_widget.name == session_state.model_upload.file_upload.name:
-            with labelmap_col2:
+            with labelmap_col2.container():
                 df = pd.DataFrame(session_state.labelmap.dict)
                 df.set_index('id')
                 st.write(f"Labelmap from Model:")
                 st.dataframe(df)
 
-            # ************************* SHOW TABLE OF LABELS *********************************
+    # *********************************************** SHOW TABLE OF LABELS ***********************************************
+
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
     # IMAGE CLASSIFICATION, OBJECT DETECTION, IMAGE SEGMENTATION HAS SPECIFIC INPUT IMAGE SIZE
@@ -334,6 +341,8 @@ def user_model_upload_page():
                     'model_upload_height': session_state.model_upload.model_input_size['height'],
                     'model_upload_channel': session_state.model_upload.model_input_size['channel'],
                 }
+        else:
+            input_size_context={}
         # *******************************************************************************************
         # NOTE KIV FOR OTHER DEPLOYMENTS
         # else:
@@ -356,18 +365,39 @@ def user_model_upload_page():
 
     }
 
+    # Columns for submit button
     submit_col1, submit_col2 = st.columns([3, 0.5])
+
 
     def model_upload_submit():
 
         # >>>> IF IT IS A NEW SUBMISSION
         if not session_state.model_upload.has_submitted:
+
             if session_state.model_upload.check_if_field_empty(context,
                                                                field_placeholder=place,
                                                                name_key='model_upload_name',
                                                                deployment_type_constant=deployment_type_constant,
                                                                input_size_context=input_size_context):
-                pass
+
+                _, label_map_files = session_state.model_upload.check_if_required_files_exist(
+                    uploaded_file=session_state.model_upload_widget)
+
+                if session_state.model_upload.compatibility_flag == ModelCompatibility.MissingExtraFiles_ModelExists and not label_map_files:
+                    # IF THERE ARE NON COMPULSORY FILES MISSING
+                    def continue_upload():
+                        # CALLBACK to continue upload model to server disregarding the warning
+                        session_state.model_upload.create_new_model_pipeline()
+
+                    st.button("Upload without Labelmap",
+                              key='ignore_labelmap', on_click=continue_upload)
+
+                elif session_state.model_upload.compatibility_flag == ModelCompatibility.Compatible:
+                    # IF ALL REQUIREMENTS ARE MET
+                    session_state.model_upload.create_new_model_pipeline()
+
+                else:
+                    st.error(f"Failed to create new model")
 
     submit_button_name = 'Submit' if session_state.model_upload.has_submitted == False else 'Update'
     # # TODO #72 Change to 'Update' when 'has_submitted' == True
@@ -375,7 +405,7 @@ def user_model_upload_page():
         label=submit_button_name, key="submit", on_click=model_upload_submit)
 
     st.write(vars(session_state.model_upload))
-    st.write(vars(session_state.labelmap))
+    # st.write(vars(session_state.labelmap))
 
 
 if __name__ == "__main__":

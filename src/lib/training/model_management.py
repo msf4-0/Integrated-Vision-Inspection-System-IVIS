@@ -55,7 +55,7 @@ else:
     pass
 
 from core.utils.code_generator import get_random_string
-from core.utils.file_handler import list_files_in_archived
+from core.utils.file_handler import list_files_in_archived, save_uploaded_extract_files
 from core.utils.form_manager import check_if_exists, check_if_field_empty
 from core.utils.helper import (create_dataframe, dataframe2dict,
                                datetime_formatter, get_dataframe_row,
@@ -252,7 +252,7 @@ class BaseModel:
         self.updated_at: datetime = None
         self.file_upload: UploadedFile = None
         self.compatibility_flag = ModelCompatibility.MissingModel
-        self.labelmap=None
+        self.labelmap = None
 
     # TODO Method to generate Model Path #116
     @st.cache
@@ -311,10 +311,10 @@ class BaseModel:
         empty_fields = check_if_field_empty(
             context, field_placeholder, name_key, check_if_exists)
 
-        if deployment_type_constant in [DeploymentType.Image_Classification, DeploymentType.OD,
-                                        DeploymentType.Instance, DeploymentType.Semantic]:
-            empty_fields += check_if_field_empty(
-                input_size_context, field_placeholder)
+        if input_size_context:
+            if deployment_type_constant in COMPUTER_VISION_LIST:
+                empty_fields = check_if_field_empty(
+                    input_size_context, field_placeholder)
 
         sleep(0.5)
 
@@ -386,7 +386,6 @@ class BaseModel:
                             log_warning(
                                 f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
                             self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
-                        
 
                     st.success(
                         f"**{uploaded_file.name}** contains the required files for Training")
@@ -514,7 +513,7 @@ class BaseModel:
             error_msg = f"{str(model_path)} does not exists"
             log_error(error_msg)
             st.error(error_msg)
-            model_path = None
+            # model_path = None
 
         return model_path
 
@@ -573,12 +572,14 @@ class BaseModel:
 
         return relative_model_path
 
-    def insert_new_model(self) -> bool:
+    def insert_new_model(self, model_type: str = "User Deep Learning Model Upload") -> bool:
         """Create new row in `models` table
 
         Returns:
             bool: Return True if successful operation, otherwise False
         """        # create new row in Models table
+        self.model_type = model_type
+
         insert_new_model_SQL = """
             INSERT INTO public.models (
                 name
@@ -624,6 +625,10 @@ class BaseModel:
         self.model_path_relative = self.generate_relative_model_path(
             model_name=self.name)
 
+        if self.model_input_size:
+            self.metrics['metadata'] = self.model_input_size
+
+        # SERIALISE Python Dictionary to JSON string
         if not isinstance(self.metrics, str):
 
             metrics_json = json.dumps(self.metrics)
@@ -647,6 +652,35 @@ class BaseModel:
             log_error(
                 f"{e}: Failed to create new row in Models table for {self.name}")
             return False
+
+    def create_new_model_pipeline(self):
+        # get destination folder
+        progress_bar = st.progress(0)
+        self.model_type = "User Deep Learning Model Upload"
+
+        self.model_path = self.get_pt_user_model_path(model_path=self.name,
+                                                      framework=self.framework,
+                                                      model_type=self.model_type,
+                                                      new_model_flag=True)
+        log_info(f"Model Path: {self.model_path}")
+        # unpack
+        progress_bar.progress(1 / 3)
+        with st.spinner(text='Storing uploaded model'):
+            save_uploaded_extract_files(dst=self.model_path,
+                                        filename=self.file_upload.name,
+                                        fileObj=self.file_upload)
+
+        # Create new row in DB
+        progress_bar.progress(2 / 3)
+        with st.spinner(text='Storing uploaded model'):
+            self.insert_new_model(model_type=self.model_type)
+
+        # Success msg
+        progress_bar.progress(3 / 3)
+        self.has_submitted = True
+        st.success(f"Successfully uploaded new model: {self.name}")
+
+        return True
 
 
 class NewModel(BaseModel):
