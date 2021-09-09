@@ -67,6 +67,8 @@ DEPLOYMENT_TYPE = {
     "Semantic Segmentation with Masks": DeploymentType.Semantic
 }
 
+COMPUTER_VISION_LIST=[DeploymentType.Image_Classification, DeploymentType.OD,
+                                   DeploymentType.Instance, DeploymentType.Semantic]
 # <<<< Variable Declaration <<<<
 
 

@@ -131,3 +131,44 @@ FROM
 WHERE
     m.id = % s;
 
+
+/*
+ Create New Model at DB
+Need to support both 'User Upload Model' and 'Project Models' 
+ */
+INSERT INTO public.models (
+    name
+    , description
+    , metrics
+    , model_path
+    , model_type_id
+    , framework_id
+    , deployment_id
+    , training_id)
+VALUES (
+    % s
+    , % s
+    , % s::jsonb
+    , % s
+    , (
+        SELECT
+            mt.id
+        FROM
+            public.model_type mt
+        WHERE
+            mt.name = % s) , (
+            SELECT
+                f.id
+            FROM
+                public.framework f
+            WHERE
+                f.name = % s) , (
+                SELECT
+                    dt.id
+                FROM
+                    public.deployment_type dt
+                WHERE
+                    dt.name = % s) , % s)
+    RETURNING
+        id;
+

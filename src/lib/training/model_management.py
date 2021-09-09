@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import json
 from logging import error
 from os import name
 import sys
@@ -106,6 +107,7 @@ class Framework(IntEnum):
     Caffe = 3
     MXNet = 4
     ONNX = 5
+    YOLO = 6
 
     def __str__(self):
         return self.name
@@ -124,7 +126,8 @@ FRAMEWORK = {
     "Scikit-learn": Framework.Scikit_learn,
     "Caffe": Framework.Caffe,
     "MXNet": Framework.MXNet,
-    "ONNX": Framework.ONNX
+    "ONNX": Framework.ONNX,
+    "YOLO": Framework.YOLO
 }
 # **************************************************************************************
 # `.pkl` => Pickle format to serialise weights and biases of the model graph
@@ -171,7 +174,14 @@ MODEL_FILES = {
         'checkpoint': (),
         'config': (),
         'labelmap': ()
+    }, Framework.YOLO: {
+        # Varies, not a framework but architecture. Possible to be trained using other frameworks stated above
+        'model_extension': (),
+        'checkpoint': (),
+        'config': (),
+        'labelmap': ('.txt')
     }
+
 }
 
 
@@ -235,6 +245,7 @@ class BaseModel:
         self.framework: str = None
         self.training_id: int = None
         self.model_path: Path = None
+        self.model_path_relative: str = None
         self.labelmap_path: Path = None
         self.saved_model_dir: Path = None
         self.has_submitted: bool = False
@@ -460,13 +471,15 @@ class BaseModel:
     def get_pt_user_model_path(model_path: Union[str, Path] = None,
                                framework: str = None,
                                model_type: Union[str, ModelType] = None,
+                               new_model_flag: bool = False,
                                **model_row) -> Path:
         """Get directory path for Pre-trained models and User Upload Deep Learning Models
 
         Args:
-            model_path (Union[str, Path]): Relative path to model (queried from DB)
+            model_path (Union[str, Path]): Relative path to model (queried from DB) / Model Name for New model creation
             framework (str): Framework of model
             model_type (Union[str, ModelType]): Type of model
+            new_model_flag (bool, optional): True is new model to be created, otherwise False. Defaults to False.
 
         Returns:
             Path: Path-like object of model path
@@ -482,6 +495,9 @@ class BaseModel:
             model_type=model_type, string=False)
 
         framework = get_directory_name(framework)
+
+        model_path = get_directory_name(
+            model_path) if new_model_flag else model_path  # format model_path if new model creation
 
         if model_type == ModelType.PreTrained:
             model_path = PRE_TRAINED_MODEL_DIR / framework / str(model_path)
@@ -538,10 +554,97 @@ class BaseModel:
                 'exported_models' / query_result.Model_Path
             return project_model_path
 
-    def create_new_model(self):
-        # create new row in Models table
+    @staticmethod
+    def generate_relative_model_path(model_name: str) -> str:
+        """Generate model path relative to the parent folder
+        - Utilised if 
 
-        pass
+        Args:
+            model_name (str): Name of the model
+
+        Returns:
+            str: Relative model path
+        """
+
+        directory_name = get_directory_name(model_name)
+        relative_model_path = f"./{directory_name}"
+
+        return relative_model_path
+
+    def insert_new_model(self) -> bool:
+        """Create new row in `models` table
+
+        Returns:
+            bool: Return True if successful operation, otherwise False
+        """        # create new row in Models table
+        insert_new_model_SQL = """
+            INSERT INTO public.models (
+                name
+                , description
+                , metrics
+                , model_path
+                , model_type_id
+                , framework_id
+                , deployment_id
+                , training_id)
+            VALUES (
+                %s
+                , %s
+                , %s::jsonb
+                , %s
+                , (
+                    SELECT
+                        mt.id
+                    FROM
+                        public.model_type mt
+                    WHERE
+                        mt.name = %s) , (
+                        SELECT
+                            f.id
+                        FROM
+                            public.framework f
+                        WHERE
+                            f.name = %s) , (
+                            SELECT
+                                dt.id
+                            FROM
+                                public.deployment_type dt
+                            WHERE
+                                dt.name = %s) ,  %s)
+                    RETURNING
+                        id;
+
+                                    """
+        # self.model_path = self.get_pt_user_model_path(model_path=self.name,
+        #                                               framework=self.framework,
+        #                                               model_type=self.model_type,
+        #                                               new_model_flag=True)
+        self.model_path_relative = self.generate_relative_model_path(
+            model_name=self.name)
+
+        if not isinstance(self.metrics, str):
+
+            metrics_json = json.dumps(self.metrics)
+        else:
+            metrics_json = self.metrics
+
+        insert_new_model_vars = [self.name, self.desc, metrics_json, str(self.model_path_relative),
+                                 self.model_type, self.framework, self.deployment_type, self.training_id]
+
+        try:
+            query_return = db_fetchone(
+                insert_new_model_SQL, conn, insert_new_model_vars).id
+
+            assert isinstance(
+                query_return, int), f"Model ID returned should be type int but type {type(query_return)} obtained ({query_return})"
+
+            self.id = query_return
+            return True
+
+        except Exception as e:
+            log_error(
+                f"{e}: Failed to create new row in Models table for {self.name}")
+            return False
 
 
 class NewModel(BaseModel):

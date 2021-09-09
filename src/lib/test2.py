@@ -24,35 +24,11 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
     pass
-
+from training.labelmap_generator import labelmap_generator
 from core.utils.log import log_info
-my_bar=st.progress(0)
 
-x=[1,2,3,4,5]
-y=[4,5,6,7,8]
-z=5
-list_of_groups=(x,y)
-def test_find_file():
-    with st.spinner(text='Finding in x'):
-        if z in x:
-            st.balloons()
-            sleep(0.5)
-            my_bar.progress(1/2)
-    with st.spinner(text='Finding in y'):
-        if z in y:
-            st.balloons()
-
-            sleep(0.5)
-            my_bar.progress(2/2)
-
-test_find_file()
-
-
-
-    
-
-
-
+labelmap_generator(framework='TensorFlow',
+                   deployment_type='Object Detection with Bounding Boxes')
 
 
 # Store in dictionary

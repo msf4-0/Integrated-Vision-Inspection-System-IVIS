@@ -33,6 +33,7 @@ else:
     pass
 
 from core.utils.log import log_error, log_info  # logger
+from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import db_fetchone, init_connection
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
@@ -118,10 +119,10 @@ def remove_suffix(filename: Union[str, Path]) -> str:
     return suffix_removed
 
 
-def split_string(string: str) -> List:
+def split_string(string: str, separator: str = ' ') -> List:
 
     # Split the string based on space delimiter
-    list_string = string.split(' ')
+    list_string = string.split(separator)
 
     return list_string
 
@@ -135,7 +136,8 @@ def join_string(list_string: List, separator: str = '-') -> str:
 
 
 def get_directory_name(name: str) -> str:
-    directory_name = join_string(split_string(str(name))).lower()
+    directory_name = join_string(split_string(
+        remove_newline_trailing_whitespace(str(name)))).lower()
     return directory_name
 
 

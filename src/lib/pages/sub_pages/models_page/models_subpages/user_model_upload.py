@@ -16,7 +16,7 @@ Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
-limitations under the License. 
+limitations under the License.
 
 Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
@@ -24,14 +24,14 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
-from copy import deepcopy
 import sys
+from copy import deepcopy
 from enum import IntEnum
 from pathlib import Path
 from time import sleep
-from pandas.core import frame
 
 import streamlit as st
+from pandas.core import frame
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
@@ -51,13 +51,15 @@ else:
     pass
 
 from core.utils.code_generator import get_random_string
+from core.utils.file_handler import (list_files_in_archived,
+                                     save_uploaded_extract_files)
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import log_error, log_info  # logger
-from core.utils.file_handler import list_files_in_archived, save_uploaded_extract_files
 from data_manager.database_manager import init_connection
-from path_desc import chdir_root, USER_DEEP_LEARNING_MODEL_UPLOAD_DIR
-from training.model_management import NewModel, Model, Framework
-from deployment.deployment_management import Deployment, DeploymentType
+from deployment.deployment_management import COMPUTER_VISION_LIST, Deployment
+from path_desc import USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root
+from training.model_management import Framework, Model, NewModel
+
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -206,8 +208,8 @@ def user_model_upload_page():
         place['model_upload_file_upload'] = st.empty()
         # TODO AMMEND when adding compatibility for other Deep Learning Frameworks
         model_folder_structure_info = f"""
-        ### Please ensure your files meets according to the following convention:
-        #### 1. TensorFlow
+        # Please ensure your files meets according to the following convention:
+        # 1. TensorFlow
         - Model Extension: `.pb` / `.h5`
         - Config Name: pipeline.config*
         - Labelmap Name: labelmap.pbtxt*
@@ -217,13 +219,6 @@ def user_model_upload_page():
         with st.expander(label='Model Folder Structure'):
             st.info(model_folder_structure_info)
 
-        def save_file():
-            with model_upload_col2:
-                with st.spinner(text='Storing uploaded model'):
-                    save_uploaded_extract_files(dst='/home/rchuzh/Desktop/test2',
-                                                filename=session_state.model_upload_widget.name,
-                                                fileObj=session_state.model_upload_widget)
-
         if session_state.model_upload.file_upload:
             def check_files():
                 with model_upload_col2:
@@ -231,9 +226,21 @@ def user_model_upload_page():
                         uploaded_file=session_state.model_upload.file_upload)
 
             st.button("Check compatibility",
-                      key='check_files', on_click=check_files)
+                      key='check_files', on_click=check_files)  # NOTE KIV
+
+            # *********************************TEMP*********************************
+
+            def save_file():
+                with model_upload_col2:
+                    with st.spinner(text='Storing uploaded model'):
+                        save_uploaded_extract_files(dst='/home/rchuzh/Desktop/test2',
+                                                    filename=session_state.model_upload_widget.name,
+                                                    fileObj=session_state.model_upload_widget)
 
             st.button("Save file", key='save_file', on_click=save_file)
+
+            # *********************************TEMP*********************************
+
     # ************************* MODEL INPUT SIZE *************************
     # NOTE TO BE UPDATED FOR FUTURE UPDATES: VARIES FOR DIFFERENT DEPLOYMENT
     # IMAGE CLASSIFICATION, OBJECT DETECTION, IMAGE SEGMENTATION HAS SPECIFIC INPUT IMAGE SIZE
@@ -241,8 +248,7 @@ def user_model_upload_page():
 
     if session_state.model_upload_deployment_type:
 
-        if deployment_type_constant in [DeploymentType.Image_Classification, DeploymentType.OD,
-                                        DeploymentType.Instance, DeploymentType.Semantic]:
+        if deployment_type_constant in COMPUTER_VISION_LIST:
 
             # Columns for Model Input Size
             _, model_input_size_title, _ = st.columns([1.5, 3.5, 0.5])
@@ -259,27 +265,28 @@ def user_model_upload_page():
             #         label="Height (H)", key="model_input_height-", min_value=0, step=1)
             #     st.number_input(
             #         label="Channels (C)", key="model_input_channel-", min_value=0, step=1)
-            with model_input_size_col1:
-                session_state.model_upload.model_input_size['width'] = st.number_input(
-                    label="Width (W)", key="model_input_width", min_value=0, step=1)
-                place['model_upload_width'] = st.empty()
+            with st.container():
+                with model_input_size_col1:
+                    session_state.model_upload.model_input_size['width'] = st.number_input(
+                        label="Width (W)", key="model_input_width", min_value=0, step=1)
+                    place['model_upload_width'] = st.empty()
 
-            with model_input_size_col2:
-                session_state.model_upload.model_input_size['height'] = st.number_input(
-                    label="Height (H)", key="model_input_height", min_value=0, step=1)
-                place['model_upload_height'] = st.empty()
+                with model_input_size_col2:
+                    session_state.model_upload.model_input_size['height'] = st.number_input(
+                        label="Height (H)", key="model_input_height", min_value=0, step=1)
+                    place['model_upload_height'] = st.empty()
 
-            with model_input_size_col3:
-                # NOTE OPTIONAL
-                session_state.model_upload.model_input_size['channel'] = st.number_input(
-                    label="Channels (C)", key="model_input_channel", min_value=0, step=1)
-                place['model_upload_channel'] = st.empty()
+                with model_input_size_col3:
+                    # NOTE OPTIONAL
+                    session_state.model_upload.model_input_size['channel'] = st.number_input(
+                        label="Channels (C)", key="model_input_channel", min_value=0, step=1)
+                    place['model_upload_channel'] = st.empty()
 
-            input_size_context = {
-                'model_upload_width': session_state.model_upload.model_input_size['width'],
-                'model_upload_height': session_state.model_upload.model_input_size['height'],
-                'model_upload_channel': session_state.model_upload.model_input_size['channel'],
-            }
+                input_size_context = {
+                    'model_upload_width': session_state.model_upload.model_input_size['width'],
+                    'model_upload_height': session_state.model_upload.model_input_size['height'],
+                    'model_upload_channel': session_state.model_upload.model_input_size['channel'],
+                }
         # *******************************************************************************************
         # NOTE KIV FOR OTHER DEPLOYMENTS
         # else:
@@ -320,14 +327,6 @@ def user_model_upload_page():
     submit_button = submit_col2.button(
         label=submit_button_name, key="submit", on_click=model_upload_submit)
 
-    # # >>>> Removed
-    # # session_state.model_upload.has_submitted = False
-
-    # col1, col2 = st.columns(2)
-    # col1.write(vars(session_state.model_upload))
-    # # col2.write(vars(session_state.new_editor))
-    # col2.write(context)
-    # # col2.write(dataset_dict)
     st.write(vars(session_state.model_upload))
 
 
