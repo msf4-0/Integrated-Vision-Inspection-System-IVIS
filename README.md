@@ -1,4 +1,4 @@
-# image_labelling_shrdc
+# Integrated-Vision-Inspection-System
  
 ## License
 
