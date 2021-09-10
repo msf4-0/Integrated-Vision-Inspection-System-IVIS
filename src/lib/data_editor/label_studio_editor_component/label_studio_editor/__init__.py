@@ -65,53 +65,53 @@ def labelstudio_editor(
     return component_value
 
 
-# if not _RELEASE:
-#     import streamlit as st
+if _RELEASE:
+    import streamlit as st
 
-#     st.subheader("Component with constant args")
-#     config = """
-# <View>
-#     <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
-#         <Header value="Select label and start to click on image"/>
-#         <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-#             <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
-#             <View>
-#                 <Filter toName="tag" minlength="0" name="filter"/>
-#                 <RectangleLabels name="tag" toName="img" showInline="true" fillOpacity="0.5" strokeWidth="5">
-#                     <Label value="Hello" background="blue"/>
-#                     <Label value="World" background="pink"/>
-#                 </RectangleLabels>
-#             </View>
-#         </View>
-#     </View>
-# </View>
-#                         """
+    st.subheader("Component with constant args")
+    config = """
+<View>
+    <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
+        <Header value="Select label and start to click on image"/>
+        <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+            <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+            <View>
+                <Filter toName="tag" minlength="0" name="filter"/>
+                <RectangleLabels name="tag" toName="img" showInline="true" fillOpacity="0.5" strokeWidth="5">
+                    <Label value="Hello" background="blue"/>
+                    <Label value="World" background="pink"/>
+                </RectangleLabels>
+            </View>
+        </View>
+    </View>
+</View>
+                        """
 
-#     interfaces = [
-#         "panel",
-#         "controls",
-#         "side-column"
+    interfaces = [
+        "panel",
+        "controls",
+        "side-column"
 
-#     ],
+    ],
 
-#     user = {
-#         'pk': 1,
-#         'firstName': "Zhen Hao",
-#         'lastName': "Chu"
-#     },
+    user = {
+        'pk': 1,
+        'firstName': "Zhen Hao",
+        'lastName': "Chu"
+    },
 
-#     task = {
-#         'annotations': [],
-#         'predictions': [],
-#         'id': 1,
-#         'data': {
-#             'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
-#         }
-#     }
+    task = {
+        'annotations': [],
+        'predictions': [],
+        'id': 1,
+        'data': {
+            'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
+        }
+    }
 
-#     results_raw = labelstudio_editor(
-#         config, interfaces, user, task, key='random')
-#     st.write(results_raw)
+    results_raw = labelstudio_editor(
+        config, interfaces, user, task, key='random')
+    st.write(results_raw)
     # if results_raw is not None:
     #     areas = [v for k, v in results_raw['areas'].items()]
 
