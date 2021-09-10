@@ -47,7 +47,7 @@ from data_manager.database_manager import init_connection
 from data_manager.dataset_management import Dataset, DataPermission, DatasetPagination, NewDataset, get_dataset_name_list, query_dataset_list
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from annotation.annotation_management import Task
-from data_table import data_table
+from data_manager.data_table_component.data_table import data_table
 # from data_table_test import data_table  # FOR DEVELOPMENT
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 

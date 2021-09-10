@@ -37,8 +37,8 @@ from data_manager.database_manager import init_connection
 from annotation.annotation_management import (LabellingPagination, Annotations, NewAnnotations, Task,
                                               load_buffer_image, task_labelling_columns,
                                               get_task_row, reset_editor_page)
-from label_studio_editor import labelstudio_editor
-from data_table import data_table
+from data_editor.label_studio_editor_component.label_studio_editor import labelstudio_editor
+from data_manager.data_table_component.data_table import data_table
 
 # <<<< User-defined Modules <<<<
 conn = init_connection(**st.secrets["postgres"])

@@ -38,7 +38,7 @@ from user.user_management import User
 from data_manager.database_manager import init_connection
 from annotation.annotation_management import Annotations, NewAnnotations, NewTask, Task, load_buffer_image
 from tasks.results import DetectionBBOX, ImgClassification, SemanticPolygon, SemanticMask
-from label_studio_editor import labelstudio_editor
+from data_editor.label_studio_editor_component.label_studio_editor import labelstudio_editor
 # <<<< User-defined Modules <<<<
 conn = init_connection(**st.secrets["postgres"])
 

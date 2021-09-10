@@ -19,7 +19,7 @@ import streamlit as st
 from data_editor.streamlit_labelstudio import st_labelstudio
 from annotation.annotation_management import Result, Annotations
 from core.utils.log import log_info
-from label_studio_editor import labelstudio_editor
+from data_editor.label_studio_editor_component.label_studio_editor import labelstudio_editor
 interfaces = [
     "panel",
     "update",

@@ -55,7 +55,7 @@ else:
 from core.utils.log import log_error, log_info  # logger
 from data_import.models_upload_module import model_uploader
 from data_manager.database_manager import init_connection
-from data_table import data_table
+from data_manager.data_table_component.data_table import data_table
 from path_desc import chdir_root
 from project.project_management import Project
 from training.model_management import Model, ModelsPagination

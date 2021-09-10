@@ -49,7 +49,7 @@ else:
 
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
-from data_table import data_table
+from data_manager.data_table_component.data_table import data_table
 from pages.sub_pages.training_page import new_training
 from path_desc import chdir_root
 from project.project_management import Project, ProjectPermission

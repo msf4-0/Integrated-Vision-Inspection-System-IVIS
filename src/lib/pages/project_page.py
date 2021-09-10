@@ -50,7 +50,8 @@ else:
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
-from data_table import data_table
+
+from data_manager.data_table_component.data_table import data_table
 from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, ProjectPermission, query_all_projects
 from annotation.annotation_management import Annotations, LabellingPagination,reset_editor_page
 from user.user_management import User

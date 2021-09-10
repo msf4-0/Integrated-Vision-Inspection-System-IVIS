@@ -20,7 +20,8 @@ from streamlit import session_state as session_state
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+
+
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
@@ -28,12 +29,13 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from label_studio_editor import labelstudio_editor
+from data_editor.label_studio_editor_component.label_studio_editor import labelstudio_editor
 from path_desc import chdir_root
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection
 from data_editor.editor_management import load_sample_image
-from data_editor.streamlit_labelstudio import st_labelstudio
+
+
 from project.project_management import NewProject, Project
 # <<<< User-defined Modules <<<<
 
