@@ -714,6 +714,8 @@ class NewModel(BaseModel):
                                 "model_upload_deployment_type",
                                 "model_upload_framework",
                                 "model_upload_widget"]
+                                
+        reset_page_attributes(new_model_attributes)
 
 
 class Model(BaseModel):
