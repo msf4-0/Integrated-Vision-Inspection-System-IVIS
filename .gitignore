@@ -20,7 +20,7 @@ node_modules
 
 # VSCODE
 .vscode/
-.code-workspace
+*.code-workspace
 
 # XML configs
 build/static/media/config.*.xml
