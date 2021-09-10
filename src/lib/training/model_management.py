@@ -485,6 +485,8 @@ class BaseModel:
         Args:
             model_path (Union[str, Path]): Relative path to model (queried from DB) / Model Name for New model creation
             framework (str): Framework of model
+            project_name (str): Project Name
+            training_name (str): Training Name
             model_type (Union[str, ModelType]): Type of model
             new_model_flag (bool, optional): True is new model to be created, otherwise False. Defaults to False.
 
@@ -524,8 +526,6 @@ class BaseModel:
         if not new_model_flag and not model_path.is_dir():
             error_msg = f"{str(model_path)} does not exists"
             log_error(error_msg)
-
-            # model_path = None
 
         return model_path
 
@@ -712,7 +712,11 @@ class BaseModel:
 
         return True
 
-    def create_new_project_model_pipeline(self, attached_model, project_name: str, training_name: str) -> bool:
+    def create_new_project_model_pipeline(self,
+                                          attached_model,
+                                          project_name: str,
+                                          training_name: str) -> bool:
+
         with st.container():
 
             # Ensure attached_model is type Model class

@@ -63,7 +63,7 @@ from pages.sub_pages.models_page.models_subpages.user_model_upload import \
 from path_desc import chdir_root
 from project.project_management import Project
 from training.model_management import Model, ModelsPagination, NewModel
-from training.training_management import (NewTrainingSubmissionHandlers,
+from training.training_management import (NewTrainingPagination, NewTrainingSubmissionHandlers,
                                           Training)
 from user.user_management import User
 
@@ -77,9 +77,10 @@ conn = init_connection(**st.secrets["postgres"])
 
 def existing_models():
     log_info(f"At Existing Model Page")
-    existing_models, existing_models_column_names = deepcopy(Model.query_model_table(for_data_table=True,
-                                                                                     return_dict=True,
-                                                                                     deployment_type=session_state.new_training.deployment_type))
+    existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
+        for_data_table=True,
+        return_dict=True,
+        deployment_type=session_state.new_training.deployment_type))
 
     # st.write(vars(session_state.training))
 
@@ -162,9 +163,9 @@ def existing_models():
 
 
     ]
-    # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # ******************************* DATA TABLE *******************************
 
-    # Returns model_id -> store inside model class
+    # CALLBACK >>>> Returns model_id -> store inside model class
     def instantiate_model():
         model_df_row = Model.filtered_models_dataframe(models=existing_models,
                                                        dataframe_col="id",
@@ -180,11 +181,14 @@ def existing_models():
                    columns=existing_models_columns,
                    checkbox=False,
                    key='existing_models_table', on_change=instantiate_model)
+    # ******************************* DATA TABLE *******************************
 
+    # >>>> MAIN_COL2
     with main_col2.container():
 
         if session_state.new_training.attached_model:
 
+            # >>>> GET PERF METRICS of SELECTED MODEL
             y = session_state.new_training.attached_model.get_perf_metrics()
 
             df_metrics = Model.create_perf_metrics_table(y)
@@ -201,6 +205,7 @@ def existing_models():
             session_state.new_training_place["attached_model_selection"] = st.empty(
             )
 
+            # CALLBACK: CHECK IF MODEL NAME EXISTS
             def check_if_name_exist(field_placeholder, conn):
                 context = {'column_name': 'name',
                            'value': session_state.training_model_name}
@@ -327,10 +332,10 @@ def index():
         new_training_section_next_button_place = st.columns([0.5, 3, 0.2])
 
     # typing.NamedTuple type
-    # TODO
+
     new_training_model_submission_dict = NewTrainingSubmissionHandlers(
         insert=session_state.new_training.training_model.create_new_project_model_pipeline,
-        update=session_state.new_training.training_model,
+        update=None,  # TODO
         context={
             'training_model_name': session_state.new_training.training_model.name,
             'attached_model_selection': session_state.existing_models_table
@@ -338,9 +343,7 @@ def index():
         name_key='training_model_name'
     )
 
-    # >>>> NEXT BUTTON >>>>
-    # TODO
-
+    # ************************************* NEXT BUTTON *************************************
     def to_training_parameter_page():
 
         # run submission according to current page
@@ -350,17 +353,43 @@ def index():
         if not session_state.new_training.has_submitted[session_state.new_training_pagination]:
 
             if session_state.new_training.training_model.check_if_field_empty(
-                new_training_model_submission_dict.context,
-                field_placeholder=session_state.new_training_place,
+                    context=new_training_model_submission_dict.context,
+                    field_placeholder=session_state.new_training_place,
                     name_key=new_training_model_submission_dict.name_key):
                 # run create new project model pipeline
-                # run update training attached model
-                # set has_submitted =True
-                pass
+                if session_state.new_training.training_model.create_new_project_model_pipeline(
+                        attached_model=session_state.new_training.attached_model,
+                        project_name=session_state.project.name,
+                        training_name=session_state.new_training.name):
+
+                    # run update training attached model
+                    if session_state.new_training.update_training_attached_model(
+                            attached_model_id=session_state.new_training.attached_model.id,
+                            training_model_id=session_state.new_training.training_model.id):
+                        # set has_submitted =True
+                        session_state.new_training.has_submitted[session_state.new_training_pagination] = True
+                        log_info(
+                            f"Successfully created new training model {session_state.new_training.training_model.id}")
+
+                        # Go to Training Configuration Page
+                        session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+
+        elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
+            if session_state.new_training.training_model.name:
+                # UPDATE Database
+                # Training Name,Desc, Dataset chosen, Partition Size
+                if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
+                                                                   session_state.project.dataset_dict):
+                    session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+                    log_info(
+                        f"Successfully updated new training model {session_state.new_training.training_model.id}")
+            else:
+                session_state.new_training_place['training_model_name'].error(
+                    'Training Model Name already exists, please enter a new name')
 
     with new_training_section_next_button_place:
         st.button("next", key="new_training_next_button",
-                  on_click=None)
+                  on_click=to_training_parameter_page)
 
     st.write(vars(session_state.new_training.training_model))
 
