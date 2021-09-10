@@ -24,8 +24,6 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
-from training.training_management import NewTrainingSubmissionHandlers
-
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -47,6 +45,7 @@ from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
+from training.training_management import NewTrainingPagination, NewTrainingSubmissionHandlers, TrainingPagination
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -296,7 +295,7 @@ def infodataset():
                 # Training Name,Desc, Dataset chosen, Partition Size
                 session_state.new_training.dataset_chosen = session_state.new_training_dataset_chosen
                 if new_training_infodataset_submission_dict.insert():
-                    # session_state.new_training_pagination += 1
+                    session_state.new_training_pagination = NewTrainingPagination.Model
                     session_state.new_training.has_submitted[session_state.new_training_pagination] = True
                     log_info(
                         f"Successfully created new training {session_state.new_training.id}")
@@ -309,7 +308,7 @@ def infodataset():
                 # Training Name,Desc, Dataset chosen, Partition Size
                 if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
                                                                    session_state.project.dataset_dict):
-                    # session_state.new_training_pagination += 1
+                    session_state.new_training_pagination = NewTrainingPagination.Model
                     log_info(
                         f"Successfully updated new training {session_state.new_training.id}")
             else:
@@ -321,6 +320,8 @@ def infodataset():
                   on_click=to_new_training_next_page)
 
     st.write(session_state.new_training_dataset_chosen)
+
+
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
         infodataset()

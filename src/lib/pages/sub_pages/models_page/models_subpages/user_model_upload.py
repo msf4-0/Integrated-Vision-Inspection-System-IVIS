@@ -38,8 +38,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -159,7 +159,7 @@ def user_model_upload_page():
             on_change=check_if_name_exist, args=(place, conn,))
         place["model_upload_name"] = st.empty()
 
-        # ************************* PROJECT DESCRIPTION (OPTIONAL) *************************
+        # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
         description = st.text_area(
             "Description (Optional)", key="model_upload_desc",
             help="Enter the description of the project")
@@ -235,7 +235,15 @@ def user_model_upload_page():
     # ********************************* CHECK UPLOADED MODELS COMPATIBILITY ***********************************************
         def check_files():
             with model_upload_col2:
-                if session_state.model_upload_widget:
+                context = {
+                    'model_upload_deployment_type': session_state.model_upload.deployment_type,
+                    'model_upload_framework': session_state.model_upload.framework,
+                    'model_upload_file_upload': session_state.model_upload_widget
+                }
+                if session_state.model_upload.check_if_field_empty(context,
+                                                                   field_placeholder=place,
+                                                                   name_key='model_upload_name',
+                                                                   deployment_type_constant=deployment_type_constant):
                     _, label_map_files = session_state.model_upload.check_if_required_files_exist(
                         uploaded_file=session_state.model_upload_widget)
 
@@ -268,15 +276,15 @@ def user_model_upload_page():
 
         # *********************************TEMP*********************************
 
-        def save_file():
-            if session_state.model_upload_widget:
-                with model_upload_col2:
-                    with st.spinner(text='Storing uploaded model'):
-                        save_uploaded_extract_files(dst='/home/rchuzh/Desktop/test2',
-                                                    filename=session_state.model_upload_widget.name,
-                                                    fileObj=session_state.model_upload_widget)
+        # def save_file():
+        #     if session_state.model_upload_widget:
+        #         with model_upload_col2:
+        #             with st.spinner(text='Storing uploaded model'):
+        #                 save_uploaded_extract_files(dst='/home/rchuzh/Desktop/test2',
+        #                                             filename=session_state.model_upload_widget.name,
+        #                                             fileObj=session_state.model_upload_widget)
 
-        st.button("Save file", key='save_file', on_click=save_file)
+        # st.button("Save file", key='save_file', on_click=save_file)
 
         # *********************************TEMP*********************************
 
