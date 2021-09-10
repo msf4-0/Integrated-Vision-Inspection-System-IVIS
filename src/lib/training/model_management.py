@@ -702,12 +702,18 @@ class NewModel(BaseModel):
         self.has_submitted: bool = False
         self.deployment_type: str = False
 
+# TODO TO be updated
     @staticmethod
     def reset_new_model_page():
-        new_model_attributes = ["new_training", "new_training_name",
-                                   "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
-
-        reset_page_attributes(new_model_attributes)
+        """Reset session state attributes in user_model_upload pages,
+        """
+        new_model_attributes = ["model_upload", "labelmap",
+                                "generate_labelmap_flag",
+                                "model_upload_name",
+                                "model_upload_desc",
+                                "model_upload_deployment_type",
+                                "model_upload_framework",
+                                "model_upload_widget"]
 
 
 class Model(BaseModel):

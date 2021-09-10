@@ -161,7 +161,7 @@ def user_model_upload_page():
 
         # ************************* PROJECT DESCRIPTION (OPTIONAL) *************************
         description = st.text_area(
-            "Description (Optional)", key="new_project_desc",
+            "Description (Optional)", key="model_upload_desc",
             help="Enter the description of the project")
 
         if description:
