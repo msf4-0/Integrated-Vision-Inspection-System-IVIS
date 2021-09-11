@@ -1,4 +1,11 @@
-""" Copyright (C) 2021 Selangor Human Resource Development Centre
+""" 
+Title: New Training InfoDataset
+Date: 3/9/2021
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

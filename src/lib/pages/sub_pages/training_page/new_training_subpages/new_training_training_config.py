@@ -1,4 +1,10 @@
-""" Copyright (C) 2021 Selangor Human Resource Development Centre
+""" 
+Title: Training Parameters Configuration (New Training Configuration)
+Date: 11/9/2021 
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,8 +30,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -33,11 +39,9 @@ SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
 
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
+
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root

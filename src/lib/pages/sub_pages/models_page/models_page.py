@@ -254,6 +254,10 @@ def index():
     RELEASE = False
 
     # ****************** TEST ******************************
+    # For testing:
+    # Instantiate Project Class and pass name as argument
+    # Instiate New Training Class and set name and ID
+
     if not RELEASE:
         log_info("At Models INDEX")
 
@@ -350,7 +354,7 @@ def index():
         name_key='training_model_name'
     )
 
-    # ************************************* NEXT BUTTON *************************************
+    # *************************************CALLBACK: NEXT BUTTON *************************************
     def to_training_configuration_page():
 
         # run submission according to current page
@@ -402,16 +406,20 @@ def index():
                 session_state.new_training_place['training_model_name'].error(
                     'Training Model Name already exists, please enter a new name')
 
+    # ***********************CALLBACK: BACK BUTTON *********************************
     def to_training_infodataset_page():
         session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
+    # ***************** NEXT BUTTON **************************
     with new_training_section_next_button_place:
         st.button("next", key="new_training_next_button",
                   on_click=to_training_configuration_page)
 
+    # ***************** BACK BUTTON **************************
     with new_training_section_back_button_place:
         st.button("back", key="new_training_back_button",
                   on_click=to_training_infodataset_page)
+
 
     # st.write(vars(session_state.new_training))
     # st.write(vars(session_state.new_training.training_model))
