@@ -130,7 +130,6 @@ class DatasetPath(NamedTuple):
     test: Path
     # <<<< Variable Declaration <<<<
 
-
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
@@ -197,6 +196,12 @@ class BaseTraining:
             'dataset': None,
             'exported_models': None,
             'models': None
+        }
+        self.has_submitted: Dict = {
+            NewTrainingPagination.InfoDataset: False,
+            NewTrainingPagination.Model: False,
+            NewTrainingPagination.TrainingConfig: False,
+            NewTrainingPagination.AugmentationConfig: False
         }
 
     @staticmethod
@@ -501,16 +506,10 @@ class BaseTraining:
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
-        self.has_submitted: Dict = {
-            NewTrainingPagination.InfoDataset: False,
-            NewTrainingPagination.Model: False,
-            NewTrainingPagination.TrainingConfig: False,
-            NewTrainingPagination.AugmentationConfig: False
-        }
 
         self.model_selected: NewModel = None  # DEPRECATED
         self.attached_model: Model = None
-        self.training_model: NewModel = None
+        self.training_model: NewModel = NewModel()
     # TODO *************************************
 
     # Wrapper for check_if_exists function from form_manager.py
@@ -628,8 +627,9 @@ class NewTraining(BaseTraining):
             # Insert Training Dataset
             self.insert_training_dataset(added_dataset=self.dataset_chosen)
 
+            # NOTE KIV -> to create training folder BEFORE TRAINING
             # Create Training Folder
-            self.initialise_training_folder()
+            # self.initialise_training_folder()
 
             return True
 
@@ -780,6 +780,7 @@ class NewTraining(BaseTraining):
     #     return self.id
 
 # TODO #133 Add New Training Reset
+
 
     @staticmethod
     def reset_new_training_page():

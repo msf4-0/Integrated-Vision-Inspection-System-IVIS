@@ -26,14 +26,14 @@ SPDX-License-Identifier: Apache-2.0
 
 
 import sys
+from copy import deepcopy
 from pathlib import Path
 from time import sleep
-from copy import deepcopy
+
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
-from core.utils.form_manager import remove_newline_trailing_whitespace
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -53,7 +53,7 @@ else:
 
 
 # >>>> User-defined Modules >>>>
-
+from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import log_error, log_info  # logger
 from data_import.models_upload_module import model_uploader
 from data_manager.data_table_component.data_table import data_table
@@ -63,7 +63,8 @@ from pages.sub_pages.models_page.models_subpages.user_model_upload import \
 from path_desc import chdir_root
 from project.project_management import Project
 from training.model_management import Model, ModelsPagination, NewModel
-from training.training_management import (NewTrainingPagination, NewTrainingSubmissionHandlers,
+from training.training_management import (NewTraining, NewTrainingPagination,
+                                          NewTrainingSubmissionHandlers,
                                           Training)
 from user.user_management import User
 
@@ -88,8 +89,6 @@ def existing_models():
     if "existing_models_table" not in session_state:
         session_state.existing_models_table = None
 
-    if 'training_model' not in session_state:
-        session_state.new_training.training_model = NewModel()
     # ************************* SESSION STATE ************************************************
 
     # ************************ COLUMN PLACEHOLDER ********************************************
@@ -184,66 +183,69 @@ def existing_models():
     # ******************************* DATA TABLE *******************************
 
     # >>>> MAIN_COL2
-    with main_col2.container():
 
         if session_state.new_training.attached_model:
+            with main_col2.container():
+                # >>>> GET PERF METRICS of SELECTED MODEL
+                y = session_state.new_training.attached_model.get_perf_metrics()
 
-            # >>>> GET PERF METRICS of SELECTED MODEL
-            y = session_state.new_training.attached_model.get_perf_metrics()
+                df_metrics = Model.create_perf_metrics_table(y)
+                model_information = f"""
+                ### Model Information:
+                #### Name: {session_state.new_training.attached_model.name}
+                #### Framework: {session_state.new_training.attached_model.framework}
+                #### Model Input Size: {session_state.new_training.attached_model.model_input_size}
 
-            df_metrics = Model.create_perf_metrics_table(y)
-            model_information = f"""
-            ### Model Information:
-            #### Name: {session_state.new_training.attached_model.name}
-            #### Framework: {session_state.new_training.attached_model.framework}
-            #### Model Input Size: {session_state.new_training.attached_model.model_input_size}
+                """
+                st.info(model_information)
+                st.write(f"#### Metrics:")
+                st.table(df_metrics)
+                session_state.new_training_place["attached_model_selection"] = st.empty(
+                )
+            with main_col1.container():
+                # CALLBACK: CHECK IF MODEL NAME EXISTS
+                def check_if_name_exist(field_placeholder, conn):
+                    context = {'column_name': 'name',
+                               'value': session_state.training_model_name}
 
-            """
-            st.info(model_information)
-            st.write(f"#### Metrics:")
-            st.table(df_metrics)
-            session_state.new_training_place["attached_model_selection"] = st.empty(
-            )
-
-            # CALLBACK: CHECK IF MODEL NAME EXISTS
-            def check_if_name_exist(field_placeholder, conn):
-                context = {'column_name': 'name',
-                           'value': session_state.training_model_name}
-
-                if session_state.training_model_name:
-                    if session_state.new_training.training_model.check_if_exists(context, conn):
-                        session_state.new_training.training_model.name = None
-                        field_placeholder['training_model_name'].error(
-                            f"Model name used. Please enter a new name")
-                        sleep(0.7)
-                        field_placeholder['training_model_name'].empty()
-                        log_error(
-                            f"Training Model name used. Please enter a new name")
+                    if session_state.training_model_name:
+                        if session_state.new_training.training_model.check_if_exists(context, conn):
+                            session_state.new_training.training_model.name = None
+                            field_placeholder['training_model_name'].error(
+                                f"Model name used. Please enter a new name")
+                            sleep(0.7)
+                            field_placeholder['training_model_name'].empty()
+                            log_error(
+                                f"Training Model name used. Please enter a new name")
+                        else:
+                            session_state.new_training.training_model.name = session_state.training_model_name
+                            log_info(
+                                f"Training Model name fresh and ready to rumble {session_state.new_training.training_model.name}")
                     else:
-                        session_state.new_training.training_model.name = session_state.training_model_name
-                        log_info(
-                            f"Training Model name fresh and ready to rumble")
+                        pass
+
+                # ******************************** MODEL TITLE ********************************
+                st.write(
+                    f"**Step 2: Enter the name of your model:** ")
+
+                st.text_input('Model Name', key="training_model_name",
+                              help="Enter the name of the model to be exported after training",
+                              on_change=check_if_name_exist,
+                              args=(session_state.new_training_place, conn,))
+                session_state.new_training_place['training_model_name'] = st.empty(
+                )
+                st.write(session_state.training_model_name)
+
+                # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
+                description = st.text_area(
+                    "Description (Optional)", key="training_model_desc",
+                    help="Enter the description of the model")
+
+                if description:
+                    session_state.new_training.training_model.desc = remove_newline_trailing_whitespace(
+                        description)
                 else:
                     pass
-
-            # ******************************** MODEL TITLE ********************************
-            st.text_input('Model Name', key="training_model_name",
-                          help="Enter the name of the model to be exported after training",
-                          on_change=check_if_name_exist,
-                          args=(session_state.new_training_place, conn,))
-            session_state.new_training_place['training_model_name'] = st.empty(
-            )
-
-            # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
-            description = st.text_area(
-                "Description (Optional)", key="training_model_desc",
-                help="Enter the description of the model")
-
-            if description:
-                session_state.new_training.training_model.desc = remove_newline_trailing_whitespace(
-                    description)
-            else:
-                pass
 
 
 def index():
@@ -275,9 +277,14 @@ def index():
             log_info("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
+        if "new_training_pagination" not in session_state:
+            session_state.new_training_pagination = NewTrainingPagination.Model
+
         if 'new_training' not in session_state:
-            session_state.new_training = Training(training_id_tmp,
-                                                  project=session_state.project)
+            session_state.new_training = NewTraining(training_id_tmp,
+                                                     project=session_state.project)
+            session_state.new_training.name = "My Tenth Training"
+            session_state.new_training.deployment_type = "Object Detection with Bounding Boxes"
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -335,7 +342,7 @@ def index():
 
     new_training_model_submission_dict = NewTrainingSubmissionHandlers(
         insert=session_state.new_training.training_model.create_new_project_model_pipeline,
-        update=None,  # TODO
+        update=session_state.new_training.training_model.update_new_project_model_pipeline,
         context={
             'training_model_name': session_state.new_training.training_model.name,
             'attached_model_selection': session_state.existing_models_table
@@ -344,7 +351,7 @@ def index():
     )
 
     # ************************************* NEXT BUTTON *************************************
-    def to_training_parameter_page():
+    def to_training_configuration_page():
 
         # run submission according to current page
         # NEXT page if all constraints met
@@ -357,7 +364,7 @@ def index():
                     field_placeholder=session_state.new_training_place,
                     name_key=new_training_model_submission_dict.name_key):
                 # run create new project model pipeline
-                if session_state.new_training.training_model.create_new_project_model_pipeline(
+                if new_training_model_submission_dict.insert(
                         attached_model=session_state.new_training.attached_model,
                         project_name=session_state.project.name,
                         training_name=session_state.new_training.name):
@@ -371,29 +378,44 @@ def index():
                         log_info(
                             f"Successfully created new training model {session_state.new_training.training_model.id}")
 
-                        # Go to Training Configuration Page
+                        # Go to Training Configuration Page TODO
                         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
         elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
             if session_state.new_training.training_model.name:
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
-                if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
-                                                                   session_state.project.dataset_dict):
-                    session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
-                    log_info(
-                        f"Successfully updated new training model {session_state.new_training.training_model.id}")
+                if new_training_model_submission_dict.update(
+                        attached_model=session_state.new_training.attached_model,
+                        project_name=session_state.project.name,
+                        training_name=session_state.new_training.name):
+                    # run update training attached model
+                    if session_state.new_training.update_training_attached_model(
+                            attached_model_id=session_state.new_training.attached_model.id,
+                            training_model_id=session_state.new_training.training_model.id):
+                        # set has_submitted =True
+                        session_state.new_training.has_submitted[session_state.new_training_pagination] = True
+                        session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+                        log_info(
+                            f"Successfully updated new training model {session_state.new_training.training_model.id}")
             else:
                 session_state.new_training_place['training_model_name'].error(
                     'Training Model Name already exists, please enter a new name')
 
+    def to_training_infodataset_page():
+        session_state.new_training_pagination = NewTrainingPagination.InfoDataset
+
     with new_training_section_next_button_place:
         st.button("next", key="new_training_next_button",
-                  on_click=to_training_parameter_page)
+                  on_click=to_training_configuration_page)
 
-    st.write(vars(session_state.new_training.training_model))
+    with new_training_section_back_button_place:
+        st.button("back", key="new_training_back_button",
+                  on_click=to_training_infodataset_page)
 
-
+    # st.write(vars(session_state.new_training))
+    # st.write(vars(session_state.new_training.training_model))
+    # st.write(vars(session_state.new_training.attached_model))
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
         index()
