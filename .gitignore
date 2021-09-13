@@ -38,3 +38,5 @@ build/static/media/config.*.xml
 *.tar.bz2
 *.tar.xz
 *.zip
+
+/test
