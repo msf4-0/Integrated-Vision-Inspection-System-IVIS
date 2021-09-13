@@ -18,4 +18,4 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 
 """
-
+from .color_extract import color_extract

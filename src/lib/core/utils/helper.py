@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import pandas as pd
 import streamlit as st
-from color_extract import color_extract
+
 from colorutils import hex_to_hsv
 from streamlit.uploaded_file_manager import UploadedFile
 
@@ -31,7 +31,7 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
     pass
-
+from core.color_extract import color_extract
 from core.utils.log import log_error, log_info  # logger
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import db_fetchone, init_connection

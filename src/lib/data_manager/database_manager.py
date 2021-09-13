@@ -10,8 +10,9 @@ import sys
 from pathlib import Path
 import psycopg2
 from psycopg2.extras import DictCursor, NamedTupleCursor
-from psycopg2 import sql
+from psycopg2 import OperationalError, errorcodes, errors
 from collections import namedtuple
+import traceback
 import streamlit as st
 from typing import List
 # from config import config
@@ -42,7 +43,34 @@ from core.utils.log import log_info, log_error  # logger
 
 # Initialise Connection to PostgreSQL Database Server
 
-# TODO: HANDLE KWARGS
+def print_psycopg2_exception(err):
+    # get details about the exception
+    err_type, err_obj, traceback = sys.exc_info()
+
+    # get the line number when exception occured
+    line_num = traceback.tb_lineno
+    # print the connect() error
+    print("\npsycopg2 ERROR:", err, "on line number:", line_num)
+    print("psycopg2 traceback:", traceback, "-- type:", err_type)
+
+    # psycopg2 extensions.Diagnostics object attribute
+    print("\nextensions.Diagnostics:", err.diag)
+
+    # print the pgcode and pgerror exceptions
+    print("pgerror:", err.pgerror)
+    print("pgcode:", err.pgcode, "\n")
+
+
+def test_db_conn(dsn):
+    try:
+        conn = psycopg2.connect(dsn)
+
+    except Exception as e:
+        log_error(e)
+        print_psycopg2_exception(e)
+        st.exception(e)
+        conn = None
+    return conn
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
@@ -55,12 +83,18 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
 
         # connect to the PostgreSQL server
         log_info('Connecting to the PostgreSQL database...')
-        if kwargs:
-            conn = psycopg2.connect(**kwargs)
+        try:
+            if kwargs:
+                conn = psycopg2.connect(**kwargs)
 
-        else:
-            conn = psycopg2.connect(dsn, connection_factory, cursor_factory)
+            else:
+                conn = psycopg2.connect(
+                    dsn, connection_factory, cursor_factory)
 
+        except Exception as e:
+            log_error(e)
+            print_psycopg2_exception(e)
+            conn = None
         # create a cursor
         with conn:
             with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
@@ -75,10 +109,12 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
                 log_info(f"PostgreSQL connection status: {conn.info.status}")
                 log_info(
                     f"You are connected to database '{conn.info.dbname}' as user '{conn.info.user}' on host '{conn.info.host}' at port '{conn.info.port}'.")
-        return conn
+
     except (Exception, psycopg2.DatabaseError) as error:
         log_error(error)
         conn = None
+
+    return conn
     # finally:
     #     if conn is not None:
     #         conn.close()

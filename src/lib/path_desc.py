@@ -5,6 +5,24 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 Description:
 - Show Root of Project
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
 """
 
 import os
@@ -47,6 +65,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 BASE_DATA_DIR = Path(get_data_dir())
 MEDIA_ROOT = BASE_DATA_DIR / 'app_media'
+DATABASE_DIR = MEDIA_ROOT / 'data'
 DATASET_DIR = MEDIA_ROOT / 'dataset'
 PROJECT_DIR = MEDIA_ROOT / 'project'
 PRE_TRAINED_MODEL_DIR = MEDIA_ROOT / 'pre-trained-models'

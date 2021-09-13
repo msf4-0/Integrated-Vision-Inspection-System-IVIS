@@ -24,6 +24,7 @@ humanize = "^3.11.0"
 
 [tool.poetry.dev-dependencies]
 psycopg2-binary = "^2.9.1"
+autopep8 = "^1.5.7"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
