@@ -13,6 +13,7 @@ from psycopg2.extras import DictCursor, NamedTupleCursor
 from psycopg2 import sql, extensions
 from collections import namedtuple
 import traceback
+from enum import IntEnum
 from passlib.hash import argon2
 from typing import List
 import streamlit as st
@@ -40,10 +41,23 @@ from core.utils.log import log_info, log_error  # logger
 
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
+class DatabaseStatus(IntEnum):
+    NotExist = 0
+    Exist = 1
 
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return DatabaseStatus[s]
+        except KeyError:
+            raise ValueError()
 # dsn = "host=localhost port=5432 dbname=eye user=shrdc password=shrdc"
 
 # Initialise Connection to PostgreSQL Database Server
+
 
 def print_psycopg2_exception(err):
     # get details about the exception
@@ -967,7 +981,7 @@ def create_relation_database(conn):
         log_error(e)
 
 
-def initialise_database_pipeline(conn, dsn: dict):
+def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
     """Pipeliine to Initialise Database for the platform
 
     Args:
@@ -976,15 +990,21 @@ def initialise_database_pipeline(conn, dsn: dict):
 
     # check if database exists
     database_name = "integrated_vision_inspection_system"
-    if not check_if_database_exist(datname=database_name,
-                                   conn=conn):
+    try:
+        if not check_if_database_exist(datname=database_name,
+                                       conn=conn):
 
-        # if not,create database "integrated_vision_inspection_system"
-        create_database(database_name=database_name,
-                        conn=conn)
-        conn.close()
-        # create new DSN
-        dsn['dbname'] = "integrated_vision_inspection_system"
-        conn = init_connection(**dsn)
-        # then create relation in the database
-        create_relation_database(conn=conn)
+            # if not,create database "integrated_vision_inspection_system"
+            create_database(database_name=database_name,
+                            conn=conn)
+            conn.close()
+            # create new DSN
+            dsn['dbname'] = "integrated_vision_inspection_system"
+            conn = init_connection(**dsn)
+            # then create relation in the database
+            create_relation_database(conn=conn)
+
+        return DatabaseStatus.Exist
+    except Exception as e:
+        log_error(e)
+        return DatabaseStatus.NotExist

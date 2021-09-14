@@ -42,9 +42,9 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # ***************** Add src/lib to path ***************************
 
-from core.utils.file_handler import create_folder_if_not_exist
+
 from core.utils.log import log_error, log_info  # logger
-from data_manager.database_manager import db_no_fetch, init_connection
+from data_manager.database_manager import db_no_fetch, init_connection, initialise_database_pipeline, test_db_conn, DatabaseStatus
 from path_desc import DATABASE_DIR, PROJECT_ROOT
 
 # initialise connection to Database
@@ -58,10 +58,10 @@ st.write(SECRETS_DIR)
 # Flag to set True if successful connection
 if 'db_connect_flag' not in session_state:
     session_state.db_connect_flag = False
-# **********************************SESSION STATE ******************************
 
-# Check if Database Tablespace folder exists
-create_folder_if_not_exist(DATABASE_DIR)
+if 'database_status' not in session_state:
+    session_state.database_status = DatabaseStatus.NotExist
+# **********************************SESSION STATE ******************************
 
 
 def check_if_field_empty(context: Dict) -> bool:
@@ -97,7 +97,7 @@ def test_database_connection(**dsn: Dict):
     Returns:
         psycopg2.connection: Connection object for the Database
     """
-    conn = init_connection(**dsn)
+    conn = test_db_conn(**dsn)
     if conn != None:
 
         success_msg = f"Successfully connected to Database {dsn['dbname']}"
@@ -111,6 +111,23 @@ def test_database_connection(**dsn: Dict):
     return conn
 
 
+def modify_secrets_toml(**context: Dict):
+    if test_database_connection(**context):
+        conn = init_connection(**context)
+        session_state.database_status = initialise_database_pipeline(conn,
+                                                                     context)
+
+        if session_state.database_status == DatabaseStatus.Exist:
+            # Write to secrets.toml file if database configuration is valid
+            context['dbname'] = "integrated_vision_inspection_system"
+            secrets = {
+                'postgres': context
+            }
+            with open(str(SECRETS_DIR), 'w+') as f:
+                new_toml = toml.dump(secrets, f)
+                log_info(new_toml)
+
+
 def db_config_form():
     """Database Configuration Form
     """
@@ -120,27 +137,21 @@ def db_config_form():
         context = {
             'host': session_state.host,
             'port': session_state.port,
-            # 'dbname': session_state.dbname,
+            'dbname': session_state.dbname,
             'user': session_state.user,
             'password': session_state.password
         }
 
         if check_if_field_empty(context):
 
-            secrets = {
-                'postgres': context
-            }
-            if test_database_connection(**context):
-
-                # Write to secrets.toml file if database configuration is valid
-                with open(str(SECRETS_DIR), 'w+') as f:
-                    new_toml = toml.dump(secrets, f)
-                    log_info(new_toml)
+            # Modify secrets.toml file
+            modify_secrets_toml(**context)
 
             st.experimental_rerun()
         else:
             error_place = st.empty()
             error_place.error("Please fill in all fields")
+            sleep(0.7)
             error_place.empty()
     st.info(f"""
     #### Please make sure the User has Create DB permission
@@ -154,7 +165,7 @@ def db_config_form():
         st.text_input(label='Port', key='port')
 
         # dbname
-        # st.text_input(label='Database Name', key='dbname')
+        st.text_input(label='Database Name', key='dbname')
 
         # user
         st.text_input(label='User', key='user')
@@ -162,7 +173,6 @@ def db_config_form():
         # password
         st.text_input(label='Password',
                       key='password', type='password')
-
 
         st.form_submit_button(label='Submit',
                               on_click=create_secrets_toml)
@@ -185,12 +195,20 @@ def database_setup():
             db_config_form()
 
     else:
-        if not session_state.db_connect_flag:
+        # If connection to wrong database
+        if st.secrets['postgres']['dbname'] != 'integrated_vision_inspection_system':
+
             if test_database_connection(**st.secrets['postgres']):
                 session_state.db_connect_flag = True
                 conn = init_connection(**st.secrets['postgres'])
-                return conn
+                modify_secrets_toml(**st.secrets['postgres'])
 
+            else:
+                db_config_form()
+        elif not session_state.db_connect_flag:
+            if test_database_connection(**st.secrets['postgres']):
+                session_state.db_connect_flag = True
+                conn = init_connection(**st.secrets['postgres'])
             else:
                 db_config_form()
 
