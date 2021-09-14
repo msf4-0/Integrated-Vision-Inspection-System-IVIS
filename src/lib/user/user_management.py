@@ -13,7 +13,7 @@ from passlib.hash import argon2
 from datetime import datetime
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as SessionState
+from streamlit import session_state 
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
