@@ -9,28 +9,34 @@ import sys
 from os import path, chdir
 from pathlib import Path
 import psycopg2  # for PostgreSQL
-from core.utils.log import std_log #logger
 
 SRC = Path(__file__).parent.resolve()  # ROOT folder -> ./src
 print(SRC)
-sys.path.insert(0, str(Path(SRC, 'lib')))  # ./lib
+sys.path.insert(0, str(Path(SRC, "lib")))  # ./lib
+
+from core.utils.log import std_log  # logger
 
 # Change to Project Directory
 ROOT = SRC.parent.resolve()  # ROOT folder -> ./image_labelling_shrdc
 
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-layout='wide'
+
+layout = "wide"
 
 # DEFINE Web APP page configuration
 try:
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout='wide')
+    st.set_page_config(
+        page_title="Integrated Vision Inspection System",
+        page_icon="static/media/shrdc_image/shrdc_logo.png",
+        layout="wide",
+    )
 except:
-    st.beta_set_page_config(page_title="Label Studio Test",
-                            page_icon="random", layout=layout)
+    st.beta_set_page_config(
+        page_title="Label Studio Test", page_icon="random", layout=layout
+    )
 
-#---------------Connection to db------------------#
+# ---------------Connection to db------------------#
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
@@ -54,12 +60,13 @@ rows = run_query("SELECT * from playground;")
 
 for row in rows:
     st.write(row)
-#----------------------------------------------------#
+# ----------------------------------------------------#
 
 
-#------------------IMPORT for PAGES-------------------#
+# ------------------IMPORT for PAGES-------------------#
 from pages import login, dashboard, project, dataset, inference
-#----------------------------------------------------#
+
+# ----------------------------------------------------#
 
 
 # PAGES Dictionary
@@ -69,23 +76,25 @@ PAGES = {
     "DASHBOARD": dashboard,
     "PROJECT": project,
     "DATASET": dataset,
-    "INFERENCE": inference
+    "INFERENCE": inference,
 }
 
 
 def main():
 
-    #------------------START------------------------#
+    # ------------------START------------------------#
     with st.sidebar.beta_container():
 
         st.image("resources/MSF-logo.gif", use_column_width=True)
     with st.beta_container():
-        st.title("Integrated Vision Inspection System", anchor='title')
+        st.title("Integrated Vision Inspection System", anchor="title")
 
         st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)",
+            anchor="heading",
+        )
     st.markdown("""___""")
-#-------------------------------------------#
+    # -------------------------------------------#
 
     PAGES["LOGIN"].write()
 
@@ -96,7 +105,8 @@ if __name__ == "__main__":
         main()
 
     else:
+        print(sys.argv[0])
         sys.argv = ["streamlit", "run", sys.argv[0]]
-        
+
         sys.exit(stcli.main())
         chdir(ROOT)

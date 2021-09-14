@@ -1,6 +1,6 @@
 __pycache__/
 secrets.toml
-.streamlit/
+; .streamlit/  # to add a sample secrets.toml file
 # deep learning models
 dl_models/
 *.tmp
