@@ -8,7 +8,7 @@ license = "Apache-2.0"
 [tool.poetry.dependencies]
 python = "~3.8"
 streamlit = "^0.88.0"
-tensorflow = "~2.5"
+tensorflow = "~2.5.0"
 psycopg2 = "^2.9.1"
 passlib = "^1.7.4"
 appdirs = "^1.4.4"
@@ -21,6 +21,8 @@ pycocotools = "^2.0.2"
 scipy = "^1.7.1"
 streamlit-webrtc = "^0.28.1"
 humanize = "^3.11.0"
+opencv-python = "~4.5.2"
+tensorflow-datasets = "^4.4.0"
 
 [tool.poetry.dev-dependencies]
 psycopg2-binary = "^2.9.1"

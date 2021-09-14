@@ -1,6 +1,6 @@
-BEGIN;
+CREATE DATABASE integrated_vision_inspection_system;
 
-CREATE TABLESPACE IF NOT EXISTS integrated_vision_inspection_system LOCATION '$HOME/.local/share/integrated-vision-inspection-system/app_media/data';
+BEGIN;
 
 --
 -- Name: trigger_update_timestamp(); Type: FUNCTION; Schema: public; Owner:
@@ -41,18 +41,14 @@ CREATE TABLE IF NOT EXISTS public.annotations (
     MINVALUE 1
     MAXVALUE 9223372036854775807
     CACHE 1)
-    , result jsonb[] ,
-    -- annotation_type_id integer,
-    project_id bigint NOT NULL
+    , result jsonb[]
+    , annotation_type_id integer
+    , project_id bigint NOT NULL
     , users_id bigint NOT NULL
     , task_id bigint NOT NULL
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION ,
-    -- CONSTRAINT fk_annotation_type_id FOREIGN KEY (annotation_type_id) REFERENCES public.annotation_type (id) ON DELETE NO ACTION,
-    CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE
-    , CONSTRAINT fk_task_id FOREIGN KEY (task_id) REFERENCES public.task (id) ON DELETE CASCADE
 );
 
 CREATE TRIGGER annotations_update
@@ -74,7 +70,6 @@ CREATE TABLE IF NOT EXISTS public.dataset (
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_filetype_id FOREIGN KEY (filetype_id) REFERENCES public.filetype (id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER dataset_update
@@ -93,6 +88,17 @@ CREATE TABLE IF NOT EXISTS public.deployment_type (
     , PRIMARY KEY (id)
 );
 
+INSERT INTO public.deployment_type (
+    name)
+VALUES (
+    'Image Classification')
+, (
+    'Object Detection with Bounding Boxes')
+, (
+    'Semantic Segmentation with Polygons')
+, (
+    'Semantic Segmentation with Masks');
+
 -- EDITOR table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.editor (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
@@ -106,7 +112,6 @@ CREATE TABLE IF NOT EXISTS public.editor (
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE
 );
 
 CREATE TRIGGER editor_update
@@ -124,11 +129,14 @@ CREATE TABLE IF NOT EXISTS public.filetype (
 INSERT INTO public.filetype (
     name)
 VALUES (
-    'Image') , --jpeg,jpg,png
+    'Image') ,
+--jpeg,jpg,png
 (
-    'Video') , -- mp4,mpeg,webm*,ogg*
+    'Video') ,
+-- mp4,mpeg,webm*,ogg*
 (
-    'Audio') , --* wav, aiff, mp3, au, flac, m4a, ogg
+    'Audio') ,
+--* wav, aiff, mp3, au, flac, m4a, ogg
 (
     'Text') -- txt,csv,tsv,json*,html*
 ;
@@ -183,6 +191,15 @@ CREATE TABLE IF NOT EXISTS public.model_type (
     , PRIMARY KEY (id)
 );
 
+INSERT INTO public.model_type (
+    name)
+VALUES (
+    'Pre-trained Models')
+, (
+    'Project Models')
+, (
+    'User Custom Deep Learning Model Upload');
+
 -- MODELS table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.models (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
@@ -190,16 +207,18 @@ CREATE TABLE IF NOT EXISTS public.models (
     MAXVALUE 9223372036854775807
     CACHE 1)
     , name text NOT NULL UNIQUE
-    , model_path text
-    , training_id bigint
+    , description text
+    , metrics jsonb
+    ,
+    /*to store evaluation metrics for model such as COCO mAP and Training Losses*/
+    model_path text
+    , model_type_id smallint
     , framework_id bigint
     , deployment_id integer
+    , training_id bigint
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL
-    , CONSTRAINT fk_framework_id FOREIGN KEY (framework_id) REFERENCES public.framework (id) ON DELETE SET NULL
-    , CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER models_update
@@ -221,9 +240,6 @@ CREATE TABLE IF NOT EXISTS public.predictions (
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_model_id FOREIGN KEY (model_id) REFERENCES public.models (id) ON DELETE SET NULL
-    , CONSTRAINT fk_pre_trained_model_id FOREIGN KEY (pre_trained_model_id) REFERENCES public.pre_trained_models (id) ON DELETE SET NULL
-    , CONSTRAINT fk_task_id FOREIGN KEY (task_id) REFERENCES public.task (id) ON DELETE CASCADE
 );
 
 CREATE TRIGGER predictions_update
@@ -239,14 +255,10 @@ CREATE TABLE IF NOT EXISTS public.project (
     CACHE 1)
     , name text NOT NULL UNIQUE
     , description text
-    , project_path text NOT NULL
     , deployment_id integer
-    , training_id bigint
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_deployment_id FOREIGN KEY (deployment_id) REFERENCES public.deployment_type (id) ON DELETE SET NULL
-    , CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER project_update
@@ -259,10 +271,14 @@ CREATE TABLE IF NOT EXISTS public.project_dataset (
     project_id bigint NOT NULL
     , dataset_id bigint NOT NULL
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (project_id , dataset_id)
-    , CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE
-    , CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE
 );
+
+CREATE TRIGGER project_dataset_update
+    BEFORE UPDATE ON public.project_dataset
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_update_timestamp ();
 
 -- PROJECT_TRAINING table (Many-to-Many) ---------------------------
 CREATE TABLE IF NOT EXISTS public.project_training (
@@ -271,8 +287,6 @@ CREATE TABLE IF NOT EXISTS public.project_training (
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (project_id , training_id)
-    , CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE
-    , CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE
 );
 
 CREATE TRIGGER project_training_update
@@ -280,7 +294,8 @@ CREATE TRIGGER project_training_update
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
---  ROW table --------------------------------------------------
+-- CHECK (account_status IN ('NEW', 'ACTIVE', 'LOCKED', 'LOGGED_IN', 'LOGGED_OUT'))
+--  ROLES table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.roles (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
     MINVALUE 1
@@ -298,6 +313,23 @@ CREATE TRIGGER roles_update
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
+-- INSERT pre-defined values into ROLES
+INSERT INTO public.roles (
+    name
+    , page_access_list)
+VALUES (
+    'Administrator'
+    , ARRAY['Login' , 'Project' , 'Dataset' , 'Editor' , 'Model Training' , 'Deployment' , 'User Management'])
+, (
+    'Developer 1 (Deployment)'
+    , ARRAY['Login' , 'Project' , 'Dataset' , 'Editor' , 'Model Training' , 'Deployment'])
+, (
+    'Developer 2 (Model Training)'
+    , ARRAY['Login' , 'Project' , 'Dataset' , 'Editor' , 'Model Training'])
+, (
+    'Annotator'
+    , ARRAY['Login' , 'Project' , 'Dataset' , 'Editor']);
+
 --  SESSION_LOG table --------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.session_log (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (CYCLE INCREMENT 1 START 1
@@ -308,7 +340,6 @@ CREATE TABLE IF NOT EXISTS public.session_log (
     , login_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , logout_at timestamp with time zone NOT NULL
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION
 );
 
 --  TASK table --------------------------------------------------
@@ -327,10 +358,6 @@ CREATE TABLE IF NOT EXISTS public.task (
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE , --KIV
-    CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE
-    , CONSTRAINT fk_annotation_id FOREIGN KEY (annotation_id) REFERENCES public.annotations (id) ON DELETE SET NULL
-    , CONSTRAINT fk_prediction_id FOREIGN KEY (prediction_id) REFERENCES public.predictions (id) ON DELETE SET NULL
 );
 
 CREATE TRIGGER task_update
@@ -338,19 +365,35 @@ CREATE TRIGGER task_update
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
--- TRAINING_DATASET table (Many-to-Many) ---------------------------
-CREATE TABLE IF NOT EXISTS public.training_dataset (
-    training_id bigint NOT NULL
-    , dataset_id bigint NOT NULL
-    , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+--  TRAINING table --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.training (
+    id bigint NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1)
+    , name text NOT NULL UNIQUE
+    , description text
+    , training_model_id bigint
+    ,
+    /* FK to 'model' table for model trained using current configuration */
+    attached_model_id bigint
+    ,
+    /* FK to 'models' table for models attached to current training */
+    training_param jsonb
+    , augmentation jsonb
+    , partition_size real
+    , is_started boolean NOT NULL DEFAULT FALSE
+    , progress jsonb
+    ,
+    /* stores progress tracking of model training such as checkpoint and previous training steps*/
+    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
-    , PRIMARY KEY (training_id , dataset_id)
-    , CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE
-    , CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE
+    , project_id bigint NOT NULL
+    , PRIMARY KEY (id)
 );
 
-CREATE TRIGGER training_dataset_update
-    BEFORE UPDATE ON public.training_dataset
+CREATE TRIGGER training_update
+    BEFORE UPDATE ON public.training
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
@@ -361,8 +404,6 @@ CREATE TABLE IF NOT EXISTS public.training_dataset (
     , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , PRIMARY KEY (training_id , dataset_id)
-    , CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE
-    , CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE
 );
 
 CREATE TRIGGER training_dataset_update
@@ -378,11 +419,10 @@ CREATE TABLE IF NOT EXISTS public.training_log (
     CACHE 1)
     , users_id bigint NOT NULL
     , training_id bigint NOT NULL
-    , start_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP , --update using Python
+    , start_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP ,
+    --update using Python
     end_at timestamp with time zone NOT NULL
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION
-    , CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE NO ACTION
 );
 
 -- USERS table ------------------------------------------------
@@ -405,8 +445,6 @@ CREATE TABLE IF NOT EXISTS public.users (
     , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     , last_activity timestamp with time zone
     , PRIMARY KEY (id)
-    , CONSTRAINT fk_roles_id FOREIGN KEY (roles_id) REFERENCES public.roles (id) ON DELETE SET NULL
-    , CONSTRAINT fk_status_id FOREIGN KEY (status_id) REFERENCES public.account_status (id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE TRIGGER users_update
@@ -414,6 +452,12 @@ CREATE TRIGGER users_update
     FOR EACH ROW
     EXECUTE PROCEDURE trigger_update_timestamp ();
 
+-- Default Admin Account
+/* 
+emp_id:0
+username:admin
+password:admin
+Role:Admininstrator */
 INSERT INTO public.users (
     emp_id
     , username
@@ -441,7 +485,7 @@ VALUES (
         WHERE
             name = 'Administrator'));
 
---Foreign Keys Constraint
+-----------------------------------Foreign Keys Constraint---------------------------------------------------
 -- USERS
 ALTER TABLE IF EXISTS public.users
     ADD CONSTRAINT fk_roles_id FOREIGN KEY (roles_id) REFERENCES public.roles (id) ON DELETE SET NULL NOT VALID;
@@ -457,7 +501,7 @@ ALTER TABLE public.users VALIDATE CONSTRAINT fk_status_id;
 ALTER TABLE IF EXISTS public.session_log
     ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION NOT VALID;
 
-ALTER TABLE public.session_log VALIDATE CONSTRAINT;
+ALTER TABLE public.session_log VALIDATE CONSTRAINT fk_users_id;
 
 -- PROJECT
 ALTER TABLE IF EXISTS public.project
@@ -538,80 +582,90 @@ ALTER TABLE IF EXISTS public.dataset
 ALTER TABLE public.dataset VALIDATE CONSTRAINT fk_filetype_id;
 
 --TASK
+-- dataset id
 ALTER TABLE IF EXISTS public.task
     ADD CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.task VALIDATE CONSTRAINT fk_dataset_id;
 
+-- project id
 ALTER TABLE IF EXISTS public.task
     ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.task VALIDATE CONSTRAINT fk_project_id;
 
+-- annotation id
 ALTER TABLE IF EXISTS public.task
-    ADD CONSTRAINT fk_annotation_id FOREIGN KEY (annotation_id) REFERENCES public.annotations (id) ON DELETE SET NULL SET NULL NOT VALID;
+    ADD CONSTRAINT fk_annotation_id FOREIGN KEY (annotation_id) REFERENCES public.annotations (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.task VALIDATE CONSTRAINT fk_annotation_id;
 
+-- prediction id
 ALTER TABLE IF EXISTS public.task
-    ADD CONSTRAINT fk_prediction_id FOREIGN KEY (prediction_id) REFERENCES public.predictions (id) ON DELETE SET NULL SET NULL NOT VALID;
+    ADD CONSTRAINT fk_prediction_id FOREIGN KEY (prediction_id) REFERENCES public.predictions (id) ON DELETE SET NULL NOT VALID;
 
 ALTER TABLE public.task VALIDATE CONSTRAINT fk_prediction_id;
 
 -- ANNOTATIONS
+-- users id
 ALTER TABLE IF EXISTS public.annotations
     ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION NOT VALID;
 
 ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_users_id;
 
--- ALTER TABLE IF EXISTS public.annotations
---     ADD CONSTRAINT fk_annotation_type_id FOREIGN KEY (annotation_type_id) REFERENCES public.annotation_type (id) ON DELETE NO ACTION NOT VALID;
-ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_annotation_type_id;
-
+-- project id
 ALTER TABLE IF EXISTS public.annotations
     ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_project_id;
 
+-- task id
 ALTER TABLE IF EXISTS public.annotations
     ADD CONSTRAINT fk_task_id FOREIGN KEY (task_id) REFERENCES public.task (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.annotations VALIDATE CONSTRAINT fk_task_id;
 
 -- PROJECT_DATASET (Many-to-Many)
+-- project id
 ALTER TABLE IF EXISTS public.project_dataset
     ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.project_dataset VALIDATE CONSTRAINT fk_project_id;
 
+-- dataset id
 ALTER TABLE IF EXISTS public.project_dataset
     ADD CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.project_dataset VALIDATE CONSTRAINT fk_dataset_id;
 
 -- EDITOR
+-- project id
 ALTER TABLE IF EXISTS public.editor
     ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.editor VALIDATE CONSTRAINT fk_project_id;
 
 -- PROJECT_TRAINING (Many-to-Many)
+-- project id
 ALTER TABLE IF EXISTS public.project_training
     ADD CONSTRAINT fk_project_id FOREIGN KEY (project_id) REFERENCES public.project (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.project_training VALIDATE CONSTRAINT fk_project_id;
 
+-- training id
 ALTER TABLE IF EXISTS public.project_training
     ADD CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.project_training VALIDATE CONSTRAINT fk_training_id;
 
 -- TRAINING_DATASET (Many-to-Many)
+-- training id
 ALTER TABLE IF EXISTS public.training_dataset
     ADD CONSTRAINT fk_training_id FOREIGN KEY (training_id) REFERENCES public.training (id) ON DELETE CASCADE NOT VALID;
 
 ALTER TABLE public.training_dataset VALIDATE CONSTRAINT fk_training_id;
 
+-- dataset id
 ALTER TABLE IF EXISTS public.training_dataset
     ADD CONSTRAINT fk_dataset_id FOREIGN KEY (dataset_id) REFERENCES public.dataset (id) ON DELETE CASCADE NOT VALID;
 
