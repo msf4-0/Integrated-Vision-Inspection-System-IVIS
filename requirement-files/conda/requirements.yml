@@ -1,0 +1,9 @@
+name: shrdc 
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - passlib
+  - autopep8
+  - psycopg2
+  - appdirs

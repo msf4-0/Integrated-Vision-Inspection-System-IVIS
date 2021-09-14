@@ -1,4 +1,5 @@
-""" Copyright (C) 2021 Selangor Human Resource Development Centre
+""" 
+Copyright (C) 2021 Selangor Human Resource Development Centre
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,8 +25,6 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
-from training.training_management import NewTrainingSubmissionHandlers
-
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -47,6 +46,7 @@ from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
+from training.training_management import NewTrainingSubmissionHandlers
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
