@@ -174,9 +174,9 @@ def existing_models():
                    columns=existing_models_columns,
                    checkbox=False,
                    key='existing_models_table', on_change=instantiate_model)
-
+# TODO #24 model metrics not shown on model dashboard
     with main_col2:
-        if 'attached_model' in session_state:
+        if session_state.new_training.attached_model:
 
             y = session_state.new_training.attached_model.get_perf_metrics()
 
@@ -226,7 +226,7 @@ def index():
             session_state.user = User(1)
         if 'new_training' not in session_state:
             session_state.new_training = Training(training_id_tmp,
-                                              project=session_state.project)
+                                                  project=session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
