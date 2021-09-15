@@ -60,7 +60,8 @@ chdir_root()
 
 
 def infodataset():
-
+    if 'new_training_place' not in session_state:
+        session_state.new_training_place={}
     # ************COLUMN PLACEHOLDERS *****************************************************
     st.write("___")
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])

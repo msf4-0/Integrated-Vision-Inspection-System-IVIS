@@ -297,7 +297,8 @@ def create_relation_database(conn):
     Args:
         conn (psycopg2.connection): Connection object for PostgreSQL
     """
-    initialise_database_SQL = f"""
+    # TODO #22 Password Hashing check
+    initialise_database_SQL = """
         BEGIN;
 
         --
@@ -754,7 +755,7 @@ def create_relation_database(conn):
         /* 
         emp_id:0
         username:admin
-        password:{argon2.hash('admin')}
+        password:hash of 'admin'
         Role:Admininstrator */
         INSERT INTO public.users (
             emp_id
@@ -774,7 +775,7 @@ def create_relation_database(conn):
             , NULL
             , NULL
             , NULL
-            , 'admin'
+            , %s
             , (
                 SELECT
                     id
@@ -971,10 +972,10 @@ def create_relation_database(conn):
 
         END;
             """
-
+    initialise_database_vars = [f"{argon2.hash('admin')}"]
     try:
         log_info("Creating relations in database.......")
-        db_no_fetch(initialise_database_SQL, conn)
+        db_no_fetch(initialise_database_SQL, conn, initialise_database_vars)
         log_info("Successfully created relations in database.......")
 
     except psycopg2.Error as e:

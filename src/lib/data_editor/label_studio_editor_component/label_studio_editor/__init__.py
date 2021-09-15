@@ -57,7 +57,7 @@ def labelstudio_editor(
             if args:
                 on_change(*args)
             elif kwargs:
-                on_change(*kwargs)
+                on_change(**kwargs)
             else:
                 on_change()
          

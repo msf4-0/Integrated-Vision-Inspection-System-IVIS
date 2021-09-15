@@ -323,7 +323,7 @@ def editor(data_id: List = []):
 
 
 def index():
-    RELEASE = True
+    RELEASE = False
 
     # ****************** TEST ******************************
     if not RELEASE:

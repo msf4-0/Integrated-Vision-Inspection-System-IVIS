@@ -571,8 +571,12 @@ def index():
         st.radio("", options=dataset_page_options,
                  index=session_state.dataset_pagination, on_change=dataset_page_navigator, key="dataset_page_navigator_radio")
 
+    # **************************** MAIN NAVIGATION FUNCTION **************************#
     dataset_page[session_state.dataset_pagination]()
+
+    # *****************BACK TO DATASET DASHBOARD **********************************#
     back_to_dataset_dashboard_button_place = st.empty()
+
     if session_state.dataset_pagination == DatasetPagination.New:
 
         def to_dataset_dashboard_page():

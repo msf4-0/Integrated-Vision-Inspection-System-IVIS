@@ -118,6 +118,7 @@ def data_uploader(dataset: Dataset):
             dataset.dataset_size = len(
                 dataset.dataset)  # length of uploaded files
             log_info("Enter data exist")
+            
         else:
             log_info("Enter else")
             dataset.filetype = None
@@ -126,7 +127,7 @@ def data_uploader(dataset: Dataset):
 
         dataset_size_string = f"- ### Number of datas: **{dataset.dataset_size}**"
         dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=dataset.calc_total_filesize(),format='%.2f')}**"
-
+        
         st.markdown(" ____ ")
 
         # ******************* DATASET METRICS **************************************
@@ -163,7 +164,7 @@ def data_uploader(dataset: Dataset):
     def update_dataset_callback(field, place):
         context = {'upload': field}
         dataset.has_submitted = dataset.check_if_field_empty(
-            context, field_placeholder=place)
+            context, field_placeholder=place,name_key=None)
 
         if dataset.has_submitted:
             # st.success(""" Successfully created new dataset: {0}.

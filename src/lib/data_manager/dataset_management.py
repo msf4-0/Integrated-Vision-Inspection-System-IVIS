@@ -310,7 +310,8 @@ class Dataset(BaseDataset):
         log_info(self.name)
         if self.dataset_path:
 
-            dataset_path = Path(self.dataset_path) / "./*"
+            # dataset_path = Path(self.dataset_path) / "./*"
+            dataset_path = Path(self.dataset_path) 
 
             data_info_tmp = []
 
