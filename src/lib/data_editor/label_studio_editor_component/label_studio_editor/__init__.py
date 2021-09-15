@@ -36,13 +36,30 @@ else:
 def labelstudio_editor(
         config: str,
         interfaces: List[str],
-        user: dict,
-        task: dict,
-        key=None,
+        user: Dict,
+        task: Dict,
+        key: str = None,
         on_change: Optional[Callable] = None,
         args: Optional[Tuple] = None,
         kwargs: Optional[Dict] = None
 ) -> List:
+    """Data annotator component based on Label Studio
+        https://labelstud.io/guide/frontend_reference.html
+        *Examples are shown below the function definition
+
+    Args:
+        config (str): Label Studio template which is an XML DOM
+        interfaces (List[str]): List of interfaces to be displayed on the editor
+        user (dict): Dictionary of user details
+        task (dict): Label Studio Task format
+        key ([type], optional): Unique component identifier. Defaults to None.
+        on_change (Optional[Callable], optional): Callback function. Defaults to None.
+        args (Optional[Tuple], optional): Arguments to Callback functino. Defaults to None.
+        kwargs (Optional[Dict], optional): Keyword arguments to callback function. Defaults to None.
+
+    Returns:
+        List: Results from the Label Studio Editor ([List of Dictionaries], flag)
+    """
     component_value = _component_func(
         config=config, interfaces=interfaces, user=user, task=task, key=key, default=[])
     if component_value:
@@ -60,8 +77,7 @@ def labelstudio_editor(
                 on_change(**kwargs)
             else:
                 on_change()
-         
-
+    # log_info(f"Label result: {component_value}")
     return component_value
 
 
@@ -108,17 +124,3 @@ def labelstudio_editor(
 #             'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
 #         }
 #     }
-
-#     results_raw = labelstudio_editor(
-#         config, interfaces, user, task, key='random')
-#     st.write(results_raw)
-    # if results_raw is not None:
-    #     areas = [v for k, v in results_raw['areas'].items()]
-
-    #     results = []
-    #     for a in areas:
-    #         results.append({'id': a['id'], 'x': a['x'], 'y': a['y'], 'width': a['width'],
-    #                         'height': a['height'], 'label': a['results'][0]['value']['rectanglelabels'][0]})
-    #     with st.beta_expander('Show Annotation Log'):
-
-    #         st.table(results)

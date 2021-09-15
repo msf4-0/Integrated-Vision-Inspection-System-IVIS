@@ -54,7 +54,7 @@ def editor(data_id: List = []):
     # ******** SESSION STATE ***********************************************************
 
     if "labelling_interface" not in session_state:
-        session_state.labelling_interface = ([], [], [], 0)
+        session_state.labelling_interface = ([], 0)
     if "new_annotation_flag" not in session_state:
         session_state.new_annotation_flag = 0
     if "data_labelling_table" not in session_state:
@@ -299,6 +299,7 @@ def editor(data_id: List = []):
                     f"### **{session_state.task.filetype.name}: {session_state.task.name}**")
                 labelstudio_editor(
                     session_state.project.editor.editor_config, interfaces, user, task, key="labelling_interface")
+                
         # *************************************** LABELLING INTERFACE *******************************************
 
         # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
