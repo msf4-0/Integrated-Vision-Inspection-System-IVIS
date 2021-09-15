@@ -35,8 +35,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -53,7 +53,7 @@ else:
 # >>>> User-defined Modules >>>>
 
 from core.utils.log import log_error, log_info  # logger
-from data_import.models_upload_module import model_uploader
+
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from path_desc import chdir_root
@@ -61,7 +61,7 @@ from project.project_management import Project
 from training.model_management import Model, ModelsPagination
 from training.training_management import Training
 from user.user_management import User
-
+from pages.sub_pages.models_page.models_subpages.user_model_upload import user_model_upload_page
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
@@ -240,7 +240,7 @@ def index():
     # ************************ MODEL PAGINATION *************************
     models_page = {
         ModelsPagination.ExistingModels: existing_models,
-        ModelsPagination.ModelUpload: model_uploader
+        ModelsPagination.ModelUpload: user_model_upload_page
     }
 
     # ********************** SESSION STATE ******************************

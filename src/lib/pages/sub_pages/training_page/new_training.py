@@ -142,7 +142,7 @@ def index():
     # ************************ NEW TRAINING PAGINATION *************************
     new_training_page = {
         NewTrainingPagination.InfoDataset: new_training_infodataset.infodataset,
-        NewTrainingPagination.Model: models_page.models_page,
+        NewTrainingPagination.Model: models_page.existing_models,
         NewTrainingPagination.TrainingConfig: new_training_training_config.training_configuration,
         NewTrainingPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration
     }
