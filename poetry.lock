@@ -387,6 +387,14 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
+name = "get-video-properties"
+version = "0.1.1"
+description = "Get video properties"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "gitdb"
 version = "4.0.7"
 description = "Git Object Database"
@@ -1828,7 +1836,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.8"
-content-hash = "a0d3bd92e9671a1dfe3cbb52bcb2a27399b24a38ac17c113fb630a3865d8a39f"
+content-hash = "459bab627e001e75a662c258829bf8c3d3914a4a15874f242e1135f53a2de72a"
 
 [metadata.files]
 absl-py = [
@@ -2173,6 +2181,9 @@ future = [
 gast = [
     {file = "gast-0.4.0-py3-none-any.whl", hash = "sha256:b7adcdd5adbebf1adf17378da5ba3f543684dbec47b1cda1f3997e573cd542c4"},
     {file = "gast-0.4.0.tar.gz", hash = "sha256:40feb7b8b8434785585ab224d1568b857edb18297e5a3047f1ba012bc83b42c1"},
+]
+get-video-properties = [
+    {file = "get_video_properties-0.1.1-py3-none-any.whl", hash = "sha256:04d4f478a5211917e2a7e87ddfcb1c17734cddf8374494c3993bf825b7ad4192"},
 ]
 gitdb = [
     {file = "gitdb-4.0.7-py3-none-any.whl", hash = "sha256:6c4cc71933456991da20917998acbe6cf4fb41eeaab7d6d67fbc05ecd4c865b0"},

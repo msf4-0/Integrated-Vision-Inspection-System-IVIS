@@ -95,6 +95,7 @@ def data_table(
     # if session_state[_prev_value_name] != session_state[key]:
     #     """Should run method"""
     log_info(session_state[_prev_value_name] != component_value)
+
     if component_value and (session_state[_prev_value_name] != component_value):
         if on_change:
             log_info("Inside callback")

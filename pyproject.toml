@@ -23,6 +23,7 @@ streamlit-webrtc = "^0.28.1"
 humanize = "^3.11.0"
 opencv-python = "~4.5.2"
 tensorflow-datasets = "^4.4.0"
+get-video-properties = "^0.1.1"
 
 [tool.poetry.dev-dependencies]
 psycopg2-binary = "^2.9.1"

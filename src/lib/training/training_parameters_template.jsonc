@@ -1,0 +1,13 @@
+/* Training Parameters */
+{
+  "training_parameters": {
+    // Need to consider whether to use Array or store as object
+    "batch_size": 64,
+    "epoch": 50,
+    "learning_rate": 0.001,
+    "steps": 1,
+    "image_size": { "height": 320, "width": 320 },
+    "shuffle_buffer_size": 2000,
+    "warmup_learning_rate": 0.001
+  }
+}

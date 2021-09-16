@@ -43,7 +43,8 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
   const user = args.user
   const task = args.task
 
-  /*Load arguments into Args interface
+  /*
+  Load arguments into Args interface
    * Args:config, interfaces, user, task
    */
   const LS_args = useMemo(
