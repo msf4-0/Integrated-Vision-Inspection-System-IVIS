@@ -49,8 +49,11 @@ from path_desc import DATABASE_DIR, PROJECT_ROOT
 
 # initialise connection to Database
 # conn = init_connection(**st.secrets["postgres"])
-place = {}
-SECRETS_DIR = PROJECT_ROOT / ".streamlit/secrets.toml"
+
+# path to streamlit's secrets.toml file should be based on the directory where the
+#  current script is being run, not `PROJECT_ROOT`
+SECRETS_DIR = SRC / ".streamlit/secrets.toml"
+st.write("Database config saved in:")
 st.write(SECRETS_DIR)
 
 # **********************************SESSION STATE ******************************
@@ -100,12 +103,9 @@ def test_database_connection(**dsn: Dict):
     conn = test_db_conn(**dsn)
     if conn != None:
 
-        success_msg = f"Successfully connected to Database {dsn['dbname']}"
+        success_msg = f"Successfully connected to Database '{dsn['dbname']}'"
         log_info(success_msg)
-        success_place = st.empty()
-        success_place.success(success_msg)
-        sleep(0.7)
-        success_place.empty()
+        st.success(success_msg)
     else:
         st.error(f"Failed to connect to the Database")
     return conn
