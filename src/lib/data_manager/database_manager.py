@@ -363,7 +363,6 @@ def create_relation_database(conn):
             CACHE 1)
             , name text NOT NULL UNIQUE
             , description text
-            , dataset_path text NOT NULL
             , dataset_size integer
             , filetype_id integer
             , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -406,7 +405,7 @@ def create_relation_database(conn):
             CACHE 1)
             , name character varying(50) NOT NULL
             , editor_config text
-            , labels jsonb[]
+            , labels jsonb
             , project_id bigint NOT NULL
             , created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
             , updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
