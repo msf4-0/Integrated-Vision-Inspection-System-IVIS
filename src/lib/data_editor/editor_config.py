@@ -22,7 +22,6 @@ SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
 
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
@@ -75,7 +74,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-        }
+            }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -97,16 +96,25 @@ def editor_config(project: Union[NewProject, Project]):
     st.write("# Editor Config")
     st.markdown("___")
 
+    # moved editor config to above because there seems to be a huge empty space under the
+    #  Label Studio Editor
+    with st.expander('Editor Config', expanded=False):
+        config2 = project.editor.to_xml_string(
+            pretty=True)
+        st.code(config2, language='xml')
+
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # >>>> MAIN COLUMNS
     col1, col2 = st.columns([1, 2])
 
     # >>>> Add 'save' button
-    save_col1, save_col2 = st.columns([1, 2])
+    # ! Moved 'save' button to above because there seems to be a huge empty space below
+    #  Label Studio Editor
+    # save_col1, save_col2 = st.columns([1, 2])
 
     # >>>> To display variables during dev
-    lowercol1, lowercol2 = st.columns([1, 2])
+    # lowercol1, lowercol2 = st.columns([1, 2])
 
     with col1:
 
@@ -195,8 +203,6 @@ def editor_config(project: Union[NewProject, Project]):
         st.multiselect('Labels', options=project.editor.labels,
                        key='labels_select', on_change=update_labels)
 
-    # TODO ADD 'SAVE' BUTTON
-    with save_col1:
         def save_editor_config():
             log_info("Updating Editor Config......")
 
@@ -229,11 +235,6 @@ def editor_config(project: Union[NewProject, Project]):
     #     st.write(tagName_attributes)
     #     st.write("Editor Class")
     #     st.write(vars(project.editor))
-
-    with st.expander('Editor Config', expanded=False):
-        config2 = project.editor.to_xml_string(
-            pretty=True)
-        st.code(config2, language='xml')
 
     with col2:
         # st.text_input("Check column", key="column2")

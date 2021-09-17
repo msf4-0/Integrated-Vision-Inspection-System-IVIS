@@ -256,6 +256,7 @@ def index():
         # ****************************** HEADER **********************************************
 
     st.write(f"## **Labelling Section:**")
+    st.write("**Filter:**")
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
@@ -268,6 +269,7 @@ def index():
         LabellingPagination.Labelled: labelled_table,
         LabellingPagination.Queue: no_labelled,
         LabellingPagination.Editor: editor,
+        LabellingPagination.EditorConfig: editor_config,
         LabellingPagination.Performance: None
     }
 
@@ -298,6 +300,10 @@ def index():
     with start_labelling_button_col:
         st.button("Start Labelling", key='start_labelling_button',
                   on_click=to_labelling_section, args=(LabellingPagination.Editor,))
+
+    st.button("Edit Editor/Labeling Config", key='edit_labelling_config',
+              on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
+
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
     all_task, all_task_column_names = Task.query_all_task(project_id,
@@ -314,6 +320,10 @@ def index():
         #     session_state.new_annotation_flag = 0
         labelling_page[session_state.labelling_pagination](
             session_state.data_selection)
+
+    elif session_state.labelling_pagination == LabellingPagination.EditorConfig:
+        labelling_page[session_state.labelling_pagination](
+            session_state.project)
 
     else:
         labelling_page[session_state.labelling_pagination](
