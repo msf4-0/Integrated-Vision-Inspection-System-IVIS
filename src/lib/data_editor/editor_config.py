@@ -241,7 +241,6 @@ def editor_config(project: Union[NewProject, Project]):
         labelstudio_editor(config2, interfaces, user,
                            task, key='editor_config')
 
-
 def main():
     RELEASE = True
 

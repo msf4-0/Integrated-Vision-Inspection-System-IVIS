@@ -32,14 +32,13 @@ from typing import List
 
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state 
 
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-from data_manager.data_table_component.data_table import data_table
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -61,6 +60,7 @@ from path_desc import chdir_root
 from project.project_management import (ExistingProjectPagination, Project,
                                         ProjectPermission)
 from annotation.annotation_management import Task
+from data_manager.data_table_component.data_table import data_table
 
 # NOTE Temp
 from user.user_management import User
@@ -221,7 +221,7 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
 def index():
 
-    RELEASE = True
+    RELEASE = False
 
     # ****************** TEST ******************************
     if not RELEASE:
