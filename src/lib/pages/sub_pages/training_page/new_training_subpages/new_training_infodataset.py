@@ -60,8 +60,9 @@ chdir_root()
 
 
 def infodataset():
+    log_info("[NAVIGATOR] At `new_training_infodataset.py` `infodataset` function")
     if 'new_training_place' not in session_state:
-        session_state.new_training_place={}
+        session_state.new_training_place = {}
     # ************COLUMN PLACEHOLDERS *****************************************************
     st.write("___")
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
@@ -321,7 +322,11 @@ def infodataset():
         st.button("next", key="new_training_next_button",
                   on_click=to_new_training_next_page)
 
+    # ! DEBUGGING PURPOSE, REMOVE LATER
+    st.write("session_state.new_training_dataset_chosen = ")
     st.write(session_state.new_training_dataset_chosen)
+
+
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
         infodataset()

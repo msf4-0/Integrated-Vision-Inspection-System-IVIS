@@ -416,7 +416,7 @@ class BaseTraining:
                 INSERT INTO public.training (
                     name
                     , description
-                    , partition_ratio,
+                    , partition_size,
                     project_id)
                 VALUES (
                     %s
@@ -427,14 +427,14 @@ class BaseTraining:
                     name)
                     DO UPDATE SET
                         description = %s
-                        , partition_ratio = %s
+                        , partition_size = %s
                     RETURNING
                         id;
                                     """
 
-        partition_size_json = json.dumps(self.partition_ratio, indent=4)
+        partition_size_json = json.dumps(self.partition_size, indent=4)
         insert_training_info_vars = [
-            self.name, self.desc, partition_size_json, self.project_id, self.desc, partition_size_json, ]
+            self.name, self.desc, partition_size_json, self.project_id]
 
         try:
             query_return = db_fetchone(insert_training_info_SQL,

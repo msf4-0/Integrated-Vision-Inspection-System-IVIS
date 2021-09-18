@@ -33,7 +33,6 @@ SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
 
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
@@ -52,6 +51,7 @@ from data_manager.database_manager import init_connection
 
 
 def training_configuration():
+    log_info("[NAVIGATOR] At new_training_training_config.py")
     st.write("TRAINING CONFIG")
 
 
