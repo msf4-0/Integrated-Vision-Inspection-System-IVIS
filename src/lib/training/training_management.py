@@ -197,6 +197,12 @@ class BaseTraining:
             'exported_models': None,
             'models': None
         }
+        self.has_submitted: Dict = {
+            NewTrainingPagination.InfoDataset: False,
+            NewTrainingPagination.Model: False,
+            NewTrainingPagination.TrainingConfig: False,
+            NewTrainingPagination.AugmentationConfig: False
+        }
 
     @staticmethod
     def get_training_path(project_path: Path, training_name: str) -> Path:
@@ -500,16 +506,10 @@ class BaseTraining:
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
-        self.has_submitted: Dict = {
-            NewTrainingPagination.InfoDataset: False,
-            NewTrainingPagination.Model: False,
-            NewTrainingPagination.TrainingConfig: False,
-            NewTrainingPagination.AugmentationConfig: False
-        }
 
         self.model_selected: NewModel = None  # DEPRECATED
         self.attached_model: Model = None
-        self.project_model: NewModel = None
+        self.training_model: NewModel = NewModel()
     # TODO *************************************
 
     # Wrapper for check_if_exists function from form_manager.py
@@ -548,6 +548,63 @@ class NewTraining(BaseTraining):
         # True if not empty, False otherwise
         return empty_fields
 
+    def initialise_training_folder(self):
+        """Create Training Folder
+        """
+        '''
+        training_dir
+        |
+        |-annotations/
+        | |-labelmap
+        | |-TFRecords*
+        |
+        |-exported_models/
+        |-dataset
+        | |-train/
+        | |-evaluation/
+        |
+        |-models/
+
+        '''
+        # *************** GENERATE TRAINING PATHS ***************
+
+        # >>>> TRAINING PATH
+        self.training_path['ROOT'] = self.get_training_path(
+            self.project_path, self.name)
+        # >>>> MODEL PATH
+        self.training_path['models'] = self.training_path['ROOT'] / 'models'
+        # PARTITIONED DATASET PATH
+        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
+        # EXPORTED MODEL PATH
+        self.training_path['exported_models'] = self.training_path['ROOT'] / \
+            'exported_models'
+        # ANNOTATIONS PATH
+        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
+
+        # >>>> CREATE Training directory recursively
+        for path in self.training_path.values():
+            create_folder_if_not_exist(path)
+            log_info(
+                f"Successfully created **{str(path)}**")
+
+        # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
+        try:
+            assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
+                len(self.training_path) - 1)), f"Failed to create all folders"
+            log_info(
+                f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
+
+        except AssertionError as e:
+
+            # Create a list of sub-folders excluding Training Root
+            directory_structure = [
+                x for x in self.training_path.values() if x != self.training_path['ROOT']]
+
+            missing_folders = [x for x in self.training_path['ROOT'].iterdir(
+            ) if x.is_dir() and (x not in directory_structure)]
+
+            log_error(f"{e}: Missing {missing_folders}")
+
     def insert_training_info_dataset(self) -> bool:
         """Create New Training submission
 
@@ -570,8 +627,9 @@ class NewTraining(BaseTraining):
             # Insert Training Dataset
             self.insert_training_dataset(added_dataset=self.dataset_chosen)
 
+            # NOTE KIV -> to create training folder BEFORE TRAINING
             # Create Training Folder
-            self.initialise_training_folder()
+            # self.initialise_training_folder()
 
             return True
 
@@ -581,62 +639,32 @@ class NewTraining(BaseTraining):
             st.error(f'{e}')
             return False
 
-    def initialise_training_folder(self):
-        """Create Training Folder
-        """
-        '''
-        training_dir
-        |
-        |-annotations/
-        | |-labelmap
-        | |-TFRecords*
-        |
-        |-exported_models/
-        |-dataset
-        | |-train/
-        | |-evaluation/
-        |
-        |-models/
+    def update_training_attached_model(self, attached_model_id: int, training_model_id: int) -> bool:
+        # update training table with attached model id and training model id
 
-        '''
-    # >>>> GENERATE TRAINING PATHS >>>>
+        insert_training_attached_SQL = """
 
-        # >>>> TRAINING PATH
-        self.training_path['ROOT'] = self.get_training_path(
-            self.project_path, self.name)
-        # >>>> MODEL PATH
-        self.training_path['models'] = self.training_path['ROOT'] / 'models'
-        # PARTITIONED DATASET PATH
-        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
-        # EXPORTED MODEL PATH
-        self.training_path['exported_models'] = self.training_path['ROOT'] / \
-            'exported_models'
-        # ANNOTATIONS PATH
-        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
+            UPDATE
+                public.training
+            SET
+                training_model_id = %s
+                , attached_model_id = %s
+            WHERE
+                id = %s;
+                    """
 
-    # >>>> CREATE Training directory recursively
-        for path in self.training_path.values():
-            create_folder_if_not_exist(path)
-            log_info(
-                f"Successfully created **{str(path)}**")
+        insert_training_attached_vars = [
+            training_model_id, attached_model_id, self.id]
 
-    # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
         try:
-            assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
-                len(self.training_path) - 1)), f"Failed to create all folders"
-            log_info(
-                f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
+            db_no_fetch(insert_training_attached_SQL, conn,
+                        insert_training_attached_vars)
+            return True
 
-        except AssertionError as e:
+        except Exception as e:
+            log_error(f"At update training_attached: {e}")
+            return False
 
-            # Create a list of sub-folders excluding Training Root
-            directory_structure = [
-                x for x in self.training_path.values() if x != self.training_path['ROOT']]
-
-            missing_folders = [x for x in self.training_path['ROOT'].iterdir(
-            ) if x.is_dir() and (x not in directory_structure)]
-
-            log_error(f"{e}: Missing {missing_folders}")
 
 # NOTE ******************* DEPRECATED *********************************************
     # def insert_training(self, model: Model, project: Project):
@@ -752,6 +780,8 @@ class NewTraining(BaseTraining):
     #     return self.id
 
 # TODO #133 Add New Training Reset
+
+
     @staticmethod
     def reset_new_training_page():
 

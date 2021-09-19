@@ -134,5 +134,15 @@ SELECT
 FROM
     public.training
 WHERE
-    id = %s;
+    id = % s;
+
+
+/* Update Training table with Training and Attached Model ID */
+UPDATE
+    public.training
+SET
+    training_model_id = % s
+    , attached_model_id = % s
+WHERE
+    id = % s;
 

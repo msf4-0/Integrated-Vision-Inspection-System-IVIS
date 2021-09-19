@@ -41,7 +41,7 @@ interface ComponentTheme {
   font: string | undefined;
 }
 
-// TODO #134 Pending Text Wrap for Cells
+// TODO #7 Pending Text Wrap for Cells
 
 function DataTable({ args, theme }: ComponentProps): ReactElement {
   //Define Rows and Columns
