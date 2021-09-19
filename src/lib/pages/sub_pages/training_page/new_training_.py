@@ -53,7 +53,7 @@ conn = init_connection(**st.secrets["postgres"])
 new_training = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-                   "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
+                   "Semantic Segmentation with Polygons")
 
 
 def new_training_page():

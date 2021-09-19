@@ -1,8 +1,6 @@
 import io
 import os
 import xml.etree.ElementTree
-from lxml import etree
-from collections import defaultdict
 import requests
 import hashlib
 import logging
@@ -30,10 +28,6 @@ def tokenize(text):
         else:
             tok_start += 1
     return out
-
-
-_LABEL_TAGS = {'Label', 'Choice'}
-_NOT_CONTROL_TAGS = {'Filter', }
 
 
 def create_tokens_and_tags(text, spans):
@@ -97,43 +91,50 @@ def _get_upload_dir(project_dir=None, upload_dir=None):
     return upload_dir
 
 
-def download(url, output_dir, filename=None, project_dir=None, return_relative_path=False, upload_dir=None):
-    is_local_file = url.startswith('/data/') and '?d=' in url
-    is_uploaded_file = url.startswith('/data/upload')
+def download(url, output_dir, filename=None, project_dir=None, return_relative_path=False, upload_dir=None,
+             download_resources=False):
+    # - All these commented lines are from original `label-studio-converter` repo
+    # is_local_file = url.startswith('/data/') and '?d=' in url
+    # is_uploaded_file = url.startswith('/data/upload')
 
-    if is_uploaded_file:
-        upload_dir = _get_upload_dir(project_dir, upload_dir)
-        filename = url.replace('/data/upload/', '')
-        filepath = os.path.join(upload_dir, filename)
-        logger.debug('Copy {filepath} to {output_dir}'.format(
-            filepath=filepath, output_dir=output_dir))
-        shutil.copy(filepath, output_dir)
-        if return_relative_path:
-            return os.path.join(os.path.basename(output_dir), filename)
-        return filepath
+    # if is_uploaded_file:
+    #     upload_dir = _get_upload_dir(project_dir, upload_dir)
+    #     filename = url.replace('/data/upload/', '')
+    #     filepath = os.path.join(upload_dir, filename)
+    #     logger.debug('Copy {filepath} to {output_dir}'.format(
+    #         filepath=filepath, output_dir=output_dir))
+    #     if download_resources:
+    #         shutil.copy(filepath, output_dir)
+    #     if return_relative_path:
+    #         return os.path.join(os.path.basename(output_dir), filename)
+    #     return filepath
 
-    if is_local_file:
-        filename, dir_path = url.split('/data/', 1)[-1].split('?d=')
-        dir_path = str(urllib.parse.unquote(dir_path))
-        if not os.path.exists(dir_path):
-            raise FileNotFoundError(dir_path)
-        filepath = os.path.join(dir_path, filename)
-        if return_relative_path:
-            raise NotImplementedError()
-        return filepath
+    # if is_local_file:
+    #     filename, dir_path = url.split('/data/', 1)[-1].split('?d=')
+    #     dir_path = str(urllib.parse.unquote(dir_path))
+    #     if not os.path.exists(dir_path):
+    #         raise FileNotFoundError(dir_path)
+    #     filepath = os.path.join(dir_path, filename)
+    #     if return_relative_path:
+    #         raise NotImplementedError()
+    #     return filepath
 
-    if filename is None:
-        basename, ext = os.path.splitext(os.path.basename(urlparse(url).path))
-        filename = basename + '_' + \
-            hashlib.md5(url.encode()).hexdigest()[:4] + ext
+    # if filename is None:
+    #     basename, ext = os.path.splitext(os.path.basename(urlparse(url).path))
+    #     filename = basename + '_' + \
+    #         hashlib.md5(url.encode()).hexdigest()[:4] + ext
+    filename = os.path.basename(url)
     filepath = os.path.join(output_dir, filename)
-    if not os.path.exists(filepath):
+    if url.startswith("http"):
         logger.info('Download {url} to {filepath}'.format(
             url=url, filepath=filepath))
         r = requests.get(url)
         r.raise_for_status()
         with io.open(filepath, mode='wb') as fout:
             fout.write(r.content)
+    else:
+        # print(f"COPYING IMAGE from {url} to {filepath}")
+        shutil.copy2(url, filepath)
     if return_relative_path:
         return os.path.join(os.path.basename(output_dir), filename)
     return filepath
@@ -175,74 +176,32 @@ def parse_config(config_string):
             "labels": ["Label1", "Label2", "Label3"] // taken from "alias" if exists or "value"
     }
     """
-    print("Enter")
-    if not config_string:
-        return {}
-
     def _is_input_tag(tag):
-        return tag.attrib.get('name') and tag.attrib.get('value')
+        return tag.attrib.get('name') and tag.attrib.get('value', '').startswith('$')
 
     def _is_output_tag(tag):
-        return tag.attrib.get('name') and tag.attrib.get('toName') and tag.tag not in _NOT_CONTROL_TAGS
+        return tag.attrib.get('name') and tag.attrib.get('toName')
 
-    def _get_parent_output_tag_name(tag, outputs):
-        # Find parental <Choices> tag for nested tags like <Choices><View><View><Choice>...
-        parent = tag
-        while True:
-            parent = parent.getparent()
-            if parent is None:
-                return
-            name = parent.attrib.get('name')
-            if name in outputs:
-                return name
+    xml_tree = xml.etree.ElementTree.fromstring(config_string)
 
-    xml_tree = etree.fromstring(config_string)
-
-    inputs, outputs, labels = {}, {}, defaultdict(dict)
+    inputs, outputs = {}, {}
     for tag in xml_tree.iter():
-        if _is_output_tag(tag):
-            tag_info = {'type': tag.tag,
-                        'to_name': tag.attrib['toName'].split(',')}
-            # Grab conditionals if any
-            conditionals = {}
-            if tag.attrib.get('perRegion') == 'true':
-                if tag.attrib.get('whenTagName'):
-                    conditionals = {'type': 'tag',
-                                    'name': tag.attrib['whenTagName']}
-                elif tag.attrib.get('whenLabelValue'):
-                    conditionals = {'type': 'label',
-                                    'name': tag.attrib['whenLabelValue']}
-                elif tag.attrib.get('whenChoiceValue'):
-                    conditionals = {'type': 'choice',
-                                    'name': tag.attrib['whenChoiceValue']}
-            if conditionals:
-                tag_info['conditionals'] = conditionals
-            outputs[tag.attrib['name']] = tag_info
-        elif _is_input_tag(tag):
+        if _is_input_tag(tag):
             inputs[tag.attrib['name']] = {
                 'type': tag.tag, 'value': tag.attrib['value'].lstrip('$')}
-        if tag.tag not in _LABEL_TAGS:
-            continue
-        parent_name = _get_parent_output_tag_name(tag, outputs)
-        if parent_name is not None:
-            actual_value = tag.attrib.get('alias') or tag.attrib.get('value')
-            if not actual_value:
-                logger.debug(
-                    'Inspecting tag {tag_name}... found no "value" or "alias" attributes.'.format(
-                        tag_name=etree.tostring(tag, encoding='unicode').strip()[:50]))
-            else:
-                labels[parent_name][actual_value] = dict(tag.attrib)
+        elif _is_output_tag(tag):
+            outputs[tag.attrib['name']] = {
+                'type': tag.tag, 'to_name': tag.attrib['toName'].split(',')}
+
     for output_tag, tag_info in outputs.items():
         tag_info['inputs'] = []
         for input_tag_name in tag_info['to_name']:
             if input_tag_name not in inputs:
-                logger.error(
-                    f'to_name={input_tag_name} is specified for output tag name={output_tag}, '
-                    'but we can\'t find it among input tags')
-                continue
+                raise KeyError(
+                    'to_name={input_tag_name} is specified for output tag name={output_tag}, but we can\'t find it '
+                    'among input tags'.format(input_tag_name=input_tag_name, output_tag=output_tag))
             tag_info['inputs'].append(inputs[input_tag_name])
-        tag_info['labels'] = list(labels[output_tag])
-        tag_info['labels_attrs'] = labels[output_tag]
+
     return outputs
 
 

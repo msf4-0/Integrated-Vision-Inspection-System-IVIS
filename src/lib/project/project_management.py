@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import shutil
 import sys
 import json
 from pathlib import Path
@@ -38,6 +39,7 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 import streamlit.components.v1 as components
+from data_export.label_studio_converter.converter import Converter, Format, FormatNotSupportedError
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -49,8 +51,8 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root, PROJECT_DIR, DATASET_DIR
-from core.utils.log import log_info, log_error  # logger
+from path_desc import PROJECT_DIR, chdir_root, DATASET_DIR
+from core.utils.log import log_info, log_error, log_warning  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.helper import get_directory_name, create_dataframe, dataframe2dict
@@ -242,16 +244,70 @@ class Project(BaseProject):
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
 
-    def export_tasks(self, export_format: str):
+    def export_tasks(self):
         """
-        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory
+        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory.
+        Allow download images and annotations if necessary.
         """
-        label_json = self.generate_label_json()
+        log_info(
+            "Exporting labeled tasks for Project ID: {session_state.project.id}")
 
-    def generate_label_json(self):
+        json_path = self.generate_label_json()
+        output_dir = self.get_export_path()
+
+        # - beware here I added removing the entire existing directory before proceeding
+        if output_dir.exists():
+            log_warning(
+                f"[INFO] Removing existing exported directory: {output_dir}")
+            shutil.rmtree(output_dir)
+
+        # the keys are from the self.deployment_name stored in Database
+        # the values are based on the directory names in the "annotation" folder
+        annotationType_dict = {"Image Classification": 'image-classification', "Object Detection with Bounding Boxes": 'object-detection-bbox',
+                               "Semantic Segmentation with Polygons": 'semantic-segmentation-mask'}
+        label_type = annotationType_dict[self.deployment_type]
+
+        # path to the config used by Label Studio, in this project we are only using computer vision configs
+        xml_path = LIB_PATH / Path("annotation", label_type, "config.xml")
+        # initialize a Label Studio Converter to convert to specific output formats
+        # set `download_resources` to True to download images to the
+        converter = Converter(config=str(xml_path), project_dir=None,
+                              download_resources=True)
+
+        if self.deployment_type == "Image Classification":
+            # TODO: probably use CSV, then split into folders based on class names
+            pass
+
+        if self.deployment_type == "Object Detection with Bounding Boxes":
+            # using Pascal VOC XML format for TensorFlow Object Detection API
+            log_info(
+                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
+            converter.convert_to_voc(
+                json_path,
+                output_dir=output_dir,
+                is_dir=False,
+            )
+
+        if self.deployment_type == "Semantic Segmentation with Polygons":
+            log_info(
+                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
+            # using COCO JSON format for segmentation
+            converter.convert_to_coco(
+                json_path,
+                output_dir=output_dir,
+                is_dir=False,
+            )
+
+    def get_export_path(self):
+        """Get the path to the exported images and annotations"""
+        project_path = self.get_project_path(self.name)
+        output_dir = project_path / "export"
+        return output_dir
+
+    def generate_label_json(self) -> Path:
         """
-        Generate the output JSON with the format following Label Studio.
-        Refer to 'resources\LS_annotations\bbox\labelstud_output.json' file as reference.
+        Generate the output JSON with the format following Label Studio and returns the path to the file.
+        Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
         """
         all_annots, col_names = self.query_annotations(self.id)
         # the col_names can be changed if necessary
@@ -270,7 +326,7 @@ class Project(BaseProject):
         # drop the columns not necessary for converting
         df.drop(columns=['image_path', 'result'], inplace=True)
 
-        # convert to json format to export to the DATASET_DIR and use for conversion
+        # convert to json format to export to the project_path and use for conversion
         result = df.to_json(orient="records")
         project_path = self.get_project_path(self.name)
         json_path = project_path / f"project-{self.id}.json"
@@ -278,17 +334,21 @@ class Project(BaseProject):
             parsed = json.loads(result)
             log_info(f"DUMPING TASK JSON to {json_path}")
             json.dump(parsed, f, indent=2)
-        return json.dumps(parsed)
+        return json_path
 
     @staticmethod
     def query_annotations(project_id: int) -> Tuple[List[Dict], List]:
         sql_query = """
-            SELECT a.id, a.result AS result, CONCAT_WS('/', d.name, t.name) AS image_path
-            FROM annotations a
-                    LEFT JOIN task t on a.id = t.annotation_id
-                    LEFT JOIN dataset d on t.dataset_id = d.id
-            WHERE a.project_id = %s
-            ORDER BY id;
+                SELECT 
+                    a.id AS id,
+                    a.result AS result,
+                    -- flag of 'g' to match every pattern instead of only the first
+                    CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
+                FROM annotations a
+                        LEFT JOIN task t on a.id = t.annotation_id
+                        LEFT JOIN dataset d on t.dataset_id = d.id
+                WHERE a.project_id = %s
+                ORDER BY id;
         """
         query_vars = [project_id]
         log_info(

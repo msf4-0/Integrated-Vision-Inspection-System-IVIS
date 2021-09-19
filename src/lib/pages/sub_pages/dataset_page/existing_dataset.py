@@ -54,7 +54,7 @@ conn = init_connection(**st.secrets["postgres"])
 # new_dataset = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-                   "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
+                   "Semantic Segmentation with Polygons")
 
 
 class DeploymentType(IntEnum):
@@ -206,7 +206,7 @@ def show(dataset_info: Dict = None):
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # **** Submit Button ****
     success_place = st.empty()
-    field = [dataset.name,dataset.dataset]
+    field = [dataset.name, dataset.dataset]
     st.write(field)
     submit_col1, submit_col2 = st.beta_columns([3, 0.5])
     submit_button = submit_col2.button("Update", key="update")

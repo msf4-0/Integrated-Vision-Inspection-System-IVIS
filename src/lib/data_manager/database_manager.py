@@ -393,9 +393,7 @@ def create_relation_database(conn):
         , (
             'Object Detection with Bounding Boxes')
         , (
-            'Semantic Segmentation with Polygons')
-        , (
-            'Semantic Segmentation with Masks');
+            'Semantic Segmentation with Polygons');
 
         -- EDITOR table --------------------------------------------------
         CREATE TABLE IF NOT EXISTS public.editor (

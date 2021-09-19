@@ -32,7 +32,7 @@ from typing import List
 
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state 
+from streamlit import session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -256,12 +256,15 @@ def index():
         # ****************************** HEADER **********************************************
 
     st.write(f"## **Labelling Section:**")
-    st.write("**Filter:**")
 
     # ************COLUMN PLACEHOLDERS *****************************************************
+    st.write("**Filter:**")
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
     all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _, start_labelling_button_col = st.columns([
         2, 0.5, 3, 0.5, 2, 5, 3])
+
+    st.write("**Action:**")
+    edit_labeling_config_col, export_labels_col, _ = st.columns([1, 1, 3])
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     labelling_page = {
@@ -301,8 +304,13 @@ def index():
         st.button("Start Labelling", key='start_labelling_button',
                   on_click=to_labelling_section, args=(LabellingPagination.Editor,))
 
-    st.button("Edit Editor/Labeling Config", key='edit_labelling_config',
-              on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
+    with edit_labeling_config_col:
+        st.button("Edit Editor/Labeling Config", key='edit_labelling_config_button',
+                  on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
+
+    with export_labels_col:
+        st.button("Export Labelled Tasks", key='export_labels_button',
+                  on_click=session_state.project.export_tasks)
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
