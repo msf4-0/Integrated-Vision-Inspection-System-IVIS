@@ -117,6 +117,9 @@ def index():
 
     if "new_training_place" not in session_state:
         session_state.new_training_place = {}
+
+    if "new_training_progress_bar" not in session_state:
+        session_state.new_training_progress_bar = st.progress(0)
     # ******** SESSION STATE *********************************************************
 
     # >>>> Page title
@@ -143,10 +146,12 @@ def index():
     new_training_page = {
         NewTrainingPagination.InfoDataset: new_training_infodataset.infodataset,
         NewTrainingPagination.Model: models_page.existing_models,
+
         NewTrainingPagination.TrainingConfig: new_training_training_config.training_configuration,
         NewTrainingPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration
     }
-
+    session_state.new_training_progress_bar.progress(
+        (session_state.new_training_pagination + 1) / 4)
     new_training_page[session_state.new_training_pagination]()
 
 # # ************************* NEW TRAINING SECTION SUBMISSION HANDLERS **********************
