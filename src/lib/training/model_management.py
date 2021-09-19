@@ -55,7 +55,7 @@ else:
     pass
 
 from core.utils.code_generator import get_random_string
-from core.utils.file_handler import (list_files_in_archived,
+from core.utils.file_handler import (create_folder_if_not_exist, list_files_in_archived,
                                      save_uploaded_extract_files)
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
@@ -258,7 +258,6 @@ class BaseModel:
         self.compatibility_flag = ModelCompatibility.MissingModel
         self.labelmap = None
 
-    # TODO Method to generate Model Path #116
     @st.cache
     def get_model_path(self):
         query_model_project_training_SQL = """
@@ -473,16 +472,21 @@ class BaseModel:
         return framework_list
 
     @staticmethod
-    def get_pt_user_model_path(model_path: Union[str, Path] = None,
-                               framework: str = None,
-                               model_type: Union[str, ModelType] = None,
-                               new_model_flag: bool = False,
-                               **model_row) -> Path:
+    def get_pt_user_project_model_path(model_path: Union[str, Path] = None,
+                                       framework: str = None,
+                                       project_name: str = None,
+                                       training_name: str = None,
+                                       model_type: Union[str,
+                                                         ModelType] = None,
+                                       new_model_flag: bool = False,
+                                       **model_row) -> Path:
         """Get directory path for Pre-trained models and User Upload Deep Learning Models
 
         Args:
             model_path (Union[str, Path]): Relative path to model (queried from DB) / Model Name for New model creation
             framework (str): Framework of model
+            project_name (str): Project Name
+            training_name (str): Training Name
             model_type (Union[str, ModelType]): Type of model
             new_model_flag (bool, optional): True is new model to be created, otherwise False. Defaults to False.
 
@@ -494,6 +498,7 @@ class BaseModel:
             model_path = model_row['Model Path']
             framework = model_row['Framework']
             model_type = model_row['Model Type']
+            training_name = model_row['Training Name']
 
         # Get IntEnum constant
         model_type = BaseModel.get_model_type(
@@ -511,13 +516,16 @@ class BaseModel:
             model_path = USER_DEEP_LEARNING_MODEL_UPLOAD_DIR / \
                 framework / str(model_path)
 
+        elif model_type == ModelType.ProjectTrained:
+            model_path = PROJECT_DIR / \
+                get_directory_name(project_name) / 'training' / get_directory_name(
+                    training_name) / 'exported_models' / str(model_path)
+
         # assert model_path.is_dir(), f"{str(model_path)} does not exists"
 
-        if not model_path.is_dir():
+        if not new_model_flag and not model_path.is_dir():
             error_msg = f"{str(model_path)} does not exists"
             log_error(error_msg)
-
-            # model_path = None
 
         return model_path
 
@@ -555,8 +563,7 @@ class BaseModel:
 
             project_model_path = PROJECT_DIR / \
                 get_directory_name(query_result.Project_Name) / get_directory_name(
-                    query_result.Training_Name) / get_directory_name(query_result.Framework) /\
-                'exported_models' / query_result.Model_Path
+                    query_result.Training_Name) / 'exported_models' / query_result.Model_Path
             return project_model_path
 
     @staticmethod
@@ -626,6 +633,8 @@ class BaseModel:
         #                                               framework=self.framework,
         #                                               model_type=self.model_type,
         #                                               new_model_flag=True)
+
+        # Generate relative model path
         self.model_path_relative = self.generate_relative_model_path(
             model_name=self.name)
 
@@ -657,17 +666,93 @@ class BaseModel:
                 f"{e}: Failed to create new row in Models table for {self.name}")
             return False
 
-    def create_new_model_pipeline(self, label_map_string: str = None):
+    def update_model_table(self, model_type: str = "User Deep Learning Model Upload"):
+        self.model_type = model_type
+        update_model_table_SQL = """
+                UPDATE
+                    public.models
+                SET
+                    name = %s
+                    , description = %s
+                    , metrics = %s::jsonb
+                    , model_path = %s
+                    , model_type_id = (
+                        SELECT
+                            mt.id
+                        FROM
+                            public.model_type mt
+                        WHERE
+                            mt.name = %s) , framework_id = (
+                        SELECT
+                            f.id
+                        FROM
+                            public.framework f
+                        WHERE
+                            f.name = %s) , deployment_id = (
+                        SELECT
+                            dt.id
+                        FROM
+                            public.deployment_type dt
+                        WHERE
+                            dt.name = %s) , training_id = %s
+                WHERE
+                    id = %s
+                RETURNING
+                    id;
+                        
+                        """
+        # Generate relative model path
+        self.model_path_relative = self.generate_relative_model_path(
+            model_name=self.name)
+
+        if self.model_input_size:
+            self.metrics['metadata'] = self.model_input_size
+
+        # SERIALISE Python Dictionary to JSON string
+        if not isinstance(self.metrics, str):
+
+            metrics_json = json.dumps(self.metrics)
+        else:
+            metrics_json = self.metrics
+
+        update_model_table_vars = [self.name, self.desc, metrics_json, str(self.model_path_relative),
+                                   self.model_type, self.framework, self.deployment_type, self.training_id,self.id]
+
+        try:
+            query_return = db_fetchone(
+                update_model_table_SQL, conn, update_model_table_vars).id
+
+            assert self.id == query_return, f'Updated wrong Model of ID {query_return}, which should be {self.id}'
+
+            log_info(
+                f"Successfully updated New Training Model for {self.id} ")
+
+            return True
+
+        except Exception as e:
+            log_error(
+                f"{e}: Failed to update Models table for {self.name}")
+            return False
+
+    def create_new_model_pipeline(self, label_map_string: str = None) -> bool:
+        """Pipeline for new model upload creation
+        - Get respective model path -> Extract uploaded model to the model path -> Generate labelmap file if needed -> Create new row at `models` table
+        Args:
+            label_map_string (str, optional): Labelmap of type str. Defaults to None.
+
+        Returns:
+            bool: True if successful process, False otherwise
+        """
 
         with st.container():
             # get destination folder
             progress_bar = st.progress(0)
             self.model_type = "User Deep Learning Model Upload"
 
-            self.model_path = self.get_pt_user_model_path(model_path=self.name,
-                                                          framework=self.framework,
-                                                          model_type=self.model_type,
-                                                          new_model_flag=True)
+            self.model_path = self.get_pt_user_project_model_path(model_path=self.name,
+                                                                  framework=self.framework,
+                                                                  model_type=self.model_type,
+                                                                  new_model_flag=True)
             log_info(f"Model Path: {self.model_path}")
             # unpack
             progress_bar.progress(1 / 3)
@@ -695,6 +780,85 @@ class BaseModel:
 
         return True
 
+    def create_new_project_model_pipeline(self,
+                                          attached_model,
+                                          project_name: str,
+                                          training_name: str) -> bool:
+
+        with st.container():
+
+            # Ensure attached_model is type Model class
+            assert isinstance(
+                attached_model, Model), "attached_model must be type Model class"
+
+            # Get metrics, model_type, framework and deployment_type from attached_model
+            self.metrics = attached_model.metrics
+            self.model_type = attached_model.model_type
+            self.framework = attached_model.framework
+            self.deployment_type = attached_model.deployment_type
+
+            # get destination folder
+            self.model_type = 'Project Models'
+
+            self.model_path = self.get_pt_user_project_model_path(model_path=self.name,
+                                                                  framework=self.framework,
+                                                                  project_name=project_name,
+                                                                  training_name=training_name,
+                                                                  model_type=self.model_type,
+                                                                  new_model_flag=True)
+            log_info(f"Training Model Path: {str(self.model_path)}")
+
+            # Create New Model Folder NOTE:KIV-> Create before training
+            # log_info(
+            #     f"Creating Training Model folder at {str(self.model_path)}")
+            # create_folder_if_not_exist(self.model_path)
+
+            # Create new row in DB
+            log_info(f"Inserting Training Model into DB")
+            self.insert_new_model(model_type=self.model_type)
+            self.has_submitted = True
+
+        return True
+
+    def update_new_project_model_pipeline(self, attached_model,
+                                          project_name: str,
+                                          training_name: str) -> bool:
+
+        with st.container():
+
+            # Ensure attached_model is type Model class
+            assert isinstance(
+                attached_model, Model), "attached_model must be type Model class"
+
+            # Get metrics, model_type, framework and deployment_type from attached_model
+            self.metrics = attached_model.metrics
+            self.model_type = attached_model.model_type
+            self.framework = attached_model.framework
+            self.deployment_type = attached_model.deployment_type
+
+            # get destination folder
+            self.model_type = 'Project Models'
+
+            self.model_path = self.get_pt_user_project_model_path(model_path=self.name,
+                                                                  framework=self.framework,
+                                                                  project_name=project_name,
+                                                                  training_name=training_name,
+                                                                  model_type=self.model_type,
+                                                                  new_model_flag=True)
+            log_info(f"Training Model Path: {str(self.model_path)}")
+
+            # Create New Model Folder NOTE:KIV-> Create before training
+            # log_info(
+            #     f"Creating Training Model folder at {str(self.model_path)}")
+            # create_folder_if_not_exist(self.model_path)
+
+            # Create new row in DB
+            log_info(f"Updating Training Model into DB")
+            self.update_model_table(model_type=self.model_type)
+            self.has_submitted = True
+
+        return True
+
 
 class NewModel(BaseModel):
     def __init__(self, model_id: str = get_random_string(length=8)) -> None:
@@ -702,10 +866,27 @@ class NewModel(BaseModel):
         self.has_submitted: bool = False
         self.deployment_type: str = False
 
+# TODO TO be updated
     @staticmethod
-    def reset_new_model_page():
-        new_model_attributes = ["new_training", "new_training_name",
-                                   "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
+    def reset_model_upload_page():
+        """Reset session state attributes in user_model_upload pages,
+        """
+        new_model_attributes = ["model_upload", "labelmap",
+                                "generate_labelmap_flag",
+                                "model_upload_name",
+                                "model_upload_desc",
+                                "model_upload_deployment_type",
+                                "model_upload_framework",
+                                "model_upload_widget"]
+
+        reset_page_attributes(new_model_attributes)
+
+    @staticmethod
+    def reset_models_page():
+        """Reset session state attributes in user_model_upload pages,
+        """
+        new_model_attributes = ["training_model", "training_model_name",
+                                ]
 
         reset_page_attributes(new_model_attributes)
 
@@ -739,9 +920,9 @@ class Model(BaseModel):
 
         # ****************************** Get respective model path******************************
         if (model_type_constant == ModelType.PreTrained) or (model_type_constant == ModelType.UserUpload):
-            self.model_path = self.get_pt_user_model_path(self.model_path_relative,
-                                                          self.framework,
-                                                          self.model_type)
+            self.model_path = self.get_pt_user_project_model_path(model_path=self.model_path_relative,
+                                                                  framework=self.framework,
+                                                                  model_type=self.model_type)
         elif (model_type_constant == ModelType.ProjectTrained):
             self.model_path = self.get_project_model_path()
 
@@ -979,6 +1160,7 @@ class PreTrainedModel(BaseModel):
         return PT_model_list, column_names
 
 
+@st.cache(ttl=60)
 def query_all_models(for_data_table: bool = False, return_dict: bool = False):
 
     ID_string = "id" if for_data_table else "ID"
@@ -1051,6 +1233,7 @@ def query_all_models(for_data_table: bool = False, return_dict: bool = False):
     return models_tmp, column_names
 
 
+@st.cache(ttl=60)
 def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None, for_data_table: bool = False, return_dict: bool = False):
     """Query rows of models filtered by Deployment Type from 'models' table
 
