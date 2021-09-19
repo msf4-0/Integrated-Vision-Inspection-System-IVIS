@@ -1,8 +1,10 @@
 """ 
+
 Title: New Training InfoDataset
 Date: 3/9/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
 
 
 Copyright (C) 2021 Selangor Human Resource Development Centre
@@ -52,7 +54,9 @@ from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
+
 from training.training_management import NewTrainingPagination, NewTrainingSubmissionHandlers, TrainingPagination
+
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -66,7 +70,8 @@ chdir_root()
 
 
 def infodataset():
-
+    if 'new_training_place' not in session_state:
+        session_state.new_training_place={}
     # ************COLUMN PLACEHOLDERS *****************************************************
     st.write("___")
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])

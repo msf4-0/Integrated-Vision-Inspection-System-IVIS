@@ -242,7 +242,7 @@ def editor_config(project: Union[NewProject, Project]):
 
 
 def main():
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:

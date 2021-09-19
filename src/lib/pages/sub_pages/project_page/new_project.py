@@ -233,35 +233,37 @@ def new_project_entry_page():
     if "new_project_dataset_page" not in session_state:
         session_state.new_project_dataset_page = 0
 
-    with datasetcol2:
-        start = 10 * session_state.new_project_dataset_page
-        end = start + 10
+    # only show the DataFrame of datasets if there is already existing dataset created
+    if existing_dataset:
+        with datasetcol2:
+            start = 10 * session_state.new_project_dataset_page
+            end = start + 10
 
-        # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        df = create_dataframe(existing_dataset,
-                              column_names=dataset_table_column_names,
-                              date_time_format=True)
+            # >>>>>>>>>>PANDAS DATAFRAME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            df = create_dataframe(existing_dataset,
+                                  column_names=dataset_table_column_names,
+                                  date_time_format=True)
 
-        df_loc = df.loc[:, "ID":"Date/Time"]
-        df_slice = df_loc.iloc[start:end]
+            df_loc = df.loc[:, "ID":"Date/Time"]
+            df_slice = df_loc.iloc[start:end]
 
-        # GET color from active theme
-        df_row_highlight_color = get_df_row_highlight_color()
+            # GET color from active theme
+            df_row_highlight_color = get_df_row_highlight_color()
 
-        def highlight_row(x, selections):
+            def highlight_row(x, selections):
 
-            if x.Name in selections:
+                if x.Name in selections:
 
-                return [f'background-color: {df_row_highlight_color}'] * len(x)
-            else:
-                return ['background-color: '] * len(x)
+                    return [f'background-color: {df_row_highlight_color}'] * len(x)
+                else:
+                    return ['background-color: '] * len(x)
 
-        styler = df_slice.style.apply(
-            highlight_row, selections=session_state.new_project_dataset_chosen, axis=1)
+            styler = df_slice.style.apply(
+                highlight_row, selections=session_state.new_project_dataset_chosen, axis=1)
 
-        # >>>>DATAFRAME
-        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
-            [dict(selector='th', props=[('text-align', 'center')])]))
+            # >>>>DATAFRAME
+            st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+                [dict(selector='th', props=[('text-align', 'center')])]))
 
     # ******************* Left Column to show full list of dataset and selection *******************
 

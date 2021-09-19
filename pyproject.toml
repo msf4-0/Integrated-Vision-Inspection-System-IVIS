@@ -3,12 +3,20 @@ name = "integrated-vision-inspection-system"
 version = "0.1.0-alpha"
 description = "The Integrated Vision Inspection System is an open-source platform that aims to provide a low-code machine learning workflow that allows swift progression from data preparation to deployment and optimisation of the model."
 authors = ["zhenhao <50682966+rchuzh99@users.noreply.github.com>"]
+
+repository="https://github.com/msf4-0/Integrated-Vision-Inspection-System"
 license = "Apache-2.0"
+classifiers=[
+        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: Apache Software License',
+        'Operating System :: OS Independent',
+    ]
+
 
 [tool.poetry.dependencies]
 python = "~3.8"
 streamlit = "^0.88.0"
-tensorflow = "~2.5"
+tensorflow = "~2.5.0"
 psycopg2 = "^2.9.1"
 passlib = "^1.7.4"
 appdirs = "^1.4.4"
@@ -22,8 +30,14 @@ scipy = "^1.7.1"
 streamlit-webrtc = "^0.28.1"
 humanize = "^3.11.0"
 
+opencv-python = "~4.5.2"
+tensorflow-datasets = "^4.4.0"
+get-video-properties = "^0.1.1"
+
 [tool.poetry.dev-dependencies]
 psycopg2-binary = "^2.9.1"
+autopep8 = "^1.5.7"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

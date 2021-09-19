@@ -62,7 +62,8 @@ from data_manager.database_manager import init_connection
 
 conn = init_connection(**st.secrets["postgres"])
 
-
+# DEPRECATED IN FAVOUR OF 
+# https://github.com/msf4-0/Integrated-Vision-Inspection-System/blob/18a3f2107d2e5544bb50015b7c4e5bc94a906903/src/lib/data_manager/dataset_management.py#L192-L199
 def query_dataset_dir(project_id, conn=conn):
     """Query database to obtain path to dt
 
@@ -218,9 +219,9 @@ def dataset_partition(project_id, data_path, project_dir=Path.cwd(), a=0.9, b=0.
 
     return str(data_path), str(output_dir)
 
+
+# ****************************************************** DATA URL GENERATOR ********************************************************
 # PIL
-
-
 @st.cache
 def data_url_encoder_PIL(image: Image):
     """Load Image and generate Data URL in base64 bytes

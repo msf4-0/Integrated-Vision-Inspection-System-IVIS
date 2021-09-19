@@ -216,7 +216,7 @@ EVALUATION_TAGS = {
                               'Accuracy', 'Precision', 'Recall', 'FLOPS']
 }
 
-
+# TODO #17 Work on converter
 class ModelCompatibility(IntEnum):
     Compatible = 0
     MissingExtraFiles_ModelExists = 1

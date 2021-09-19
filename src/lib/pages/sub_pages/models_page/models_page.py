@@ -37,8 +37,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -55,7 +55,9 @@ else:
 # >>>> User-defined Modules >>>>
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import log_error, log_info  # logger
-from data_import.models_upload_module import model_uploader
+
+
+from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from data_manager.database_manager import init_connection
 from pages.sub_pages.models_page.models_subpages.user_model_upload import \
@@ -67,7 +69,7 @@ from training.training_management import (NewTraining, NewTrainingPagination,
                                           NewTrainingSubmissionHandlers,
                                           Training)
 from user.user_management import User
-
+from pages.sub_pages.models_page.models_subpages.user_model_upload import user_model_upload_page
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
@@ -180,6 +182,7 @@ def existing_models():
                    columns=existing_models_columns,
                    checkbox=False,
                    key='existing_models_table', on_change=instantiate_model)
+
     # ******************************* DATA TABLE *******************************
 
     # >>>> MAIN_COL2
@@ -248,6 +251,7 @@ def existing_models():
                     pass
 
 
+
 def index():
 
     chdir_root()  # change to root directory
@@ -285,10 +289,12 @@ def index():
             session_state.new_training_pagination = NewTrainingPagination.Model
 
         if 'new_training' not in session_state:
+
             session_state.new_training = NewTraining(training_id_tmp,
                                                      project=session_state.project)
             session_state.new_training.name = "My Tenth Training"
             session_state.new_training.deployment_type = "Object Detection with Bounding Boxes"
+
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
