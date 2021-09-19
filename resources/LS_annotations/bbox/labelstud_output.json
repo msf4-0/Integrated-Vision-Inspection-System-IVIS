@@ -1,0 +1,50 @@
+[
+  {
+    "id": 513,
+    "annotations": [
+      {
+        "id": 514,
+        "completed_by": {
+          "id": 1,
+          "email": "roxastan@hotmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "result": [
+          {
+            "original_width": 3024,
+            "original_height": 4032,
+            "image_rotation": 0,
+            "value": {
+              "x": 32.666666666666664,
+              "y": 35.5,
+              "width": 33.06666666666667,
+              "height": 23.999999999999996,
+              "rotation": 0,
+              "rectanglelabels": ["20"]
+            },
+            "id": "xn1uekklmW",
+            "from_name": "label",
+            "to_name": "image",
+            "type": "rectanglelabels"
+          }
+        ],
+        "was_cancelled": false,
+        "ground_truth": false,
+        "created_at": "2021-08-10T13:46:00.556275Z",
+        "updated_at": "2021-08-10T13:46:00.556275Z",
+        "lead_time": 7.221,
+        "prediction": {},
+        "result_count": 0,
+        "task": 513
+      }
+    ],
+    "predictions": [],
+    "file_upload": "IMG_3594_ZzEhZS2.jpg",
+    "data": { "image": "/data/upload/IMG_3594_ZzEhZS2.jpg" },
+    "meta": {},
+    "created_at": "2021-08-10T09:29:26.901013Z",
+    "updated_at": "2021-08-10T09:29:26.901013Z",
+    "project": 5
+  }
+]

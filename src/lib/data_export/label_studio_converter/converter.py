@@ -291,43 +291,19 @@ class Converter(object):
                         if item is not None:
                             yield item
 
-        if is_string:  # direct parse python dict
+        if isinstance(json_file, str):
             print("Enter string")
             data = json_file
-            # one task
-            if isinstance(data, Mapping):
-                print("Enter single")
-                for item in self.annotation_result_from_task(data):
-                    yield item
+            get_item(data)
 
-            # many tasks
-            elif isinstance(data, list):
-                print("Enter many")
-                for task in data:
-                    for item in self.annotation_result_from_task(task):
-                        if item is not None:
-                            yield item
-            print("Done")
-
-        else:
+        elif os.path.isfile(json_file):
             with io.open(json_file, encoding='utf8') as f:
                 data = json.load(f)
+            get_item(data)
 
-                # one task
-                if isinstance(data, Mapping):
-                    print("Enter single")
-
-                    for item in self.annotation_result_from_task(data):
-                        yield item
-
-                # many tasks
-                elif isinstance(data, list):
-                    print("Enter many")
-
-                    for task in data:
-                        for item in self.annotation_result_from_task(task):
-                            if item is not None:
-                                yield item
+        else:
+            raise ValueError(f"Incorrect JSON input type provided: {type(json_file)}"
+                             "Please provide a JSON string or JSON file.")
 
     def annotation_result_from_task(self, task):
         has_annotations = 'completions' in task or 'annotations' in task
@@ -356,6 +332,8 @@ class Converter(object):
 
             # get results only as output
             for r in result:
+                # TODO: change the value of "from_name" to "label" instead of "tag"
+                r["from_name"] = self._output_tags[0]
                 if 'from_name' in r and r['from_name'] in self._output_tags:
                     v = deepcopy(r['value'])
                     v['type'] = self._schema[r['from_name']]['type']
@@ -473,7 +451,7 @@ class Converter(object):
                 fout.write('\n')
 
 # ************************** ACCESSED **************************
-    def convert_to_coco(self, input_data, output_dir, output_image_dir=None, is_dir=True):
+    def convert_to_coco(self, input_data, output_dir, output_image_dir=None, is_dir=True, download_images=False):
         self._check_format(Format.COCO)
         ensure_dir(output_dir)
         output_file = os.path.join(output_dir, 'result.json')
@@ -494,14 +472,14 @@ class Converter(object):
                 continue
             image_path = item['input'][data_key]
 # TODO: Fix download path
-            # if not os.path.exists(image_path):
-            #     try:
-            #         image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
-            #                               return_relative_path=True, upload_dir=self.upload_dir)
-            #     except:
-            #         logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-            #             image_path=image_path, item=item
-            #         ), exc_info=True)
+            if download_images and not os.path.exists(image_path):
+                try:
+                    image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
+                                          return_relative_path=True, upload_dir=self.upload_dir)
+                except:
+                    logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+                        image_path=image_path, item=item
+                    ), exc_info=True)
 
             # concatentate results over all tag names
             labels = []
@@ -598,7 +576,7 @@ class Converter(object):
                 }
             }, fout, indent=2)
 
-    def convert_to_yolo(self, input_data, output_dir, output_image_dir=None, output_label_dir=None, is_dir=True):
+    def convert_to_yolo(self, input_data, output_dir, output_image_dir=None, output_label_dir=None, is_dir=True, download_images=False):
         self._check_format(Format.YOLO)
         ensure_dir(output_dir)
         notes_file = os.path.join(output_dir, 'notes.json')
@@ -626,14 +604,14 @@ class Converter(object):
             image_path = item['input'][data_key]
 
 # TODO: Fix download
-            # if not os.path.exists(image_path):
-            #     try:
-            #         image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
-            #                               return_relative_path=True, upload_dir=self.upload_dir)
-            #     except:
-            #         logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-            #             image_path=image_path, item=item
-            #         ), exc_info=True)
+            if download_images and not os.path.exists(image_path):
+                try:
+                    image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
+                                          return_relative_path=True, upload_dir=self.upload_dir)
+                except:
+                    logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+                        image_path=image_path, item=item
+                    ), exc_info=True)
 
             # concatentate results over all tag names
             labels = []
@@ -693,7 +671,7 @@ class Converter(object):
             }, fout, indent=2)
 
 # ************************** ACCESSED **************************
-    def convert_to_voc(self, input_data, output_dir, output_image_dir=None, is_dir=True):
+    def convert_to_voc(self, input_data, output_dir, output_image_dir=None, is_dir=True, download_images=False):
 
         ensure_dir(output_dir)
         if output_image_dir is not None:
@@ -722,15 +700,22 @@ class Converter(object):
             annotations_dir = os.path.join(output_dir, 'Annotations')
             if not os.path.exists(annotations_dir):
                 os.makedirs(annotations_dir)
+
+            if os.path.exists(image_path):
+                _, _, channels = get_image_size_and_channels(image_path)
+            else:
+                # default channels to 3 if cannot get any image
+                channels = 3
+
 # TODO: Fix download path
-            if not os.path.exists(image_path):
+            if download_images and not os.path.exists(image_path):
                 try:
                     image_path = download(
                         image_path, output_image_dir, project_dir=self.project_dir,
                         upload_dir=self.upload_dir, return_relative_path=True)
                 except:
-                    # logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-                    #     image_path=image_path, item=item), exc_info=True)
+                    logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+                        image_path=image_path, item=item), exc_info=True)
                     # On error, use default number of channels
                     channels = 3
                 else:
@@ -767,8 +752,12 @@ class Converter(object):
             create_child_node(doc, 'annotation', 'COCO2017', source_node)
             create_child_node(doc, 'image', 'flickr', source_node)
             create_child_node(doc, 'flickrid', 'NULL', source_node)
-            create_child_node(doc, 'annotator', item['completed_by'].get(
-                'email', 'none'), source_node)
+
+# - WORKAROUND for now by commenting out this, thus no "email" will be generated
+            # create_child_node(
+            #     doc, "annotator", item["completed_by"].get("email", "none"), source_node
+            # )
+
             root_node.appendChild(source_node)
 
             owner_node = doc.createElement('owner')

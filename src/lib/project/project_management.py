@@ -24,9 +24,10 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
+import json
 from pathlib import Path
 from collections import namedtuple
-from typing import NamedTuple, Union, List, Dict
+from typing import NamedTuple, Tuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
@@ -48,7 +49,7 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root, PROJECT_DIR
+from path_desc import chdir_root, PROJECT_DIR, DATASET_DIR
 from core.utils.log import log_info, log_error  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist
@@ -57,7 +58,7 @@ from core.utils.form_manager import check_if_exists, check_if_field_empty, reset
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
 from data_editor.editor_management import Editor
-from annotation.annotation_management import NewTask
+from annotation.annotation_management import Annotations, NewTask, Task, get_task_row
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -224,7 +225,7 @@ class BaseProject:
     def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str):
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
-            context, field_placeholder,name_key, check_if_exists)
+            context, field_placeholder, name_key, check_if_exists)
         return empty_fields
 
 
@@ -235,10 +236,74 @@ class Project(BaseProject):
         self.datasets, self.column_names = self.query_project_dataset_list()
         self.dataset_dict = self.get_dataset_name_list()
         self.data_name_list = self.get_data_name_list()
+        # `query_all_fields` creates `self.name`, `self.desc`, `self.deployment_type`, `self.deployment_id`
         self.query_all_fields()
         self.project_path = self.get_project_path(self.name)
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
+
+    def export_tasks(self, export_format: str):
+        """
+        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory
+        """
+        label_json = self.generate_label_json()
+
+    def generate_label_json(self):
+        """
+        Generate the output JSON with the format following Label Studio.
+        Refer to 'resources\LS_annotations\bbox\labelstud_output.json' file as reference.
+        """
+        all_annots, col_names = self.query_annotations(self.id)
+        # the col_names can be changed if necessary
+        df = pd.DataFrame(all_annots, columns=col_names)
+
+        def get_dataset_path(image_path):
+            full_image_path = str((DATASET_DIR / image_path).resolve())
+            return {"image": full_image_path}
+
+        def create_annotations(result):
+            return [{"result": result}]
+
+        # create the format required to use Label Studio converter to export
+        df['data'] = df['image_path'].apply(get_dataset_path)
+        df['annotations'] = df['result'].apply(create_annotations)
+        # drop the columns not necessary for converting
+        df.drop(columns=['image_path', 'result'], inplace=True)
+
+        # convert to json format to export to the DATASET_DIR and use for conversion
+        result = df.to_json(orient="records")
+        project_path = self.get_project_path(self.name)
+        json_path = project_path / f"project-{self.id}.json"
+        with open(json_path, "w") as f:
+            parsed = json.loads(result)
+            log_info(f"DUMPING TASK JSON to {json_path}")
+            json.dump(parsed, f, indent=2)
+        return json.dumps(parsed)
+
+    @staticmethod
+    def query_annotations(project_id: int) -> Tuple[List[Dict], List]:
+        sql_query = """
+            SELECT a.id, a.result AS result, CONCAT_WS('/', d.name, t.name) AS image_path
+            FROM annotations a
+                    LEFT JOIN task t on a.id = t.annotation_id
+                    LEFT JOIN dataset d on t.dataset_id = d.id
+            WHERE a.project_id = %s
+            ORDER BY id;
+        """
+        query_vars = [project_id]
+        log_info(
+            f"Querying annotations from database for Project ID: {project_id}")
+
+        try:
+            all_annots, column_names = db_fetchall(
+                sql_query, conn, query_vars, fetch_col_name=True, return_dict=False)
+
+        except Exception as e:
+            log_error(f"{e}: No annotation found for Project {project_id} ")
+            all_annots = []
+            column_names = []
+
+        return all_annots, column_names
 
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
