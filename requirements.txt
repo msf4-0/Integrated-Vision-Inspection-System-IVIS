@@ -301,6 +301,8 @@ future==0.18.2; python_version >= "3.6" and python_full_version < "3.0.0" or pyt
 gast==0.4.0; python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" \
     --hash=sha256:b7adcdd5adbebf1adf17378da5ba3f543684dbec47b1cda1f3997e573cd542c4 \
     --hash=sha256:40feb7b8b8434785585ab224d1568b857edb18297e5a3047f1ba012bc83b42c1
+get-video-properties==0.1.1 \
+    --hash=sha256:04d4f478a5211917e2a7e87ddfcb1c17734cddf8374494c3993bf825b7ad4192
 gitdb==4.0.7; python_version >= "3.7" \
     --hash=sha256:6c4cc71933456991da20917998acbe6cf4fb41eeaab7d6d67fbc05ecd4c865b0 \
     --hash=sha256:96bf5c08b157a666fec41129e6d327235284cca4c81e92109260f353ba138005
