@@ -154,6 +154,7 @@ def index():
         (session_state.new_training_pagination + 1) / 4)
     new_training_page[session_state.new_training_pagination]()
 
+# TODO REMOVE
 # # ************************* NEW TRAINING SECTION SUBMISSION HANDLERS **********************
 #     if 'new_training_submission_handlers' not in session_state:
 #         session_state.new_training_submission_handlers = {

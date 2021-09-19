@@ -24,12 +24,13 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
-from pathlib import Path
 from enum import IntEnum
+from pathlib import Path
 from time import sleep
+
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -40,23 +41,26 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-# TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
+
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
-from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
-from data_manager.database_manager import init_connection
 
+from annotation.annotation_management import (Annotations, LabellingPagination,
+                                              reset_editor_page)
+from core.utils.log import log_error, log_info  # logger
 from data_manager.data_table_component.data_table import data_table
-from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, ProjectPermission, query_all_projects
-from annotation.annotation_management import Annotations, LabellingPagination,reset_editor_page
+from data_manager.database_manager import init_connection
+from path_desc import chdir_root
+from project.project_management import (NewProject, NewProjectPagination,
+                                        Project, ProjectPagination,
+                                        ProjectPermission, query_all_projects)
 from user.user_management import User
+
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
-from pages.sub_pages.project_page import new_project, existing_project
+from pages.sub_pages.project_page import existing_project, new_project
+
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -65,6 +69,7 @@ PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
 # <<<< Variable Declaration <<<<
 chdir_root()  # change to root directory
 
+# TODO: #40 REMOVE SIDEBAR AFTER INTEGRATING INTO APP.PY
 with st.sidebar.container():
     st.image("resources/MSF-logo.gif", use_column_width=True)
 
