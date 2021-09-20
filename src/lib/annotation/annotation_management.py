@@ -102,6 +102,7 @@ class LabellingPagination(IntEnum):
     Queue = 2
     Editor = 3
     Performance = 4
+    EditorConfig = 5
 
     def __str__(self):
         return self.name

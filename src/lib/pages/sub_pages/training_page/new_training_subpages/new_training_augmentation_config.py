@@ -52,6 +52,7 @@ from data_manager.database_manager import init_connection
 
 
 def augmentation_configuration():
+    log_info("NAVIGATOR: At new_training_augmentation_config.py")
     st.write("AUGMENTATION CONFIG")
 
 

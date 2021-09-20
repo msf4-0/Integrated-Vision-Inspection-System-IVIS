@@ -32,8 +32,8 @@ from streamlit import session_state as session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -73,7 +73,7 @@ def index():
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("At Training INDEX")
+        log_info("[NAVIGATOR] At new_training.py INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -84,7 +84,7 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 43
+        project_id_tmp = 2
         log_info(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -237,6 +237,9 @@ def index():
     #                   on_click=to_new_training_next_page)
     log_info(
         f" New Training Pagination: {NewTrainingPagination(session_state.new_training_pagination)}")
+
+    # ! DEBUGGING PURPOSE, REMOVE LATER
+    st.write("vars(session_state.new_training) = ")
     st.write(vars(session_state.new_training))
 
 

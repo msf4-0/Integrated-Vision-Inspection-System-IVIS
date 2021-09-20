@@ -56,6 +56,7 @@ from data_manager.database_manager import init_connection
 
 
 def training_configuration():
+    log_info("[NAVIGATOR] At new_training_training_config.py")
     st.write("TRAINING CONFIG")
 
 

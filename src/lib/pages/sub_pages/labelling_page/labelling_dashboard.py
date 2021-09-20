@@ -32,14 +32,13 @@ from typing import List
 
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state 
 
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-from data_manager.data_table_component.data_table import data_table
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -61,6 +60,7 @@ from path_desc import chdir_root
 from project.project_management import (ExistingProjectPagination, Project,
                                         ProjectPermission)
 from annotation.annotation_management import Task
+from data_manager.data_table_component.data_table import data_table
 
 # NOTE Temp
 from user.user_management import User
@@ -221,7 +221,7 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
 def index():
 
-    RELEASE = True
+    RELEASE = False
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -256,6 +256,7 @@ def index():
         # ****************************** HEADER **********************************************
 
     st.write(f"## **Labelling Section:**")
+    st.write("**Filter:**")
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
@@ -268,6 +269,7 @@ def index():
         LabellingPagination.Labelled: labelled_table,
         LabellingPagination.Queue: no_labelled,
         LabellingPagination.Editor: editor,
+        LabellingPagination.EditorConfig: editor_config,
         LabellingPagination.Performance: None
     }
 
@@ -298,6 +300,10 @@ def index():
     with start_labelling_button_col:
         st.button("Start Labelling", key='start_labelling_button',
                   on_click=to_labelling_section, args=(LabellingPagination.Editor,))
+
+    st.button("Edit Editor/Labeling Config", key='edit_labelling_config',
+              on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
+
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
     all_task, all_task_column_names = Task.query_all_task(project_id,
@@ -314,6 +320,10 @@ def index():
         #     session_state.new_annotation_flag = 0
         labelling_page[session_state.labelling_pagination](
             session_state.data_selection)
+
+    elif session_state.labelling_pagination == LabellingPagination.EditorConfig:
+        labelling_page[session_state.labelling_pagination](
+            session_state.project)
 
     else:
         labelling_page[session_state.labelling_pagination](

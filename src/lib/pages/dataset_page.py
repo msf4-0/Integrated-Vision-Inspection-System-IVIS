@@ -475,8 +475,12 @@ def dashboard():
         data_df = pd.DataFrame.from_dict(session_state.dataset.data_name_list)
         # ****** EXTRA *******************************
 
-        data_selection = data_table(
-            session_state.dataset.data_name_list, dataset_columns, checkbox=session_state.checkbox, key="data_table")
+        # initialize data_selection to check whether user has clicked any row of the Data Table
+        data_selection = None
+        # skip showing Data Table if the Dataset is empty (i.e. Dataset with 0 image)
+        if not data_df.empty:
+            data_selection = data_table(
+                session_state.dataset.data_name_list, dataset_columns, checkbox=session_state.checkbox, key="data_table")
 
         with st.expander("Append dataset", expanded=False):
             data_uploader(session_state.dataset)
