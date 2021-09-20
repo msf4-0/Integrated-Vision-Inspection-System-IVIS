@@ -35,8 +35,6 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
 
-from core.utils.file_handler import file_archive_handler
-
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -318,15 +316,8 @@ def index():
 
     def download_export_tasks():
         with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
-            session_state.project.export_tasks()
-            export_path = session_state.project.get_export_path()
-            filename_no_ext = export_path.parent.name
-            file_archive_handler(filename_no_ext, export_path, ".zip")
-            zip_filename = f"{filename_no_ext}.zip"
-            zip_filepath = export_path.parent / zip_filename
-
-            target_path = Path.home() / "Downloads" / zip_filename
-            shutil.move(zip_filepath, target_path)
+            target_path = session_state.project.download_tasks(
+                return_target_path=True)
             log_info(f"Zipfile created at: {target_path}")
             session_state['archive_success'] = target_path
 

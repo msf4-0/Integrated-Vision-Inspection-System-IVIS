@@ -54,7 +54,7 @@ else:
 from path_desc import PROJECT_DIR, chdir_root, DATASET_DIR
 from core.utils.log import log_info, log_error, log_warning  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
-from core.utils.file_handler import create_folder_if_not_exist
+from core.utils.file_handler import create_folder_if_not_exist, file_archive_handler
 from core.utils.helper import get_directory_name, create_dataframe, dataframe2dict
 from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from data_manager.dataset_management import Dataset, get_dataset_name_list
@@ -244,6 +244,20 @@ class Project(BaseProject):
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
 
+    def download_tasks(self, return_target_path: bool = True) -> Union[None, Path]:
+        """Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder"""
+        self.export_tasks()
+        export_path = self.get_export_path()
+        filename_no_ext = export_path.parent.name
+        file_archive_handler(filename_no_ext, export_path, ".zip")
+        zip_filename = f"{filename_no_ext}.zip"
+        zip_filepath = export_path.parent / zip_filename
+
+        target_path = Path.home() / "Downloads" / zip_filename
+        shutil.move(zip_filepath, target_path)
+        if return_target_path:
+            return target_path
+
     def export_tasks(self):
         """
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory.
@@ -290,7 +304,7 @@ class Project(BaseProject):
             converter.convert_to_coco(
                 json_path, output_dir=output_dir, is_dir=False)
 
-    def get_export_path(self):
+    def get_export_path(self) -> Path:
         """Get the path to the exported images and annotations"""
         project_path = self.get_project_path(self.name)
         output_dir = project_path / "export"
