@@ -440,7 +440,7 @@ class BaseTraining:
 
         partition_ratio_json = json.dumps(self.partition_ratio, indent=4)
         insert_training_info_vars = [self.name, self.desc, partition_ratio_json,
-                                     self.id, self.desc, partition_ratio_json]
+                                     self.project_id, self.desc, partition_ratio_json]
 
         try:
             query_return = db_fetchone(insert_training_info_SQL,

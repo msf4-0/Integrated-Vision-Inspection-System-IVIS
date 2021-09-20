@@ -74,7 +74,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-            }
+        }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -96,22 +96,13 @@ def editor_config(project: Union[NewProject, Project]):
     st.write("# Editor Config")
     st.markdown("___")
 
-    # moved editor config to above because there seems to be a huge empty space under the
-    #  Label Studio Editor
-    with st.expander('Editor Config', expanded=False):
-        config2 = project.editor.to_xml_string(
-            pretty=True)
-        st.code(config2, language='xml')
-
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # >>>> MAIN COLUMNS
     col1, col2 = st.columns([1, 2])
 
     # >>>> Add 'save' button
-    # ! Moved 'save' button to above because there seems to be a huge empty space below
-    #  Label Studio Editor
-    # save_col1, save_col2 = st.columns([1, 2])
+    save_col1, save_col2 = st.columns([1, 2])
 
     # >>>> To display variables during dev
     # lowercol1, lowercol2 = st.columns([1, 2])
@@ -203,23 +194,24 @@ def editor_config(project: Union[NewProject, Project]):
         st.multiselect('Labels', options=project.editor.labels,
                        key='labels_select', on_change=update_labels)
 
-        def save_editor_config():
-            log_info("Updating Editor Config......")
+        with save_col1:
+            def save_editor_config():
+                log_info("Updating Editor Config......")
 
-            if project.editor.update_editor_config():
+                if project.editor.update_editor_config():
 
-                # >>>> Display success message
-                update_success_place = st.empty()
-                update_success_place.success(
-                    f"Successfully updated editor configurations")
-                sleep(0.7)
-                update_success_place.empty()
+                    # >>>> Display success message
+                    update_success_place = st.empty()
+                    update_success_place.success(
+                        f"Successfully updated editor configurations")
+                    sleep(0.7)
+                    update_success_place.empty()
 
-                if 'editor' in session_state:
-                    del project.editor
+                    if 'editor' in session_state:
+                        del project.editor
 
-        st.button('Save', key='save_editor_config',
-                  on_click=save_editor_config)
+            st.button('Save', key='save_editor_config',
+                      on_click=save_editor_config)
 
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
     # with lowercol1:
@@ -236,10 +228,16 @@ def editor_config(project: Union[NewProject, Project]):
     #     st.write("Editor Class")
     #     st.write(vars(project.editor))
 
+    with st.expander('Editor Config', expanded=False):
+        config2 = project.editor.to_xml_string(
+            pretty=True)
+        st.code(config2, language='xml')
+
     with col2:
         # st.text_input("Check column", key="column2")
         labelstudio_editor(config2, interfaces, user,
                            task, key='editor_config')
+
 
 def main():
     RELEASE = True
