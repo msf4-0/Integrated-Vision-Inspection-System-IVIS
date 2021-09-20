@@ -9,29 +9,48 @@ import sys
 
 FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
 DATEFMT = '%d-%b-%y %H:%M:%S'
+LOG_FILE = 'test.log'
 
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.INFO)
-logging.basicConfig(format=FORMAT, level=logging.INFO,
-                    stream=sys.stdout, datefmt=DATEFMT)
+# create logger
+logger = logging.getLogger(__name__)
+# set log level for all handlers to debug
+logger.setLevel(logging.DEBUG)
 
-log = logging.getLogger()
+# create formatter
+formatter = logging.Formatter(FORMAT, datefmt=DATEFMT)
+
+# create console handler and setup level & formatter
+consoleHandler = logging.StreamHandler()
+consoleHandler.setLevel(logging.DEBUG)
+consoleHandler.setFormatter(formatter)
+logger.addHandler(consoleHandler)
+
+# create file handler and setup for logger
+# fileHandler = logging.FileHandler(LOG_FILE)
+# fileHandler.setLevel(logging.DEBUG)
+# fileHandler.setFormatter(formatter)
+# logger.addHandler(fileHandler)
+
+# must set this to False to make sure that child logger does not propagate
+#  its message to the root logger
+logger.propagate = False
 
 
 def std_log(msg):
-    log.info(msg)
+    logger.info(msg)
 
 
 def log_debug(msg):
-    log.debug(msg)
+    logger.debug(msg)
 
 
 def log_info(msg):
-    log.info(msg)
+    logger.info(msg)
 
 
 def log_error(msg):
-    log.error(msg)
+    logger.error(msg)
 
 
 def log_warning(msg):
-    log.warning(msg)
+    logger.warning(msg)

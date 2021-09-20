@@ -698,7 +698,7 @@ def create_relation_database(conn):
             /* FK to 'models' table for models attached to current training */
             training_param jsonb
             , augmentation jsonb
-            , partition_size real
+            , partition_ratio jsonb
             , is_started boolean NOT NULL DEFAULT FALSE
             , progress jsonb
             ,

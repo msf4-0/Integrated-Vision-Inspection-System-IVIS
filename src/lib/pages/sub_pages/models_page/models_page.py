@@ -79,7 +79,7 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 def existing_models():
-    log_info(f"At Existing Model Page")
+    log_info("[NAVIGATOR] At `models_page.py` `existing_models` function")
     existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
         for_data_table=True,
         return_dict=True,

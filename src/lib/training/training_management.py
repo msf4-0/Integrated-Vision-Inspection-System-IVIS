@@ -129,6 +129,7 @@ class DatasetPath(NamedTuple):
     test: Path
     # <<<< Variable Declaration <<<<
 
+
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
@@ -384,16 +385,16 @@ class BaseTraining:
             SET
                 name = %s
                 , description = %s
-                , partition_ratio = %s
+                , partition_ratio = %s::JSONB
             WHERE
                 id = %s
             RETURNING
                 id;
         
                                 """
-        partition_size_json = json.dumps(self.partition_ratio, indent=4)
+        partition_ratio_json = json.dumps(self.partition_ratio, indent=4)
         update_training_info_vars = [self.name,
-                                     self.desc, partition_size_json, self.id]
+                                     self.desc, partition_ratio_json, self.id]
 
         query_return = db_fetchone(update_training_info_SQL,
                                    conn,
@@ -432,14 +433,14 @@ class BaseTraining:
                     name)
                     DO UPDATE SET
                         description = %s
-                        , partition_ratio = %s
+                        , partition_ratio = %s::JSONB
                     RETURNING
                         id;
                                     """
 
-        partition_size_json = json.dumps(self.partition_ratio, indent=4)
-        insert_training_info_vars = [
-            self.name, self.desc, partition_size_json, self.project_id, self.desc, partition_size_json, ]
+        partition_ratio_json = json.dumps(self.partition_ratio, indent=4)
+        insert_training_info_vars = [self.name, self.desc, partition_ratio_json,
+                                     self.project_id, self.desc, partition_ratio_json]
 
         try:
             query_return = db_fetchone(insert_training_info_SQL,
@@ -779,7 +780,6 @@ class NewTraining(BaseTraining):
     #     return self.id
 
 # TODO #133 Add New Training Reset
-
 
     @staticmethod
     def reset_new_training_page():

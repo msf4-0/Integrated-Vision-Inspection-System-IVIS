@@ -47,7 +47,7 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import log_error, log_info, log_debug  # logger
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from pages.sub_pages.training_page import new_training
@@ -108,8 +108,6 @@ def dashboard():
     create_new_training_button_col1.button(
         "Create New Training Session", key='create_new_training_from_training_dashboard',
         on_click=to_new_training_page, help="Create a new training session")
-
-
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
@@ -184,7 +182,7 @@ def dashboard():
 
 def index():
     RELEASE = False
-    log_info("At Training Dashboard INDEX")
+    log_info("[NAVIGATOR] At training_dashboard.py INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
 
@@ -197,7 +195,7 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 43
+        project_id_tmp = 2
         log_info(f"Entering Project {project_id_tmp}")
 
         session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -243,6 +241,10 @@ def index():
 
     else:
         training_dashboard_back_button_place.empty()
+
+    # ! DEBUGGING PURPOSE, REMOVE LATER
+    st.write("session_state = ")
+    st.write(session_state)
 
     log_info(
         f"Entering Training Page:{session_state.training_pagination}")
