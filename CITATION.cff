@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Chu"
   given-names: "Zhen Hao"
-- family-names: ""
+- family-names: "Anson"
   given-names: "Anson"
 title: "Integrated Vision Inspection System"
 version: 0.1.0 
