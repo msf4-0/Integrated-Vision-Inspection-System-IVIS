@@ -270,9 +270,7 @@ class Project(BaseProject):
         # path to the config used by Label Studio, in this project we are only using computer vision configs
         xml_path = LIB_PATH / Path("annotation", label_type, "config.xml")
         # initialize a Label Studio Converter to convert to specific output formats
-        # set `download_resources` to True to download images to the
-        converter = Converter(config=str(xml_path), project_dir=None,
-                              download_resources=True)
+        converter = Converter(config=str(xml_path))
 
         if self.deployment_type == "Image Classification":
             # TODO: probably use CSV, then split into folders based on class names
@@ -283,20 +281,14 @@ class Project(BaseProject):
             log_info(
                 f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             converter.convert_to_voc(
-                json_path,
-                output_dir=output_dir,
-                is_dir=False,
-            )
+                json_path, output_dir=output_dir, is_dir=False)
 
         if self.deployment_type == "Semantic Segmentation with Polygons":
             log_info(
                 f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             # using COCO JSON format for segmentation
             converter.convert_to_coco(
-                json_path,
-                output_dir=output_dir,
-                is_dir=False,
-            )
+                json_path, output_dir=output_dir, is_dir=False)
 
     def get_export_path(self):
         """Get the path to the exported images and annotations"""

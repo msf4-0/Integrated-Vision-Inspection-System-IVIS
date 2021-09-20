@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import shutil
 import sys
 from copy import deepcopy
 from enum import IntEnum
@@ -33,6 +34,8 @@ from typing import List
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
+
+from core.utils.file_handler import file_archive_handler
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -265,6 +268,7 @@ def index():
 
     st.write("**Action:**")
     edit_labeling_config_col, export_labels_col, _ = st.columns([1, 1, 3])
+    archive_success_message = st.empty()
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     labelling_page = {
@@ -282,6 +286,10 @@ def index():
     if 'data_selection' not in session_state:
         # state store for Data Table
         session_state.data_selection = []
+    if 'archive_success' not in session_state:
+        # to check whether exported zipfile successfully
+        session_state.archive_success = False
+
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     def to_labelling_section(section_name: IntEnum):
@@ -308,9 +316,27 @@ def index():
         st.button("Edit Editor/Labeling Config", key='edit_labelling_config_button',
                   on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
 
+    def download_export_tasks():
+        with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
+            session_state.project.export_tasks()
+            export_path = session_state.project.get_export_path()
+            filename_no_ext = export_path.parent.name
+            file_archive_handler(filename_no_ext, export_path, ".zip")
+            zip_filename = f"{filename_no_ext}.zip"
+            zip_filepath = export_path.parent / zip_filename
+
+            target_path = Path.home() / "Downloads" / zip_filename
+            shutil.move(zip_filepath, target_path)
+            log_info(f"Zipfile created at: {target_path}")
+            session_state['archive_success'] = target_path
+
     with export_labels_col:
         st.button("Export Labelled Tasks", key='export_labels_button',
-                  on_click=session_state.project.export_tasks)
+                  on_click=download_export_tasks)
+
+    if session_state['archive_success']:
+        archive_success_message.success(
+            f"Zipfile created successfully at **{session_state['archive_success']}**")
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
@@ -320,6 +346,10 @@ def index():
     task_queue_dict = Task.get_labelled_task(all_task, False)
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     log_info(f"Navigator: {session_state.labelling_pagination}")
+
+    if session_state.labelling_pagination != LabellingPagination.Editor:
+        # reset the archive success message after go to other pages
+        session_state.archive_success = False
 
     if session_state.labelling_pagination == LabellingPagination.Editor:
         # if "new_annotation_flag" not in session_state:
