@@ -24,7 +24,7 @@ _RELEASE = True
 if not _RELEASE:
     _component_func = components.declare_component(
         "label_studio_editor",
-        url="http://localhost:3001",
+        url="http://localhost:3000",
     )
 else:
     parent_dir = os.path.dirname(os.path.abspath(__file__))
