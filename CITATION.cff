@@ -3,12 +3,8 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Chu"
   given-names: "Zhen Hao"
-
 - family-names: ""
   given-names: "Anson"
-
 title: "Integrated Vision Inspection System"
-version: 0.1.0
-doi: 
-date-released: 
+version: 0.1.0 
 url: "https://github.com/msf4-0/Integrated-Vision-Inspection-System"
