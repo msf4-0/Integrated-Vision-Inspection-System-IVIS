@@ -248,6 +248,7 @@ class Project(BaseProject):
         """
         Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder.
         Or you may also pass in a directory to the `target_path` parameter to move the file there.
+        If `return_original_path` is passed, this will only return the path to where the zipfile is created. 
         """
         self.export_tasks()
         export_path = self.get_export_path()

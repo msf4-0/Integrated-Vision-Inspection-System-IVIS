@@ -328,32 +328,37 @@ def index():
                 return_original_path=True)
             session_state['zipfile_path'] = zipfile_path
             log_info(f"Zipfile created at: {zipfile_path}")
-
-            # - commenting out this line in case we are only deploying for local machine,
-            # -  to show message to the user about the "Downloads" folder path
-            # session_state['archive_success'] = zipfile_path
+            session_state['archive_success'] = zipfile_path
 
     with export_labels_col:
         st.button("Export Labelled Tasks", key='export_labels_button',
                   on_click=download_export_tasks)
 
+    def reset_zipfile_state():
+        # clear out the `download_button` after the user has clicked it
+        session_state['zipfile_path'] = None
+
     with download_task_col:
         zipfile_path = session_state.get('zipfile_path')
         if zipfile_path is not None and zipfile_path.exists():
             with st.spinner("Creating the Zipfile button to download ... This may take awhile ..."):
-                sleep(5)
                 with open(zipfile_path, "rb") as fp:
                     st.download_button(
                         label="Download ZIP",
                         data=fp,
                         file_name="images_annotations.zip",
                         mime="application/zip",
-                        key="download_tasks_btn"
+                        key="download_tasks_btn",
+                        on_click=reset_zipfile_state,
                     )
 
     if session_state['archive_success']:
+        # - commenting out this line in case we are only deploying for local machine,
+        # - this is to show message to the user about the "Downloads" folder path
+        # archive_success_message.success(
+        #     f"Zipfile created successfully at **{session_state['archive_success']}**")
         archive_success_message.success(
-            f"Zipfile created successfully at **{session_state['archive_success']}**")
+            f"Zipfile created successfully, you may download it by pressing the 'Download ZIP' button")
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
