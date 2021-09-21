@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import os
 import shutil
 import sys
 import json
@@ -288,29 +289,46 @@ class Project(BaseProject):
                 f"[INFO] Removing existing exported directory: {output_dir}")
             shutil.rmtree(output_dir)
 
-        # the keys are from the self.deployment_name stored in Database
-        # the values are based on the directory names in the "annotation" folder
-        annotationType_dict = {"Image Classification": 'image-classification', "Object Detection with Bounding Boxes": 'object-detection-bbox',
-                               "Semantic Segmentation with Polygons": 'semantic-segmentation-mask'}
-        label_type = annotationType_dict[self.deployment_type]
-
-        # path to the config used by Label Studio, in this project we are only using computer vision configs
-        xml_path = LIB_PATH / Path("annotation", label_type, "config.xml")
         # initialize a Label Studio Converter to convert to specific output formats
-        converter = Converter(config=str(xml_path))
+        # the `editor.editor_config` contains the current project's config in XML string format
+        #  but need to replace the remove this line of encoding description text to work
+        config_xml = self.editor.editor_config.replace(
+            r'<?xml version="1.0" encoding="utf-8"?>', '')
+        converter = Converter(config=config_xml)
 
         if self.deployment_type == "Image Classification":
-            # TODO: probably use CSV, then split into folders based on class names
-            pass
+            converter.convert_to_csv(
+                json_path,
+                output_dir=output_dir,
+                is_dir=False,
+            )
 
-        if self.deployment_type == "Object Detection with Bounding Boxes":
+            csv_path = output_dir / 'result.csv'
+            df = pd.read_csv(csv_path)
+
+            project_img_path = output_dir / "images"
+            unique_labels = df['label'].unique()
+            for label in unique_labels:
+                class_path = project_img_path / label
+                os.makedirs(class_path)
+
+            def copy_images(image_path: Path, label: str):
+                class_path = project_img_path / label
+                shutil.copy2(image_path, class_path)
+
+            for row in df.values:
+                image_path = Path(row[0])   # first row for image_path
+                label = str(row[2])         # third row for label name
+                copy_images(image_path, label)
+
+        elif self.deployment_type == "Object Detection with Bounding Boxes":
             # using Pascal VOC XML format for TensorFlow Object Detection API
             log_info(
                 f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             converter.convert_to_voc(
                 json_path, output_dir=output_dir, is_dir=False)
 
-        if self.deployment_type == "Semantic Segmentation with Polygons":
+        elif self.deployment_type == "Semantic Segmentation with Polygons":
             log_info(
                 f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             # using COCO JSON format for segmentation

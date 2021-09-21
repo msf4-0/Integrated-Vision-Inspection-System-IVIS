@@ -448,6 +448,7 @@ class Converter(object):
             output_image_dir = os.path.join(output_dir, 'images')
             os.makedirs(output_image_dir, exist_ok=True)
         images, categories, annotations = [], [], []
+        # category_name_to_id = {}
         categories, category_name_to_id = self._get_labels()
         data_key = self._data_keys[0]
         item_iterator = self.iter_from_dir(

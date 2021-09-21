@@ -134,14 +134,11 @@ all_task_columns = [
 
 ]
 
-if 'zipfile_path' not in session_state:
-    # initialize the path to the zipfile for images & annotations
-    session_state['zipfile_path'] = None
-
-
 # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
 # ************************* TO LABELLING CALLBACK ***********************************
+
+
 def to_labelling_editor_page(section_enum: IntEnum):
     labelling_section_data_table_dict = {
         LabellingPagination.AllTask: 'all_task_table_key',
@@ -264,12 +261,12 @@ def index():
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
-    filter_msg_col, all_task_button_col, labelled_task_button_col, queue_button_col, _ = st.columns([
-        0.5, 1, 2, 2, 3])
+    filter_msg_col, _, all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _ = st.columns(
+        [0.5, 0.5, 1.5, 0.5, 2, 0.5, 2, 3])
     filter_msg_col.markdown("**Filter:**")
 
-    action_msg_col, start_labelling_button_col, edit_labeling_config_col, export_labels_col, download_task_col, _ = st.columns(
-        [0.5, 1, 2, 2, 2, 1])
+    action_msg_col, _, start_labelling_button_col, _, edit_labeling_config_col, _, export_labels_col, _, download_task_col, _ = st.columns(
+        [0.5, 0.5, 1.5, 0.5, 2, 0.5, 2, 0.5, 2, 0.5])
     action_msg_col.markdown("**Action:**")
 
     archive_success_message = st.empty()
@@ -293,6 +290,9 @@ def index():
     if 'archive_success' not in session_state:
         # to check whether exported zipfile successfully
         session_state.archive_success = False
+    if 'zipfile_path' not in session_state:
+        # initialize the path to the zipfile for images & annotations
+        session_state['zipfile_path'] = None
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
