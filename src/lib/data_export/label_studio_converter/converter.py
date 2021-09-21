@@ -350,7 +350,7 @@ class Converter(object):
                 out.append(j["text"][0])
             else:
                 out.append(j)
-        return out[0] if tag_type == ("Choices", "TextArea") and len(out) == 1 else out
+        return out[0] if tag_type in ("Choices", "TextArea") and len(out) == 1 else out
 
     # ************************** ACCESSED **************************
     def convert_to_json(self, input_data, output_dir, is_dir=True, is_string=True):

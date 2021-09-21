@@ -244,8 +244,11 @@ class Project(BaseProject):
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
 
-    def download_tasks(self, return_target_path: bool = True) -> Union[None, Path]:
-        """Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder"""
+    def download_tasks(self, *, target_path: Path = None, return_original_path: bool = False, return_target_path: bool = True) -> Union[None, Path]:
+        """
+        Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder.
+        Or you may also pass in a directory to the `target_path` parameter to move the file there.
+        """
         self.export_tasks()
         export_path = self.get_export_path()
         filename_no_ext = export_path.parent.name
@@ -253,7 +256,16 @@ class Project(BaseProject):
         zip_filename = f"{filename_no_ext}.zip"
         zip_filepath = export_path.parent / zip_filename
 
-        target_path = Path.home() / "Downloads" / zip_filename
+        if return_original_path:
+            assert target_path is None, ("This will return the original path where the zipfile is created. "
+                                         "`target_path` is not required.")
+            # return the original zipfile path without moving it to target_path
+            return zip_filepath
+
+        if target_path is None:
+            # default `target_path` is the "Downloads" folder
+            target_path = Path.home() / "Downloads"
+
         shutil.move(zip_filepath, target_path)
         if return_target_path:
             return target_path
@@ -264,7 +276,7 @@ class Project(BaseProject):
         Allow download images and annotations if necessary.
         """
         log_info(
-            "Exporting labeled tasks for Project ID: {session_state.project.id}")
+            f"Exporting labeled tasks for Project ID: {session_state.project.id}")
 
         json_path = self.generate_label_json()
         output_dir = self.get_export_path()
@@ -343,7 +355,7 @@ class Project(BaseProject):
         return json_path
 
     @staticmethod
-    def query_annotations(project_id: int) -> Tuple[List[Dict], List]:
+    def query_annotations(project_id: int, return_dict: bool = True) -> Tuple[List[Dict], List]:
         sql_query = """
                 SELECT 
                     a.id AS id,
@@ -362,7 +374,7 @@ class Project(BaseProject):
 
         try:
             all_annots, column_names = db_fetchall(
-                sql_query, conn, query_vars, fetch_col_name=True, return_dict=False)
+                sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
 
         except Exception as e:
             log_error(f"{e}: No annotation found for Project {project_id} ")

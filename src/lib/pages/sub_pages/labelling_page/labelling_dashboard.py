@@ -134,6 +134,10 @@ all_task_columns = [
 
 ]
 
+if 'zipfile_path' not in session_state:
+    # initialize the path to the zipfile for images & annotations
+    session_state['zipfile_path'] = None
+
 
 # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
@@ -222,7 +226,7 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
 def index():
 
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -259,13 +263,15 @@ def index():
     st.write(f"## **Labelling Section:**")
 
     # ************COLUMN PLACEHOLDERS *****************************************************
-    st.write("**Filter:**")
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
-    all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _, start_labelling_button_col = st.columns([
-        2, 0.5, 3, 0.5, 2, 5, 3])
+    filter_msg_col, all_task_button_col, labelled_task_button_col, queue_button_col, _ = st.columns([
+        0.5, 1, 2, 2, 3])
+    filter_msg_col.markdown("**Filter:**")
 
-    st.write("**Action:**")
-    edit_labeling_config_col, export_labels_col, _ = st.columns([1, 1, 3])
+    action_msg_col, start_labelling_button_col, edit_labeling_config_col, export_labels_col, download_task_col, _ = st.columns(
+        [0.5, 1, 2, 2, 2, 1])
+    action_msg_col.markdown("**Action:**")
+
     archive_success_message = st.empty()
     # ************COLUMN PLACEHOLDERS *****************************************************
 
@@ -316,14 +322,34 @@ def index():
 
     def download_export_tasks():
         with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
-            target_path = session_state.project.download_tasks(
-                return_target_path=True)
-            log_info(f"Zipfile created at: {target_path}")
-            session_state['archive_success'] = target_path
+            # zipfile_path = session_state.project.download_tasks(
+            #     return_target_path=True)
+            zipfile_path = session_state.project.download_tasks(
+                return_original_path=True)
+            session_state['zipfile_path'] = zipfile_path
+            log_info(f"Zipfile created at: {zipfile_path}")
+
+            # - commenting out this line in case we are only deploying for local machine,
+            # -  to show message to the user about the "Downloads" folder path
+            # session_state['archive_success'] = zipfile_path
 
     with export_labels_col:
         st.button("Export Labelled Tasks", key='export_labels_button',
                   on_click=download_export_tasks)
+
+    with download_task_col:
+        zipfile_path = session_state.get('zipfile_path')
+        if zipfile_path is not None and zipfile_path.exists():
+            with st.spinner("Creating the Zipfile button to download ... This may take awhile ..."):
+                sleep(5)
+                with open(zipfile_path, "rb") as fp:
+                    st.download_button(
+                        label="Download ZIP",
+                        data=fp,
+                        file_name="images_annotations.zip",
+                        mime="application/zip",
+                        key="download_tasks_btn"
+                    )
 
     if session_state['archive_success']:
         archive_success_message.success(

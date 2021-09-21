@@ -1,13 +1,15 @@
 <View>
-
-  <Header value="Select label and start to click on image"/>
-  <Image name="image" value="$image"/>
-
-  <PolygonLabels name="label" toName="image"
-                 strokeWidth="3" pointSize="small"
-                 opacity="0.9">
-    <Label value="Airplane" background="red"/>
-    <Label value="Car" background="blue"/>
-  </PolygonLabels>
-
+    <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
+        <Header value="Select label and start to click on image"/>
+        <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+            <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+            <View>
+                <Filter toName="label" minlength="0" name="filter"/>
+                <PolygonLabels name="label" toName="image" strokeWidth="3" pointSize="small" opacity="0.9">
+                    <Label value="Airplane" />
+                    <Label value="Truck" />
+                </PolygonLabels>
+            </View>
+        </View>
+    </View>
 </View>

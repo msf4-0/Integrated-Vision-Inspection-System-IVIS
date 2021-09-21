@@ -5,10 +5,19 @@ details: <h1>Classify the image</h1>
 # updated this config to latest one
 config: '
 <View>
-  <Image name="image" value="$image"/>
-  <Choices name="choice" toName="image" showInLine="true">
-    <Choice value="Boeing" background="blue"/>
-    <Choice value="Airbus" background="green" />
-  </Choices>
+    <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
+        <Header value="Select label to classify image"/>
+        <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
+            <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+            <View>
+                <Filter toName="choice" minlength="0" name="filter"/>
+                <Choices name="choice" toName="image">
+                    <Choice value="Airplane"/>
+                    <Choice value="Truck"/>
+                    <Choice value="Car"/>
+                </Choices>
+            </View>
+        </View>
+    </View>
 </View>
 '

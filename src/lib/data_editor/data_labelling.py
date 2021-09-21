@@ -299,7 +299,7 @@ def editor(data_id: List = []):
                     f"### **{session_state.task.filetype.name}: {session_state.task.name}**")
                 labelstudio_editor(
                     session_state.project.editor.editor_config, interfaces, user, task, key="labelling_interface")
-                
+
         # *************************************** LABELLING INTERFACE *******************************************
 
         # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
@@ -324,7 +324,7 @@ def editor(data_id: List = []):
 
 
 def index():
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
