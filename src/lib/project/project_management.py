@@ -26,11 +26,12 @@ SPDX-License-Identifier: Apache-2.0
 import sys
 from pathlib import Path
 from collections import namedtuple
-from typing import NamedTuple, Union, List, Dict
+from typing import NamedTuple, Tuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
 import cv2
+import numpy as np
 import pandas as pd
 from stqdm import stqdm
 import streamlit as st
@@ -224,7 +225,7 @@ class BaseProject:
     def check_if_field_empty(self, context: Dict, field_placeholder: Dict, name_key: str):
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
-            context, field_placeholder,name_key, check_if_exists)
+            context, field_placeholder, name_key, check_if_exists)
         return empty_fields
 
 
@@ -239,6 +240,73 @@ class Project(BaseProject):
         self.project_path = self.get_project_path(self.name)
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
+
+    @staticmethod
+    def get_existing_unique_labels(project_id: int) -> np.ndarray:
+        """
+        Extracting the unique label names used in existing annotations.
+        Each 'result' value from the 'all_annots' is a list like this:
+        "result": [
+          {
+            ...
+            "value": {
+              ...
+              "label_key": ["Airplane", "Truck"]
+            },
+            ...
+            "type": "label_key"
+          }
+        """
+        # 'all_annots' is a list of dictionaries for each annotation
+        all_annots, col_names = Project.query_annotations(
+            project_id, return_dict=True)
+        if not all_annots:
+            # there is no existing annotation
+            return []
+
+        # the 'label_key' is different depending on the 'deployment_type'
+        label_key = all_annots[0]['result'][0]['type']
+
+        def get_label_names(result):
+            return result[0]['value'][label_key]
+
+        df = pd.DataFrame(all_annots, columns=col_names)
+        df['label'] = df["result"].apply(get_label_names)
+
+        # need to use `explode` method to turn each list of labels into individual rows
+        unique_labels = df['label'].explode().unique()
+
+        log_info(f"Unique labels for Project ID {project_id}: {unique_labels}")
+        return unique_labels
+
+    @staticmethod
+    def query_annotations(project_id: int, return_dict: bool = False) -> Tuple[List[Dict], List]:
+        sql_query = """
+                SELECT 
+                    a.id AS id,
+                    a.result AS result,
+                    -- flag of 'g' to match every pattern instead of only the first
+                    CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
+                FROM annotations a
+                        LEFT JOIN task t on a.id = t.annotation_id
+                        LEFT JOIN dataset d on t.dataset_id = d.id
+                WHERE a.project_id = %s
+                ORDER BY id;
+        """
+        query_vars = [project_id]
+        log_info(
+            f"Querying annotations from database for Project ID: {project_id}")
+
+        try:
+            all_annots, column_names = db_fetchall(
+                sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
+
+        except Exception as e:
+            log_error(f"{e}: No annotation found for Project {project_id} ")
+            all_annots = []
+            column_names = []
+
+        return all_annots, column_names
 
     def query_all_fields(self) -> NamedTuple:
         query_all_field_SQL = """
