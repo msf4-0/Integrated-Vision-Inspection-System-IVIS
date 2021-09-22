@@ -257,7 +257,7 @@ def main():
         # # get enum ->2
         # deployment_type = DEPLOYMENT_TYPE["Object Detection with Bounding Boxes"]
         if 'project' not in session_state:
-            session_state.project = Project(43)
+            session_state.project = Project(50)
         # project = Project(7)
         # project.refresh_project_details()
         # st.write(vars(session_state.project))

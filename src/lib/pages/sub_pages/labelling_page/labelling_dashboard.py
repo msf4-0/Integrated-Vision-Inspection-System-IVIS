@@ -221,7 +221,7 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
 def index():
 
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:

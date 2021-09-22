@@ -148,7 +148,6 @@ def editor(data_id: List = []):
             load_data(task_df)
 # ************************ FIRST RENDER: ********************************************************
 
-# TODO Fix Data Table is_labelled not updated at re-run
 # ************************** DATA TABLE ********************************************************
     with main_col1:
         data_table(all_task, task_labelling_columns,
@@ -324,7 +323,7 @@ def editor(data_id: List = []):
 
 
 def index():
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -339,7 +338,7 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 43
+        project_id_tmp = 50
         log_info(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly

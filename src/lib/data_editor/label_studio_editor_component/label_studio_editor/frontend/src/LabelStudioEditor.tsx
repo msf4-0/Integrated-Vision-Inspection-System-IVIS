@@ -70,9 +70,8 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
   /* Function to Update Frame Height */
   function updateFrameHeight() {
     /* Get DOM element for LS Editor <div> */
-    let canvas = document.getElementsByClassName(
-      "App_editorfs__1aruF ls-editor"
-    );
+    let canvas = document.getElementsByClassName("App_editor__CIAJZ ls-editor");
+    //  "App_editorfs__1aruF ls-editor"
     console.log("Outside", canvas);
 
     /* Set initial render height in case <div> tag not found for className */
@@ -80,7 +79,7 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
       console.log("NULL");
 
       let frameHeight = 1500;
-
+      // console.log("TEST",canvas[0].clientHeight)
       Streamlit.setFrameHeight(frameHeightCalc(frameHeight));
     } else if (canvas.length !== 0) {
       console.log("NOT NULL");
