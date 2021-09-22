@@ -700,7 +700,9 @@ class NewProject(BaseProject):
 
 
 # ******************** QUERY ALL PROJECTS **************************************
-@st.cache(ttl=60)
+# NOTE: You should not cache this, otherwise the brand new project created
+#   will not be reflected on the `data_table` immediately
+# @st.cache(ttl=60)
 def query_all_projects(return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
     """Return values for all project
 
@@ -721,7 +723,8 @@ def query_all_projects(return_dict: bool = False, for_data_table: bool = False) 
                                     
                                 FROM
                                     public.project p
-                                    LEFT JOIN deployment_type dt ON dt.id = p.deployment_id;
+                                    LEFT JOIN deployment_type dt ON dt.id = p.deployment_id
+                                ORDER BY "Date/Time" DESC;
                             """
     projects, column_names = db_fetchall(
         query_all_projects_SQL, conn, fetch_col_name=True, return_dict=return_dict)

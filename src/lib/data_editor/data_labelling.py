@@ -61,11 +61,18 @@ def editor(data_id: List = []):
         session_state.data_labelling_table = data_id
     if "labelling_prev_result" not in session_state:
         session_state.labelling_prev_result = []
+    if "show_next_unlabeled" not in session_state:
+        # a flag to decide whether to show next unlabeled data
+        session_state.show_next_unlabeled = False
 
     # ******** SESSION STATE *********************************************************
 
 # ************************************** COLUMN PLACEHOLDERS***************************************
     back_to_labelling_dashboard_button_place = st.empty()
+
+    # a placeholder to show the message for successfully finish labelling all tasks
+    msg_placeholder = st.empty()
+
     main_col1, main_col2 = st.columns([2.5, 3])
     main_col1.write("### **Data Labelling**")
 # ************************************** COLUMN PLACEHOLDERS***************************************
@@ -91,6 +98,29 @@ def editor(data_id: List = []):
     task_df = Task.create_all_task_dataframe(
         all_task, all_task_column_names)
     # st.write(task_df)
+
+    if session_state.show_next_unlabeled:
+        # reset the flag to prevent issues when refreshing
+        session_state.show_next_unlabeled = False
+        # automatically move the labeling interface to the next unlabeled task
+        current_task_id = session_state.data_labelling_table[0]
+        print(task_df)
+        unlabeled_task_ids = task_df.query(
+            "`Is Labelled` == False and Skipped == False"
+            " and id != @current_task_id")['id']
+        # only do this if there is still unlabeled task
+        if not unlabeled_task_ids.empty:
+            log_info("Proceeding to next task")
+            # must use `int` to change it from `numpy.int` dtypes
+            next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
+            # set this to show the next task, must set it to a list as this is how the `data_table` returns
+            session_state.data_labelling_table = [next_unlabeled_task_id]
+        else:
+            log_info("All tasks labeled successfully for Project ID: "
+                     f"{session_state.project.id}")
+            msg_placeholder.success("You have labelled all tasks!")
+            sleep(5)
+            msg_placeholder.empty()
 
     def load_data(task_df):
         log_info(f"Inside load data CALLBACK")
@@ -228,6 +258,8 @@ def editor(data_id: List = []):
                                 log_info(
                                     f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
 
+                                session_state.show_next_unlabeled = True
+
                             except Exception as e:
                                 log_error(f"{e}: New Annotation error")
 
@@ -277,6 +309,8 @@ def editor(data_id: List = []):
 
                                 log_info(
                                     f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
+
+                                session_state.show_next_unlabeled = True
                                 st.experimental_rerun()
 
                             except Exception as e:
