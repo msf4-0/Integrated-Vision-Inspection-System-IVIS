@@ -1,4 +1,16 @@
 # Integrated-Vision-Inspection-System
+
+## Citation
+```tex
+@misc{Integrated Vision Inspection System,
+  title={{Integrated Vision Inspection System}},
+  url={https://github.com/msf4-0/Integrated-Vision-Inspection-System},
+  author={
+    Chu Zhen Hao,
+    Anson},
+  year={2021},
+}
+```
  
 ## License
 

@@ -289,7 +289,7 @@ def index():
         session_state.data_selection = []
     if 'archive_success' not in session_state:
         # to check whether exported zipfile successfully
-        session_state.archive_success = False
+        session_state.archive_success = None
     if 'zipfile_path' not in session_state:
         # initialize the path to the zipfile for images & annotations
         session_state['zipfile_path'] = None
@@ -337,6 +337,7 @@ def index():
     def reset_zipfile_state():
         # clear out the `download_button` after the user has clicked it
         session_state['zipfile_path'] = None
+        session_state['archive_success'] = None
 
     with download_task_col:
         zipfile_path = session_state.get('zipfile_path')

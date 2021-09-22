@@ -172,3 +172,36 @@ VALUES (
     RETURNING
         id;
 
+
+/* Update Model Table */
+UPDATE
+    public.models
+SET
+    name = % s
+    , description = % s
+    , metrics = % s::jsonb
+    , model_path = % s
+    , model_type_id = (
+        SELECT
+            mt.id
+        FROM
+            public.model_type mt
+        WHERE
+            mt.name = % s) , framework_id = (
+        SELECT
+            f.id
+        FROM
+            public.framework f
+        WHERE
+            f.name = % s) , deployment_id = (
+        SELECT
+            dt.id
+        FROM
+            public.deployment_type dt
+        WHERE
+            dt.name = % s) , training_id = % s
+WHERE
+    id = % s
+RETURNING
+    id;
+

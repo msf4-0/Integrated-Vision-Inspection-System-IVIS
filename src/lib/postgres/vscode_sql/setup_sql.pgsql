@@ -1,3 +1,31 @@
+/* 
+Title: Database Setup Script
+Date: 11/9/2021
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+Description:
+- Creates database and relation tables of the Application
+- Concatenation of `erd_FK.sql and erd_table.sql`
+- Utilised in https://github.com/msf4-0/Integrated-Vision-Inspection-System/blob/0249570af4a852119069c8548f5c4e3779024e6d/src/lib/data_manager/database_manager.py#L320-L321
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
+ */
 CREATE DATABASE integrated_vision_inspection_system;
 
 BEGIN;

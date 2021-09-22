@@ -11,6 +11,7 @@ from time import sleep
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
+from annotation.annotation_management import LabellingPagination
 # DEFINE Web APP page configuration
 
 # NOTE
@@ -74,7 +75,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-                }
+            }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -111,8 +112,9 @@ def editor_config(project: Union[NewProject, Project]):
 
         # >>>> LOAD LABELS
         project.editor.labels = project.editor.get_labels()
-        if 'labels_select' not in session_state:
-            session_state.labels_select = project.editor.labels
+        # You only need to set the `multiselect` widget's `session_state` key to be equal
+        # to the label options to allow the `session_state` to be updated at every refresh
+        session_state.labels_select = project.editor.labels
 
         # TODO remove
         tagName_attributes = project.editor.get_tagname_attributes(
@@ -129,8 +131,6 @@ def editor_config(project: Union[NewProject, Project]):
 
                 log_info(f"New label added {project.editor.labels}")
                 project.editor.labels = project.editor.get_labels()
-                if 'labels_select' in session_state:
-                    del session_state.labels_select
 
             elif session_state.add_label in project.editor.labels:
                 label_exist_msg = f"Label '{session_state.add_label}' already exists in {project.editor.labels}"
@@ -139,7 +139,7 @@ def editor_config(project: Union[NewProject, Project]):
                 sleep(1)
                 place["add_label"].empty()
 
-        def update_labels():
+        def update_labels(place):
 
             diff_12 = set(project.editor.labels).difference(
                 session_state.labels_select)  # set 1 - set 2 REMOVAL
@@ -148,6 +148,19 @@ def editor_config(project: Union[NewProject, Project]):
             if diff_12:
                 log_info("Removal")
                 removed_label = list(diff_12).pop()
+
+                # to avoid removing existing labels used for annotating!
+                if isinstance(project, Project):
+                    existing_annotations = project.get_existing_unique_labels(
+                        project.id)
+                    if removed_label in existing_annotations:
+                        place["warning_label_removal"].error(
+                            f"WARNING: You are trying to remove a label '{removed_label}' "
+                            "that has been used to label your images before!")
+                        sleep(2)
+                        place["warning_label_removal"].empty()
+                        return
+
                 try:
                     project.editor.labels.remove(
                         removed_label)
@@ -173,8 +186,6 @@ def editor_config(project: Union[NewProject, Project]):
                 print("No Change")
                 pass
             project.editor.labels = project.editor.get_labels()
-            if 'labels_select' in session_state:
-                del session_state.labels_select
 
             # if len(project.editor.labels) > len(session_state.labels_select):
             #     # Action:REMOVE
@@ -192,7 +203,9 @@ def editor_config(project: Union[NewProject, Project]):
         # >>>>>>> REMOVE LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
         st.multiselect('Labels', options=project.editor.labels,
-                       key='labels_select', on_change=update_labels)
+                       key='labels_select', on_change=update_labels, args=(place,))
+        # to show the error message when trying to remove existing labels
+        place["warning_label_removal"] = st.empty()
 
         def save_editor_config():
             log_info("Updating Editor Config......")

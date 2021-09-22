@@ -18,30 +18,30 @@ Modifications Copyright (c) 2021 Selangor Human Resource Development Centre. All
 * 1. Adaptations to Streamlit Component API (https://docs.streamlit.io/en/stable/develop_streamlit_components.html)
 */
 
-import { ReactElement, useEffect, useMemo } from "react"
+import { ReactElement, useEffect, useMemo } from "react";
 
 import {
   Streamlit,
   withStreamlitConnection,
   ComponentProps,
-} from "streamlit-component-lib"
+} from "streamlit-component-lib";
 
-import LabelStudio from "label-studio"
-import "label-studio/build/static/css/main.css"
+import LabelStudio from "label-studio";
+import "label-studio/build/static/css/main.css";
 
 interface Args {
-  config: string
-  interfaces: string[]
-  user: Object
-  task: Object
+  config: string;
+  interfaces: string[];
+  user: Object;
+  task: Object;
 }
 
 function LabelStudioEditor({ args }: ComponentProps): ReactElement {
   /* Streamlit Component Arguments */
-  const config = args.config
-  const interfaces = args.interfaces
-  const user = args.user
-  const task = args.task
+  const config = args.config;
+  const interfaces = args.interfaces;
+  const user = args.user;
+  const task = args.task;
 
   /*
   Load arguments into Args interface
@@ -50,7 +50,7 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
   const LS_args = useMemo(
     (): Args => create_args(config, interfaces, user, task),
     [config, interfaces, user, task]
-  )
+  );
 
   /* Function to dynamically calc frame height with 20px offset
    *Args:
@@ -60,12 +60,12 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
    *frameHeight[int]: frame height to be set with Streamlit.setFrameHeight()
    */
   function frameHeightCalc(componentFullHeight: number) {
-    const offset = 20
-    let frameHeight = componentFullHeight + offset
-    console.log("frameHeight", frameHeight)
-    return frameHeight
+    const offset = 0;
+    let frameHeight = componentFullHeight + offset;
+    console.log("frameHeight", frameHeight);
+    return frameHeight;
   }
-  console.log("useMemo", LS_args)
+  console.log("useMemo", LS_args);
 
   /* Function to Update Frame Height */
   function updateFrameHeight() {
@@ -77,17 +77,17 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
 
     /* Set initial render height in case <div> tag not found for className */
     if (canvas.length === 0) {
-      console.log("NULL")
+      console.log("NULL");
 
-      let frameHeight = 1500
+      let frameHeight = 1500;
 
-      Streamlit.setFrameHeight(frameHeightCalc(frameHeight))
+      Streamlit.setFrameHeight(frameHeightCalc(frameHeight));
     } else if (canvas.length !== 0) {
-      console.log("NOT NULL")
+      console.log("NOT NULL");
       /* Obtain clientHeight attribute from HTMLContainer  */
-      let client_height = canvas[0].clientHeight
+      let client_height = canvas[0].clientHeight;
 
-      Streamlit.setFrameHeight(frameHeightCalc(client_height))
+      Streamlit.setFrameHeight(frameHeightCalc(client_height));
     }
   }
 
@@ -106,16 +106,16 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
       /* indicate labelling status `for logging purposes` */
       status: string
     ) {
-      let results = {}
+      let results = {};
       if (annotations !== null) {
         /* Generate serialised JSON of the annotation results */
-        results = annotations.serializeAnnotation()
+        results = annotations.serializeAnnotation();
       }
       /* Place 'results' and 'flag' into an array */
-      let array = [results, flag]
+      let array = [results, flag];
       /* Return array back to Python Land */
-      Streamlit.setComponentValue(array)
-      console.log({ status }, "Annotations:", { results }, "Flag", { flag })
+      Streamlit.setComponentValue(array);
+      console.log({ status }, "Annotations:", { results }, "Flag", { flag });
     }
 
     /*
@@ -129,57 +129,57 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
       task: LS_args.task,
 
       onLabelStudioLoad: function (LS: any) {
-        console.log("Load", LS)
+        console.log("Load", LS);
         /* let flag = 0 // Skip Task Flag
         let status = "Load"
         const annotations = null //return nothing */
         // return_results(annotations, flag, status)
         var c = LS.annotationStore.addAnnotation({
           userGenerate: true,
-        })
-        LS.annotationStore.selectAnnotation(c.id)
+        });
+        LS.annotationStore.selectAnnotation(c.id);
       },
       onSubmitAnnotation: function (LS: any, annotations: any) {
-        console.log("LS:", { LS })
-        let flag = 1 // New Submission Flag
-        let status = "New Submission"
+        console.log("LS:", { LS });
+        let flag = 1; // New Submission Flag
+        let status = "New Submission";
 
-        return_results(annotations, flag, status)
+        return_results(annotations, flag, status);
       },
       onUpdateAnnotation: function (LS: any, annotations: any) {
-        console.log("LS update:", { LS })
-        let flag = 2 // Update Submission Flag
-        let status = "Update Submission"
+        console.log("LS update:", { LS });
+        let flag = 2; // Update Submission Flag
+        let status = "Update Submission";
 
-        return_results(annotations, flag, status)
+        return_results(annotations, flag, status);
       },
       onDeleteAnnotation: function (LS: any, annotations: any) {
-        console.log("LS Delete:", { LS })
-        let flag = 3 // Update Submission Flag
-        let status = "Delete Submission"
+        console.log("LS Delete:", { LS });
+        let flag = 3; // Update Submission Flag
+        let status = "Delete Submission";
 
-        return_results(annotations, flag, status)
+        return_results(annotations, flag, status);
       },
       onSkipTask: function (LS: any) {
-        console.log("LS Skip:", { LS })
-        let flag = 4 // Skip Task Flag
-        let status = "Skip Task"
+        console.log("LS Skip:", { LS });
+        let flag = 4; // Skip Task Flag
+        let status = "Skip Task";
         //return nothing
-        let annotations = null
-        return_results(annotations, flag, status)
+        let annotations = null;
+        return_results(annotations, flag, status);
       },
-    })
-    updateFrameHeight()
-  })
+    });
+    updateFrameHeight();
+  });
 
-  updateFrameHeight()
+  updateFrameHeight();
 
   return (
     <div
       style={{ height: "100%", width: "100%", overflow: "visible" }}
       id="label-studio"
     ></div>
-  )
+  );
 }
 
 /* Function to generate LS_args  */
@@ -194,9 +194,9 @@ function create_args(
     interfaces: interfaces,
     user: user,
     task: task,
-  }
-  console.log("UseMemo", ST_args)
-  return ST_args
+  };
+  console.log("UseMemo", ST_args);
+  return ST_args;
 }
 
-export default withStreamlitConnection(LabelStudioEditor)
+export default withStreamlitConnection(LabelStudioEditor);

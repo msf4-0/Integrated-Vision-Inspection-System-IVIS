@@ -3,6 +3,7 @@ Title: Labelmap Generator
 Date: 8/9/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+Description: Text area widget to generate labelmap for Computer Vision
 
 Copyright (C) 2021 Selangor Human Resource Development Centre
 
@@ -102,7 +103,7 @@ def labelmap_generator(framework: Union[str, IntEnum] = None, deployment_type: U
 
             st.code(body=labelmap_string, language='json')
 
-    return session_state.generate_labelmap_checkbox,labelmap_string
+    return session_state.generate_labelmap_checkbox, labelmap_string
 
 
 if __name__ == "__main__":

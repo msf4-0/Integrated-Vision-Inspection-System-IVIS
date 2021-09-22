@@ -1,4 +1,12 @@
 """ 
+
+Title: New Training InfoDataset
+Date: 3/9/2021
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+
+
 Copyright (C) 2021 Selangor Human Resource Development Centre
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,7 +54,9 @@ from core.utils.helper import create_dataframe, get_df_row_highlight_color
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
-from training.training_management import NewTrainingSubmissionHandlers
+
+from training.training_management import NewTrainingPagination, NewTrainingSubmissionHandlers, TrainingPagination
+
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -298,7 +308,7 @@ def infodataset():
                 # Training Name,Desc, Dataset chosen, Partition Size
                 session_state.new_training.dataset_chosen = session_state.new_training_dataset_chosen
                 if new_training_infodataset_submission_dict.insert():
-                    # session_state.new_training_pagination += 1
+                    session_state.new_training_pagination = NewTrainingPagination.Model
                     session_state.new_training.has_submitted[session_state.new_training_pagination] = True
                     log_info(
                         f"Successfully created new training {session_state.new_training.id}")
@@ -311,7 +321,7 @@ def infodataset():
                 # Training Name,Desc, Dataset chosen, Partition Size
                 if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
                                                                    session_state.project.dataset_dict):
-                    # session_state.new_training_pagination += 1
+                    session_state.new_training_pagination = NewTrainingPagination.Model
                     log_info(
                         f"Successfully updated new training {session_state.new_training.id}")
             else:

@@ -25,9 +25,9 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
+from enum import IntEnum
 from pathlib import Path
 from typing import IO, List, Union
-from enum import IntEnum
 
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -40,24 +40,22 @@ LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-from core.utils.file_handler import get_member
 # >>>> User-defined Modules >>>>
+from core.utils.file_handler import get_member
 from core.utils.form_manager import remove_newline_trailing_whitespace
-from core.utils.helper import split_string, get_identifier_str_IntEnum
+from core.utils.helper import get_identifier_str_IntEnum, split_string
 from core.utils.log import log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
                                               DeploymentType)
-from google.protobuf import text_format
-from object_detection.protos import string_int_label_map_pb2
 # ************** TensorFLow ***************************
+from google.protobuf import text_format
 from object_detection.protos.string_int_label_map_pb2 import (
     StringIntLabelMap, StringIntLabelMapItem)
 from object_detection.utils.label_map_util import (
     _validate_label_map, convert_label_map_to_categories,
     create_categories_from_labelmap)
 from path_desc import chdir_root
-
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -133,7 +131,7 @@ class Labels:
         self.filename: str = None
         self.filePath: Path = None
         self.dict: List = []
-        self.label_map_string:str=None
+        self.label_map_string: str = None
 
     @staticmethod
     def generate_list_of_labels(comma_separated_string: str) -> List:
@@ -152,17 +150,21 @@ class Labels:
 
         return labels_list
 
-    def generate_labelmap_string(labels_list: List[str], framework: Union[str, Framework], deployment_type: Union[str, DeploymentType]):
+    def generate_labelmap_string(labels_list: List[str],
+                                 framework: Union[str, Framework],
+                                 deployment_type: Union[str, DeploymentType]
+                                 ) -> str:
         """Generate String of labelmap based on Framework and Deep Learning Architectures*
         #### Currently used in Computer Vision Applications
+        * Currently only supports TensorFlow
 
         Args:
-            labels_list (List[str]): [description]
-            framework (Union[str, Framework]): [description]
-            deployment_type (Union[str, DeploymentType]): [description]
+            labels_list (List[str]): List of Labels eg. ['car','tarmac','airport']
+            framework (Union[str, Framework]): Deep Learning Framework of Model
+            deployment_type (Union[str, DeploymentType]): Deployment type of Model
 
         Returns:
-            [type]: [description]
+            str: Labelmap string
         """
         # Generate string of labelmap
         # strip comma separated string
@@ -183,8 +185,16 @@ class Labels:
     def generate_labelmap_file(labelmap_string: str,
                                dst: Union[str, Path],
                                framework: Union[str, Framework],
-                               deployment_type: Union[str, DeploymentType]
-                               ) -> bool:
+                               deployment_type: Union[str, DeploymentType]):
+        """Generate labelmap text file from labelmap string
+
+        Args:
+            labelmap_string (str): Labelmap string from generate_labelmap_string
+            dst (Union[str, Path]): Destination of the labelmap file
+            framework (Union[str, Framework]): Deep Learning Framework of the Model
+            deployment_type (Union[str, DeploymentType]): Deployment type of the Model
+
+        """
 
         framework = get_framework(framework=framework,
                                   string=False)
@@ -203,13 +213,39 @@ class Labels:
                                               filepath=filepath)
 
     @staticmethod
-    def get_labelmap_member_from_archived(name: str, archived_filepath: Path = None, file_object: IO = None, decode: str = 'utf-8'):
-        label_map_string = get_member(
-            name=name, archived_filepath=archived_filepath, file_object=file_object, decode=decode)
+    def get_labelmap_member_from_archived(name: str,
+                                          archived_filepath: Path = None,
+                                          file_object: IO = None,
+                                          decode: str = 'utf-8') -> str:
+        """Generate labelmap string if labelmap file is a member of an archived file.
+        Contents are extracted without unpacking the contents of the archived file.
+
+        Args:
+            name (str): Name of the labelmap file
+            archived_filepath (Path, optional): Path to the archived file. Defaults to None.
+            file_object (IO, optional): File-like object or io_Buffer. Defaults to None.
+            decode (str, optional): Decoding format. Defaults to 'utf-8'.
+
+        Returns:
+            str: Labelmap string
+        """
+        label_map_string = get_member(name=name,
+                                      archived_filepath=archived_filepath,
+                                      file_object=file_object,
+                                      decode=decode)
         return label_map_string
 
     @staticmethod
     def generate_labelmap_dict(label_map_string: str, framework: Union[str, Framework]) -> List:
+        """Generate dictionary of labelmap with label value as key and class id as value
+
+        Args:
+            label_map_string (str): Labelmap string
+            framework (Union[str, Framework]): Deep Learning Framework of the Model
+
+        Returns:
+            List: List of Dictionary of Labels
+        """
         label_map_dict = []
         framework = get_framework(framework=framework,
                                   string=False)
@@ -224,6 +260,15 @@ class TensorFlow(object):
 
     @staticmethod
     def label_map_to_text(classes: List, start=1) -> str:
+        """Generate labelmap string
+
+        Args:
+            classes (List): List of labels/classes
+            start (int, optional): First index excluding Background class of the labelmap. Defaults to 1.
+
+        Returns:
+            str: Labelmap string
+        """
         # 'id' must start from 1
         msg = StringIntLabelMap()
         for id, name in enumerate(classes, start=start):
@@ -235,14 +280,31 @@ class TensorFlow(object):
 
     @staticmethod
     def label_map_to_pbtxt(labelmap_text: bytes, filepath: Path) -> None:
+        """Generate TensorFlow 2 OD API Labelmap Protocol Buffer Text (.pbtxt)
+
+        Args:
+            labelmap_text (bytes): Labelmap string
+            filepath (Path): Path to labelmap file to be stored
+        """
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with filepath.open("w", encoding="utf-8") as f:
             f.write(labelmap_text)
 
     @staticmethod
-    def read_labelmap_file(label_map_path: Union[str, Path] = None, label_map_string: str = None, use_display_name: bool = True) -> List:
+    def read_labelmap_file(label_map_path: Union[str, Path] = None,
+                           label_map_string: str = None,
+                           use_display_name: bool = True) -> List:
+        """Create dictionary of labels/classes 
 
+        Args:
+            label_map_path (Union[str, Path], optional): Path to labelmap.pbtxt. Defaults to None.
+            label_map_string (str, optional): Labelmap string if label_map_path not set. Defaults to None.
+            use_display_name (bool, optional): Use display name stated in the labelmap file. Defaults to True.
+
+        Returns:
+            List: List of Labels
+        """
         if label_map_path:
             label_map_dict = create_categories_from_labelmap(
                 label_map_path=str(label_map_path))
@@ -261,7 +323,15 @@ class TensorFlow(object):
         return label_map_dict
 
     @staticmethod
-    def load_labelmap(label_map_string: str):
+    def load_labelmap(label_map_string: str) -> List:
+        """Parse Labelmap into Protobuf object
+
+        Args:
+            label_map_string (str): Labelmap string
+
+        Returns:
+            str: String of labelmap dictionaries
+        """
         label_map = StringIntLabelMap()
         try:
             text_format.Merge(label_map_string, label_map)

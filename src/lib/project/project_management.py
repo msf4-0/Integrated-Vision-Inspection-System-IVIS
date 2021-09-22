@@ -34,6 +34,7 @@ from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
 import cv2
+import numpy as np
 import pandas as pd
 from stqdm import stqdm
 import streamlit as st
@@ -372,6 +373,44 @@ class Project(BaseProject):
             log_info(f"DUMPING TASK JSON to {json_path}")
             json.dump(parsed, f, indent=2)
         return json_path
+
+    @staticmethod
+    def get_existing_unique_labels(project_id: int) -> np.ndarray:
+        """
+        Extracting the unique label names used in existing annotations.
+        Each 'result' value from the 'all_annots' is a list like this:
+        "result": [
+          {
+            ...
+            "value": {
+              ...
+              "label_key": ["Airplane", "Truck"]
+            },
+            ...
+            "type": "label_key"
+          }
+        """
+        # 'all_annots' is a list of dictionaries for each annotation
+        all_annots, col_names = Project.query_annotations(
+            project_id, return_dict=True)
+        if not all_annots:
+            # there is no existing annotation
+            return []
+
+        # the 'label_key' is different depending on the 'deployment_type'
+        label_key = all_annots[0]['result'][0]['type']
+
+        def get_label_names(result):
+            return result[0]['value'][label_key]
+
+        df = pd.DataFrame(all_annots, columns=col_names)
+        df['label'] = df["result"].apply(get_label_names)
+
+        # need to use `explode` method to turn each list of labels into individual rows
+        unique_labels = df['label'].explode().unique()
+
+        log_info(f"Unique labels for Project ID {project_id}: {unique_labels}")
+        return unique_labels
 
     @staticmethod
     def query_annotations(project_id: int, return_dict: bool = True) -> Tuple[List[Dict], List]:

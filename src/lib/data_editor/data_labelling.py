@@ -69,10 +69,6 @@ def editor(data_id: List = []):
 
 # ************************************** COLUMN PLACEHOLDERS***************************************
     back_to_labelling_dashboard_button_place = st.empty()
-
-    # a placeholder to show the message for successfully finish labelling all tasks
-    msg_placeholder = st.empty()
-
     main_col1, main_col2 = st.columns([2.5, 3])
     main_col1.write("### **Data Labelling**")
 # ************************************** COLUMN PLACEHOLDERS***************************************
@@ -117,9 +113,6 @@ def editor(data_id: List = []):
         else:
             log_info("All tasks labeled successfully for Project ID: "
                      f"{session_state.project.id}")
-            msg_placeholder.success("You have labelled all tasks!")
-            sleep(5)
-            msg_placeholder.empty()
 
     def load_data(task_df):
         log_info(f"Inside load data CALLBACK")

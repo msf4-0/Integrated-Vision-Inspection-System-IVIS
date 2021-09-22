@@ -1,9 +1,35 @@
+"""
+Title: TF2 Object Detection
+Date: 5/7/2021
+Author: Chu Zhen Hao
+Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+Copyright (C) 2021 Selangor Human Resource Development Centre
+SPDX-License-Identifier: Apache-2.0
+========================================================================================
+
+"""
+
 import numpy as np
 import argparse
 import os
 import sys
 from pathlib import Path
-from queue import Queue,Empty
+from queue import Queue, Empty
 from typing import NamedTuple, List, Dict, Union
 import cv2
 import av
@@ -46,8 +72,8 @@ WEBRTC_CLIENT_SETTINGS = ClientSettings(
     },
 )
 # <<<< Setup WebRTC <<<<
-MODELS_DIR = '/home/rchuzh/programming/image_labelling_shrdc/resources/dl_models/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8/saved_model'
-LABELMAP = '/home/rchuzh/programming/image_labelling_shrdc/resources/dl_models/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8/labelmap.pbtxt'
+MODELS_DIR = '<PATH TO MODEL>/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8/saved_model'
+LABELMAP = '<PATH TO MODEL>/ssd_mobilenet_v2_fpnlite_320x320_coco17_tpu-8/labelmap.pbtxt'
 DEFAULT_CONFIDENCE_THRESHOLD = 0.5
 
 
