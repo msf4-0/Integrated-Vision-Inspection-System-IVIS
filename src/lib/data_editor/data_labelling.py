@@ -104,7 +104,6 @@ def editor(data_id: List = []):
         session_state.show_next_unlabeled = False
         # automatically move the labeling interface to the next unlabeled task
         current_task_id = session_state.data_labelling_table[0]
-        print(task_df)
         unlabeled_task_ids = task_df.query(
             "`Is Labelled` == False and Skipped == False"
             " and id != @current_task_id")['id']

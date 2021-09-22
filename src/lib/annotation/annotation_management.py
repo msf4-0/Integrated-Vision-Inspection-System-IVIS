@@ -559,7 +559,8 @@ class BaseAnnotations:
                                 public.task
                             SET
                                 annotation_id = %s,
-                                is_labelled = %s
+                                is_labelled = %s,
+                                skipped = False
                             WHERE
                                 id = %s
                             RETURNING is_labelled;
@@ -652,7 +653,8 @@ class BaseAnnotations:
                         UPDATE
                             public.task
                         SET
-                            skipped = %s
+                            skipped = %s,
+                            is_labelled = False
                         WHERE
                             id = %s
                         RETURNING *;
@@ -662,7 +664,10 @@ class BaseAnnotations:
         log_info(self.task.id)
         skipped_task_return = db_fetchone(skip_task_SQL, conn, skip_task_vars)
 
-        return skipped_task_return
+        # must delete the previously created annotation if any exists
+        delete_annotation_return = self.delete_annotation()
+
+        return delete_annotation_return
 
     def generate_annotation_dict(self) -> Union[Dict, List]:
         try:
