@@ -74,7 +74,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-        }
+                }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -194,24 +194,23 @@ def editor_config(project: Union[NewProject, Project]):
         st.multiselect('Labels', options=project.editor.labels,
                        key='labels_select', on_change=update_labels)
 
-        with save_col1:
-            def save_editor_config():
-                log_info("Updating Editor Config......")
+        def save_editor_config():
+            log_info("Updating Editor Config......")
 
-                if project.editor.update_editor_config():
+            if project.editor.update_editor_config():
 
-                    # >>>> Display success message
-                    update_success_place = st.empty()
-                    update_success_place.success(
-                        f"Successfully updated editor configurations")
-                    sleep(0.7)
-                    update_success_place.empty()
+                # >>>> Display success message
+                update_success_place = st.empty()
+                update_success_place.success(
+                    f"Successfully updated editor configurations")
+                sleep(0.7)
+                update_success_place.empty()
 
-                    if 'editor' in session_state:
-                        del project.editor
+                if 'editor' in session_state:
+                    del project.editor
 
-            st.button('Save', key='save_editor_config',
-                      on_click=save_editor_config)
+        st.button('Save', key='save_editor_config',
+                  on_click=save_editor_config)
 
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
     # with lowercol1:
