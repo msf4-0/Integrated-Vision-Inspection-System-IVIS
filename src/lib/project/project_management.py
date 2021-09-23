@@ -23,7 +23,10 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import os
+import shutil
 import sys
+import json
 from pathlib import Path
 from collections import namedtuple
 from typing import NamedTuple, Tuple, Union, List, Dict
@@ -38,6 +41,7 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 import streamlit.components.v1 as components
+from data_export.label_studio_converter.converter import Converter, Format, FormatNotSupportedError
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -49,16 +53,16 @@ else:
     pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root, PROJECT_DIR
-from core.utils.log import log_info, log_error  # logger
+from path_desc import PROJECT_DIR, chdir_root, DATASET_DIR
+from core.utils.log import log_info, log_error, log_warning  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
-from core.utils.file_handler import create_folder_if_not_exist
+from core.utils.file_handler import create_folder_if_not_exist, file_archive_handler
 from core.utils.helper import get_directory_name, create_dataframe, dataframe2dict
 from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
 from data_manager.dataset_management import Dataset, get_dataset_name_list
 # Add CLI so can run Python script directly
 from data_editor.editor_management import Editor
-from annotation.annotation_management import NewTask
+from annotation.annotation_management import Annotations, NewTask, Task, get_task_row
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -236,10 +240,139 @@ class Project(BaseProject):
         self.datasets, self.column_names = self.query_project_dataset_list()
         self.dataset_dict = self.get_dataset_name_list()
         self.data_name_list = self.get_data_name_list()
+        # `query_all_fields` creates `self.name`, `self.desc`, `self.deployment_type`, `self.deployment_id`
         self.query_all_fields()
         self.project_path = self.get_project_path(self.name)
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
+
+    def download_tasks(self, *, target_path: Path = None, return_original_path: bool = False, return_target_path: bool = True) -> Union[None, Path]:
+        """
+        Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder.
+        Or you may also pass in a directory to the `target_path` parameter to move the file there.
+        If `return_original_path` is passed, this will only return the path to where the zipfile is created. 
+        """
+        self.export_tasks()
+        export_path = self.get_export_path()
+        filename_no_ext = export_path.parent.name
+        file_archive_handler(filename_no_ext, export_path, ".zip")
+        zip_filename = f"{filename_no_ext}.zip"
+        zip_filepath = export_path.parent / zip_filename
+
+        if return_original_path:
+            assert target_path is None, ("This will return the original path where the zipfile is created. "
+                                         "`target_path` is not required.")
+            # return the original zipfile path without moving it to target_path
+            return zip_filepath
+
+        if target_path is None:
+            # default `target_path` is the "Downloads" folder
+            target_path = Path.home() / "Downloads"
+
+        shutil.move(zip_filepath, target_path)
+        if return_target_path:
+            return target_path
+
+    def export_tasks(self):
+        """
+        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory.
+        Allow download images and annotations if necessary.
+        """
+        log_info(
+            f"Exporting labeled tasks for Project ID: {session_state.project.id}")
+
+        json_path = self.generate_label_json()
+        output_dir = self.get_export_path()
+
+        # - beware here I added removing the entire existing directory before proceeding
+        if output_dir.exists():
+            log_warning(
+                f"[INFO] Removing existing exported directory: {output_dir}")
+            shutil.rmtree(output_dir)
+
+        # initialize a Label Studio Converter to convert to specific output formats
+        # the `editor.editor_config` contains the current project's config in XML string format
+        #  but need to replace the remove this line of encoding description text to work
+        config_xml = self.editor.editor_config.replace(
+            r'<?xml version="1.0" encoding="utf-8"?>', '')
+        converter = Converter(config=config_xml)
+
+        if self.deployment_type == "Image Classification":
+            converter.convert_to_csv(
+                json_path,
+                output_dir=output_dir,
+                is_dir=False,
+            )
+
+            csv_path = output_dir / 'result.csv'
+            df = pd.read_csv(csv_path)
+
+            project_img_path = output_dir / "images"
+            unique_labels = df['label'].unique()
+            for label in unique_labels:
+                class_path = project_img_path / label
+                os.makedirs(class_path)
+
+            def copy_images(image_path: Path, label: str):
+                class_path = project_img_path / label
+                shutil.copy2(image_path, class_path)
+
+            for row in df.values:
+                image_path = Path(row[0])   # first row for image_path
+                label = str(row[2])         # third row for label name
+                copy_images(image_path, label)
+
+        elif self.deployment_type == "Object Detection with Bounding Boxes":
+            # using Pascal VOC XML format for TensorFlow Object Detection API
+            log_info(
+                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
+            converter.convert_to_voc(
+                json_path, output_dir=output_dir, is_dir=False)
+
+        elif self.deployment_type == "Semantic Segmentation with Polygons":
+            log_info(
+                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
+            # using COCO JSON format for segmentation
+            converter.convert_to_coco(
+                json_path, output_dir=output_dir, is_dir=False)
+
+    def get_export_path(self) -> Path:
+        """Get the path to the exported images and annotations"""
+        project_path = self.get_project_path(self.name)
+        output_dir = project_path / "export"
+        return output_dir
+
+    def generate_label_json(self) -> Path:
+        """
+        Generate the output JSON with the format following Label Studio and returns the path to the file.
+        Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
+        """
+        all_annots, col_names = self.query_annotations(self.id)
+        # the col_names can be changed if necessary
+        df = pd.DataFrame(all_annots, columns=col_names)
+
+        def get_dataset_path(image_path):
+            full_image_path = str((DATASET_DIR / image_path).resolve())
+            return {"image": full_image_path}
+
+        def create_annotations(result):
+            return [{"result": result}]
+
+        # create the format required to use Label Studio converter to export
+        df['data'] = df['image_path'].apply(get_dataset_path)
+        df['annotations'] = df['result'].apply(create_annotations)
+        # drop the columns not necessary for converting
+        df.drop(columns=['image_path', 'result'], inplace=True)
+
+        # convert to json format to export to the project_path and use for conversion
+        result = df.to_json(orient="records")
+        project_path = self.get_project_path(self.name)
+        json_path = project_path / f"project-{self.id}.json"
+        with open(json_path, "w") as f:
+            parsed = json.loads(result)
+            log_info(f"DUMPING TASK JSON to {json_path}")
+            json.dump(parsed, f, indent=2)
+        return json_path
 
     @staticmethod
     def get_existing_unique_labels(project_id: int) -> np.ndarray:
@@ -280,7 +413,7 @@ class Project(BaseProject):
         return unique_labels
 
     @staticmethod
-    def query_annotations(project_id: int, return_dict: bool = False) -> Tuple[List[Dict], List]:
+    def query_annotations(project_id: int, return_dict: bool = True) -> Tuple[List[Dict], List]:
         sql_query = """
                 SELECT 
                     a.id AS id,
@@ -606,7 +739,9 @@ class NewProject(BaseProject):
 
 
 # ******************** QUERY ALL PROJECTS **************************************
-@st.cache(ttl=60)
+# NOTE: You should not cache this, otherwise the brand new project created
+#   will not be reflected on the `data_table` immediately
+# @st.cache(ttl=60)
 def query_all_projects(return_dict: bool = False, for_data_table: bool = False) -> Union[List[namedtuple], List[dict]]:
     """Return values for all project
 
@@ -627,7 +762,8 @@ def query_all_projects(return_dict: bool = False, for_data_table: bool = False) 
                                     
                                 FROM
                                     public.project p
-                                    LEFT JOIN deployment_type dt ON dt.id = p.deployment_id;
+                                    LEFT JOIN deployment_type dt ON dt.id = p.deployment_id
+                                ORDER BY "Date/Time" DESC;
                             """
     projects, column_names = db_fetchall(
         query_all_projects_SQL, conn, fetch_col_name=True, return_dict=return_dict)

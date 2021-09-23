@@ -45,7 +45,7 @@ conn = init_connection(**st.secrets["postgres"])
 new_project = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-                   "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
+                   "Semantic Segmentation with Polygons")
 
 
 chdir_root()  # change to root directory

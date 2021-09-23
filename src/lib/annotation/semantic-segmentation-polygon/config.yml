@@ -3,6 +3,7 @@ group: Computer Vision
 order: 1
 image: /static/templates/semantic-segmentation-with-polygons.png
 details: <h1>Draw a polygon around object</h1>
+# updated this config to latest one
 config: '
 <View>
     <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
@@ -10,9 +11,9 @@ config: '
         <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
             <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
             <View>
-                <Filter toName="tag" minlength="0" name="filter"/>
                 <PolygonLabels name="label" toName="image" strokeWidth="3" pointSize="small" opacity="0.9">
-                    <Label value="Aruco" />
+                    <Label value="Airplane" />
+                    <Label value="Truck" />
                 </PolygonLabels>
             </View>
         </View>

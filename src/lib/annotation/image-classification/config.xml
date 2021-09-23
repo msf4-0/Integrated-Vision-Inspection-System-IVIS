@@ -2,10 +2,9 @@
     <View style="padding: 25px; box-shadow: 2px 2px 8px #AAA">
         <Header value="Select label to classify image"/>
         <View style="display:flex;align-items:start;gap:8px;flex-direction:column-reverse">
-            <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
             <View>
-                <Filter toName="tag" minlength="0" name="filter"/>
-                <Choices name="choice" toName="image">
+                <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false" grid="true" brightnessControl="true" contrastControl="true"/>
+                <Choices name="label" toName="image">
                     <Choice value="Airplane"/>
                     <Choice value="Truck"/>
                     <Choice value="Car"/>

@@ -1436,7 +1436,7 @@ tqdm = ">=4.50"
 
 [[package]]
 name = "streamlit"
-version = "0.88.0"
+version = "0.89.0"
 description = "The fastest way to build data apps in Python"
 category = "main"
 optional = false
@@ -1833,7 +1833,8 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.8"
-content-hash = "fb6d7e7b82f64b19c430f389ff46831deda55d2a10ae548b2e50b9adf6ae4983"
+content-hash = "198cd724a4d1a45130c151b3362add602d8622065cf6270ab8da9bc18b3e9571"
+
 
 [metadata.files]
 absl-py = [
@@ -3145,8 +3146,8 @@ stqdm = [
     {file = "stqdm-0.0.4.tar.gz", hash = "sha256:8f83e0d2cd441a4f24ecd1fdaaea437626387b4aa45218af1cde558f8e6746c0"},
 ]
 streamlit = [
-    {file = "streamlit-0.88.0-py2.py3-none-any.whl", hash = "sha256:1a5716b5b8e15e3fdfa57328d6749f136bbf4d5986549e9953bc6c6b39da3689"},
-    {file = "streamlit-0.88.0.tar.gz", hash = "sha256:8396b97d1d32381e5665573c5847792c15df828607b3f1ad01fbc9dcd69ecdd0"},
+    {file = "streamlit-0.89.0-py2.py3-none-any.whl", hash = "sha256:30e3d714d1ef2faa2217b18c82195d1120b8ea5407e1879e52f014be4deec2ab"},
+    {file = "streamlit-0.89.0.tar.gz", hash = "sha256:39d09c6627255fcf39c938937995665b6377799c4fa141f6b481bcb5e6a688ac"},
 ]
 streamlit-webrtc = [
     {file = "streamlit-webrtc-0.29.0.tar.gz", hash = "sha256:221466841f7184a37e357379cdf03f70a2dc56750e87b7fccbca48c1c2d35e66"},

@@ -69,8 +69,7 @@ place = {}
 PROGRESS_COLUMN_HEADER = {
     "Image Classification": 'Steps',
     "Object Detection with Bounding Boxes": 'Checkpoint / Steps',
-    "Semantic Segmentation with Polygons": 'Checkpoint / Steps',
-    "Semantic Segmentation with Masks": 'Checkpoint / Steps'
+    "Semantic Segmentation with Polygons": 'Checkpoint / Steps'
 }
 
 chdir_root()  # change to root directory

@@ -56,7 +56,7 @@ def init_connection():
 new_project = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-                   "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
+                   "Semantic Segmentation with Polygons")
 
 # >>>> TODO: query from Database
 DATASET_LIST = list('abcdefghijabcdefghij')
