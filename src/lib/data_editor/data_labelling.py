@@ -99,9 +99,15 @@ def editor(data_id: List = []):
         # reset the flag to prevent issues when refreshing
         session_state.show_next_unlabeled = False
         # automatically move the labeling interface to the next unlabeled task
-        next_task_id = Task.get_next_task(session_state.project.id)
-        if next_task_id:
-            session_state.data_labelling_table = [next_task_id]
+        unlabeled_task_ids = task_df.query(
+            "`Is Labelled` == False and Skipped == False")['id']
+        # only do this if there is still unlabeled task
+        if not unlabeled_task_ids.empty:
+            # must use `int` to change it from `numpy.int` dtypes
+            next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
+            log_info(f"Proceeding to next task ID: {next_unlabeled_task_id}")
+            # set this to show the next task, must set it to a list as this is how the `data_table` returns
+            session_state.data_labelling_table = [next_unlabeled_task_id]
         else:
             log_info("All tasks labeled successfully for Project ID: "
                      f"{session_state.project.id}")
