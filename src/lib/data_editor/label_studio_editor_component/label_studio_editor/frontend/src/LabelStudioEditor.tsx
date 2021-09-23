@@ -71,9 +71,9 @@ function LabelStudioEditor({ args }: ComponentProps): ReactElement {
   function updateFrameHeight() {
     /* Get DOM element for LS Editor <div> */
     let canvas = document.getElementsByClassName(
-      "App_editorfs__1aruF ls-editor"
-    );
-    console.log("Outside", canvas);
+      "ls-editor"
+    )
+    console.log("Outside", canvas)
 
     /* Set initial render height in case <div> tag not found for className */
     if (canvas.length === 0) {

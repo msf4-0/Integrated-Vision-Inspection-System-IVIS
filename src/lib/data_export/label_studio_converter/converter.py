@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 from pathlib import Path
 import json
@@ -21,7 +22,7 @@ from .utils import (
     parse_config, create_tokens_and_tags, download, get_image_size, get_image_size_and_channels, ensure_dir,
     get_polygon_area, get_polygon_bounding_box
 )
-from .brush import *
+from . import brush
 from .audio import convert_to_asr_json_manifest
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,6 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 else:
     pass
-
-# >>>> User-defined Modules >>>>
-from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
 
 
 class FormatNotSupportedError(NotImplementedError):
@@ -143,9 +140,10 @@ class Converter(object):
     def all_formats(self):
         return self._FORMAT_INFO
 
-    def __init__(self, config, project_dir, output_tags=None, upload_dir=None):
+    def __init__(self, config, project_dir=None, output_tags=None, upload_dir=None, download_resources=False):
         self.project_dir = project_dir
         self.upload_dir = upload_dir
+        self.download_resources = download_resources
         if isinstance(config, dict):
             self._schema = config
         elif isinstance(config, str):
@@ -269,65 +267,23 @@ class Converter(object):
                 if item:
                     yield item
 
-    def iter_from_json_file(self, json_file: Union[List[Dict], Dict, str], is_string: bool = True):
+    def iter_from_json_file(self, json_file):
         """ Extract annotation results from json file
-
         param json_file: path to task list or dict with annotations
         """
-
-        def get_item(data):
-
+        with io.open(json_file, encoding='utf8') as f:
+            data = json.load(f)
             # one task
             if isinstance(data, Mapping):
-                print("Enter single")
                 for item in self.annotation_result_from_task(data):
                     yield item
 
             # many tasks
             elif isinstance(data, list):
-                print("Enter many")
                 for task in data:
                     for item in self.annotation_result_from_task(task):
                         if item is not None:
                             yield item
-
-        if is_string:  # direct parse python dict
-            print("Enter string")
-            data = json_file
-            # one task
-            if isinstance(data, Mapping):
-                print("Enter single")
-                for item in self.annotation_result_from_task(data):
-                    yield item
-
-            # many tasks
-            elif isinstance(data, list):
-                print("Enter many")
-                for task in data:
-                    for item in self.annotation_result_from_task(task):
-                        if item is not None:
-                            yield item
-            print("Done")
-
-        else:
-            with io.open(json_file, encoding='utf8') as f:
-                data = json.load(f)
-
-                # one task
-                if isinstance(data, Mapping):
-                    print("Enter single")
-
-                    for item in self.annotation_result_from_task(data):
-                        yield item
-
-                # many tasks
-                elif isinstance(data, list):
-                    print("Enter many")
-
-                    for task in data:
-                        for item in self.annotation_result_from_task(task):
-                            if item is not None:
-                                yield item
 
     def annotation_result_from_task(self, task):
         has_annotations = 'completions' in task or 'annotations' in task
@@ -356,6 +312,9 @@ class Converter(object):
 
             # get results only as output
             for r in result:
+                # ? change the value of "from_name" to "label" instead of "tag"
+                #  or just use this workaround
+                r["from_name"] = self._output_tags[0]
                 if 'from_name' in r and r['from_name'] in self._output_tags:
                     v = deepcopy(r['value'])
                     v['type'] = self._schema[r['from_name']]['type']
@@ -370,7 +329,10 @@ class Converter(object):
                 'input': inputs,
                 'output': outputs,
                 'completed_by': annotation.get('completed_by', {}),
-                'annotation_id': annotation.get('id')
+                'annotation_id': annotation.get('id'),
+                "created_at": annotation.get("created_at"),
+                "updated_at": annotation.get("updated_at"),
+                "lead_time": annotation.get("lead_time"),
             }
 
     def _check_format(self, fmt):
@@ -384,9 +346,11 @@ class Converter(object):
             tag_type = j.pop('type')
             if tag_type == 'Choices' and len(j['choices']) == 1:
                 out.append(j['choices'][0])
+            elif tag_type == "TextArea" and len(j["text"]) == 1:
+                out.append(j["text"][0])
             else:
                 out.append(j)
-        return out[0] if tag_type == 'Choices' and len(out) == 1 else out
+        return out[0] if tag_type in ("Choices", "TextArea") and len(out) == 1 else out
 
     # ************************** ACCESSED **************************
     def convert_to_json(self, input_data, output_dir, is_dir=True, is_string=True):
@@ -394,19 +358,14 @@ class Converter(object):
         ensure_dir(output_dir)
         output_file = os.path.join(output_dir, 'result.json')
         records = []
-        if input_data:
-            if is_string:
-                with open(output_file, mode='w', encoding='utf-8') as f:
-                    json.dump(input_data, f, indent=4, ensure_ascii=False)
-            else:  # if loaded from file
-                if is_dir:
-                    for json_file in glob(os.path.join(input_data, '*.json')):
-                        with io.open(json_file, encoding='utf8') as f:
-                            records.append(json.load(f))
-                    with io.open(output_file, mode='w', encoding='utf8') as fout:
-                        json.dump(records, fout, indent=2, ensure_ascii=False)
-                else:
-                    copy2(input_data, output_file)
+        if is_dir:
+            for json_file in glob(os.path.join(input_data, '*.json')):
+                with io.open(json_file, encoding='utf8') as f:
+                    records.append(json.load(f))
+            with io.open(output_file, mode='w', encoding='utf8') as fout:
+                json.dump(records, fout, indent=2, ensure_ascii=False)
+        else:
+            copy2(input_data, output_file)
 
     # ************************** ACCESSED **************************
     def convert_to_json_min(self, input_data, output_dir, is_dir=True):
@@ -424,6 +383,9 @@ class Converter(object):
                 record[name] = self._prettify(value)
             record['annotator'] = item['completed_by'].get('email')
             record['annotation_id'] = item['annotation_id']
+            record["created_at"] = item["created_at"]
+            record["updated_at"] = item["updated_at"]
+            record["lead_time"] = item["lead_time"]
             records.append(record)
 
         with io.open(output_file, mode='w', encoding='utf8') as fout:
@@ -448,6 +410,9 @@ class Converter(object):
                     pretty_value, str) else json.dumps(pretty_value)
             record['annotator'] = item['completed_by'].get('email')
             record['annotation_id'] = item['annotation_id']
+            record["created_at"] = item["created_at"]
+            record["updated_at"] = item["updated_at"]
+            record["lead_time"] = item["lead_time"]
             records.append(record)
 
         pd.DataFrame.from_records(records).to_csv(
@@ -483,7 +448,8 @@ class Converter(object):
             output_image_dir = os.path.join(output_dir, 'images')
             os.makedirs(output_image_dir, exist_ok=True)
         images, categories, annotations = [], [], []
-        category_name_to_id = {}
+        # category_name_to_id = {}
+        categories, category_name_to_id = self._get_labels()
         data_key = self._data_keys[0]
         item_iterator = self.iter_from_dir(
             input_data) if is_dir else self.iter_from_json_file(input_data)
@@ -494,14 +460,13 @@ class Converter(object):
                 continue
             image_path = item['input'][data_key]
 # TODO: Fix download path
-            # if not os.path.exists(image_path):
-            #     try:
-            #         image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
-            #                               return_relative_path=True, upload_dir=self.upload_dir)
-            #     except:
-            #         logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-            #             image_path=image_path, item=item
-            #         ), exc_info=True)
+            try:
+                image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
+                                      return_relative_path=True, upload_dir=self.upload_dir, download_resources=self.download_resources)
+            except:
+                logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+                    image_path=image_path, item=item
+                ), exc_info=True)
 
             # concatentate results over all tag names
             labels = []
@@ -537,13 +502,14 @@ class Converter(object):
                     })
                     first = False
 
-                if category_name not in category_name_to_id:
+                """if category_name not in category_name_to_id:
                     category_id = len(categories)
                     category_name_to_id[category_name] = category_id
                     categories.append({
                         'id': category_id,
-                        'name': category_name
-                    })
+                        'name': category_name,
+                        'supercategory': category_name
+                    })"""
                 category_id = category_name_to_id[category_name]
 
                 annotation_id = len(annotations)
@@ -594,7 +560,10 @@ class Converter(object):
                 'info': {
                     'year': datetime.now().year,
                     'version': '1.0',
-                    'contributor': 'Label Studio'
+                    "description": "",
+                    'contributor': 'Label Studio',
+                    "url": "",
+                    "date_created": str(datetime.now()),
                 }
             }, fout, indent=2)
 
@@ -626,14 +595,13 @@ class Converter(object):
             image_path = item['input'][data_key]
 
 # TODO: Fix download
-            # if not os.path.exists(image_path):
-            #     try:
-            #         image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
-            #                               return_relative_path=True, upload_dir=self.upload_dir)
-            #     except:
-            #         logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-            #             image_path=image_path, item=item
-            #         ), exc_info=True)
+            try:
+                image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
+                                      return_relative_path=True, upload_dir=self.upload_dir, download_resources=self.download_resources)
+            except:
+                logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+                    image_path=image_path, item=item
+                ), exc_info=True)
 
             # concatentate results over all tag names
             labels = []
@@ -696,6 +664,13 @@ class Converter(object):
     def convert_to_voc(self, input_data, output_dir, output_image_dir=None, is_dir=True):
 
         ensure_dir(output_dir)
+
+        # - beware here I added removing the entire existing directory before proceeding
+        if os.path.exists(output_dir):
+            print(
+                f"[INFO] Removing existing exported directory: {output_dir}")
+            shutil.rmtree(output_dir)
+
         if output_image_dir is not None:
             ensure_dir(output_image_dir)
             output_image_dir_rel = output_image_dir
@@ -719,26 +694,32 @@ class Converter(object):
                     'No annotations found for item #' + str(item_idx))
                 continue
             image_path = item['input'][data_key]
+
             annotations_dir = os.path.join(output_dir, 'Annotations')
-            if not os.path.exists(annotations_dir):
-                os.makedirs(annotations_dir)
+            os.makedirs(annotations_dir, exist_ok=True)
+
+            if os.path.exists(image_path):
+                _, _, channels = get_image_size_and_channels(image_path)
+            else:
+                # default channels to 3 if cannot get any image
+                channels = 3
+
 # TODO: Fix download path
-            if not os.path.exists(image_path):
-                try:
-                    image_path = download(
-                        image_path, output_image_dir, project_dir=self.project_dir,
-                        upload_dir=self.upload_dir, return_relative_path=True)
-                except:
-                    # logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
-                    #     image_path=image_path, item=item), exc_info=True)
-                    # On error, use default number of channels
-                    channels = 3
-                else:
-                    full_image_path = os.path.join(
-                        output_image_dir, os.path.basename(image_path))
-                    # retrieve number of channels from downloaded image
-                    _, _, channels = get_image_size_and_channels(
-                        full_image_path)
+            try:
+                image_path = download(
+                    image_path, output_image_dir, project_dir=self.project_dir, upload_dir=self.upload_dir, return_relative_path=True,
+                    download_resources=self.download_resources)
+            except:
+                logger.error('Unable to download {image_path}. The item {item} will be skipped'.format(
+                    image_path=image_path, item=item), exc_info=True)
+                # On error, use default number of channels
+                channels = 3
+            else:
+                full_image_path = os.path.join(
+                    output_image_dir, os.path.basename(image_path))
+                # retrieve number of channels from downloaded image
+                _, _, channels = get_image_size_and_channels(
+                    full_image_path)
 
             bboxes = next(iter(item['output'].values()))
 
@@ -753,22 +734,28 @@ class Converter(object):
 
             width, height = bboxes[0]['original_width'], bboxes[0]['original_height']
 
-            image_name = os.path.splitext(os.path.basename(image_path))[0]
-            xml_filepath = os.path.join(annotations_dir, image_name + '.xml')
+            image_filename = os.path.basename(image_path)
+            image_stem_name = os.path.splitext(image_filename)[0]
+            xml_filepath = os.path.join(
+                annotations_dir, image_stem_name + '.xml')
 
             my_dom = xml.dom.getDOMImplementation()
             doc = my_dom.createDocument(None, 'annotation', None)
             root_node = doc.documentElement
             create_child_node(doc, 'folder', output_image_dir_rel, root_node)
-            create_child_node(doc, 'filename', image_name, root_node)
+            create_child_node(doc, 'filename', image_filename, root_node)
 
             source_node = doc.createElement('source')
             create_child_node(doc, 'database', 'MyDatabase', source_node)
             create_child_node(doc, 'annotation', 'COCO2017', source_node)
             create_child_node(doc, 'image', 'flickr', source_node)
             create_child_node(doc, 'flickrid', 'NULL', source_node)
-            create_child_node(doc, 'annotator', item['completed_by'].get(
-                'email', 'none'), source_node)
+
+# - WORKAROUND for now by commenting out this, thus no "email" will be generated
+            # create_child_node(
+            #     doc, "annotator", item["completed_by"].get("email", "none"), source_node
+            # )
+
             root_node.appendChild(source_node)
 
             owner_node = doc.createElement('owner')
@@ -808,6 +795,33 @@ class Converter(object):
                 object_node.appendChild(bndbox_node)
                 root_node.appendChild(object_node)
 
-            with io.open(xml_filepath, mode='w', encoding='utf8') as fout:
-                doc.writexml(fout, addindent='' * 4,
-                             newl='\n', encoding='utf-8')
+            with io.open(xml_filepath, mode="w", encoding="utf8") as fout:
+                doc.writexml(fout, addindent="" * 4,
+                             newl="\n", encoding="utf-8")
+
+    def _get_labels(self):
+        labels = set()
+        categories = list()
+        category_name_to_id = dict()
+
+        for name, info in self._schema.items():
+            labels |= set(info["labels"])
+            attrs = info["labels_attrs"]
+            for label in attrs:
+                if attrs[label].get("category"):
+                    categories.append(
+                        {"id": attrs[label].get("category"), "name": label}
+                    )
+                    category_name_to_id[label] = attrs[label].get("category")
+        labels_to_add = set(labels) - set(list(category_name_to_id.keys()))
+        labels_to_add = sorted(list(labels_to_add))
+        idx = 0
+        while idx in list(category_name_to_id.values()):
+            idx += 1
+        for label in labels_to_add:
+            categories.append({"id": idx, "name": label})
+            category_name_to_id[label] = idx
+            idx += 1
+            while idx in list(category_name_to_id.values()):
+                idx += 1
+        return categories, category_name_to_id

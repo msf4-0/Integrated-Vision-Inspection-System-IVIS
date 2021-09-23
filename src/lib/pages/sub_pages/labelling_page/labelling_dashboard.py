@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import shutil
 import sys
 from copy import deepcopy
 from enum import IntEnum
@@ -32,7 +33,7 @@ from typing import List
 
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state 
+from streamlit import session_state
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -133,10 +134,11 @@ all_task_columns = [
 
 ]
 
-
 # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
 # ************************* TO LABELLING CALLBACK ***********************************
+
+
 def to_labelling_editor_page(section_enum: IntEnum):
     labelling_section_data_table_dict = {
         LabellingPagination.AllTask: 'all_task_table_key',
@@ -221,7 +223,7 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
 
 def index():
 
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -256,12 +258,18 @@ def index():
         # ****************************** HEADER **********************************************
 
     st.write(f"## **Labelling Section:**")
-    st.write("**Filter:**")
 
     # ************COLUMN PLACEHOLDERS *****************************************************
     # labelling_section_clusters_button_col,_,start_labelling_button_col=st.columns([1,3,1])
-    all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _, start_labelling_button_col = st.columns([
-        2, 0.5, 3, 0.5, 2, 5, 3])
+    filter_msg_col, _, all_task_button_col, _, labelled_task_button_col, _, queue_button_col, _ = st.columns(
+        [0.5, 0.5, 1.5, 0.5, 2, 0.5, 2, 3])
+    filter_msg_col.markdown("**Filter:**")
+
+    action_msg_col, _, start_labelling_button_col, _, edit_labeling_config_col, _, export_labels_col, _, download_task_col, _ = st.columns(
+        [0.5, 0.5, 1.5, 0.5, 2, 0.5, 2, 0.5, 2, 0.5])
+    action_msg_col.markdown("**Action:**")
+
+    archive_success_message = st.empty()
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     labelling_page = {
@@ -279,6 +287,13 @@ def index():
     if 'data_selection' not in session_state:
         # state store for Data Table
         session_state.data_selection = []
+    if 'archive_success' not in session_state:
+        # to check whether exported zipfile successfully
+        session_state.archive_success = None
+    if 'zipfile_path' not in session_state:
+        # initialize the path to the zipfile for images & annotations
+        session_state['zipfile_path'] = None
+
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     def to_labelling_section(section_name: IntEnum):
@@ -301,8 +316,50 @@ def index():
         st.button("Start Labelling", key='start_labelling_button',
                   on_click=to_labelling_section, args=(LabellingPagination.Editor,))
 
-    st.button("Edit Editor/Labeling Config", key='edit_labelling_config',
-              on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
+    with edit_labeling_config_col:
+        st.button("Edit Editor/Labeling Config", key='edit_labelling_config_button',
+                  on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
+
+    def download_export_tasks():
+        with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
+            # zipfile_path = session_state.project.download_tasks(
+            #     return_target_path=True)
+            zipfile_path = session_state.project.download_tasks(
+                return_original_path=True)
+            session_state['zipfile_path'] = zipfile_path
+            log_info(f"Zipfile created at: {zipfile_path}")
+            session_state['archive_success'] = zipfile_path
+
+    with export_labels_col:
+        st.button("Export Labelled Tasks", key='export_labels_button',
+                  on_click=download_export_tasks)
+
+    def reset_zipfile_state():
+        # clear out the `download_button` after the user has clicked it
+        session_state['zipfile_path'] = None
+        session_state['archive_success'] = None
+
+    with download_task_col:
+        zipfile_path = session_state.get('zipfile_path')
+        if zipfile_path is not None and zipfile_path.exists():
+            with st.spinner("Creating the Zipfile button to download ... This may take awhile ..."):
+                with open(zipfile_path, "rb") as fp:
+                    st.download_button(
+                        label="Download ZIP",
+                        data=fp,
+                        file_name="images_annotations.zip",
+                        mime="application/zip",
+                        key="download_tasks_btn",
+                        on_click=reset_zipfile_state,
+                    )
+
+    if session_state['archive_success']:
+        # - commenting out this line in case we are only deploying for local machine,
+        # - this is to show message to the user about the "Downloads" folder path
+        # archive_success_message.success(
+        #     f"Zipfile created successfully at **{session_state['archive_success']}**")
+        archive_success_message.success(
+            f"Zipfile created successfully, you may download it by pressing the 'Download ZIP' button")
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
@@ -312,6 +369,10 @@ def index():
     task_queue_dict = Task.get_labelled_task(all_task, False)
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     log_info(f"Navigator: {session_state.labelling_pagination}")
+
+    if session_state.labelling_pagination != LabellingPagination.Editor:
+        # reset the archive success message after go to other pages
+        session_state.archive_success = False
 
     if session_state.labelling_pagination == LabellingPagination.Editor:
         # if "new_annotation_flag" not in session_state:

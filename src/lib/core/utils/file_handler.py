@@ -7,6 +7,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 
 """
+import base64
 import io
 import json
 import os
@@ -262,8 +263,8 @@ def toJSON(obj):
 
 
 def read_yaml(filepath):
-    if not os.path.exists(filepath):
-        filepath = find_file(filepath)
+    # if not os.path.exists(filepath):
+    #     filepath = find_file(filepath)
     with io.open(filepath, encoding='utf-8') as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
     return data
@@ -742,3 +743,13 @@ def file_archive_handler(archive_filename: Path, target_filename: Path, archive_
         st.error(error_msg)
 
     chdir_root()
+
+
+def st_download_button(zip_filepath: Path, download_filename: str, btn_name: str):
+    with open(zip_filepath, 'rb') as f:
+        bytes = f.read()
+        b64 = base64.b64encode(bytes).decode()
+        href = f'<a href="data:file/zip;base64,{b64}" download=\'{download_filename}\'>\
+            download file \
+        </a>'
+        st.markdown(href, unsafe_allow_html=True)

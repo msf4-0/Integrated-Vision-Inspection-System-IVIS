@@ -97,43 +97,50 @@ def _get_upload_dir(project_dir=None, upload_dir=None):
     return upload_dir
 
 
-def download(url, output_dir, filename=None, project_dir=None, return_relative_path=False, upload_dir=None):
-    is_local_file = url.startswith('/data/') and '?d=' in url
-    is_uploaded_file = url.startswith('/data/upload')
+def download(url, output_dir, filename=None, project_dir=None, return_relative_path=False, upload_dir=None,
+             download_resources=False):
+    # - All these commented lines are from original `label-studio-converter` repo
+    # is_local_file = url.startswith('/data/') and '?d=' in url
+    # is_uploaded_file = url.startswith('/data/upload')
 
-    if is_uploaded_file:
-        upload_dir = _get_upload_dir(project_dir, upload_dir)
-        filename = url.replace('/data/upload/', '')
-        filepath = os.path.join(upload_dir, filename)
-        logger.debug('Copy {filepath} to {output_dir}'.format(
-            filepath=filepath, output_dir=output_dir))
-        shutil.copy(filepath, output_dir)
-        if return_relative_path:
-            return os.path.join(os.path.basename(output_dir), filename)
-        return filepath
+    # if is_uploaded_file:
+    #     upload_dir = _get_upload_dir(project_dir, upload_dir)
+    #     filename = url.replace('/data/upload/', '')
+    #     filepath = os.path.join(upload_dir, filename)
+    #     logger.debug('Copy {filepath} to {output_dir}'.format(
+    #         filepath=filepath, output_dir=output_dir))
+    #     if download_resources:
+    #         shutil.copy(filepath, output_dir)
+    #     if return_relative_path:
+    #         return os.path.join(os.path.basename(output_dir), filename)
+    #     return filepath
 
-    if is_local_file:
-        filename, dir_path = url.split('/data/', 1)[-1].split('?d=')
-        dir_path = str(urllib.parse.unquote(dir_path))
-        if not os.path.exists(dir_path):
-            raise FileNotFoundError(dir_path)
-        filepath = os.path.join(dir_path, filename)
-        if return_relative_path:
-            raise NotImplementedError()
-        return filepath
+    # if is_local_file:
+    #     filename, dir_path = url.split('/data/', 1)[-1].split('?d=')
+    #     dir_path = str(urllib.parse.unquote(dir_path))
+    #     if not os.path.exists(dir_path):
+    #         raise FileNotFoundError(dir_path)
+    #     filepath = os.path.join(dir_path, filename)
+    #     if return_relative_path:
+    #         raise NotImplementedError()
+    #     return filepath
 
-    if filename is None:
-        basename, ext = os.path.splitext(os.path.basename(urlparse(url).path))
-        filename = basename + '_' + \
-            hashlib.md5(url.encode()).hexdigest()[:4] + ext
+    # if filename is None:
+    #     basename, ext = os.path.splitext(os.path.basename(urlparse(url).path))
+    #     filename = basename + '_' + \
+    #         hashlib.md5(url.encode()).hexdigest()[:4] + ext
+    filename = os.path.basename(url)
     filepath = os.path.join(output_dir, filename)
-    if not os.path.exists(filepath):
+    if url.startswith("http"):
         logger.info('Download {url} to {filepath}'.format(
             url=url, filepath=filepath))
         r = requests.get(url)
         r.raise_for_status()
         with io.open(filepath, mode='wb') as fout:
             fout.write(r.content)
+    else:
+        # print(f"COPYING IMAGE from {url} to {filepath}")
+        shutil.copy2(url, filepath)
     if return_relative_path:
         return os.path.join(os.path.basename(output_dir), filename)
     return filepath
@@ -175,7 +182,6 @@ def parse_config(config_string):
             "labels": ["Label1", "Label2", "Label3"] // taken from "alias" if exists or "value"
     }
     """
-    print("Enter")
     if not config_string:
         return {}
 
