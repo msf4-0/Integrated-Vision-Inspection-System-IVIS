@@ -195,28 +195,6 @@ class Task(BaseTask):
         # self.query_task()
 
     @staticmethod
-    def get_next_task(project_id: int) -> Union[int, None]:
-        """
-        Get the next unlabeled task ID (not labeled and not skipped) to help the user 
-        to proceed to next task automatically.
-        Returns `None` if there is no more unlabeled task ID.
-        """
-
-        sql_query = """
-        SELECT id
-        FROM task
-        WHERE project_id = %s
-        and (is_labelled = False and skipped = False)
-        LIMIT 1;
-        """
-        sql_vars = [project_id]
-        task_id = db_fetchone(sql_query, conn, sql_vars)  # return tuple
-        if task_id is not None:
-            task_id = int(task_id[0])
-            log_info(f"Next task ID: {task_id})")
-            return task_id
-
-    @staticmethod
     def check_if_task_exists(image_name: str, project_id: int, dataset_id: int, conn=conn) -> bool:
         """Check if tasks exist in the Task table
 
