@@ -7,7 +7,12 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import logging
 import sys
 
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
+DEBUG = True
+if DEBUG:
+    # added module name, function name, and also line number
+    FORMAT = '[%(levelname)s] %(asctime)s - [%(module)s.%(funcName)s: %(lineno)d] %(message)s'
+else:
+    FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
 DATEFMT = '%d-%b-%y %H:%M:%S'
 LOG_FILE = 'test.log'
 

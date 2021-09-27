@@ -12,6 +12,7 @@ from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+from pages.sub_pages.training_page import training_dashboard
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -82,7 +83,7 @@ def index():
     existing_project_page = {
         ExistingProjectPagination.Dashboard: existing_project_dashboard.dashboard,
         ExistingProjectPagination.Labelling: labelling_dashboard.index,
-        ExistingProjectPagination.Training: None,
+        ExistingProjectPagination.Training: training_dashboard.index,
         ExistingProjectPagination.Models: None,
         ExistingProjectPagination.Export: None,
         ExistingProjectPagination.Settings: None

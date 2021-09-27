@@ -27,15 +27,17 @@ import sys
 from enum import IntEnum
 from pathlib import Path
 from time import sleep
+import pandas as pd
 
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
+
 # DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -51,9 +53,10 @@ from core.utils.log import log_error, log_info, log_debug  # logger
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from pages.sub_pages.training_page import new_training
+from pages.sub_pages.models_page import models_page
 from path_desc import chdir_root
 from project.project_management import Project, ProjectPermission
-from training.training_management import Training, TrainingPagination
+from training.training_management import NewTraining, NewTrainingPagination, Training, TrainingPagination
 # >>>> TEMP
 from user.user_management import User
 
@@ -174,9 +177,35 @@ def dashboard():
     # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     training_dashboard_data_table_place = st.empty()
 
+    def to_training_page():
+        training_id_tmp = session_state.training_dashboard_table[0]
+        log_info(f"Entering Training {training_id_tmp}")
+
+        is_started = Training.query_progress(training_id_tmp)
+        print(is_started)
+        if is_started:
+            # TODO: implement this for trained data
+            session_state.new_training = Training(
+                training_id_tmp, project=session_state.project)
+        else:
+            session_state.new_training = NewTraining(
+                training_id_tmp, project=session_state.project)
+
+        session_state.training_pagination = TrainingPagination.Existing
+        log_info(
+            f"Setting `training_pagination` to {session_state.training_pagination}")
+
+        training_dashboard_data_table_place.empty()
+        if "training_dashboard_table" in session_state:
+            del session_state.training_dashboard_table
+
+        st.experimental_rerun()
+
     with training_dashboard_data_table_place:
         data_table(all_project_training, project_training_columns,
-                   checkbox=False, key='training_dashboard_table')
+                   checkbox=False, key='training_dashboard_table', on_change=to_training_page)
+
+    st.markdown('___')
 
 
 def index():
@@ -194,7 +223,7 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 2
+        project_id_tmp = 4
         log_info(f"Entering Project {project_id_tmp}")
 
         session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -217,7 +246,9 @@ def index():
     training_page = {
         TrainingPagination.Dashboard: dashboard,
         TrainingPagination.New: new_training.index,
-        TrainingPagination.Existing: None,
+
+        # TODO: Implement these pages
+        TrainingPagination.Existing: models_page.existing_models,
         TrainingPagination.NewModel: None
     }
 

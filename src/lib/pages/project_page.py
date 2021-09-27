@@ -250,7 +250,7 @@ def index():
     with navigator.container():
         st.button("Project", key="to_project_dashboard_sidebar",
                   on_click=to_project_dashboard)
-    log_info(f"Navigator: {session_state.project_pagination}")
+    log_info(f"\nNavigator: {session_state.project_pagination}")
     # st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()
 

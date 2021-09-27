@@ -48,7 +48,7 @@ else:
 
 
 from core.utils.code_generator import get_random_string
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import log_debug, log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
 from project.project_management import Project
@@ -68,12 +68,12 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 def index():
+    log_debug("[NAVIGATOR] At new_training.py INDEX")
     chdir_root()  # change to root directory
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("[NAVIGATOR] At new_training.py INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -84,7 +84,7 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 2
+        project_id_tmp = 4
         log_info(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly

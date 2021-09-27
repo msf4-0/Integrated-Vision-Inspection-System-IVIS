@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+from copy import deepcopy
 import json
 import sys
 import traceback
@@ -31,7 +32,7 @@ from enum import IntEnum
 from math import ceil, floor
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import pandas as pd
 import project
@@ -128,7 +129,6 @@ class DatasetPath(NamedTuple):
     eval: Path
     test: Path
     # <<<< Variable Declaration <<<<
-
 
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
@@ -512,6 +512,11 @@ class NewTraining(BaseTraining):
         self.training_model: NewModel = NewModel()
     # TODO *************************************
 
+    def __repr__(self):
+        # to add more later
+        return (f"NewTraining(training_id={self.id}, project_id={self.project_id}, "
+                f"attached_model={self.attached_model}, training_model={self.training_model})")
+
     # Wrapper for check_if_exists function from form_manager.py
     def check_if_exists(self, context: Dict, conn) -> bool:
         table = 'public.training'
@@ -781,6 +786,7 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
+
     @staticmethod
     def reset_new_training_page():
 
@@ -795,15 +801,58 @@ class Training(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
 
+        # `query_all_fields` creates self.name, self.desc, self.training_param_dict,
+        # self.augmentation_dict, self.progress, self.partition_ratio
+        # self.training_model_id, self.attached_model_id, self.is_started
         self.query_all_fields()
         self.training_path = self.get_all_training_path()
-        self.attached_model: Model = None
-        self.project_model: Model = None
+        # TODO creates self.attached_model, self.training_model
+        # self.get_training_details()
 
         # TODO #136 query training details
         # get model attached
         # is_started
         # progress
+
+    def __repr__(self):
+        pass
+
+    # TODO: fix this later
+    # def get_training_details(self):
+    #     if self.attached_model_id:
+    #         existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
+    #             for_data_table=True,
+    #             return_dict=True,
+    #             deployment_type=session_state.new_training.deployment_type))
+    #         model_df_row = Model.filtered_models_dataframe(models=existing_models,
+    #                                                        dataframe_col="id",
+    #                                                        filter_value=session_state.existing_models_table[0],
+    #                                                        column_names=existing_models_column_names)
+    #         self.attached_model = Model(model_row=model_df_row[0])
+
+    #     if self.attached_model_id and self.training_model_id:
+    #         pass
+
+    @staticmethod
+    def query_progress(training_id) -> Union[bool, None]:
+        sql_query = """
+                SELECT
+                    is_started
+                FROM
+                    public.training
+                WHERE
+                    id = %s;
+        """
+        query_vars = [training_id]
+
+        is_started = db_fetchone(sql_query, conn, query_vars)  # return tuple
+
+        if is_started:
+            return is_started[0]
+        else:
+            log_error(
+                f"Training with ID {training_id} does not exists in the Database!!!")
+            return None
 
     def query_all_fields(self) -> NamedTuple:
         """Query fields of current Training
@@ -814,6 +863,8 @@ class Training(BaseTraining):
         - is_started
         - progress
         - partition_ratio
+        - training_model_id
+        - attached_model_id
 
         Returns:
             NamedTuple: Query results from Training table
@@ -827,6 +878,8 @@ class Training(BaseTraining):
                     , is_started
                     , progress
                     , partition_ratio
+                    , training_model_id
+                    , attached_model_id
                 FROM
                     public.training
                 WHERE
@@ -844,7 +897,8 @@ class Training(BaseTraining):
         if training_field:
             self.name, self.desc,\
                 self.training_param_dict, self.augmentation_dict,\
-                self.is_started, self.progress, self.partition_ratio = training_field
+                self.is_started, self.progress, self.partition_ratio, \
+                self.training_model_id, self.attached_model_id = training_field
         else:
             log_error(
                 f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")

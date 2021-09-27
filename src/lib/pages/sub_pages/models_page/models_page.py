@@ -35,6 +35,7 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
+
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -62,7 +63,7 @@ from data_manager.data_table_component.data_table import data_table
 from data_manager.database_manager import init_connection
 from pages.sub_pages.models_page.models_subpages.user_model_upload import \
     user_model_upload_page
-from path_desc import chdir_root
+from path_desc import TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root
 from project.project_management import Project
 from training.model_management import Model, ModelsPagination, NewModel
 from training.training_management import (NewTraining, NewTrainingPagination,
@@ -104,7 +105,7 @@ def existing_models():
     def to_model_upload_page():
         session_state.models_pagination = ModelsPagination.ModelUpload
 
-        if "existing_models_table" not in session_state:
+        if "existing_models_table" in session_state:
             del session_state.existing_models_table
 
     to_model_upload_page_button_place.button(label="Upload Deep Learning Model",
@@ -165,6 +166,9 @@ def existing_models():
 
     ]
     # ******************************* DATA TABLE *******************************
+
+    models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH)
+    st.write(models_df)
 
     # CALLBACK >>>> Returns model_id -> store inside model class
     def instantiate_model():
@@ -251,7 +255,6 @@ def existing_models():
                     pass
 
 
-
 def index():
 
     chdir_root()  # change to root directory
@@ -274,8 +277,8 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 43
-        training_id_tmp = 18
+        project_id_tmp = 4
+        training_id_tmp = 2
         log_info(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -425,7 +428,6 @@ def index():
     with new_training_section_back_button_place:
         st.button("back", key="new_training_back_button",
                   on_click=to_training_infodataset_page)
-
 
     # st.write(vars(session_state.new_training))
     # st.write(vars(session_state.new_training.training_model))

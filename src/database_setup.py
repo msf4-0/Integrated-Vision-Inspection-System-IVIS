@@ -34,6 +34,8 @@ import toml
 from streamlit import cli as stcli
 from streamlit import session_state
 
+from core.utils.model_details_db_setup import scrape_setup_model_details
+
 # ***************** Add src/lib to path ***************************
 SRC = Path(__file__).resolve().parent  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -116,6 +118,9 @@ def modify_secrets_toml(**context: Dict):
         conn = init_connection(**context)
         session_state.database_status = initialise_database_pipeline(conn,
                                                                      context)
+
+        # also scrape model details online and setup the `models` table
+        scrape_setup_model_details()
 
         if session_state.database_status == DatabaseStatus.Exist:
             # Write to secrets.toml file if database configuration is valid

@@ -55,7 +55,7 @@ from core.utils.code_generator import get_random_string
 from core.utils.file_handler import (list_files_in_archived,
                                      save_uploaded_extract_files)
 from core.utils.form_manager import remove_newline_trailing_whitespace
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import log_debug, log_error, log_info  # logger
 from data_manager.database_manager import init_connection
 from deployment.deployment_management import COMPUTER_VISION_LIST, Deployment
 from path_desc import USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root
@@ -78,6 +78,8 @@ chdir_root()  # change to root directory
 
 
 def user_model_upload_page():
+    log_debug("[NAVIGATOR] At `user_model_upload.py` "
+              "`user_model_upload_page` function")
 
     # >>>> INIT >>>>
 
