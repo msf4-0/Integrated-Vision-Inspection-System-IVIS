@@ -62,14 +62,16 @@ from core.utils.form_manager import (check_if_exists, check_if_field_empty,
 from core.utils.helper import (create_dataframe, dataframe2dict,
                                datetime_formatter, get_dataframe_row,
                                get_directory_name, get_identifier_str_IntEnum)
-from core.utils.log import log_error, log_info, log_warning  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
-from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
+from deployment.deployment_management import (COMPUTER_VISION_LIST, DEPLOYMENT_TYPE, Deployment,
                                               DeploymentType)
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
-                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root)
+                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root,
+                       TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH,
+                       SEGMENT_MODELS_TABLE_PATH)
 
 from training.labelmap_management import Labels
 
@@ -193,6 +195,9 @@ class ModelsPagination(IntEnum):
     Dashboard = 0
     ExistingModels = 1
     ModelUpload = 2
+    TrainingConfig = 3
+    AugmentationConfig = 4
+    TrainingInfoDataset = 5  # this is an old page before models_page
 
     def __str__(self):
         return self.name
@@ -217,6 +222,8 @@ EVALUATION_TAGS = {
 }
 
 # TODO #17 Work on converter
+
+
 class ModelCompatibility(IntEnum):
     Compatible = 0
     MissingExtraFiles_ModelExists = 1
@@ -351,13 +358,13 @@ class BaseModel:
                     for file in file_list:
                         if file.endswith(framework_check_list['model_extension']):
                             model_files.append(file)
-                            log_info(model_files)
+                            logger.info(model_files)
                         assert len(
                             model_files) <= 1, "There should only be one model file"
 
                         if Path(file).name == framework_check_list['checkpoint']:
                             checkpoint_files.append(file)
-                            log_info(checkpoint_files)
+                            logger.info(checkpoint_files)
 
                         if deployment_type_const in [DeploymentType.Image_Classification, DeploymentType.OD,
                                                      DeploymentType.Instance, DeploymentType.Semantic]:
@@ -365,11 +372,11 @@ class BaseModel:
                             # OPTIONAL
                             if file.endswith(framework_check_list['config']):
                                 config_files.append(file)
-                                log_info(config_files)
+                                logger.info(config_files)
 
                             if Path(file).name == framework_check_list['labelmap']:
                                 labelmap_files.append(file)
-                                log_info(labelmap_files)
+                                logger.info(labelmap_files)
 
                     assert 0 < len(model_files) <= 1, "Model file missing"
                     assert len(
@@ -380,13 +387,13 @@ class BaseModel:
                         if len(config_files) == 0:
                             st.warning(
                                 f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
-                            log_warning(
+                            logger.warning(
                                 f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
                             self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
                         if len(labelmap_files) == 0:
                             st.warning(
                                 f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
-                            log_warning(
+                            logger.warning(
                                 f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
                             self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
 
@@ -408,7 +415,7 @@ class BaseModel:
 
             except Exception as e:
                 error_msg = f"{e}"
-                log_error(error_msg)
+                logger.error(error_msg)
                 st.error(error_msg)
                 self.compatibility_flag = ModelCompatibility.MissingModel
                 return False
@@ -525,7 +532,7 @@ class BaseModel:
 
         if not new_model_flag and not model_path.is_dir():
             error_msg = f"{str(model_path)} does not exists"
-            log_error(error_msg)
+            logger.error(error_msg)
 
         return model_path
 
@@ -662,7 +669,7 @@ class BaseModel:
             return True
 
         except Exception as e:
-            log_error(
+            logger.error(
                 f"{e}: Failed to create new row in Models table for {self.name}")
             return False
 
@@ -716,7 +723,7 @@ class BaseModel:
             metrics_json = self.metrics
 
         update_model_table_vars = [self.name, self.desc, metrics_json, str(self.model_path_relative),
-                                   self.model_type, self.framework, self.deployment_type, self.training_id,self.id]
+                                   self.model_type, self.framework, self.deployment_type, self.training_id, self.id]
 
         try:
             query_return = db_fetchone(
@@ -724,13 +731,13 @@ class BaseModel:
 
             assert self.id == query_return, f'Updated wrong Model of ID {query_return}, which should be {self.id}'
 
-            log_info(
+            logger.info(
                 f"Successfully updated New Training Model for {self.id} ")
 
             return True
 
         except Exception as e:
-            log_error(
+            logger.error(
                 f"{e}: Failed to update Models table for {self.name}")
             return False
 
@@ -753,7 +760,7 @@ class BaseModel:
                                                                   framework=self.framework,
                                                                   model_type=self.model_type,
                                                                   new_model_flag=True)
-            log_info(f"Model Path: {self.model_path}")
+            logger.info(f"Model Path: {self.model_path}")
             # unpack
             progress_bar.progress(1 / 3)
             with st.spinner(text='Storing uploaded model'):
@@ -806,15 +813,15 @@ class BaseModel:
                                                                   training_name=training_name,
                                                                   model_type=self.model_type,
                                                                   new_model_flag=True)
-            log_info(f"Training Model Path: {str(self.model_path)}")
+            logger.info(f"Training Model Path: {str(self.model_path)}")
 
             # Create New Model Folder NOTE:KIV-> Create before training
-            # log_info(
+            # logger.info(
             #     f"Creating Training Model folder at {str(self.model_path)}")
             # create_folder_if_not_exist(self.model_path)
 
             # Create new row in DB
-            log_info(f"Inserting Training Model into DB")
+            logger.info(f"Inserting Training Model into DB")
             self.insert_new_model(model_type=self.model_type)
             self.has_submitted = True
 
@@ -845,19 +852,52 @@ class BaseModel:
                                                                   training_name=training_name,
                                                                   model_type=self.model_type,
                                                                   new_model_flag=True)
-            log_info(f"Training Model Path: {str(self.model_path)}")
+            logger.info(f"Training Model Path: {str(self.model_path)}")
 
             # Create New Model Folder NOTE:KIV-> Create before training
-            # log_info(
+            # logger.info(
             #     f"Creating Training Model folder at {str(self.model_path)}")
             # create_folder_if_not_exist(self.model_path)
 
             # Create new row in DB
-            log_info(f"Updating Training Model into DB")
+            logger.info(f"Updating Training Model into DB")
             self.update_model_table(model_type=self.model_type)
             self.has_submitted = True
 
         return True
+
+    @staticmethod
+    def get_pretrained_model_details(deployment_type: str, for_display: bool = False) -> pd.DataFrame:
+        """Get the model details from the CSV files scraped from their websites,
+        based on the `deployment_type`.
+
+        Args:
+            deployment_type (str): obtained from `Project.deployment_type` attribute
+            for_display (bool, optional): True to drop irrelevant columns for displaying to the users. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with pretrained model details such as Model Name.
+        """
+        assert deployment_type in DEPLOYMENT_TYPE, "This should be from `Project.deployment_type`."
+
+        if deployment_type == "Image Classification":
+            # this df has columns: Model Name
+            models_df = pd.read_csv(CLASSIF_MODELS_NAME_PATH)
+        elif deployment_type == "Object Detection with Bounding Boxes":
+            # this df has columns: Model Name, Speed (ms), COCO mAP, Outputs, model_links
+            models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH)
+            if for_display:
+                # `model_links` will be required for downloading the pretrained models for TFOD
+                models_df.drop(columns='model_links', inplace=True)
+        elif deployment_type == "Semantic Segmentation with Polygons":
+            # this df has columns: model_func, Model Name, Reference, links
+            # The `Reference` contains names of the authors
+            # The `links` are just the paper's arXiv links
+            models_df = pd.read_csv(SEGMENT_MODELS_TABLE_PATH)
+            if for_display:
+                # `model_func` are the functions required for using the `keras_unet_collection` library
+                models_df.drop(columns='model_func', inplace=True)
+        return models_df
 
 
 class NewModel(BaseModel):
@@ -912,6 +952,7 @@ class Model(BaseModel):
             assert (isinstance(
                 model_id, int)), f"Model ID should be type int but type {type(model_id)} obtained ({model_id})"
             self.id = model_id
+            # set up the remaining fields just like when `model_row` is being passed in
             self.query_all_fields()
 
         # ******************************Get model type constant******************************
@@ -927,8 +968,22 @@ class Model(BaseModel):
             self.model_path = self.get_project_model_path()
 
         # ******************************Get Model Input Size******************************
-        self.model_input_size = self.metrics.get('metadata').get('input_size')
+        # TODO: KIV
+        # self.model_input_size = self.metrics.get('metadata').get('input_size')
         self.perf_metrics = self.get_perf_metrics()
+
+    def __repr__(self):
+        return (f"Model(model_row={{'id': {self.id}, 'Name': {self.name}, "
+                f"'Description': {self.desc}, "
+                f"'Metrics': {self.metrics}, "
+                f"'Model Type': {self.model_type}, "
+                f"'Framework': {self.framework}, "
+                f"'Training Name': {self.training_name}, "
+                f"'Date/Time': {self.updated_at}, "
+                f"'Model Path': {self.model_path_relative}, "
+                f"'Deployment Type': {self.deployment_type}"
+                "})"
+                )
 
     def query_all_fields(self) -> NamedTuple:
 
@@ -985,9 +1040,11 @@ class Model(BaseModel):
 
         if model_field:
 
-            self.id, self.name, self.framework, self.model_type, self.deployment_type, self.training_name, self.updated_at, self.desc, self.metrics, self.model_path_relative = model_field
+            self.id, self.name, self.framework, self.model_type, self.deployment_type,\
+                self.training_name, self.updated_at, self.desc, self.metrics,\
+                self.model_path_relative = model_field
         else:
-            log_error(
+            logger.error(
                 f"Model with ID {self.id} does not exists in the Database!!!")
 
             model_field = None
@@ -1102,11 +1159,11 @@ class Model(BaseModel):
         Returns:
             Dict: Data row from models DataFrame
         """
-        log_info(f"Obtaining data row from model_df......")
+        logger.info(f"Obtaining data row from model_df......")
 
         model_row = get_dataframe_row(model_id, model_df)
 
-        log_info(f"Currently serving data:{model_row['Name']}")
+        logger.info(f"Currently serving data:{model_row['Name']}")
 
         return model_row
 
@@ -1220,7 +1277,7 @@ def query_all_models(for_data_table: bool = False, return_dict: bool = False):
     models, column_names = db_fetchall(
         query_all_model_SQL, conn, fetch_col_name=True, return_dict=return_dict)
 
-    log_info(f"Querying all models......")
+    logger.info(f"Querying all models......")
 
     models_tmp = []
 
@@ -1301,7 +1358,7 @@ def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None,
     models, column_names = db_fetchall(
         model_dt_SQL, conn, model_dt_vars, fetch_col_name=True, return_dict=return_dict)
 
-    log_info(f"Querying models filtered by Deployment Type from database....")
+    logger.info(f"Querying models filtered by Deployment Type from database....")
 
     models_tmp = []
 

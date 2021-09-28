@@ -1,2 +1,1 @@
-tabulate
-segmentation_models
+keras_unet_collection

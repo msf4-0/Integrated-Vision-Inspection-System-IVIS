@@ -40,6 +40,10 @@ logger.addHandler(consoleHandler)
 #  its message to the root logger
 logger.propagate = False
 
+# It's not recommend to use the functions below as the logger will not be able to tell
+# where the logger command was called, e.g. the `filename` will always be this script: log.py
+# rather than the filename where the logger was called outside this script.
+
 
 def std_log(msg):
     logger.info(msg)

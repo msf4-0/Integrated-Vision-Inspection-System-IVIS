@@ -121,8 +121,9 @@ def dashboard():
         if "all_project_table" in session_state:
             del session_state.all_project_table
 
-    create_new_project_button_col1.button(
-        "Create New Project", key='create_new_project_from project_dashboard', on_click=to_new_project_page, help="Create new project")
+    if session_state.project_pagination == ProjectPagination.Dashboard:
+        create_new_project_button_col1.button(
+            "Create New Project", key='create_new_project_from project_dashboard', on_click=to_new_project_page, help="Create new project")
     # ***************** CREATE NEW PROJECT BUTTON *********************************************************
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
