@@ -51,12 +51,12 @@ else:
 # >>>> User-defined Modules >>>>
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.helper import create_dataframe, get_df_row_highlight_color
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
 
 from training.training_management import NewTrainingPagination, NewTrainingSubmissionHandlers, TrainingPagination
-
+from training.model_management import ModelsPagination
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -70,9 +70,12 @@ chdir_root()
 
 
 def infodataset():
-    log_info("[NAVIGATOR] At `new_training_infodataset.py` `infodataset` function")
+    logger.debug(
+        "[NAVIGATOR] At `new_training_infodataset.py` `infodataset` function")
     if 'new_training_place' not in session_state:
         session_state.new_training_place = {}
+    if 'new_training_pagination' not in session_state:
+        session_state.new_training_pagination = NewTrainingPagination.InfoDataset
     # ************COLUMN PLACEHOLDERS *****************************************************
     st.write("___")
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
@@ -99,7 +102,7 @@ def infodataset():
         context = {'column_name': 'name',
                    'value': session_state.new_training_name}
 
-        log_info(f"New Training: {context}")
+        logger.debug(f"New Training: {context}")
 
         if session_state.new_training_name:
             if session_state.new_training.check_if_exists(context, conn):
@@ -109,11 +112,11 @@ def infodataset():
                     f"Training name used. Please enter a new name")
                 sleep(1)
                 field_placeholder['new_training_name'].empty()
-                log_error(f"Training name used. Please enter a new name")
+                logger.error(f"Training name used. Please enter a new name")
 
             else:
                 session_state.new_training.name = session_state.new_training_name
-                log_info(f"Training name fresh and ready to rumble")
+                logger.info(f"Training name fresh and ready to rumble")
 
         else:
             pass
@@ -309,8 +312,10 @@ def infodataset():
                 session_state.new_training.dataset_chosen = session_state.new_training_dataset_chosen
                 if new_training_infodataset_submission_dict.insert():
                     session_state.new_training_pagination = NewTrainingPagination.Model
+                    # must set this to tell the models_page.py to move to stay in its page
+                    session_state.models_pagination = ModelsPagination.ExistingModels
                     session_state.new_training.has_submitted[session_state.new_training_pagination] = True
-                    log_info(
+                    logger.info(
                         f"Successfully created new training {session_state.new_training.id}")
 
         # >>>> UPDATE if Training has already been submitted prior to this
@@ -322,19 +327,17 @@ def infodataset():
                 if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
                                                                    session_state.project.dataset_dict):
                     session_state.new_training_pagination = NewTrainingPagination.Model
-                    log_info(
+                    # must set this to tell the models_page.py to move to stay in its page
+                    session_state.models_pagination = ModelsPagination.ExistingModels
+                    logger.info(
                         f"Successfully updated new training {session_state.new_training.id}")
             else:
                 session_state.new_training_place['new_training_name'].error(
                     'Training Name already exists, please enter a new name')
 
     with new_training_section_next_button_place:
-        st.button("next", key="new_training_next_button",
+        st.button("Next", key="new_training_next_button",
                   on_click=to_new_training_next_page)
-
-    # ! DEBUGGING PURPOSE, REMOVE LATER
-    st.write("session_state.new_training_dataset_chosen = ")
-    st.write(session_state.new_training_dataset_chosen)
 
 
 if __name__ == "__main__":

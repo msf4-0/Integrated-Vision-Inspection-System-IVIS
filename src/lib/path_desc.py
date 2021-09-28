@@ -74,6 +74,17 @@ USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
 # PROJECT_MODELS=PROJECT_DIR/<PROJECT-NAME>/<TRAINING-NAME>/'exported-models'/<MODEL-NAME>
 
 
+# Pretrained model details
+# assuming this file is in "utils" directory
+RESOURCES_DIR = Path(__file__).resolve().parents[2] / 'resources'
+TFOD_MODELS_TABLE_PATH = RESOURCES_DIR / 'tfod_pretrained_models.csv'
+# Keras image classification pretrained model names from
+# https://www.tensorflow.org/api_docs/python/tf/keras/applications
+# This is stored as a list of strings
+CLASSIF_MODELS_NAME_PATH = RESOURCES_DIR / 'classif_pretrained_models.csv'
+SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
+
+
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))
     log_info(f"Current working directory: {str(PROJECT_ROOT)} ")

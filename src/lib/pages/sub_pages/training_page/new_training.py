@@ -48,7 +48,7 @@ else:
 
 
 from core.utils.code_generator import get_random_string
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
 from project.project_management import Project
@@ -68,12 +68,12 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 def index():
+    logger.debug("[NAVIGATOR] At new_training.py INDEX")
     chdir_root()  # change to root directory
-    RELEASE = False
+    RELEASE = True
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("[NAVIGATOR] At new_training.py INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -84,14 +84,14 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 2
-        log_info(f"Entering Project {project_id_tmp}")
+        project_id_tmp = 4
+        logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
 
         if "project" not in session_state:
             session_state.project = Project(project_id_tmp)
-            log_info("Inside")
+            logger.debug("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
         # ****************************** HEADER **********************************************
@@ -145,7 +145,7 @@ def index():
     # ************************ NEW TRAINING PAGINATION *************************
     new_training_page = {
         NewTrainingPagination.InfoDataset: new_training_infodataset.infodataset,
-        NewTrainingPagination.Model: models_page.existing_models,
+        NewTrainingPagination.Model: models_page.index,
 
         NewTrainingPagination.TrainingConfig: new_training_training_config.training_configuration,
         NewTrainingPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration
@@ -235,7 +235,7 @@ def index():
     #     with new_training_section_next_button_place:
     #         st.button("next", key="new_training_next_button",
     #                   on_click=to_new_training_next_page)
-    log_info(
+    logger.debug(
         f" New Training Pagination: {NewTrainingPagination(session_state.new_training_pagination)}")
 
     # ! DEBUGGING PURPOSE, REMOVE LATER

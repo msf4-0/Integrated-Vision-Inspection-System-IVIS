@@ -7,7 +7,12 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import logging
 import sys
 
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
+DEBUG = True
+if DEBUG:
+    # added module name, function name, and also line number
+    FORMAT = '[%(levelname)s] %(asctime)s - [%(module)s.%(funcName)s: %(lineno)d] %(message)s'
+else:
+    FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
 DATEFMT = '%d-%b-%y %H:%M:%S'
 LOG_FILE = 'test.log'
 
@@ -34,6 +39,10 @@ logger.addHandler(consoleHandler)
 # must set this to False to make sure that child logger does not propagate
 #  its message to the root logger
 logger.propagate = False
+
+# It's not recommend to use the functions below as the logger will not be able to tell
+# where the logger command was called, e.g. the `filename` will always be this script: log.py
+# rather than the filename where the logger was called outside this script.
 
 
 def std_log(msg):
