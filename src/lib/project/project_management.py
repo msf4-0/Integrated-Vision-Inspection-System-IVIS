@@ -54,7 +54,7 @@ else:
 
 # >>>> User-defined Modules >>>>
 from path_desc import PROJECT_DIR, chdir_root, DATASET_DIR
-from core.utils.log import log_info, log_error, log_warning  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.file_handler import create_folder_if_not_exist, file_archive_handler
 from core.utils.helper import get_directory_name, create_dataframe, dataframe2dict
@@ -212,7 +212,7 @@ class BaseProject:
             project_name)  # change name to lowercase
         # join directory name with '-' dash
         project_path = PROJECT_DIR / str(directory_name)
-        log_info(f"Project Path: {str(project_path)}")
+        logger.info(f"Project Path: {str(project_path)}")
 
         return project_path
 
@@ -278,7 +278,7 @@ class Project(BaseProject):
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory.
         Allow download images and annotations if necessary.
         """
-        log_info(
+        logger.info(
             f"Exporting labeled tasks for Project ID: {session_state.project.id}")
 
         json_path = self.generate_label_json()
@@ -286,7 +286,7 @@ class Project(BaseProject):
 
         # - beware here I added removing the entire existing directory before proceeding
         if output_dir.exists():
-            log_warning(
+            logger.warning(
                 f"[INFO] Removing existing exported directory: {output_dir}")
             shutil.rmtree(output_dir)
 
@@ -324,13 +324,13 @@ class Project(BaseProject):
 
         elif self.deployment_type == "Object Detection with Bounding Boxes":
             # using Pascal VOC XML format for TensorFlow Object Detection API
-            log_info(
+            logger.info(
                 f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             converter.convert_to_voc(
                 json_path, output_dir=output_dir, is_dir=False)
 
         elif self.deployment_type == "Semantic Segmentation with Polygons":
-            log_info(
+            logger.info(
                 f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             # using COCO JSON format for segmentation
             converter.convert_to_coco(
@@ -370,7 +370,7 @@ class Project(BaseProject):
         json_path = project_path / f"project-{self.id}.json"
         with open(json_path, "w") as f:
             parsed = json.loads(result)
-            log_info(f"DUMPING TASK JSON to {json_path}")
+            logger.debug(f"DUMPING TASK JSON to {json_path}")
             json.dump(parsed, f, indent=2)
         return json_path
 
@@ -409,7 +409,8 @@ class Project(BaseProject):
         # need to use `explode` method to turn each list of labels into individual rows
         unique_labels = df['label'].explode().unique()
 
-        log_info(f"Unique labels for Project ID {project_id}: {unique_labels}")
+        logger.info(
+            f"Unique labels for Project ID {project_id}: {unique_labels}")
         return unique_labels
 
     @staticmethod
@@ -427,7 +428,7 @@ class Project(BaseProject):
                 ORDER BY id;
         """
         query_vars = [project_id]
-        log_info(
+        logger.info(
             f"Querying annotations from database for Project ID: {project_id}")
 
         try:
@@ -435,7 +436,7 @@ class Project(BaseProject):
                 sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
 
         except Exception as e:
-            log_error(f"{e}: No annotation found for Project {project_id} ")
+            logger.error(f"{e}: No annotation found for Project {project_id} ")
             all_annots = []
             column_names = []
 
@@ -462,7 +463,7 @@ class Project(BaseProject):
         if project_field:
             self.name, self.desc, self.deployment_type, self.deployment_id = project_field
         else:
-            log_error(
+            logger.error(
                 f"Project with ID: {self.id} does not exists in the database!!!")
         return project_field
 
@@ -486,7 +487,8 @@ class Project(BaseProject):
         project_datasets, column_names = db_fetchall(
             query_project_dataset_SQL, conn, query_project_dataset_vars, fetch_col_name=True)
 
-        log_info("Querying list of dataset attached to project from database......")
+        logger.info(
+            "Querying list of dataset attached to project from database......")
         project_dataset_tmp = []
         if project_datasets:
             for dataset in project_datasets:
@@ -519,7 +521,7 @@ class Project(BaseProject):
         #         # dataset_name_list[dataset.Name] = dataset.ID
         #         project_dataset_dict[dataset.Name] = dataset
         project_dataset_dict = get_dataset_name_list(self.datasets)  # UPDATED
-        log_info("Generating list of project dataset names and ID......")
+        logger.info("Generating list of project dataset names and ID......")
 
         return project_dataset_dict
 
@@ -551,7 +553,7 @@ class Project(BaseProject):
             for d in self.datasets:  # dataset loop
                 dataset_name_list.append(d[1])  # get name
                 dataset_path = d[4]
-                log_info(f"Dataset {d[0]}:{dataset_path}")
+                logger.debug(f"Dataset {d[0]}:{dataset_path}")
                 dataset_path = dataset_path + "/*"
                 image_list = {}
                 # data_name_tmp = []
@@ -568,7 +570,7 @@ class Project(BaseProject):
             self.dataset_list = dataset_list
             # self.data_name_list = data_name_list
             end_time = perf_counter()
-            log_info(end_time - start_time)
+            logger.debug(end_time - start_time)
 
             return dataset_list
 
@@ -651,13 +653,13 @@ class NewProject(BaseProject):
         """
         data_name_list = get_single_data_name_list(dataset_name)
         if len(data_name_list):
-            log_info(f"Inserting task into DB........")
+            logger.info(f"Inserting task into DB........")
             for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
 
                 # >>>> Insert new task from NewTask class method
                 task_id = NewTask.insert_new_task(
                     data, self.id, dataset_id)
-                log_info(f"Loaded task {task_id} into DB for data: {data}")
+                logger.info(f"Loaded task {task_id} into DB for data: {data}")
 
     def insert_project(self, dataset_dict: Dict):
         insert_project_SQL = """
@@ -713,17 +715,17 @@ class NewProject(BaseProject):
 
         create_folder_if_not_exist(self.project_path)
 
-        log_info(
+        logger.info(
             f"Successfully created **{self.name}** project at {str(self.project_path)}")
 
         if self.insert_project(dataset_dict):
 
-            log_info(
+            logger.info(
                 f"Successfully stored **{self.name}** project information in database")
             return True
 
         else:
-            log_error(
+            logger.error(
                 f"Failed to stored **{self.name}** project information in database")
             return False
 
@@ -768,7 +770,7 @@ def query_all_projects(return_dict: bool = False, for_data_table: bool = False) 
     projects, column_names = db_fetchall(
         query_all_projects_SQL, conn, fetch_col_name=True, return_dict=return_dict)
 
-    log_info(f"Querying projects from database")
+    logger.info(f"Querying projects from database")
     project_tmp = []
     if projects:
         for project in projects:

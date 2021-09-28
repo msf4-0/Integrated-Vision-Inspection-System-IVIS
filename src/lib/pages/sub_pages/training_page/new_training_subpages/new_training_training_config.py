@@ -45,7 +45,7 @@ if str(LIB_PATH) not in sys.path:
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -56,7 +56,7 @@ from data_manager.database_manager import init_connection
 
 
 def training_configuration():
-    log_info("[NAVIGATOR] At new_training_training_config.py")
+    logger.debug("At new_training_training_config.py")
     st.write("TRAINING CONFIG")
 
 

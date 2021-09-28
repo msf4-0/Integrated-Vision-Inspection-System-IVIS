@@ -49,7 +49,7 @@ if str(LIB_PATH) not in sys.path:
 
 from annotation.annotation_management import (Annotations, LabellingPagination,
                                               reset_editor_page)
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from data_manager.data_table_component.data_table import data_table
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
@@ -83,7 +83,7 @@ navigator = st.sidebar.empty()
 
 
 def dashboard():
-    log_info("Top of project dashboard")
+    logger.debug("Top of project dashboard")
     st.write(f"# Project")
     st.markdown("___")
 
@@ -174,7 +174,7 @@ def dashboard():
     def to_existing_project():
 
         project_id_tmp = session_state.all_project_table[0]
-        log_info(f"Entering Project {project_id_tmp}")
+        logger.debug(f"Entering Project {project_id_tmp}")
 
         session_state.project_pagination = ProjectPagination.Existing
         session_state.project_status = ProjectPagination.Existing
@@ -251,7 +251,7 @@ def index():
     with navigator.container():
         st.button("Project", key="to_project_dashboard_sidebar",
                   on_click=to_project_dashboard)
-    log_info(f"\nNavigator: {session_state.project_pagination}")
+    logger.debug(f"Navigator: {session_state.project_pagination}")
     # st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()
 

@@ -56,7 +56,7 @@ for path in sys.path:
     #     pass
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -114,7 +114,7 @@ def test_db_conn(dsn=None, connection_factory=None, cursor_factory=None, **kwarg
             conn = psycopg2.connect(dsn, connection_factory, cursor_factory)
 
     except Exception as e:
-        log_error(e)
+        logger.error(e)
         print_psycopg2_exception(e)
         conn = None
     return conn
@@ -129,7 +129,7 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
         # params = config()
 
         # connect to the PostgreSQL server
-        log_info('Connecting to the PostgreSQL database...')
+        logger.info('Connecting to the PostgreSQL database...')
         try:
             if kwargs:
                 conn = psycopg2.connect(**kwargs)
@@ -139,7 +139,7 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
                     dsn, connection_factory, cursor_factory)
 
         except Exception as e:
-            log_error(e)
+            logger.error(e)
             print_psycopg2_exception(e)
             conn = None
         # create a cursor
@@ -152,13 +152,14 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
 
                 # display the PostgreSQL database server version
                 db_version = cur.fetchone().version
-                log_info(f"PostgreSQL database version: {db_version}")
-                log_info(f"PostgreSQL connection status: {conn.info.status}")
-                log_info(
+                logger.info(f"PostgreSQL database version: {db_version}")
+                logger.info(
+                    f"PostgreSQL connection status: {conn.info.status}")
+                logger.info(
                     f"You are connected to database '{conn.info.dbname}' as user '{conn.info.user}' on host '{conn.info.host}' at port '{conn.info.port}'.")
 
     except (Exception, psycopg2.DatabaseError) as error:
-        log_error(error)
+        logger.error(error)
         conn = None
 
     return conn
@@ -178,7 +179,7 @@ def db_no_fetch(sql_message: str, conn, vars: List = None) -> None:
                     cur.execute(sql_message)
                 conn.commit()
             except psycopg2.Error as e:
-                log_error(e)
+                logger.error(e)
 
 
 def db_fetchone(sql_message: str, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> namedtuple:
@@ -213,7 +214,7 @@ def db_fetchone(sql_message: str, conn, vars: List = None, fetch_col_name: bool 
                     column_names = None
                     return return_one
             except psycopg2.Error as e:
-                log_error(e)
+                logger.error(e)
 
 
 def db_fetchall(sql_message: str, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> namedtuple:
@@ -239,7 +240,7 @@ def db_fetchall(sql_message: str, conn, vars: List = None, fetch_col_name: bool 
                     column_names = None
                     return return_all
             except psycopg2.Error as e:
-                log_error(e)
+                logger.error(e)
 
 
 def convert_to_dict(query: List):
@@ -268,10 +269,10 @@ def check_if_database_exist(datname: str, conn) -> bool:
         query_return = db_fetchone(
             check_if_database_exist_SQL, conn, check_if_database_exist_vars)
         exist_flag = query_return.exists
-        log_info(f"Database {datname} exists")
+        logger.info(f"Database {datname} exists")
 
     except TypeError as e:
-        log_error(e)
+        logger.error(e)
         exist_flag = False
 
     return exist_flag
@@ -294,7 +295,7 @@ def create_database(database_name: str, conn, owner: str = None):
 
         with conn.cursor() as cur:
             # Create database using sql.Identifier to avoid SQL Injection via string
-            log_info(f"Creating Database: {database_name} OWNER {owner}")
+            logger.info(f"Creating Database: {database_name} OWNER {owner}")
             if owner:
                 # Create Database with owner
                 cur.execute(sql.SQL(
@@ -307,7 +308,7 @@ def create_database(database_name: str, conn, owner: str = None):
                 ).format(sql.Identifier(database_name)))
 
     except psycopg2.Error as e:
-        log_error(e)
+        logger.error(e)
 
 
 def create_relation_database(conn):
@@ -990,12 +991,12 @@ def create_relation_database(conn):
             """
     initialise_database_vars = [f"{argon2.hash('admin')}"]
     try:
-        log_info("Creating relations in database.......")
+        logger.info("Creating relations in database.......")
         db_no_fetch(initialise_database_SQL, conn, initialise_database_vars)
-        log_info("Successfully created relations in database.......")
+        logger.info("Successfully created relations in database.......")
 
     except psycopg2.Error as e:
-        log_error(e)
+        logger.error(e)
 
 
 def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
@@ -1023,5 +1024,5 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
 
         return DatabaseStatus.Exist
     except Exception as e:
-        log_error(e)
+        logger.error(e)
         return DatabaseStatus.NotExist

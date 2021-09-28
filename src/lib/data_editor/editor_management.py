@@ -36,7 +36,7 @@ else:
 from annotation.annotation_management import annotation_types
 from annotation.annotation_template import load_annotation_template
 from core.utils.code_generator import get_random_string
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchone, db_no_fetch,
                                            init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
@@ -115,7 +115,7 @@ class BaseEditor:
             self.xml_doc = xml_doc
             return xml_doc
         else:
-            log_error(f"Unable to parse string as XML object")
+            logger.error(f"Unable to parse string as XML object")
 
     def get_parents(self, parent_tagName: str, attr: str = None, value: str = None) -> List:
         if self.xml_doc:
@@ -210,7 +210,7 @@ class BaseEditor:
         try:
             parent_tagname, child_tagname = TAGNAMES[deployment_type]['type'], TAGNAMES[deployment_type]['tag']
         except Exception as e:
-            log_error(
+            logger.error(
                 f"{e}: Could not retrieve tags. Deployment type '{deployment_type}' is not supported.")
 
         return parent_tagname, child_tagname
@@ -334,7 +334,7 @@ class Editor(BaseEditor):
         if editor_fields:
             self.id, self.name, self.labels_dict = editor_fields
         else:
-            log_error(
+            logger.error(
                 f"Editor for Project with ID: {self.project_id} does not exists in the database!!!")
         return editor_fields
 
@@ -357,12 +357,12 @@ class Editor(BaseEditor):
         try:
             self.editor_config = (db_fetchone(
                 query_editor_SQL, conn, query_editor_vars)[0])
-            log_info(f"Loaded editor from DB")
+            logger.info(f"Loaded editor from DB")
         except TypeError as e:
-            log_error(
+            logger.error(
                 f"{e}: Editor config does not exists in the database for Project ID:{self.project_id}")
             self.editor_notfound_handler()
-            log_info(f"Loaded editor into DB with ID: {self.id}")
+            logger.info(f"Loaded editor into DB with ID: {self.id}")
 
         return self.editor_config
 
@@ -435,7 +435,7 @@ class Editor(BaseEditor):
             if node.hasAttribute(attr) and node.getAttribute(attr) == old_value:
                 node.setAttribute(attr, new_value)
                 new_attributes.append((node.tagName, node.attributes.items()))
-                log_info(
+                logger.info(
                     f"Label '{attr}:{old_value}' updated with attribute '{attr}:{new_value}'")
         if new_attributes:
             return new_attributes
@@ -453,11 +453,11 @@ class Editor(BaseEditor):
 
                 except ValueError as e:
                     error_msg = f"{e}: Child node does not exist"
-                    log_error(error_msg)
+                    logger.error(error_msg)
 
             else:
                 error_msg = f"Child node does not exist"
-                log_error(error_msg)
+                logger.error(error_msg)
 
         if removedChild:
             # NOTE Update when submit button is pressed -> CALLBACK
@@ -496,9 +496,9 @@ class Editor(BaseEditor):
                 for value in values:
                     self.labels_results.append(
                         Labels(value, annotation_type, None, None))
-            log_info(f"Getting Label Details (labels_results)")
+            logger.info(f"Getting Label Details (labels_results)")
         except TypeError as e:
-            log_error(f"{e}: Labels could not be found in 'labels' column")
+            logger.error(f"{e}: Labels could not be found in 'labels' column")
             self.labels_results = []
             if self.labels:
                 # Compatible with one annotation type
@@ -507,7 +507,7 @@ class Editor(BaseEditor):
                 for value in self.labels:
                     self.labels_results.append(
                         Labels(value, annotation_type, None, None))
-                log_info(f"Getting Label Details (labels_dict)")
+                logger.info(f"Getting Label Details (labels_dict)")
 
     def create_table_of_labels(self) -> pd.DataFrame:
         self.get_labels_results()
@@ -531,7 +531,7 @@ def load_sample_image():
         bytes: UTF-8 encoded base64 bytes
     """
     chdir_root()  # ./image_labelling
-    log_info("Loading Sample Image")
+    logger.info("Loading Sample Image")
     sample_image = "resources/sample.jpg"
     with Image.open(sample_image) as img:
         img_byte_arr = BytesIO()

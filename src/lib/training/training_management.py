@@ -57,7 +57,7 @@ from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import (NetChange, datetime_formatter, find_net_change,
                                get_directory_name, join_string)
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
@@ -197,6 +197,8 @@ class BaseTraining:
             'exported_models': None,
             'models': None
         }
+        # this tells whether the data has already been stored in dataset,
+        # to be able to tell the submission forms whether we are inserting or updating the DB
         self.has_submitted: Dict = {
             NewTrainingPagination.InfoDataset: False,
             NewTrainingPagination.Model: False,
@@ -223,7 +225,7 @@ class BaseTraining:
         project_path = Path(project_path)  # make sure it is Path() object
 
         training_path = project_path / 'training' / str(directory_name)
-        log_info(f"Training Path: {str(training_path)}")
+        logger.info(f"Training Path: {str(training_path)}")
 
         return training_path
 
@@ -302,7 +304,7 @@ class BaseTraining:
             self.remove_training_dataset(appended_elements, dataset_dict)
 
         else:
-            log_info(
+            logger.info(
                 f"There are no change in the dataset chosen {self.dataset_chosen}")
 
     def remove_training_dataset(self, removed_dataset: List, dataset_dict: Dict):
@@ -337,10 +339,10 @@ class BaseTraining:
 
                 true_dataset_id = dataset_dict[dataset].ID
                 assert query_return == true_dataset_id, f"Removed wrong dataset of ID {query_return}, should be {true_dataset_id}"
-                log_info(f"Removed Training Dataset {dataset}")
+                logger.info(f"Removed Training Dataset {dataset}")
 
             except Exception as e:
-                log_error(f"{e}")
+                logger.error(f"{e}")
 
     def insert_training_dataset(self, added_dataset: List):
         """Insert Dataset into training_dataset table
@@ -371,7 +373,7 @@ class BaseTraining:
             db_no_fetch(insert_training_dataset_SQL, conn,
                         insert_training_dataset_vars)
 
-            log_info(f"Inserted Training Dataset {dataset}")
+            logger.info(f"Inserted Training Dataset {dataset}")
 
     def update_training_info(self) -> bool:
         """Update Training Name, Description, and Partition Size into the database
@@ -402,12 +404,12 @@ class BaseTraining:
 
         try:
             assert self.id == query_return, f'Updated wrong Training of ID {query_return}, which should be {self.id}'
-            log_info(
+            logger.info(
                 f"Successfully updated New Training Name, Desc and Partition Size for {self.id} ")
             return True
 
         except Exception as e:
-            log_error(
+            logger.error(
                 f"{e}: Failed to update New Training Name, Desc and Partition Size for {self.id}")
             return False
 
@@ -447,12 +449,12 @@ class BaseTraining:
                                        conn,
                                        insert_training_info_vars).id
             self.id = query_return
-            log_info(
+            logger.info(
                 f"Successfully load New Training Name, Desc and Partition Size for {self.id} ")
             return True
 
         except TypeError as e:
-            log_error(
+            logger.error(
                 f"{e}: Failed to load New Training Name, Desc and Partition Size for {self.id}")
             return False
 
@@ -497,7 +499,7 @@ class BaseTraining:
             return True
 
         except Exception as e:
-            log_error(f"{e}")
+            logger.error(f"{e}")
             traceback.print_exc()
 
             return False
@@ -589,14 +591,14 @@ class NewTraining(BaseTraining):
         # >>>> CREATE Training directory recursively
         for path in self.training_path.values():
             create_folder_if_not_exist(path)
-            log_info(
+            logger.info(
                 f"Successfully created **{str(path)}**")
 
         # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
         try:
             assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
                 len(self.training_path) - 1)), f"Failed to create all folders"
-            log_info(
+            logger.info(
                 f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
 
         except AssertionError as e:
@@ -608,7 +610,7 @@ class NewTraining(BaseTraining):
             missing_folders = [x for x in self.training_path['ROOT'].iterdir(
             ) if x.is_dir() and (x not in directory_structure)]
 
-            log_error(f"{e}: Missing {missing_folders}")
+            logger.error(f"{e}: Missing {missing_folders}")
 
     def insert_training_info_dataset(self) -> bool:
         """Create New Training submission
@@ -639,7 +641,7 @@ class NewTraining(BaseTraining):
             return True
 
         except AssertionError as e:
-            log_error(f'{e}')
+            logger.error(f'{e}')
             traceback.print_exc()
             st.error(f'{e}')
             return False
@@ -667,7 +669,7 @@ class NewTraining(BaseTraining):
             return True
 
         except Exception as e:
-            log_error(f"At update training_attached: {e}")
+            logger.error(f"At update training_attached: {e}")
             return False
 
 
@@ -815,7 +817,11 @@ class Training(BaseTraining):
         # progress
 
     def __repr__(self):
-        pass
+        return "<{klass} {attrs}>".format(
+            klass=self.__class__.__name__,
+            attrs=" ".join("{}={!r}".format(k, v)
+                           for k, v in self.__dict__.items()),
+        )
 
     # TODO: fix this later
     # def get_training_details(self):
@@ -834,7 +840,7 @@ class Training(BaseTraining):
     #         pass
 
     @staticmethod
-    def query_progress(training_id) -> Union[bool, None]:
+    def query_progress(training_id: int) -> Union[bool, None]:
         sql_query = """
                 SELECT
                     is_started
@@ -850,7 +856,7 @@ class Training(BaseTraining):
         if is_started:
             return is_started[0]
         else:
-            log_error(
+            logger.error(
                 f"Training with ID {training_id} does not exists in the Database!!!")
             return None
 
@@ -900,7 +906,7 @@ class Training(BaseTraining):
                 self.is_started, self.progress, self.partition_ratio, \
                 self.training_model_id, self.attached_model_id = training_field
         else:
-            log_error(
+            logger.error(
                 f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")
 
             training_field = None
@@ -969,7 +975,7 @@ class Training(BaseTraining):
                                                     """
 
         query_all_project_training_vars = [project_id]
-        log_info(
+        logger.info(
             f"Querying Training from database for Project {project_id}")
         all_project_training = []
         try:
@@ -988,7 +994,7 @@ class Training(BaseTraining):
 
         except TypeError as e:
 
-            log_error(f"""{e}: Could not find any training for Project ID {project_id} / \
+            logger.error(f"""{e}: Could not find any training for Project ID {project_id} / \
                             Project ID: Project ID {project_id} does not exists""")
 
         return all_project_training, column_names
@@ -1024,21 +1030,21 @@ class Training(BaseTraining):
     #     # CREATE Training directory recursively
     #     for dir in directory_pipeline:
     #         create_folder_if_not_exist(dir)
-    #         log_info(
+    #         logger.info(
     #             f"Successfully created **{str(dir)}**")
 
-    #     log_info(
+    #     logger.info(
     #         f"Successfully created **{self.name}** training at {str(self.training_path)}")
 
     #     # Entry into DB for training,project_training,model,model_training tables
     #     if self.insert_training():
 
-    #         log_info(
+    #         logger.info(
     #             f"Successfully stored **{self.name}** traiing information in database")
     #         return True
 
     #     else:
-    #         log_error(
+    #         logger.error(
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
@@ -1057,7 +1063,7 @@ class Training(BaseTraining):
         Returns:
             Union[List[namedtuple], List[Dict]]: Formatted list of all_project_training
         """
-        log_info(f"Formatting Date/Time and Progress column......")
+        logger.info(f"Formatting Date/Time and Progress column......")
 
         deployment_type = Deployment.get_deployment_type(
             deployment_type)  # Make sure it is IntEnum

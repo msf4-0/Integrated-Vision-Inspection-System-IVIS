@@ -102,7 +102,7 @@ def existing_models():
                     "[here](https://www.tensorflow.org/api_docs/python/tf/keras/applications).")
     if session_state.project.deployment_type == "Object Detection with Bounding Boxes":
         st.markdown("This table is obtained from TensorFlow Object Detection Model Zoo "
-                    "[here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md)."
+                    "[here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md). "
                     "The speed here actually means latency (ms), thus the lower the better; while higher COCO mAP score is better.")
     if session_state.project.deployment_type == "Semantic Segmentation with Polygons":
         st.markdown("This table is obtained from `keras-unet-collection`'s GitHub repository "
@@ -192,7 +192,7 @@ def existing_models():
             model_row=model_df_row[0])
 
     # with main_col1.container():
-        # not using `data_table` because
+        # not using `data_table` to avoid unnecessary complexity
         # data_table(rows=existing_models,
         #            columns=existing_models_columns,
         #            checkbox=False,
@@ -211,6 +211,8 @@ def existing_models():
         key="existing_models_table",
     )
 
+    # must do it this way instead of using callback on selectbox,
+    # to be able to show the model info form on the first render
     if model_selected:
         instantiate_model()
 
@@ -454,7 +456,7 @@ def index():
     # ***************** NEXT BUTTON **************************
     if session_state.models_pagination == ModelsPagination.ExistingModels:
         with new_training_section_next_button_place:
-            st.button("Next", key="models_page_next_button",
+            st.button("Submit Model Info", key="models_page_next_button",
                       on_click=to_training_configuration_page)
 
         # ***************** BACK BUTTON **************************
@@ -464,7 +466,7 @@ def index():
             session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
         with new_training_section_back_button_place:
-            st.button("Update Training Info", key="models_page_back_button",
+            st.button("Modify Training Info", key="models_page_back_button",
                       on_click=to_training_infodataset_page)
 
 

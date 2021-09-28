@@ -31,7 +31,7 @@ else:
 # >>>> User-defined Modules >>>>
 from data_editor.label_studio_editor_component.label_studio_editor import labelstudio_editor
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from data_editor.editor_management import load_sample_image
 
@@ -45,7 +45,7 @@ place = {}
 
 
 def editor_config(project: Union[NewProject, Project]):
-    log_info("Entered editor config")
+    logger.info("Entered editor config")
 
     # project_id: int, deployment_type: str
     chdir_root()  # change to root directory
@@ -114,7 +114,8 @@ def editor_config(project: Union[NewProject, Project]):
         project.editor.labels = project.editor.get_labels()
         # You only need to set the `multiselect` widget's `session_state` key to be equal
         # to the label options to allow the `session_state` to be updated at every refresh
-        session_state.labels_select = project.editor.labels
+        # NOTE: This is not needed anymore in version 0.89.0
+        # session_state.labels_select = project.editor.labels
 
         # TODO remove
         tagName_attributes = project.editor.get_tagname_attributes(
@@ -127,14 +128,14 @@ def editor_config(project: Union[NewProject, Project]):
                 newChild = project.editor.create_label(
                     'value', session_state.add_label)
 
-                log_info(f"newChild: {newChild.attributes.items()}")
+                logger.info(f"newChild: {newChild.attributes.items()}")
 
-                log_info(f"New label added {project.editor.labels}")
+                logger.info(f"New label added {project.editor.labels}")
                 project.editor.labels = project.editor.get_labels()
 
             elif session_state.add_label in project.editor.labels:
                 label_exist_msg = f"Label '{session_state.add_label}' already exists in {project.editor.labels}"
-                log_error(label_exist_msg)
+                logger.error(label_exist_msg)
                 place["add_label"].error(label_exist_msg)
                 sleep(1)
                 place["add_label"].empty()
@@ -146,7 +147,7 @@ def editor_config(project: Union[NewProject, Project]):
             diff_21 = set(session_state.labels_select).difference(
                 project.editor.labels)  # set 2 - set 1 ADDITION
             if diff_12:
-                log_info("Removal")
+                logger.info("Removal")
                 removed_label = list(diff_12).pop()
 
                 # to avoid removing existing labels used for annotating!
@@ -157,7 +158,7 @@ def editor_config(project: Union[NewProject, Project]):
                         place["warning_label_removal"].error(
                             f"WARNING: You are trying to remove a label '{removed_label}' "
                             "that has been used to label your images before!")
-                        sleep(2)
+                        sleep(3)
                         place["warning_label_removal"].empty()
                         return
 
@@ -169,8 +170,8 @@ def editor_config(project: Union[NewProject, Project]):
                     # TODO: function to remove DOM
                     removedChild = project.editor.remove_label(
                         'value', removed_label)
-                    log_info(f"removedChild: {removedChild}")
-                    log_info(f"Label removed {project.editor.labels}")
+                    logger.info(f"removedChild: {removedChild}")
+                    logger.info(f"Label removed {project.editor.labels}")
 
                 except ValueError as e:
                     st.error(f"{e}: Label already removed")
@@ -199,16 +200,16 @@ def editor_config(project: Union[NewProject, Project]):
         place["add_label"].info(
             '''Please enter desired labels and choose the labels to be used from the multi-select widget below''')
         # # labels_chosen = ['Hello', 'World', 'Bye']
-        log_info(f"Before multi {project.editor.labels}")
+        logger.info(f"Before multi {project.editor.labels}")
         # >>>>>>> REMOVE LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-        st.multiselect('Labels', options=project.editor.labels,
+        st.multiselect('Labels', options=project.editor.labels, default=project.editor.labels,
                        key='labels_select', on_change=update_labels, args=(place,))
         # to show the error message when trying to remove existing labels
         place["warning_label_removal"] = st.empty()
 
         def save_editor_config():
-            log_info("Updating Editor Config......")
+            logger.info("Updating Editor Config......")
 
             if project.editor.update_editor_config():
 
@@ -256,7 +257,7 @@ def main():
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("At main")
+        logger.info("At main")
         # ************************TO REMOVE************************
         with st.sidebar.container():
             st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -274,7 +275,7 @@ def main():
         # project.refresh_project_details()
         # st.write(vars(session_state.project))
         editor_config(session_state.project)
-        log_info("At main bottom")
+        logger.info("At main bottom")
 
 
 if __name__ == "__main__":

@@ -181,29 +181,38 @@ def dashboard():
         training_id_tmp = session_state.training_dashboard_table[0]
         logger.debug(f"Entering Training {training_id_tmp}")
 
+        # if data_table is clicked on, that means there is already Training details stored in db
+        # so just create Training instance instead of NewTraining instance
+        session_state.new_training = Training(
+            training_id_tmp, project=session_state.project)
+        logger.debug("Training instance created successfully")
+
         is_started = Training.query_progress(training_id_tmp)
-        print(is_started)
         if is_started:
             # TODO: implement this for trained data
-            session_state.new_training = Training(
-                training_id_tmp, project=session_state.project)
+            # session_state.training_pagination = TrainingPagination.Deployment
+            pass
         else:
-            session_state.new_training = NewTraining(
-                training_id_tmp, project=session_state.project)
-            # must set this to True to tell the `new_training_infodataset.py` that we might
-            # want to update the info stored in database, instead of submitting a new one
-            session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] = True
+            pass
 
+        # must set this to True to tell the `new_training_infodataset.py` that we might
+        # want to update the info stored in database, instead of submitting a new one
+        session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] = True
+        # moving to next page
         session_state.training_pagination = TrainingPagination.Existing
-        # set this to directly move to the `models_page`, this `new_training_pagination` is defined
-        # in the new_training.py script
-        session_state.new_training_pagination = NewTrainingPagination.Model
         logger.debug(
             f"Setting `training_pagination` to {session_state.training_pagination}")
 
-        training_dashboard_data_table_place.empty()
-        if "training_dashboard_table" in session_state:
-            del session_state.training_dashboard_table
+        if not session_state.new_training.attached_model_id:
+            # set this to directly move to the `models_page`, this `new_training_pagination` is defined
+            # in the new_training.py script
+            session_state.new_training_pagination = NewTrainingPagination.Model
+        else:
+            # model information form has already been submitted and stored in DB before
+            session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
+            # set to this move directly to training_config page
+            session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+        # TODO: add pagination to go to model training page if training_config has already been submitted before
 
         st.experimental_rerun()
 

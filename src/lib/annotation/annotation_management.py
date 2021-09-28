@@ -54,7 +54,7 @@ else:
     pass
 
 from core.utils.dataset_handler import data_url_encoder_cv2, load_image_PIL
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from core.utils.form_manager import reset_page_attributes
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
@@ -252,7 +252,7 @@ class Task(BaseTask):
             self.id, self.is_labelled, self.skipped, self.created_at, self.updated_at = query_return
             return query_return
         except TypeError as e:
-            log_error(
+            logger.error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
     @st.cache
@@ -269,7 +269,7 @@ class Task(BaseTask):
 
             return self.data_url
         except Exception as e:
-            log_error(f"{e}: Failed to generate data url for {self.name}")
+            logger.error(f"{e}: Failed to generate data url for {self.name}")
             return None
 
     @st.cache
@@ -298,7 +298,7 @@ class Task(BaseTask):
         # self.data_list[self.name] = data
 
         # else:
-        # log_info(f"Data {self.name} EXIST")
+        # logger.info(f"Data {self.name} EXIST")
 
         return self.data_url
 
@@ -341,7 +341,7 @@ class Task(BaseTask):
             }
             return task
         except Exception as e:
-            log_error(f"{e}: Failed to generate editor format for editor")
+            logger.error(f"{e}: Failed to generate editor format for editor")
             task = {}
             return task
 
@@ -390,7 +390,7 @@ class Task(BaseTask):
                         t.id;
                                 """
         query_all_task_vars = [project_id]
-        log_info(
+        logger.info(
             f"Querying annotations and tasks from database for Project {project_id}")
 
         try:
@@ -413,7 +413,7 @@ class Task(BaseTask):
                 all_task.append(task)
 
         except Exception as e:
-            log_error(f"{e}: No task found for Project {project_id} ")
+            logger.error(f"{e}: No task found for Project {project_id} ")
             all_task = []
             column_names = []
 
@@ -523,7 +523,7 @@ class BaseAnnotations:
         Returns:
             [type]: [description]
         """
-        log_info(f"Submitting results.......")
+        logger.info(f"Submitting results.......")
         # NOTE: Update class object: result + task
         self.result = result if result else None
         self.task.is_labelled = True
@@ -551,7 +551,7 @@ class BaseAnnotations:
                 insert_annotations_SQL, conn, insert_annotations_vars)
         except psycopg2.Error as e:
             error = e.pgcode
-            log_error(f"{error}: Annotations already exist")
+            logger.error(f"{error}: Annotations already exist")
 
         # NOTE: Update 'task' table with annotation id and set is_labelled flag as True
         update_task_SQL = """
@@ -573,7 +573,7 @@ class BaseAnnotations:
             self.task.is_labelled = db_fetchone(
                 update_task_SQL, conn, update_task_vars)
         except TypeError as e:
-            log_error(f"{e}: Task update for Submit failed")
+            logger.error(f"{e}: Task update for Submit failed")
 
         sleep(1)
         return self.result
@@ -590,7 +590,7 @@ class BaseAnnotations:
             tuple: [description]
         """
 
-        log_info(f"Updating results")
+        logger.info(f"Updating results")
         self.result = result if result else None  # update result attribute
         result_serialised = [json.dumps(x) for x in result]
 
@@ -614,12 +614,12 @@ class BaseAnnotations:
             self.id, self.result = updated_annotation_return
 
 # NEW************************************
-            log_info(
+            logger.info(
                 f"Update annotations for Task {self.task.name} with Annotation ID: {self.id}")
             return updated_annotation_return
         except psycopg2.Error as e:
             error = e.pgcode
-            log_error(f"{error}: Annotations already exist")
+            logger.error(f"{error}: Annotations already exist")
 
     def delete_annotation(self, conn=conn) -> tuple:
         """Delete annotations
@@ -661,7 +661,7 @@ class BaseAnnotations:
                     """
         skip_task_vars = [
             skipped, self.task.id]  # should set 'skipped' as True
-        log_info(self.task.id)
+        logger.info(self.task.id)
         skipped_task_return = db_fetchone(skip_task_SQL, conn, skip_task_vars)
 
         # must delete the previously created annotation if any exists
@@ -688,7 +688,7 @@ class BaseAnnotations:
                 annotation_dict = []
             return annotation_dict
         except Exception as e:
-            log_error(
+            logger.error(
                 f"{e}: Failed to generate annotation dict for Annotation {self.id}")
             annotation_dict = []
             return annotation_dict
@@ -707,7 +707,7 @@ class NewAnnotations(BaseAnnotations):
     #         annotation_dict = []
     #         return annotation_dict
     #     except Exception as e:
-    #         log_error(
+    #         logger.error(
     #             f"{e}: Failed to generate annotation dict for Annotation {self.id}")
     #         annotation_dict = []
     #         return annotation_dict
@@ -717,7 +717,7 @@ class Annotations(BaseAnnotations):
     def __init__(self, task: Task) -> None:
         super().__init__(task)
 
-        log_info(f"Initialising Existing Annotations {self.task.name}")
+        logger.info(f"Initialising Existing Annotations {self.task.name}")
 
         self.task = task  # 'Task' class object
         self.user = {}
@@ -791,12 +791,12 @@ class Annotations(BaseAnnotations):
 
             self.id, self.result, self.user["id"], self.user["email"], self.user[
                 "first_name"], self.user["last_name"], self.created_at, self.updated_at = query_return
-            log_info("Query annotations in class")
+            logger.info("Query annotations in class")
 
             return query_return
 
         except TypeError as e:
-            log_error(
+            logger.error(
                 f"{e}: Annotation for Task {self.task.id} from Dataset {self.task.dataset_id} does not exist in table for Project {self.task.project_id}")
 
 
@@ -816,11 +816,11 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> Dict:
         dict: Row of data
     """
     # to obtain name data based on selection of data table
-    log_info(f"Obtaining data row from task_df")
+    logger.info(f"Obtaining data row from task_df")
 
     task_row = get_dataframe_row(task_id, task_df)
 
-    log_info(f"Currently serving data:{task_row['Task Name']}")
+    logger.info(f"Currently serving data:{task_row['Task Name']}")
 
     return task_row
 
@@ -829,7 +829,7 @@ def reset_editor_page():
     editor_attributes = ["labelling_interface", "new_annotation_flag", "task",
                          "annotation", "data_labelling_table", 'labelling_prev_results', 'data_selection']
 
-    log_info(f"Resetting Editor Page......")
+    logger.info(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)
 
 
@@ -893,7 +893,7 @@ def load_buffer_image():
         bytes: UTF-8 encoded base64 bytes
     """
     chdir_root()  # ./image_labelling
-    log_info("Loading Sample Image")
+    logger.info("Loading Sample Image")
     sample_image = "resources/buffer.png"
     with Image.open(sample_image) as img:
         img_byte_arr = BytesIO()
@@ -925,7 +925,7 @@ def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
         str: Name of data
     """
     # to obtain name data based on selection of data table
-    log_info(f"Obtaining data name from task_df")
+    logger.info(f"Obtaining data name from task_df")
 
     # Handle data_id exceptions
     if isinstance(data_id, int):
@@ -938,7 +938,7 @@ def get_data_name(data_id: int, task_df: pd.DataFrame) -> str:
 
     data_name = (task_df.loc[task_df["id"] == data_id])["Task Name"].values[0]
 
-    log_info(f"Currently serving data:{data_name}")
+    logger.info(f"Currently serving data:{data_name}")
 
     return data_name
 

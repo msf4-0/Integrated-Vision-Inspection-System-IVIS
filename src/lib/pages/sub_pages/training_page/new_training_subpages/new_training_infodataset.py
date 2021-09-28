@@ -126,6 +126,7 @@ def infodataset():
         # **** TRAINING TITLE ****
         st.text_input(
             "Training Title", key="new_training_name",
+            value=session_state.new_training.name,
             help="Enter the name of the training",
             on_change=check_if_name_exist, args=(session_state.new_training_place, conn,))
         session_state.new_training_place["new_training_name"] = st.empty()

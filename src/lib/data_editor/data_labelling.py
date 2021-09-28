@@ -29,7 +29,7 @@ else:
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 from project.project_management import Project
 from data_editor.editor_management import EditorFlag
 from user.user_management import User
@@ -48,7 +48,7 @@ from streamlit.report_thread import add_report_ctx
 
 
 def editor(data_id: List = []):
-    log_info("Inside Editor function")
+    logger.info("Inside Editor function")
     chdir_root()  # change to root directory
 
     # ******** SESSION STATE ***********************************************************
@@ -77,7 +77,7 @@ def editor(data_id: List = []):
     def to_labelling_dashboard_page():
         session_state.labelling_pagination = LabellingPagination.AllTask
         reset_editor_page()
-        log_info(
+        logger.info(
             f"Returning to labelling dashboard: {session_state.labelling_pagination}")
 
     back_to_labelling_dashboard_button_place.button("Return to Labelling Dashboard",
@@ -105,15 +105,16 @@ def editor(data_id: List = []):
         if not unlabeled_task_ids.empty:
             # must use `int` to change it from `numpy.int` dtypes
             next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
-            log_info(f"Proceeding to next task ID: {next_unlabeled_task_id}")
+            logger.info(
+                f"Proceeding to next task ID: {next_unlabeled_task_id}")
             # set this to show the next task, must set it to a list as this is how the `data_table` returns
             session_state.data_labelling_table = [next_unlabeled_task_id]
         else:
-            log_info("All tasks labeled successfully for Project ID: "
-                     f"{session_state.project.id}")
+            logger.info("All tasks labeled successfully for Project ID: "
+                        f"{session_state.project.id}")
 
     def load_data(task_df):
-        log_info(f"Inside load data CALLBACK")
+        logger.info(f"Inside load data CALLBACK")
         if session_state.data_labelling_table:
             task_id = session_state.data_labelling_table[0]
             task_row = get_task_row(task_id, task_df)
@@ -131,7 +132,7 @@ def editor(data_id: List = []):
 
             # NOTE ************************TEST**************************************
             session_state.labelling_prev_result = []
-            log_info(
+            logger.info(
                 f"Task instantiated for id: {session_state.task.id} for {session_state.task.name}🏃")
         # >>>> INSTANTIATE TASK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -142,13 +143,13 @@ def editor(data_id: List = []):
                 # if session_state.task.is_labelled:
                 session_state.annotation = Annotations(
                     session_state.task)
-                log_info(
+                logger.info(
                     f"Annotation {session_state.annotation.id} exists for Task ID: {session_state.task.id} for {session_state.task.name}")
             else:
                 session_state.annotation = NewAnnotations(
                     session_state.task, session_state.user)
         else:
-            log_error(f"task_id NaN->Task not loaded😫")
+            logger.error(f"task_id NaN->Task not loaded😫")
 
         # set FLAG = 1 such that init render of none will be ignored
         # TODO Reset to 0 / del when switching back to dashboard
@@ -223,7 +224,7 @@ def editor(data_id: List = []):
                     results = session_state.labelling_interface
                     # st.write("Inside extra result update function")
                     result, flag = results if results else (None, None)
-                    log_info(f"Flag at main: {flag}")
+                    logger.info(f"Flag at main: {flag}")
                     # st.write("Result", result)
 
                     # >>>> IF results exists => if there is submission / update
@@ -232,7 +233,7 @@ def editor(data_id: List = []):
                         #     "Inside extra result update function results exist")
 
                         if flag == EditorFlag.START:  # LOAD EDITOR
-                            log_info("Editor Loaded (In result)")
+                            logger.info("Editor Loaded (In result)")
                             pass
 
                         elif flag == EditorFlag.SUBMIT:  # NEW ANNOTATION
@@ -244,14 +245,15 @@ def editor(data_id: List = []):
 
                                 # Memoir prev results
                                 session_state.labelling_prev_result = session_state.labelling_interface
-                                log_info(f'{session_state.annotation.result}')
-                                log_info(
+                                logger.info(
+                                    f'{session_state.annotation.result}')
+                                logger.info(
                                     f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
 
                                 session_state.show_next_unlabeled = True
 
                             except Exception as e:
-                                log_error(f"{e}: New Annotation error")
+                                logger.error(f"{e}: New Annotation error")
 
                         elif flag == EditorFlag.UPDATE:  # UPDATE ANNOTATION
                             try:
@@ -261,11 +263,11 @@ def editor(data_id: List = []):
                                 session_state.annotation.result = session_state.annotation.update_annotations(
                                     result, session_state.user.id, conn).result
 
-                                log_info(
+                                logger.info(
                                     f"Update annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
 
                             except Exception as e:
-                                log_error(f"{e}: Update annotation error")
+                                logger.error(f"{e}: Update annotation error")
 
                         elif flag == EditorFlag.DELETE:  # DELETE ANNOTATION
                             try:
@@ -275,11 +277,11 @@ def editor(data_id: List = []):
                                 session_state.annotation.result = session_state.annotation.delete_annotation(
                                     conn).result
 
-                                log_info(
+                                logger.info(
                                     f"Delete annotations for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
 
                             except Exception as e:
-                                log_error(f"{e}: Delete annotation error")
+                                logger.error(f"{e}: Delete annotation error")
 
                         else:
                             pass
@@ -288,7 +290,7 @@ def editor(data_id: List = []):
 
                     else:
                         if flag == EditorFlag.START:  # LOAD EDITOR
-                            log_info("Editor Loaded")
+                            logger.info("Editor Loaded")
                             pass
 
                         elif flag == EditorFlag.SKIP:  # SKIP ANNOTATION
@@ -297,14 +299,14 @@ def editor(data_id: List = []):
                                 skip_return = session_state.annotation.skip_task(
                                     skipped=True, conn=conn)
 
-                                log_info(
+                                logger.info(
                                     f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
 
                                 session_state.show_next_unlabeled = True
                                 st.experimental_rerun()
 
                             except Exception as e:
-                                log_error(e)
+                                logger.error(e)
                         else:
                             pass
 
@@ -328,7 +330,7 @@ def editor(data_id: List = []):
 
         # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
     except Exception as e:
-        log_error(
+        logger.error(
             f"{e}: No data selected. Could not generate editor format based on task")
         # Preload blank editor
         task = {
@@ -352,7 +354,7 @@ def index():
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("At Labelling INDEX")
+        logger.info("At Labelling INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -364,7 +366,7 @@ def index():
 
         # ************************TO REMOVE************************
         project_id_tmp = 43
-        log_info(f"Entering Project {project_id_tmp}")
+        logger.info(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
 
@@ -372,7 +374,7 @@ def index():
             # Editor will be instantiated inside Project class at same instance
             session_state.project = Project(project_id_tmp)
 
-            log_info(
+            logger.info(
                 f"NOT RELEASE: Instantiating Project {session_state.project.name}")
         if 'user' not in session_state:
             session_state.user = User(1)

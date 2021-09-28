@@ -18,7 +18,7 @@ else:
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import db_fetchone, init_connection
 
 conn = init_connection(**st.secrets["postgres"])
@@ -45,7 +45,7 @@ def check_if_exists(table: str, column_name: str, condition, conn=conn):
     return exist_flag
 
 
-def check_if_field_empty(context: Dict, field_placeholder, name_key:str='name',check_if_exists=None):
+def check_if_field_empty(context: Dict, field_placeholder, name_key: str = 'name', check_if_exists=None):
     empty_fields = []
 
     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
@@ -59,11 +59,11 @@ def check_if_field_empty(context: Dict, field_placeholder, name_key:str='name',c
                         f"Project name used. Please enter a new name")
                     sleep(1)
                     field_placeholder[k].empty()
-                    log_error(
+                    logger.error(
                         f" name used. Please enter a new name")
                     empty_fields.append(k)
                 else:
-                    log_error('escaped check')
+                    logger.error('escaped check')
 
             else:
 
@@ -73,7 +73,7 @@ def check_if_field_empty(context: Dict, field_placeholder, name_key:str='name',c
             field_placeholder[k].error(
                 f"Please do not leave field blank")
             empty_fields.append(k)
-    log_info(empty_fields)
+    logger.info(empty_fields)
     # if empty_fields not empty -> return True, else -> return False (Negative Logic)
     return not empty_fields  # Negative logic
 
@@ -87,5 +87,5 @@ def remove_newline_trailing_whitespace(text: str) -> str:
 def reset_page_attributes(attributes_list: List):
     for attrib in attributes_list:
         if attrib in session_state:
-            log_info(f"del {attrib}")
+            logger.info(f"del {attrib}")
             del session_state[attrib]

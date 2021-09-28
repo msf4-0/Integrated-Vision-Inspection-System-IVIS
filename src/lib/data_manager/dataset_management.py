@@ -63,7 +63,7 @@ from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import get_directory_name, get_filetype, get_mime
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 # >>>> User-defined Modules >>>>
 from path_desc import BASE_DATA_DIR, DATASET_DIR, MEDIA_ROOT, chdir_root
 
@@ -158,10 +158,10 @@ class BaseDataset:
         else:
             self.deployment_id = None
 
-    def check_if_field_empty(self, context: Dict, field_placeholder,name_key:str):
+    def check_if_field_empty(self, context: Dict, field_placeholder, name_key: str):
         check_if_exists = self.check_if_exists
         empty_fields = check_if_field_empty(
-            context, field_placeholder,name_key, check_if_exists)
+            context, field_placeholder, name_key, check_if_exists)
         return empty_fields
 
     def check_if_exists(self, context: Dict, conn) -> bool:
@@ -176,7 +176,7 @@ class BaseDataset:
         if self.dataset:
             for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading data"):
                 img_name = img.name
-                log_info(img.name)
+                logger.info(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
 
                 # st.title(img.name)
@@ -184,15 +184,15 @@ class BaseDataset:
                     with Image.open(img) as pil_img:
                         pil_img.save(save_path)
                 except ValueError as e:
-                    log_error(
+                    logger.error(
                         f"{e}: Could not resolve output format for '{str(img_name)}'")
                 except OSError as e:
-                    log_error(
+                    logger.error(
                         f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")
                 else:
                     relative_dataset_path = str(
                         Path(self.dataset_path).relative_to(BASE_DATA_DIR))
-                    log_info(
+                    logger.info(
                         f"Successfully stored '{str(img_name)}' in \'{relative_dataset_path}\' ")
             return True
 
@@ -214,7 +214,7 @@ class BaseDataset:
             dataset_name)  # change name to lowercase
         # join directory name with '-' dash
         dataset_path = DATASET_DIR / str(directory_name)
-        log_info(f"Dataset Path: {dataset_path}")
+        logger.info(f"Dataset Path: {dataset_path}")
         return dataset_path
 
     def save_dataset(self) -> bool:
@@ -307,12 +307,12 @@ class Dataset(BaseDataset):
                     data_name_list_full)
 
         except AttributeError as e:
-            log_error(f"{e}: NoneType error for data_name_list dictionary")
+            logger.error(f"{e}: NoneType error for data_name_list dictionary")
             data_name_list_full = {}
 
         return data_name_list_full
 
-    def glob_folder_data_list(self, data_name_list_full: Dict) -> Dict[List[str],Any]:
+    def glob_folder_data_list(self, data_name_list_full: Dict) -> Dict[List[str], Any]:
         """#### Get data info for data table:
             - id: Data Name
             - filetype: Data filetype (Image, Video,Audio, Text)
@@ -325,12 +325,12 @@ class Dataset(BaseDataset):
             Dict[List[str, Any]]:   Dictionary with dataset name as key and List of data info as value
         """
         self.dataset_path = self.get_dataset_path(self.name)
-        log_info(self.dataset_path)
-        log_info(self.name)
+        logger.info(self.dataset_path)
+        logger.info(self.name)
         if self.dataset_path:
 
             # dataset_path = Path(self.dataset_path) / "./*"
-            dataset_path = Path(self.dataset_path) 
+            dataset_path = Path(self.dataset_path)
 
             data_info_tmp = []
 
@@ -343,7 +343,7 @@ class Dataset(BaseDataset):
                 if data_path.is_file():
                     data_info = {}
 
-                    log_info(f"Listing files in {data_path}......")
+                    logger.info(f"Listing files in {data_path}......")
                     data_info['id'] = Path(data_path).name
                     data_info['filetype'] = self.filetype
 
@@ -394,7 +394,7 @@ class Dataset(BaseDataset):
         update_title_desc_vars = [new_name, new_desc, self.id]
         new_title_desc_return = db_fetchone(
             update_title_desc_SQL, conn, update_title_desc_vars)
-        log_info(f"Updating title and desc {new_title_desc_return}")
+        logger.info(f"Updating title and desc {new_title_desc_return}")
 
         self.name, self.desc = new_title_desc_return if new_title_desc_return else (
             None, None)
@@ -408,9 +408,9 @@ class Dataset(BaseDataset):
         try:
             old_dataset_path = Path(self.dataset_path)
             old_dataset_path.rename(Path(new_dataset_path))
-            log_info(f'Renamed dataset path to {new_dataset_path}')
+            logger.info(f'Renamed dataset path to {new_dataset_path}')
         except Exception as e:
-            log_error(f'{e}: Could not rename file')
+            logger.error(f'{e}: Could not rename file')
 
     def update_dataset(self):
         """Wrapper function to update existing dataset
@@ -439,7 +439,7 @@ class Dataset(BaseDataset):
 
             self.update_dataset_size()
 
-            log_info(
+            logger.info(
                 f"Successfully updated **{self.name}** size in database")
 
             append_data_flag = 0
@@ -594,7 +594,7 @@ def query_dataset_list() -> List[namedtuple]:
 
     datasets, column_names = db_fetchall(
         query_dataset_SQL, conn, fetch_col_name=True)
-    log_info("Querying dataset from database......")
+    logger.info("Querying dataset from database......")
     dataset_tmp = []
     if datasets:
         for dataset in datasets:
@@ -636,7 +636,7 @@ def get_dataset_name_list(dataset_list: List[namedtuple]):
             # DEPRECATED -> dataset info can be accessed through namedtuple of dataset_dict
             # dataset_name_list[dataset.Name] = dataset.ID
             dataset_dict[dataset.Name] = dataset
-        log_info("Generating list of dataset names and ID......")
+        logger.info("Generating list of dataset names and ID......")
     return dataset_dict
 
 
@@ -676,32 +676,32 @@ def data_url_encoder(data_object, filetype: IntEnum, data_path: Union[str, Path]
         if isinstance(data_object, np.ndarray):
             image_name = Path(data_path).name
 
-            log_info(f"Encoding image into bytes: {str(image_name)}")
+            logger.info(f"Encoding image into bytes: {str(image_name)}")
             extension = Path(image_name).suffix
             _, buffer = cv2.imencode(extension, data_object)
-            log_info("Done enconding into bytes")
+            logger.info("Done enconding into bytes")
 
-            log_info("Start B64 Encoding")
+            logger.info("Start B64 Encoding")
 
             b64code = b64encode(buffer).decode('utf-8')
-            log_info("Done B64 encoding")
+            logger.info("Done B64 encoding")
 
         elif isinstance(data_object, Image.Image):
             img_byte = BytesIO()
             image_name = Path(data_object.filename).name  # use Path().name
-            log_info(f"Encoding image into bytes: {str(image_name)}")
+            logger.info(f"Encoding image into bytes: {str(image_name)}")
             data_object.save(img_byte, format=data_object.format)
-            log_info("Done enconding into bytes")
+            logger.info("Done enconding into bytes")
 
-            log_info("Start B64 Encoding")
+            logger.info("Start B64 Encoding")
             bb = img_byte.getvalue()
             b64code = b64encode(bb).decode('utf-8')
-            log_info("Done B64 encoding")
+            logger.info("Done B64 encoding")
 
         mime = guess_type(image_name)[0]
-        log_info(f"{image_name} ; {mime}")
+        logger.info(f"{image_name} ; {mime}")
         data_url = f"data:{mime};base64,{b64code}"
-        log_info("Data url generated")
+        logger.info("Data url generated")
 
         return data_url
 
