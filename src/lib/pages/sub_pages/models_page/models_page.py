@@ -100,11 +100,11 @@ def existing_models():
     if session_state.project.deployment_type == "Image Classification":
         st.markdown("This table is obtained from Keras available pretrained models for image classification"
                     "[here](https://www.tensorflow.org/api_docs/python/tf/keras/applications).")
-    if session_state.project.deployment_type == "Object Detection with Bounding Boxes":
+    elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
         st.markdown("This table is obtained from TensorFlow Object Detection Model Zoo "
                     "[here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md). "
                     "The speed here actually means latency (ms), thus the lower the better; while higher COCO mAP score is better.")
-    if session_state.project.deployment_type == "Semantic Segmentation with Polygons":
+    elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
         st.markdown("This table is obtained from `keras-unet-collection`'s GitHub repository "
                     "[here](https://github.com/yingkaisha/keras-unet-collection).")
 
@@ -222,6 +222,15 @@ def existing_models():
 
     if session_state.new_training.attached_model:
         # with main_col2.container():
+
+        if session_state.new_training.has_submitted[NewTrainingPagination.Model]:
+            current_name = session_state.new_training.name
+            current_desc = session_state.new_training.desc
+            st.info(f"""
+            **Current Model Name**: {current_name}  \n
+            **Current Description**: {current_desc}  \n
+            """)
+
         # >>>> GET PERF METRICS of SELECTED MODEL
         y = session_state.new_training.attached_model.get_perf_metrics()
 
@@ -237,8 +246,8 @@ def existing_models():
         {session_state.new_training.attached_model.framework}
         """
         st.info(model_information)
-        st.write(f"#### Metrics:")
         if not df_metrics.empty:
+            st.write(f"#### Metrics:")
             st.table(df_metrics)
         session_state.new_training_place["attached_model_selection"] = st.empty(
         )
@@ -350,7 +359,10 @@ def index():
         ModelsPagination.TrainingInfoDataset: new_training_infodataset.infodataset,
         # the current page function in this script
         ModelsPagination.ExistingModels: existing_models,
-        ModelsPagination.ModelUpload: user_model_upload_page
+        ModelsPagination.ModelUpload: user_model_upload_page,
+
+        ModelsPagination.TrainingConfig: new_training_training_config.training_configuration,
+        ModelsPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration,
     }
 
     # ********************** SESSION STATE ******************************
@@ -408,7 +420,7 @@ def index():
         # NEXT page if all constraints met
 
         # >>>> IF IT IS A NEW SUBMISSION
-        if not session_state.new_training.has_submitted[session_state.new_training_pagination]:
+        if not session_state.new_training.has_submitted[NewTrainingPagination.Model]:
 
             if session_state.new_training.training_model.check_if_field_empty(
                     context=new_training_model_submission_dict.context,
@@ -425,14 +437,14 @@ def index():
                             attached_model_id=session_state.new_training.attached_model.id,
                             training_model_id=session_state.new_training.training_model.id):
                         # set has_submitted =True
-                        session_state.new_training.has_submitted[session_state.new_training_pagination] = True
+                        session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
                         logger.info(
                             f"Successfully created new training model {session_state.new_training.training_model.id}")
 
                         # Go to Training Configuration Page TODO
                         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
-        elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
+        elif session_state.new_training.has_submitted[NewTrainingPagination.Model] == True:
             if session_state.new_training.training_model.name:
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
@@ -445,7 +457,7 @@ def index():
                             attached_model_id=session_state.new_training.attached_model.id,
                             training_model_id=session_state.new_training.training_model.id):
                         # set has_submitted =True
-                        session_state.new_training.has_submitted[session_state.new_training_pagination] = True
+                        session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
                         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
                         logger.info(
                             f"Successfully updated new training model {session_state.new_training.training_model.id}")
@@ -468,7 +480,6 @@ def index():
         with new_training_section_back_button_place:
             st.button("Modify Training Info", key="models_page_back_button",
                       on_click=to_training_infodataset_page)
-
 
     # st.write(vars(session_state.new_training))
     # st.write(vars(session_state.new_training.training_model))

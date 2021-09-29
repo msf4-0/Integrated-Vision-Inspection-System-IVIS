@@ -103,9 +103,7 @@ def dashboard():
     def to_new_training_page():
 
         session_state.training_pagination = TrainingPagination.New
-
-        if "training_dashboard_table" in session_state:
-            del session_state.training_dashboard_table
+        NewTraining.reset_new_training_page()
 
     create_new_training_button_col1.button(
         "Create New Training Session", key='create_new_training_from_training_dashboard',

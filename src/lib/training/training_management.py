@@ -792,7 +792,7 @@ class NewTraining(BaseTraining):
     @staticmethod
     def reset_new_training_page():
 
-        new_training_attributes = ["new_training", "new_training_name",
+        new_training_attributes = ["new_training", "new_training_name", "new_training_pagination",
                                    "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
 
         reset_page_attributes(new_training_attributes)
