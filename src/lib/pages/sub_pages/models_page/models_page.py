@@ -399,7 +399,7 @@ def index():
     # ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
     # Placeholder for Back and Next button for page navigation
     new_training_section_back_button_place, _, \
-        new_training_section_next_button_place = st.columns([0.5, 3, 0.2])
+        new_training_section_next_button_place = st.columns([0.5, 3, 0.5])
 
     # typing.NamedTuple type
 
@@ -430,7 +430,8 @@ def index():
                 if new_training_model_submission_dict.insert(
                         attached_model=session_state.new_training.attached_model,
                         project_name=session_state.project.name,
-                        training_name=session_state.new_training.name):
+                        training_name=session_state.new_training.name,
+                        training_id=session_state.new_training.id):
 
                     # run update training attached model
                     if session_state.new_training.update_training_attached_model(
@@ -481,9 +482,14 @@ def index():
             st.button("Modify Training Info", key="models_page_back_button",
                       on_click=to_training_infodataset_page)
 
-    # st.write(vars(session_state.new_training))
-    # st.write(vars(session_state.new_training.training_model))
-    # st.write(vars(session_state.new_training.attached_model))
+    st.write("vars(session_state.new_training)")
+    st.write(vars(session_state.new_training))
+    st.write("vars(session_state.new_training.training_model)")
+    st.write(vars(session_state.new_training.training_model))
+    st.write("vars(session_state.new_training.attached_model)")
+    st.write(vars(session_state.new_training.attached_model))
+
+
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
         index()

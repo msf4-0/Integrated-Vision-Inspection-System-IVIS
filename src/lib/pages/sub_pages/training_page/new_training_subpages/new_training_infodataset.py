@@ -97,7 +97,7 @@ def infodataset():
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # >>>> New Training INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    if session_state.new_training.has_submitted[session_state.new_training_pagination]:
+    if session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
         # display existing information to the users for easier reference when updating
         # existing training info
         with existing_info_place.container():
@@ -316,7 +316,7 @@ def infodataset():
         # NEXT page if constraints are met
 
         # >>>> IF IT IS A NEW SUBMISSION
-        if not session_state.new_training.has_submitted[session_state.new_training_pagination]:
+        if not session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
             if session_state.new_training.check_if_field_empty(
                     context=new_training_infodataset_submission_dict.context,
                     field_placeholder=session_state.new_training_place,
@@ -328,12 +328,12 @@ def infodataset():
                     session_state.new_training_pagination = NewTrainingPagination.Model
                     # must set this to tell the models_page.py to move to stay in its page
                     session_state.models_pagination = ModelsPagination.ExistingModels
-                    session_state.new_training.has_submitted[session_state.new_training_pagination] = True
+                    session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] = True
                     logger.info(
                         f"Successfully created new training {session_state.new_training.id}")
 
         # >>>> UPDATE if Training has already been submitted prior to this
-        elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
+        elif session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] == True:
             if session_state.new_training.name:
 
                 # UPDATE Database

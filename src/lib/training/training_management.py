@@ -504,6 +504,32 @@ class BaseTraining:
 
             return False
 
+    def update_training_attached_model(self, attached_model_id: int, training_model_id: int) -> bool:
+        # update training table with attached model id and training model id
+
+        insert_training_attached_SQL = """
+
+            UPDATE
+                public.training
+            SET
+                training_model_id = %s
+                , attached_model_id = %s
+            WHERE
+                id = %s;
+                    """
+
+        insert_training_attached_vars = [
+            training_model_id, attached_model_id, self.id]
+
+        try:
+            db_no_fetch(insert_training_attached_SQL, conn,
+                        insert_training_attached_vars)
+            return True
+
+        except Exception as e:
+            logger.error(f"At update training_attached: {e}")
+            return False
+
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
@@ -646,32 +672,6 @@ class NewTraining(BaseTraining):
             st.error(f'{e}')
             return False
 
-    def update_training_attached_model(self, attached_model_id: int, training_model_id: int) -> bool:
-        # update training table with attached model id and training model id
-
-        insert_training_attached_SQL = """
-
-            UPDATE
-                public.training
-            SET
-                training_model_id = %s
-                , attached_model_id = %s
-            WHERE
-                id = %s;
-                    """
-
-        insert_training_attached_vars = [
-            training_model_id, attached_model_id, self.id]
-
-        try:
-            db_no_fetch(insert_training_attached_SQL, conn,
-                        insert_training_attached_vars)
-            return True
-
-        except Exception as e:
-            logger.error(f"At update training_attached: {e}")
-            return False
-
 
 # NOTE ******************* DEPRECATED *********************************************
     # def insert_training(self, model: Model, project: Project):
@@ -808,8 +808,8 @@ class Training(BaseTraining):
         # self.training_model_id, self.attached_model_id, self.is_started
         self.query_all_fields()
         self.training_path = self.get_all_training_path()
-        # TODO creates self.attached_model, self.training_model
-        # self.get_training_details()
+        # creates self.attached_model, self.training_model
+        self.update_training_details()
 
         # TODO #136 query training details
         # get model attached
@@ -823,21 +823,13 @@ class Training(BaseTraining):
                            for k, v in self.__dict__.items()),
         )
 
-    # TODO: fix this later
-    # def get_training_details(self):
-    #     if self.attached_model_id:
-    #         existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
-    #             for_data_table=True,
-    #             return_dict=True,
-    #             deployment_type=session_state.new_training.deployment_type))
-    #         model_df_row = Model.filtered_models_dataframe(models=existing_models,
-    #                                                        dataframe_col="id",
-    #                                                        filter_value=session_state.existing_models_table[0],
-    #                                                        column_names=existing_models_column_names)
-    #         self.attached_model = Model(model_row=model_df_row[0])
-
-    #     if self.attached_model_id and self.training_model_id:
-    #         pass
+    def update_training_details(self):
+        if self.attached_model_id and self.training_model_id:
+            self.attached_model = Model(model_id=self.attached_model_id)
+            self.attached_model = Model(model_id=self.training_model_id)
+        else:
+            self.attached_model = None
+            self.training_model = NewModel()
 
     @staticmethod
     def query_progress(training_id: int) -> Union[bool, None]:

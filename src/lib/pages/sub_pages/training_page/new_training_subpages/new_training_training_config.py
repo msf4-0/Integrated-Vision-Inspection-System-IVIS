@@ -28,6 +28,7 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
+
 # DEFINE Web APP page configuration
 layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -44,9 +45,9 @@ if str(LIB_PATH) not in sys.path:
 
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
 from core.utils.log import logger  # logger
-from data_manager.database_manager import init_connection
+from training.model_management import ModelsPagination
+from training.training_management import NewTrainingSubmissionHandlers
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 

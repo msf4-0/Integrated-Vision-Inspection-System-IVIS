@@ -790,7 +790,8 @@ class BaseModel:
     def create_new_project_model_pipeline(self,
                                           attached_model,
                                           project_name: str,
-                                          training_name: str) -> bool:
+                                          training_name: str,
+                                          training_id: int) -> bool:
 
         with st.container():
 
@@ -803,6 +804,7 @@ class BaseModel:
             self.model_type = attached_model.model_type
             self.framework = attached_model.framework
             self.deployment_type = attached_model.deployment_type
+            self.training_id = training_id
 
             # get destination folder
             self.model_type = 'Project Models'
