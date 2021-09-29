@@ -166,11 +166,15 @@ def infodataset():
     with datasetcol3.container():
 
         # >>>> Store SELECTED DATASET >>>>
-        st.multiselect(
-            "Dataset List", key="new_training_dataset_chosen",
-            options=session_state.project.dataset_dict, help="Assign dataset to the training")
-        session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
-        )
+        # - JUST include all the dataset selected during the project creation
+        # st.multiselect(
+        #     "Dataset List", key="new_training_dataset_chosen",
+        #     options=session_state.project.dataset_dict, help="Assign dataset to the training")
+        # session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
+        # )
+        # TODO: REMOVE this session state originally used by the multiselect widget
+        session_state.new_training_dataset_chosen = session_state.project.dataset_dict.keys()
+        # NOTE: This is changed to directly init the self.dataset_chosen from `project.dataset_dict.keys()`
 
         if len(session_state.new_training_dataset_chosen) > 0:
 
@@ -198,9 +202,9 @@ def infodataset():
                                                                    session_state.project.dataset_dict)
 
             st.info(f"""
-            ### Train Dataset Ratio: {session_state.new_training.partition_ratio['train']} ({session_state.new_training.partition_size['train']} data)
-            ### Evaluation Dataset Ratio: {session_state.new_training.partition_ratio['eval']} ({session_state.new_training.partition_size['eval']} data)
-            ### Test Dataset Ratio: {session_state.new_training.partition_ratio['test']} ({session_state.new_training.partition_size['test']} data)
+            #### Train Dataset Ratio: {session_state.new_training.partition_ratio['train']} ({session_state.new_training.partition_size['train']} data)
+            #### Evaluation Dataset Ratio: {session_state.new_training.partition_ratio['eval']} ({session_state.new_training.partition_size['eval']} data)
+            #### Test Dataset Ratio: {session_state.new_training.partition_ratio['test']} ({session_state.new_training.partition_size['test']} data)
             """)
 
             if session_state.new_training.partition_ratio['eval'] <= 0:
@@ -208,7 +212,7 @@ def infodataset():
                     f"Evaluation Dataset Partition Ratio should be more than 0.1")
 
             # >>>> DISPLAY DATASET CHOSEN >>>>
-            st.write("### Dataset choosen:")
+            st.write("### Dataset chosen:")
             for idx, data in enumerate(session_state.new_training_dataset_chosen):
                 st.write(f"{idx+1}. {data}")
             # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -297,9 +301,14 @@ def infodataset():
     # Placeholder for Back and Next button for page navigation
     _, _, new_training_section_next_button_place = st.columns([1, 3, 1])
 
+    if session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
+        # # session_state.new_training is a Training instance, and will not need to insert anymore
+        def insert_function(): return None
+    else:
+        insert_function = session_state.new_training.insert_training_info_dataset
     # typing.NamedTuple type
     new_training_infodataset_submission_dict = NewTrainingSubmissionHandlers(
-        insert=session_state.new_training.insert_training_info_dataset,
+        insert=insert_function,
         update=session_state.new_training.update_training_info_dataset,
         context={
             'new_training_name': session_state.new_training_name,

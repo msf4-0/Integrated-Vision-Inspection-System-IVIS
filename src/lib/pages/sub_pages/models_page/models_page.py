@@ -58,12 +58,13 @@ from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import logger  # logger
 
 
+from path_desc import chdir_root
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from data_manager.database_manager import init_connection
 from pages.sub_pages.models_page.models_subpages.user_model_upload import user_model_upload_page
 from pages.sub_pages.training_page.new_training_subpages import new_training_augmentation_config, new_training_infodataset, new_training_training_config
-from path_desc import TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root
+from pages.sub_pages.training_page import run_training_page
 from project.project_management import Project
 from training.model_management import Model, ModelsPagination, NewModel
 from training.training_management import (NewTraining, NewTrainingPagination,
@@ -94,9 +95,11 @@ def existing_models():
     # ************************* SESSION STATE ************************************************
 
     # ************************ COLUMN PLACEHOLDER ********************************************
+    st.write(f"**Step 1: Select a pretrained Deep Learning model "
+             "from the table to be used for training, "
+             "or you may also choose to upload a model:**")
     to_model_upload_page_button_place = st.empty()
-    st.write(
-        f"**Step 1: Select a pretrained Deep Learning model from the table to be used for training:** ")
+
     if session_state.project.deployment_type == "Image Classification":
         st.markdown("This table is obtained from Keras available pretrained models for image classification"
                     "[here](https://www.tensorflow.org/api_docs/python/tf/keras/applications).")
@@ -224,8 +227,8 @@ def existing_models():
         # with main_col2.container():
 
         if session_state.new_training.has_submitted[NewTrainingPagination.Model]:
-            current_name = session_state.new_training.name
-            current_desc = session_state.new_training.desc
+            current_name = session_state.new_training.training_model.name
+            current_desc = session_state.new_training.training_model.desc
             st.info(f"""
             **Current Model Name**: {current_name}  \n
             **Current Description**: {current_desc}  \n
@@ -356,13 +359,14 @@ def index():
     # ************************ MODEL PAGINATION *************************
     models_page = {
         # old page before this models_page
-        ModelsPagination.TrainingInfoDataset: new_training_infodataset.infodataset,
+        # ModelsPagination.TrainingInfoDataset: new_training_infodataset.infodataset,
         # the current page function in this script
         ModelsPagination.ExistingModels: existing_models,
         ModelsPagination.ModelUpload: user_model_upload_page,
 
-        ModelsPagination.TrainingConfig: new_training_training_config.training_configuration,
-        ModelsPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration,
+        # ModelsPagination.TrainingConfig: new_training_training_config.training_configuration,
+        # ModelsPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration,
+        # ModelsPagination.Training: run_training_page.index,
     }
 
     # ********************** SESSION STATE ******************************
@@ -442,7 +446,6 @@ def index():
                         logger.info(
                             f"Successfully created new training model {session_state.new_training.training_model.id}")
 
-                        # Go to Training Configuration Page TODO
                         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
         elif session_state.new_training.has_submitted[NewTrainingPagination.Model] == True:
@@ -474,7 +477,7 @@ def index():
 
         # ***************** BACK BUTTON **************************
         def to_training_infodataset_page():
-            session_state.models_pagination = ModelsPagination.TrainingInfoDataset
+            # session_state.models_pagination = ModelsPagination.TrainingInfoDataset
             # must update this pagination variable too to make things work properly
             session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 

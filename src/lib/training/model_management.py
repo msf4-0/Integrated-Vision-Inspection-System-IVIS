@@ -197,7 +197,8 @@ class ModelsPagination(IntEnum):
     ModelUpload = 2
     TrainingConfig = 3
     AugmentationConfig = 4
-    TrainingInfoDataset = 5  # this is an old page before models_page
+    # TrainingInfoDataset = 5  # this is an old page before models_page
+    # Training = 6  # time to run training and show training progress
 
     def __str__(self):
         return self.name

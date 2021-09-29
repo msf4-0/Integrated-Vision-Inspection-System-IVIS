@@ -87,8 +87,8 @@ SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
 
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))
-    logger.info(f"Current working directory: {str(PROJECT_ROOT)} ")
-    logger.info(f"Data Directory set to \'{BASE_DATA_DIR}\'")
+    logger.debug(f"Current working directory: {str(PROJECT_ROOT)} ")
+    logger.debug(f"Data Directory set to \'{BASE_DATA_DIR}\'")
 
 
 def add_path(node: str, parent_node: int = 0) -> None:
@@ -106,6 +106,6 @@ def add_path(node: str, parent_node: int = 0) -> None:
         if str(PATH) not in sys.path:
             sys.path.insert(0, str(PATH))  # ./lib
         else:
-            logger.info(
+            logger.debug(
                 f"\'{PATH.relative_to(PROJECT_ROOT.parent)} \'added into Python PATH")
             pass

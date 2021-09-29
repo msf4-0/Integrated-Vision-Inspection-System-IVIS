@@ -33,6 +33,7 @@ from math import ceil, floor
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from dataclasses import dataclass
 
 import pandas as pd
 import project
@@ -96,6 +97,7 @@ class NewTrainingPagination(IntEnum):
     Model = 1
     TrainingConfig = 2
     AugmentationConfig = 3
+    Training = 4
 
     def __str__(self):
         return self.name
@@ -129,6 +131,7 @@ class DatasetPath(NamedTuple):
     eval: Path
     test: Path
     # <<<< Variable Declaration <<<<
+
 
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
@@ -164,7 +167,8 @@ class BaseTraining:
         self.id: Union[str, int] = training_id
         self.name: str = None
         self.desc: str = None
-        self.training_param: Optional[TrainingParam] = TrainingParam()
+        # NOTE: Might use this, depends
+        # self.training_param: Optional[TrainingParam] = TrainingParam()
         self.augmentation: Optional[Augmentation] = Augmentation()  # TODO
         self.project_id: int = project.id
         self.project_path = project.project_path
@@ -185,7 +189,9 @@ class BaseTraining:
             'eval': 0,
             'test': 0
         }
-        self.dataset_chosen: List = []
+        # self.dataset_chosen: List = []
+        # automatically get the list of dataset names from project
+        self.dataset_chosen: List[str] = list(project.dataset_dict.keys())
         self.training_param_dict: Dict = {}
         self.augmentation_dict: Dict = {}
         self.is_started: bool = False
@@ -530,6 +536,28 @@ class BaseTraining:
             logger.error(f"At update training_attached: {e}")
             return False
 
+    def update_training_param(self, training_param: Dict[str, Any]) -> bool:
+        # Maybe can try using the TrainingParam class, but seems like not necessary
+        # required for storing JSONB format
+        training_param_json = json.dumps(training_param)
+        sql_query = """
+        UPDATE
+            public.training
+        SET
+            training_param = %s::JSONB
+        WHERE
+            id = %s
+        RETURNING
+            id;
+        """
+        query_vars = [training_param_json, self.id]
+        try:
+            db_no_fetch(sql_query, conn, query_vars)
+            return True
+        except Exception as e:
+            logger.error(f"At update training_attached: {e}")
+            return False
+
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
@@ -788,7 +816,6 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
-
     @staticmethod
     def reset_new_training_page():
 
@@ -826,7 +853,7 @@ class Training(BaseTraining):
     def update_training_details(self):
         if self.attached_model_id and self.training_model_id:
             self.attached_model = Model(model_id=self.attached_model_id)
-            self.attached_model = Model(model_id=self.training_model_id)
+            self.training_model = Model(model_id=self.training_model_id)
         else:
             self.attached_model = None
             self.training_model = NewModel()

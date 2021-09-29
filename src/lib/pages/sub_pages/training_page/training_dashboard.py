@@ -33,6 +33,8 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
+from training.model_management import ModelsPagination
+
 
 # DEFINE Web APP page configuration
 # layout = 'wide'
@@ -201,16 +203,17 @@ def dashboard():
         logger.debug(
             f"Setting `training_pagination` to {session_state.training_pagination}")
 
-        if not session_state.new_training.attached_model_id:
-            # set this to directly move to the `models_page`, this `new_training_pagination` is defined
-            # in the new_training.py script
+        # set this to directly move to the `models_page`, this `new_training_pagination` is defined
+        # in the new_training.py script
+        if not session_state.new_training.attached_model:
             session_state.new_training_pagination = NewTrainingPagination.Model
-        else:
+
+        if session_state.new_training.attached_model:
             # model information form has already been submitted and stored in DB before
             session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
             # set to this move directly to training_config page
+            # session_state.models_pagination = ModelsPagination.TrainingConfig
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
-        # TODO: add pagination to go to model training page if training_config has already been submitted before
 
         st.experimental_rerun()
 
@@ -278,6 +281,7 @@ def index():
 
         def to_training_dashboard_page():
             # TODO #133 Add New Training Reset
+            NewTraining.reset_new_training_page()
             session_state.training_pagination = TrainingPagination.Dashboard
 
         training_dashboard_back_button_place.button("Back to Training Dashboard",

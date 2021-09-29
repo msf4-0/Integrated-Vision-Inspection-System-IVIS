@@ -93,7 +93,7 @@ def index():
     }
 
     # ****************************** HEADER **********************************************
-    st.write(f"# {session_state.project.name}")
+    st.write(f"# Project: {session_state.project.name}")
 
     project_description = session_state.project.desc if session_state.project.desc is not None else " "
     st.write(f"{project_description}")
