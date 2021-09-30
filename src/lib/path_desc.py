@@ -84,6 +84,10 @@ TFOD_MODELS_TABLE_PATH = RESOURCES_DIR / 'tfod_pretrained_models.csv'
 CLASSIF_MODELS_NAME_PATH = RESOURCES_DIR / 'classif_pretrained_models.csv'
 SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
 
+# folder to store the code cloned for TensorFlow Object Detection (TFOD)
+# from https://github.com/tensorflow/models
+TFOD_DIR = Path(__file__).resolve().parent / "TFOD" / "models"
+
 
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))

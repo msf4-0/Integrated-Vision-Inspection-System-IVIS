@@ -1,1 +1,3 @@
-keras_unet_collection
+keras-unet-collection
+wget
+streamlit-tensorboard

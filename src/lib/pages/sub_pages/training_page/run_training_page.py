@@ -1,5 +1,5 @@
 """ 
-Title: Training Parameters Configuration (New Training Configuration)
+Title: Training Page
 Date: 29/9/2021 
 Author: Anson Tan Chen Tung
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
