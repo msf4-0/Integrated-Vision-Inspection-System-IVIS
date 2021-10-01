@@ -174,7 +174,7 @@ def infodataset():
         # )
         # TODO: REMOVE this session state originally used by the multiselect widget
         session_state.new_training_dataset_chosen = session_state.project.dataset_dict.keys()
-        # NOTE: This is changed to directly init the self.dataset_chosen from `project.dataset_dict.keys()`
+        # NOTE: This is changed to directly init the new_training.dataset_chosen from `project.dataset_dict.keys()`
 
         if len(session_state.new_training_dataset_chosen) > 0:
 

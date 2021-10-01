@@ -132,7 +132,6 @@ class DatasetPath(NamedTuple):
     test: Path
     # <<<< Variable Declaration <<<<
 
-
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
@@ -538,6 +537,8 @@ class BaseTraining:
 
     def update_training_param(self, training_param: Dict[str, Any]) -> bool:
         # Maybe can try using the TrainingParam class, but seems like not necessary
+        self.training_param_dict = training_param
+
         # required for storing JSONB format
         training_param_json = json.dumps(training_param)
         sql_query = """
@@ -547,15 +548,13 @@ class BaseTraining:
             training_param = %s::JSONB
         WHERE
             id = %s
-        RETURNING
-            id;
         """
         query_vars = [training_param_json, self.id]
         try:
             db_no_fetch(sql_query, conn, query_vars)
             return True
         except Exception as e:
-            logger.error(f"At update training_attached: {e}")
+            logger.error(f"Update training param failed: {e}")
             return False
 
 
@@ -816,6 +815,7 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
+
     @staticmethod
     def reset_new_training_page():
 
@@ -1017,6 +1017,34 @@ class Training(BaseTraining):
                             Project ID: Project ID {project_id} does not exists""")
 
         return all_project_training, column_names
+
+    @staticmethod
+    def get_trained_filepaths(project_path: str,
+                              training_name: str,
+                              model_name: str,
+                              deployment_type: str,
+                              ) -> Dict[str, Path]:
+        training_path = BaseTraining.get_training_path(
+            project_path, training_name)
+
+        # TODO for image classification and segmentation
+        if deployment_type in (DeploymentType.OD, 'Object Detection with Bounding Boxes'):
+            model_path = training_path / 'models' / model_name
+            model_export_path = model_path / 'export'
+            model_tarfile_path = model_path / f'{model_name}.tar.gz'
+            return {
+                'training_path': training_path,
+                'model_path': model_path,
+                'model_export_path': model_export_path,
+                'model_tarfile_path': model_tarfile_path
+            }
+        elif deployment_type in (DeploymentType.Image_Classification, 'Image Classification'):
+            pass
+        elif deployment_type in (DeploymentType.Semantic, 'Semantic Segmentation with Polygons'):
+            pass
+        else:
+            logger.error(f"Error with deployment_type: '{deployment_type}'")
+
 
 # NOTE ******************* DEPRECATED *********************************************
     # def initialise_training(self, model: Model, project: Project):

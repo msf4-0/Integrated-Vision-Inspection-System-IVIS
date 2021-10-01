@@ -76,6 +76,10 @@ def index():
         # TODO: do this for image classification and segmentation, TFOD API does not need this
         pass
 
+    if st.button("Start training", key='btn_start_training'):
+        logger.info("Exporting tasks for training ...")
+        session_state.project.export_tasks()
+
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:

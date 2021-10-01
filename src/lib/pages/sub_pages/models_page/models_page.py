@@ -81,6 +81,14 @@ conn = init_connection(**st.secrets["postgres"])
 
 def existing_models():
     logger.debug("[NAVIGATOR] At `models_page.py` `existing_models` function")
+
+    if isinstance(session_state.new_training, NewTraining):
+        # done creating the info in database, thus converting it
+        # to a Training instance
+        session_state.new_training = Training(
+            session_state.new_training.id, project=session_state.project)
+        logger.debug("Converted NewTraining to Training instance")
+
     existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
         for_data_table=True,
         return_dict=True,

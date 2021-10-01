@@ -395,6 +395,7 @@ class Project(BaseProject):
             project_id, return_dict=True)
         if not all_annots:
             # there is no existing annotation
+            logger.error(f"No existing annotations for Project {project_id}")
             return []
 
         # the 'label_key' is different depending on the 'deployment_type'

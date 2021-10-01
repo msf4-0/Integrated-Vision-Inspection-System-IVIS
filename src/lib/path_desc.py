@@ -77,11 +77,13 @@ USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
 # Pretrained model details
 # assuming this file is in "utils" directory
 RESOURCES_DIR = Path(__file__).resolve().parents[2] / 'resources'
+# this table has columns: Model Name
 TFOD_MODELS_TABLE_PATH = RESOURCES_DIR / 'tfod_pretrained_models.csv'
 # Keras image classification pretrained model names from
 # https://www.tensorflow.org/api_docs/python/tf/keras/applications
-# This is stored as a list of strings
+# this table has columns: Model Name
 CLASSIF_MODELS_NAME_PATH = RESOURCES_DIR / 'classif_pretrained_models.csv'
+# this table has columns: model_func, Model Name, Reference, links
 SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
 
 # folder to store the code cloned for TensorFlow Object Detection (TFOD)

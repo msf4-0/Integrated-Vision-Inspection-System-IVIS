@@ -1,3 +1,5 @@
+imutils
+scikit-learn
 keras-unet-collection
 wget
 streamlit-tensorboard
