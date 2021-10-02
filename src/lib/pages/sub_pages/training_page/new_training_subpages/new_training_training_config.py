@@ -54,33 +54,50 @@ from training.training_management import NewTrainingPagination
 def training_configuration():
     logger.debug("At new_training_training_config.py")
 
+    if 'training_param_dict' not in session_state:
+        session_state.training_param_dict = {}
+
     st.markdown(f"**Step 2: Select training configuration:** ")
 
     train_config_col, aug_config_col = st.columns([1, 1])
 
     with train_config_col:
-        def update_training_param(**training_param_dict):
-            """Callback function for form submission."""
-            session_state.new_training.update_training_param(
-                training_param_dict)
+        def update_training_param():
+            training_param = {}
+            for k, v in session_state.items():
+                if k.startswith('param_'):
+                    # store this to keep track of current training config startswith 'param_'
+                    session_state.training_param_dict[k] = v
+                    # e.g. param_batch_size -> batch_size
+                    new_key = k.replace('param_', '')
+                    training_param[new_key] = v
+            # update the database and our Training instance
+            session_state.new_training.update_training_param(training_param)
             session_state.new_training_pagination = NewTrainingPagination.Training
 
         if session_state.project.deployment_type == "Image Classification":
             pass
         elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
             # only storing `batch_size` and `num_train_steps`
+            # NOTE: store them in key names starting exactly with `param_`
+            #  refer run_training_page for more info
             with st.form(key='training_config_form'):
-                st.number_input("Batch size", min_value=1, max_value=128, value=4, step=1,
-                                key="batch_size",
-                                help=("Update batch size based on the system's memory you"
-                                      " have. Higher batch size will need a higher memory."
-                                      " Recommended to start with 4. Reduce if memory warning happens."))
-                st.number_input("Number of training steps", min_value=100, max_value=10_000, value=2000,
-                                step=50, key='num_train_steps',
-                                help="Recommended to train for at least 2000 steps.")
+                st.number_input(
+                    "Batch size", min_value=1, max_value=128, value=4, step=1,
+                    key="param_batch_size",
+                    help=("Update batch size based on the system's memory you"
+                          " have. Higher batch size will need a higher memory."
+                          " Recommended to start with 4. Reduce if memory warning happens.")
+                )
+                st.number_input(
+                    "Number of training steps", min_value=100, max_value=10_000, value=2000,
+                    step=50, key='param_num_train_steps',
+                    help="Recommended to train for at least 2000 steps."
+                )
                 st.form_submit_button("Submit", on_click=update_training_param,
-                                      kwargs={"batch_size": session_state.batch_size,
-                                              "num_train_steps": session_state.num_train_steps})
+                                      #   kwargs={"param_batch_size": param_batch_size,
+                                      #           "param_num_train_steps": param_num_train_steps}
+                                      )
         elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
             pass
 

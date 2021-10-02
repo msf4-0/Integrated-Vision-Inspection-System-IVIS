@@ -36,7 +36,7 @@ import pandas as pd
 import wget
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as session_state
+from streamlit import session_state
 
 import tensorflow as tf
 import object_detection
@@ -115,10 +115,10 @@ class Trainer:
         """
         self.project_id: int = project.id
         self.training_id: int = new_training.id
-        self.project_path: Path = project.get_project_path()
+        self.project_path: Path = project.get_project_path(project.name)
         self.deployment_type: str = project.deployment_type
         self.class_names: List[str] = project.get_existing_unique_labels(
-        ).tolist()
+            project.id).tolist()
         # with keys: 'train', 'eval', 'test'
         self.partition_ratio: Dict[str, float] = new_training.partition_ratio
         self.dataset_export_path: Path = project.get_export_path()
@@ -128,10 +128,7 @@ class Trainer:
         # self.attached_model: Model = new_training.attached_model
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
-        self.output_paths: Dict[str, Path] = new_training.get_trained_filepaths(
-            self.project_path, new_training.name,
-            self.training_model_name, self.deployment_type
-        )
+        self.training_path: Dict[str, Path] = new_training.training_path
 
     @staticmethod
     def train_test_split(image_dir: Path,
@@ -230,7 +227,10 @@ class Trainer:
                 return X_train, X_val, X_test
 
     @staticmethod
-    def copy_images(image_paths: Path, label_paths: Path, dest_dir: Path, data_type: str):
+    def copy_images(image_paths: Path,
+                    dest_dir: Path,
+                    data_type: str,
+                    label_paths: Optional[Path] = None):
         assert data_type in ("train", "valid", "test")
         image_dest = os.path.join(dest_dir, data_type)
 
@@ -240,25 +240,28 @@ class Trainer:
             shutil.rmtree(image_dest, ignore_errors=False)
 
         # create new directories
-        os.makedirs(image_dest, exist_ok=True)
+        os.makedirs(image_dest)
 
-        for image_path, label_path in zip(image_paths, label_paths):
-            # copy the image file and label file to the new directory
-            shutil.copy2(image_path, image_dest)
-            shutil.copy2(label_path, image_dest)
+        if label_paths:
+            for image_path, label_path in zip(image_paths, label_paths):
+                # copy the image file and label file to the new directory
+                shutil.copy2(image_path, image_dest)
+                shutil.copy2(label_path, image_dest)
+        else:
+            for image_path in image_paths:
+                shutil.copy2(image_path, image_dest)
 
     def run_tfod_training(self):
         # TODO: beware of user-uploaded model
-        # TODO: consider the option of allowing training of multiple models
-        #       within the same training session
 
-        # this name is used for the output model paths, see self.output_paths
+        # this name is used for the output model paths, see self.training_path
         CUSTOM_MODEL_NAME = self.training_model_name
         # this df has columns: Model Name, Speed (ms), COCO mAP, Outputs, model_links
         models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH, usecols=[
                                 'Model Name', 'model_links'])
-        PRETRAINED_MODEL_URL = models_df.loc(
-            models_df['Model Name'] == self.attached_model_name, 'model_links').squeeze()
+        PRETRAINED_MODEL_URL = models_df.loc[
+            models_df['Model Name'] == self.attached_model_name,
+            'model_links'].squeeze()
         # this PRETRAINED_MODEL_DIRNAME is different from self.attached_model_name,
         #  PRETRAINED_MODEL_DIRNAME is the the first folder's name in the downloaded tarfile
         PRETRAINED_MODEL_DIRNAME = PRETRAINED_MODEL_URL.split(
@@ -266,25 +269,25 @@ class Trainer:
         # this name is based on `generate_labelmap_file` function
         LABEL_MAP_NAME = 'labelmap.pbtxt'
 
-        # TODO: make some of these paths easily obtained through Training methods
-        training_path = self.output_paths['training_path']
+        # can check out initialise_training_folder function too
         paths = {
-            'WORKSPACE_PATH': training_path,
+            'WORKSPACE_PATH': self.training_path['ROOT'],
             'APIMODEL_PATH': TFOD_DIR,
-            'ANNOTATION_PATH': training_path / 'annotations',
-            'IMAGE_PATH': training_path / 'images',
+            'ANNOTATION_PATH': self.training_path['annotations'],
+            'IMAGE_PATH': self.training_path['images'],
             'PRETRAINED_MODEL_PATH': PRE_TRAINED_MODEL_DIR,
-            'CHECKPOINT_PATH': self.output_paths['model_path'],
-            'OUTPUT_PATH': self.output_paths['model_export_path'],
+            'MODELS': self.training_path['models'],
+            'EXPORT': self.training_path['export'],
         }
 
         files = {
-            'PIPELINE_CONFIG': paths['CHECKPOINT_PATH'] / 'pipeline.config',
+            'PIPELINE_CONFIG': paths['MODELS'] / 'pipeline.config',
             # this generate_tfrecord.py script is modified from https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html
             # to convert our PascalVOC XML annotation files into TFRecords which will be used by the TFOD API
             'GENERATE_TF_RECORD': LIB_PATH / "machine_learning" / "module" / "generate_tfrecord_st.py",
+            # this is a temporary path for labelmap file, will move to desired path later
             'LABELMAP': paths['ANNOTATION_PATH'] / LABEL_MAP_NAME,
-            'MODEL_TARFILE_PATH': self.output_paths['model_tarfile_path'],
+            'MODEL_TARFILE': self.training_path['model_tarfile'],
         }
 
         # create all the necessary paths if not exists yet
@@ -292,31 +295,36 @@ class Trainer:
             if not os.path.exists(path):
                 os.makedirs(path)
 
-        # ************* Generate train & test images in the folder if not exists *************
-        if not os.listdir(paths['IMAGE_PATH']):
-            with st.spinner('Generating train test splits ...'):
-                # for now we only makes use of test set for TFOD to make things simpler
-                test_size = self.partition_ratio['eval'] + \
-                    self.partition_ratio['test']
-                X_train, X_test, y_train, y_test = self.train_test_split(
-                    # - BEWARE that the directories might be different if it's user uploaded
-                    image_dir=self.dataset_export_path / "images",
-                    test_size=test_size,
-                    annotation_dir=self.dataset_export_path / "Annotations",
-                    no_validation=True
-                )
+        # ************* Generate train & test images in the folder *************
+        with st.spinner('Generating train test splits ...'):
+            # for now we only makes use of test set for TFOD to make things simpler
+            test_size = self.partition_ratio['eval'] + \
+                self.partition_ratio['test']
+            X_train, X_test, y_train, y_test = self.train_test_split(
+                # - BEWARE that the directories might be different if it's user uploaded
+                image_dir=self.dataset_export_path / "images",
+                test_size=test_size,
+                annotation_dir=self.dataset_export_path / "Annotations",
+                no_validation=True
+            )
 
-                logger.info(f"Total training images = {len(y_train)}")
-                logger.info(f"Total testing images = {len(y_test)}")
+            st.markdown(f"Total training images = {len(y_train)}")
+            st.markdown(f"Total testing images = {len(y_test)}")
 
-                self.copy_images(X_train, y_train,
-                                 paths['IMAGE_PATH'], "train")
-                self.copy_images(X_test, y_test, paths['IMAGE_PATH'], "test")
-                logger.info("Dataset files copied successfully.")
+        with st.spinner('Copying images to folder, this may take awhile ...'):
+            self.copy_images(X_train,
+                             dest_dir=paths['IMAGE_PATH'],
+                             data_type="train",
+                             label_paths=y_train)
+            self.copy_images(X_test,
+                             dest_dir=paths['IMAGE_PATH'],
+                             data_type="test",
+                             label_paths=y_test)
+            logger.info("Dataset files copied successfully.")
 
         # ************* get the pretrained model if not exists *************
-        with st.spinner('Downloading pretrained model ...'):
-            if not (paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME).exists():
+        if not (paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME).exists():
+            with st.spinner('Downloading pretrained model ...'):
                 wget.download(PRETRAINED_MODEL_URL)
                 pretrained_tarfile = PRETRAINED_MODEL_DIRNAME + '.tar.gz'
                 # this command will extract the files at the cwd
@@ -358,7 +366,7 @@ class Trainer:
             original_config_path = paths['PRETRAINED_MODEL_PATH'] / \
                 PRETRAINED_MODEL_DIRNAME / 'pipeline.config'
             # copy over the pipeline.config file before modifying it
-            shutil.copy2(original_config_path, paths['CHECKPOINT_PATH'])
+            shutil.copy2(original_config_path, paths['MODELS'])
 
             # making pipeline.config file editable programatically
             pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
@@ -401,13 +409,10 @@ class Trainer:
         NUM_TRAIN_STEPS = self.training_param['num_train_steps']
 
         command = (f"python {TRAINING_SCRIPT} "
-                   f"--model_dir={paths['CHECKPOINT_PATH']} "
+                   f"--model_dir={paths['MODELS']} "
                    f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
                    f"--num_train_steps={NUM_TRAIN_STEPS}")
         run_command(command, st_output=True)
-
-        # TODO: Setup TensorBoard logdir
-        # %tensorboard --logdir={paths['CHECKPOINT_PATH']}
 
         # *********************** EXPORT MODEL ***********************
         with st.spinner("Exporting model ..."):
@@ -416,29 +421,34 @@ class Trainer:
             command = (f"python {FREEZE_SCRIPT} "
                        "--input_type=image_tensor "
                        f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
-                       f"--trained_checkpoint_dir={paths['CHECKPOINT_PATH']} "
-                       f"--output_directory={paths['OUTPUT_PATH']}")
+                       f"--trained_checkpoint_dir={paths['MODELS']} "
+                       f"--output_directory={paths['EXPORT']}")
             run_command(command)
 
             # Also copy the label map file to the exported directory to use for display
             # label names in inference later
-            shutil.copy2(files['LABELMAP'], paths['OUTPUT_PATH'])
+            # self.training_path['labelmap'] is in export path
+            shutil.copy2(files['LABELMAP'], self.training_path['labelmap'])
+
+            if files['MODEL_TARFILE'].exists():
+                # remove any existing tarfile first
+                os.remove(files['MODEL_TARFILE'])
 
             # tar the exported model to be used anywhere
             # NOTE: be careful with the second argument of tar command,
             #  if you pass a chain of directories, the directories
             #  will also be included in the tarfile. That's why we `chdir` first
-            os.chdir(paths['OUTPUT_PATH'].parent)
+            os.chdir(paths['EXPORT'].parent)
             run_command(
-                f"tar -czf {files['MODEL_TARFILE_PATH'].name} {paths['OUTPUT_PATH']}")
+                f"tar -czf {files['MODEL_TARFILE'].name} {paths['EXPORT']}")
 
             # after created the tarfile in the current working directory,
             #  then only move to the desired filepath
-            shutil.move(files['MODEL_TARFILE_PATH'].name,
-                        files['MODEL_TARFILE_PATH'])
+            shutil.move(files['MODEL_TARFILE'].name,
+                        files['MODEL_TARFILE'])
 
             logger.info(
-                f"CONGRATS YO! Successfully created {files['MODEL_TARFILE_PATH']}")
+                f"CONGRATS YO! Successfully created {files['MODEL_TARFILE']}")
 
             # and then change back to root dir
             chdir_root()

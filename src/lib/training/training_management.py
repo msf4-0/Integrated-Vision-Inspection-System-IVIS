@@ -58,6 +58,7 @@ from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import (NetChange, datetime_formatter, find_net_change,
                                get_directory_name, join_string)
+from core.utils.code_generator import get_random_string
 from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
@@ -195,13 +196,16 @@ class BaseTraining:
         self.augmentation_dict: Dict = {}
         self.is_started: bool = False
         self.progress: Dict = {}
-        self.training_path: Dict = {
-            'ROOT': None,
-            'annotations': None,
-            'dataset': None,
-            'exported_models': None,
-            'models': None
-        }
+        # self.training_path: Dict[str, Path] = {
+        #     'ROOT': None,
+        #     'annotations': None,
+        #     'images': None,
+        #     'export': None,
+        #     'models': None,
+        #     'model_tarfile': None,
+        #     'labelmap': None,
+        #     'tensorboard_logdir': None
+        # }
         # this tells whether the data has already been stored in dataset,
         # to be able to tell the submission forms whether we are inserting or updating the DB
         self.has_submitted: Dict = {
@@ -233,22 +237,6 @@ class BaseTraining:
         logger.info(f"Training Path: {str(training_path)}")
 
         return training_path
-
-    def get_all_training_path(self) -> Dict:
-        # >>>> TRAINING PATH
-        self.training_path['ROOT'] = self.get_training_path(
-            self.project_path, self.name)
-        # >>>> MODEL PATH
-        self.training_path['models'] = self.training_path['ROOT'] / 'models'
-        # PARTITIONED DATASET PATH
-        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
-        # EXPORTED MODEL PATH
-        self.training_path['exported_models'] = self.training_path['ROOT'] / \
-            'exported_models'
-        # ANNOTATIONS PATH
-        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
-
-        return self.training_path
 
     def calc_total_dataset_size(self, dataset_chosen: List, dataset_dict: Dict) -> int:
         """Calculate the total dataset size for the current training configuration
@@ -557,6 +545,12 @@ class BaseTraining:
             logger.error(f"Update training param failed: {e}")
             return False
 
+    def clone_training_session(self):
+        # TODO: clone training session for faster access to training
+        new_training = deepcopy(self)
+        new_training.name = ' '.join([self.name, get_random_string(length=5)])
+        new_training.training_model = ''
+
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
@@ -607,63 +601,6 @@ class NewTraining(BaseTraining):
 
         # True if not empty, False otherwise
         return empty_fields
-
-    def initialise_training_folder(self):
-        """Create Training Folder
-        """
-        '''
-        training_dir
-        |
-        |-annotations/
-        | |-labelmap
-        | |-TFRecords*
-        |
-        |-exported_models/
-        |-dataset
-        | |-train/
-        | |-evaluation/
-        |
-        |-models/
-
-        '''
-        # *************** GENERATE TRAINING PATHS ***************
-
-        # >>>> TRAINING PATH
-        self.training_path['ROOT'] = self.get_training_path(
-            self.project_path, self.name)
-        # >>>> MODEL PATH
-        self.training_path['models'] = self.training_path['ROOT'] / 'models'
-        # PARTITIONED DATASET PATH
-        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
-        # EXPORTED MODEL PATH
-        self.training_path['exported_models'] = self.training_path['ROOT'] / \
-            'exported_models'
-        # ANNOTATIONS PATH
-        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
-
-        # >>>> CREATE Training directory recursively
-        for path in self.training_path.values():
-            create_folder_if_not_exist(path)
-            logger.info(
-                f"Successfully created **{str(path)}**")
-
-        # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
-        try:
-            assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
-                len(self.training_path) - 1)), f"Failed to create all folders"
-            logger.info(
-                f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
-
-        except AssertionError as e:
-
-            # Create a list of sub-folders excluding Training Root
-            directory_structure = [
-                x for x in self.training_path.values() if x != self.training_path['ROOT']]
-
-            missing_folders = [x for x in self.training_path['ROOT'].iterdir(
-            ) if x.is_dir() and (x not in directory_structure)]
-
-            logger.error(f"{e}: Missing {missing_folders}")
 
     def insert_training_info_dataset(self) -> bool:
         """Create New Training submission
@@ -834,9 +771,11 @@ class Training(BaseTraining):
         # self.augmentation_dict, self.progress, self.partition_ratio
         # self.training_model_id, self.attached_model_id, self.is_started
         self.query_all_fields()
-        self.training_path = self.get_all_training_path()
-        # creates self.attached_model, self.training_model
+        # creates self.attached_model and self.training_model
         self.update_training_details()
+        # NOTE: self.training_path is now created with `property` decorator below
+        # self.training_path = self.get_all_training_path()
+        # creates self.attached_model, self.training_model
 
         # TODO #136 query training details
         # get model attached
@@ -857,6 +796,36 @@ class Training(BaseTraining):
         else:
             self.attached_model = None
             self.training_model = NewModel()
+
+    @property
+    def training_path(self) -> Dict:
+        # modified from get_all_training_path
+        # >>>> TRAINING PATH
+        paths = {}
+        paths['ROOT'] = self.get_training_path(
+            self.project_path, self.name)
+        root = paths['ROOT']
+        # >>>> MODEL PATH
+        # paths['models'] = root / 'models'
+        if not self.training_model.name:
+            self.training_model.name = 'temp'
+        paths['models'] = root / 'models' / self.training_model.name
+        # PARTITIONED DATASET PATH
+        paths['images'] = root / 'images'
+        # EXPORTED MODEL PATH
+        # paths['exported_models'] = root / \
+        #     'exported_models'
+        paths['export'] = paths['models'] / 'export'
+        paths['model_tarfile'] = paths['models'] / \
+            f'{self.training_model.name}.tar.gz'
+        # ANNOTATIONS PATH
+        paths['annotations'] = root / 'annotations'
+        # this filename is based on the `generate_labelmap_file` function
+        # NOTE: this file is probably only needed for TF object detection
+        paths['labelmap'] = paths['export'] / 'labelmap.pbtxt'
+        # the tensorboard logdir is the same with models path
+        paths['tensorboard_logdir'] = paths['models']
+        return paths
 
     @staticmethod
     def query_progress(training_id: int) -> Union[bool, None]:
@@ -1018,32 +987,93 @@ class Training(BaseTraining):
 
         return all_project_training, column_names
 
-    @staticmethod
-    def get_trained_filepaths(project_path: str,
-                              training_name: str,
-                              model_name: str,
-                              deployment_type: str,
-                              ) -> Dict[str, Path]:
-        training_path = BaseTraining.get_training_path(
-            project_path, training_name)
+    def initialise_training_folder(self):
+        """Create Training Folder
+        """
+        '''
+        training_dir
+        |
+        |-annotations/
+        | |-labelmap
+        | |-TFRecords*
+        |
+        |-exported_models/
+        |-dataset
+        | |-train/
+        | |-evaluation/
+        |
+        |-models/
 
-        # TODO for image classification and segmentation
-        if deployment_type in (DeploymentType.OD, 'Object Detection with Bounding Boxes'):
-            model_path = training_path / 'models' / model_name
-            model_export_path = model_path / 'export'
-            model_tarfile_path = model_path / f'{model_name}.tar.gz'
-            return {
-                'training_path': training_path,
-                'model_path': model_path,
-                'model_export_path': model_export_path,
-                'model_tarfile_path': model_tarfile_path
-            }
-        elif deployment_type in (DeploymentType.Image_Classification, 'Image Classification'):
-            pass
-        elif deployment_type in (DeploymentType.Semantic, 'Semantic Segmentation with Polygons'):
-            pass
-        else:
-            logger.error(f"Error with deployment_type: '{deployment_type}'")
+        '''
+        # *************** GENERATE TRAINING PATHS ***************
+
+        # >>>> TRAINING PATH
+        # self.training_path['ROOT'] = self.get_training_path(
+        #     self.project_path, self.name)
+        # # >>>> MODEL PATH
+        # self.training_path['models'] = self.training_path['ROOT'] / 'models'
+        # # PARTITIONED DATASET PATH
+        # self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
+        # # EXPORTED MODEL PATH
+        # self.training_path['exported_models'] = self.training_path['ROOT'] / \
+        #     'exported_models'
+        # # ANNOTATIONS PATH
+        # self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
+
+        # >>>> CREATE Training directory recursively
+        for path in self.training_path.values():
+            if '.' in path.name:
+                # this is a file path and not a directory, thus change it
+                path = path.parent
+            create_folder_if_not_exist(path)
+            logger.info(
+                f"Successfully created **{str(path)}**")
+
+        # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
+        try:
+            assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
+                len(self.training_path) - 1)), f"Failed to create all folders"
+            logger.info(
+                f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
+
+        except AssertionError as e:
+
+            # Create a list of sub-folders excluding Training Root
+            directory_structure = [
+                x for x in self.training_path.values() if x != self.training_path['ROOT']]
+
+            missing_folders = [x for x in self.training_path['ROOT'].iterdir(
+            ) if x.is_dir() and (x not in directory_structure)]
+
+            logger.error(f"{e}: Missing {missing_folders}")
+
+    # ! Deprecated, use get_all_training_path
+    # @staticmethod
+    # def get_trained_filepaths(project_path: str,
+    #                           training_name: str,
+    #                           model_name: str,
+    #                           deployment_type: str,
+    #                           ) -> Dict[str, Path]:
+    #     training_path = BaseTraining.get_training_path(
+    #         project_path, training_name)
+
+    #     # TODO for image classification and segmentation
+    #     if deployment_type in (DeploymentType.OD, 'Object Detection with Bounding Boxes'):
+    #         model_path = training_path / 'models' / model_name
+    #         model_export_path = model_path / 'export'
+    #         model_tarfile_path = model_path / f'{model_name}.tar.gz'
+    #         return {
+    #             'training_path': training_path,
+    #             'model_path': model_path,
+    #             'model_export_path': model_export_path,
+    #             'model_tarfile_path': model_tarfile_path
+    #         }
+    #     elif deployment_type in (DeploymentType.Image_Classification, 'Image Classification'):
+    #         pass
+    #     elif deployment_type in (DeploymentType.Semantic, 'Semantic Segmentation with Polygons'):
+    #         pass
+    #     else:
+    #         logger.error(f"Error with deployment_type: '{deployment_type}'")
 
 
 # NOTE ******************* DEPRECATED *********************************************

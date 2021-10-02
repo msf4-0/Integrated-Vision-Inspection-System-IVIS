@@ -156,7 +156,7 @@ def index():
         NewTrainingPagination.Training: run_training_page.index
     }
     session_state.new_training_progress_bar.progress(
-        (session_state.new_training_pagination + 1) / 4)
+        (session_state.new_training_pagination + 1) / len(new_training_page))
     logger.debug("New Training Pagination:"
                  f" {NewTrainingPagination(session_state.new_training_pagination)}")
     new_training_page[session_state.new_training_pagination]()
