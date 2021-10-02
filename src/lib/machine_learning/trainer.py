@@ -30,7 +30,7 @@ import shutil
 from math import ceil
 from pathlib import Path
 from time import sleep
-from typing import Any, Dict, List, Optional, Float
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import wget
@@ -72,7 +72,9 @@ from training.model_management import Model, NewModel
 from training.training_management import Training
 from training.labelmap_management import Framework, Labels
 from deployment.deployment_management import Deployment, DeploymentType
-from path_desc import TFOD_DIR, PRE_TRAINED_MODEL_DIR, USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH
+from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
+                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
+                       CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -118,7 +120,7 @@ class Trainer:
         self.class_names: List[str] = project.get_existing_unique_labels(
         ).tolist()
         # with keys: 'train', 'eval', 'test'
-        self.partition_ratio: Dict[str, Float] = new_training.partition_ratio
+        self.partition_ratio: Dict[str, float] = new_training.partition_ratio
         self.dataset_export_path: Path = project.get_export_path()
         self.attached_model_name: str = new_training.attached_model.name
         self.training_model_name: str = new_training.training_model.name
@@ -133,12 +135,12 @@ class Trainer:
 
     @staticmethod
     def train_test_split(image_dir: Path,
-                         test_size: Float,
+                         test_size: float,
                          *,
                          no_validation: bool = False,
                          annotation_dir: Optional[Path] = None,
-                         val_size: Optional[Float] = 0.0,
-                         train_size: Optional[Float] = 0.0,
+                         val_size: Optional[float] = 0.0,
+                         train_size: Optional[float] = 0.0,
                          random_seed: Optional[int] = 42
                          ):
         """
@@ -148,11 +150,11 @@ class Trainer:
 
         Args:
             image_dir (Path): Directory to the images.
-            test_size (Float): Size of test set in percentage
+            test_size (float): Size of test set in percentage
             no_validation (bool, optional): If True, only split into train and test sets. Defaults to False.
             annotation_dir (Optional[Path]): Pass in this parameter to also split the annotation paths. Defaults to None.
-            val_size (Optional[Float]): Size of validation split, only needed if `no_validation` is True. Defaults to 0.0.
-            train_size (Optional[Float]): This is only used for logging, can be inferred, thus not required. Defaults to 0.0.
+            val_size (Optional[float]): Size of validation split, only needed if `no_validation` is True. Defaults to 0.0.
+            train_size (Optional[float]): This is only used for logging, can be inferred, thus not required. Defaults to 0.0.
             random_seed (Optional[int]): random seed to use for splitting. Defaults to 42.
 
         Returns:
@@ -247,13 +249,20 @@ class Trainer:
 
     def run_tfod_training(self):
         # TODO: beware of user-uploaded model
+        # TODO: consider the option of allowing training of multiple models
+        #       within the same training session
 
-        PRETRAINED_MODEL_NAME = self.attached_model_name
+        # this name is used for the output model paths, see self.output_paths
+        CUSTOM_MODEL_NAME = self.training_model_name
         # this df has columns: Model Name, Speed (ms), COCO mAP, Outputs, model_links
         models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH, usecols=[
                                 'Model Name', 'model_links'])
         PRETRAINED_MODEL_URL = models_df.loc(
-            models_df['Model Name'] == PRETRAINED_MODEL_NAME, 'model_links').squeeze()
+            models_df['Model Name'] == self.attached_model_name, 'model_links').squeeze()
+        # this PRETRAINED_MODEL_DIRNAME is different from self.attached_model_name,
+        #  PRETRAINED_MODEL_DIRNAME is the the first folder's name in the downloaded tarfile
+        PRETRAINED_MODEL_DIRNAME = PRETRAINED_MODEL_URL.split(
+            "/")[-1].split(".tar.gz")[0]
         # this name is based on `generate_labelmap_file` function
         LABEL_MAP_NAME = 'labelmap.pbtxt'
 
@@ -267,7 +276,6 @@ class Trainer:
             'PRETRAINED_MODEL_PATH': PRE_TRAINED_MODEL_DIR,
             'CHECKPOINT_PATH': self.output_paths['model_path'],
             'OUTPUT_PATH': self.output_paths['model_export_path'],
-            'MODEL_TARFILE_PATH': self.output_paths['model_tarfile_path'],
         }
 
         files = {
@@ -275,7 +283,8 @@ class Trainer:
             # this generate_tfrecord.py script is modified from https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html
             # to convert our PascalVOC XML annotation files into TFRecords which will be used by the TFOD API
             'GENERATE_TF_RECORD': LIB_PATH / "machine_learning" / "module" / "generate_tfrecord_st.py",
-            'LABELMAP': paths['ANNOTATION_PATH'] / LABEL_MAP_NAME
+            'LABELMAP': paths['ANNOTATION_PATH'] / LABEL_MAP_NAME,
+            'MODEL_TARFILE_PATH': self.output_paths['model_tarfile_path'],
         }
 
         # create all the necessary paths if not exists yet
@@ -307,11 +316,12 @@ class Trainer:
 
         # ************* get the pretrained model if not exists *************
         with st.spinner('Downloading pretrained model ...'):
-            if not (paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_NAME).exists():
+            if not (paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME).exists():
                 wget.download(PRETRAINED_MODEL_URL)
-                pretrained_tarfile = PRETRAINED_MODEL_NAME + '.tar.gz'
+                pretrained_tarfile = PRETRAINED_MODEL_DIRNAME + '.tar.gz'
+                # this command will extract the files at the cwd
                 run_command(f"tar -zxvf {pretrained_tarfile}")
-                shutil.move(PRETRAINED_MODEL_NAME,
+                shutil.move(PRETRAINED_MODEL_DIRNAME,
                             paths['PRETRAINED_MODEL_PATH'])
                 os.remove(pretrained_tarfile)
 
@@ -346,7 +356,7 @@ class Trainer:
         # ********************* pipeline.config *********************
         with st.spinner('Generating pipeline config file ...'):
             original_config_path = paths['PRETRAINED_MODEL_PATH'] / \
-                PRETRAINED_MODEL_NAME / 'pipeline.config'
+                PRETRAINED_MODEL_DIRNAME / 'pipeline.config'
             # copy over the pipeline.config file before modifying it
             shutil.copy2(original_config_path, paths['CHECKPOINT_PATH'])
 
@@ -369,7 +379,7 @@ class Trainer:
 
             pipeline_config.train_config.batch_size = self.training_param['batch_size']
             pipeline_config.train_config.fine_tune_checkpoint = (
-                paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_NAME / 'checkpoint' / 'ckpt-0')
+                paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME / 'checkpoint' / 'ckpt-0')
             pipeline_config.train_config.fine_tune_checkpoint_type = "detection"
             pipeline_config.train_input_reader.label_map_path = files['LABELMAP']
             pipeline_config.train_input_reader.tf_record_input_reader.input_path[:] = [
@@ -415,10 +425,22 @@ class Trainer:
             shutil.copy2(files['LABELMAP'], paths['OUTPUT_PATH'])
 
             # tar the exported model to be used anywhere
+            # NOTE: be careful with the second argument of tar command,
+            #  if you pass a chain of directories, the directories
+            #  will also be included in the tarfile. That's why we `chdir` first
+            os.chdir(paths['OUTPUT_PATH'].parent)
             run_command(
-                f"tar -czf {paths['MODEL_TARFILE_PATH']} {paths['OUTPUT_PATH']}")
+                f"tar -czf {files['MODEL_TARFILE_PATH'].name} {paths['OUTPUT_PATH']}")
+
+            # after created the tarfile in the current working directory,
+            #  then only move to the desired filepath
+            shutil.move(files['MODEL_TARFILE_PATH'].name,
+                        files['MODEL_TARFILE_PATH'])
 
             logger.info(
-                f"CONGRATS YO! Successfully created {paths['MODEL_TARFILE_PATH']}")
+                f"CONGRATS YO! Successfully created {files['MODEL_TARFILE_PATH']}")
+
+            # and then change back to root dir
+            chdir_root()
 
         # TODO: INFERENCE
