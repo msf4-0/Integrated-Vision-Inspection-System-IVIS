@@ -164,7 +164,7 @@ class Trainer:
             assert val_size, "Must pass in `val_size` if `no_validation` is False."
 
         # get the image paths and sort them
-        image_paths = sorted(list_images(image_dir / "images"))
+        image_paths = sorted(list_images(image_dir))
         logger.info(f"Total images = {len(image_paths)}")
 
         # directory to annotation folder, only change this path when necessary

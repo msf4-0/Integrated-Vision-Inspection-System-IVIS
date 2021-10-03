@@ -208,12 +208,22 @@ def dashboard():
         if not session_state.new_training.attached_model:
             session_state.new_training_pagination = NewTrainingPagination.Model
 
-        if session_state.new_training.attached_model:
+        elif session_state.new_training.attached_model \
+                and not session_state.new_training.training_param_dict:
             # model information form has already been submitted and stored in DB before
             session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
             # set to this move directly to training_config page
             # session_state.models_pagination = ModelsPagination.TrainingConfig
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+        else:
+            for k in session_state.new_training.has_submitted.keys():
+                # all forms have already been submitted before
+                session_state.new_training.has_submitted[k] = True
+            # set to this move directly to training page
+            session_state.new_training_pagination = NewTrainingPagination.Training
+
+        logger.debug("Setting `new_training_pagination` to "
+                     f"{session_state.new_training_pagination}")
 
         st.experimental_rerun()
 
@@ -280,7 +290,6 @@ def index():
     if session_state.training_pagination != TrainingPagination.Dashboard:
 
         def to_training_dashboard_page():
-            # TODO #133 Add New Training Reset
             NewTraining.reset_new_training_page()
             session_state.training_pagination = TrainingPagination.Dashboard
 
@@ -290,6 +299,23 @@ def index():
 
     else:
         training_dashboard_back_button_place.empty()
+
+    # >>>> RETURN TO TRAINING PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    training_page_back_place = st.empty()
+
+    # show btn if all forms are submitted and currently not in training page
+    if 'new_training' in session_state and \
+        all(session_state.new_training.has_submitted.values()) and \
+            session_state.new_training_pagination != NewTrainingPagination.Training:
+        def to_training_page():
+            session_state.training_pagination = TrainingPagination.Existing
+            session_state.new_training_pagination = NewTrainingPagination.Training
+
+        training_page_back_place.button("Back to Start Training Page",
+                                        key="back_to_training_page",
+                                        on_click=to_training_page)
+    else:
+        training_page_back_place.empty()
 
     # ! DEBUGGING PURPOSE, REMOVE LATER
     st.write("session_state = ")

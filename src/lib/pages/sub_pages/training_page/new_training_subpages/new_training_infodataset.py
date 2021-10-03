@@ -349,11 +349,21 @@ def infodataset():
                 # Training Name,Desc, Dataset chosen, Partition Size
                 if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
                                                                    session_state.project.dataset_dict):
-                    session_state.new_training_pagination = NewTrainingPagination.Model
-                    # must set this to tell the models_page.py to move to stay in its page
-                    session_state.models_pagination = ModelsPagination.ExistingModels
+                    # session_state.new_training_pagination = NewTrainingPagination.Model
+                    # # must set this to tell the models_page.py to move to stay in its page
+                    # session_state.models_pagination = ModelsPagination.ExistingModels
+
+                    for page, submitted in session_state.new_training.has_submitted.items():
+                        if not submitted:
+                            session_state.new_training_pagination = page
+                    else:
+                        # go to Training page if all forms have been submitted
+                        session_state.new_training_pagination = NewTrainingPagination.Training
+
                     logger.info(
                         f"Successfully updated new training {session_state.new_training.id}")
+                    logger.debug('New Training Pagination: '
+                                 f'{session_state.new_training_pagination}')
             else:
                 session_state.new_training_place['new_training_name'].error(
                     'Training Name already exists, please enter a new name')

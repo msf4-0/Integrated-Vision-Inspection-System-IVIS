@@ -41,48 +41,90 @@ from training.training_management import NewTrainingPagination
 def index():
     logger.debug("At new_training_training_config.py")
 
-    st.markdown(f"## Training Session: {session_state.new_training.name}")
-    st.markdown(f"### Current Training config:")
-    # TODO: add navigation back to modify all this info
+    st.markdown("### Training Info:")
+
+    dataset_chosen = session_state.new_training.dataset_chosen
+    if len(dataset_chosen) == 1:
+        dataset_chosen_str = dataset_chosen[0]
+    else:
+        dataset_chosen_str = []
+        for idx, data in enumerate(dataset_chosen):
+            dataset_chosen_str.append(f"{idx+1}. {data}")
+        dataset_chosen_str = '  \n'.join(dataset_chosen_str)
+    partition_ratio = session_state.new_training.partition_ratio
     st.info(f"""
     **Training Description**: {session_state.new_training.desc}  \n
-    **Dataset List**: {session_state.new_training.dataset_chosen}  \n
-    **Partition Ratio**: {session_state.new_training.partition_ratio}  \n
+    **Dataset List**: {dataset_chosen_str}  \n
+    **Partition Ratio**: training : validation : test -> 
+    {partition_ratio['train']} : {partition_ratio['eval']} : {partition_ratio['test']}  \n
     **Model Name**: {session_state.new_training.training_model.name}  \n
     **Model Description**: {session_state.new_training.training_model.desc}
     """)
+
+    train_info_btn, model_info_btn, _ = st.columns([2, 1, 4])
+
+    def back_train_info_page():
+        session_state.new_training_pagination = NewTrainingPagination.InfoDataset
+
+    with train_info_btn:
+        st.button('Modify Training Info', key='btn_modify_train_info',
+                  on_click=back_train_info_page)
+
+    def back_model_page():
+        session_state.new_training_pagination = NewTrainingPagination.Model
+
+    with model_info_btn:
+        st.button('Modify Model Info', key='btn_modify_model_info',
+                  on_click=back_model_page)
 
     # ******************************** CONFIG INFO ********************************
     train_config_col, aug_config_col = st.columns([1, 1])
 
     with train_config_col:
+        config_info = []
+        for k, v in session_state.new_training.training_param_dict.items():
+            # param_name = ' '.join([word.capitalize() for word in k.split('_')])
+            param_name = ' '.join(k.split('_')).capitalize()
+            param_val = str(v) if isinstance(v, int) else "{:.2e}".format(v)
+            current_info = f'**{param_name}**: {param_val}'
+            config_info.append(current_info)
+        config_info = '  \n'.join(config_info)
+        st.markdown('### Training Config:')
+        st.info(config_info)
 
-        # TODO : image classification and segmentation
-        if session_state.project.deployment_type == "Image Classification":
-            pass
-        elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
-            # only storing `batch_size` and `num_train_steps`
-            # NOTE: store them in key names starting exactly with `param_`
-            #  to be able to extract them and send them over to the Trainer for training
-            # e.g. param_batch_size -> batch_size at the Trainer later
-            st.number_input(
-                "Batch size", min_value=1, max_value=128,
-                value=session_state.training_param_dict['param_batch_size'], step=1,
-                key="param_batch_size",
-                help=("Update batch size based on the system's memory you"
-                      " have. Higher batch size will need a higher memory."
-                      " Recommended to start with 4. Reduce if memory warning happens."))
-            st.number_input(
-                "Number of training steps", min_value=100, max_value=10_000,
-                value=session_state.training_param_dict['param_num_train_steps'],
-                step=50, key='param_num_train_steps',
-                help="Recommended to train for at least 2000 steps.")
-        elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
-            pass
+        def back_config_page():
+            session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+
+        st.button('Modify Training Config', key='btn_modify_config',
+                  on_click=back_config_page)
+
+        # # TODO : image classification and segmentation
+        # if session_state.project.deployment_type == "Image Classification":
+        #     pass
+        # elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
+        #     # only storing `batch_size` and `num_train_steps`
+        #     # NOTE: store them in key names starting exactly with `param_`
+        #     #  to be able to extract them and send them over to the Trainer for training
+        #     # e.g. param_batch_size -> batch_size at the Trainer later
+        #     st.number_input(
+        #         "Batch size", min_value=1, max_value=128,
+        #         value=session_state.training_param_dict['param_batch_size'], step=1,
+        #         key="param_batch_size",
+        #         help=("Update batch size based on the system's memory you"
+        #               " have. Higher batch size will need a higher memory."
+        #               " Recommended to start with 4. Reduce if memory warning happens."))
+        #     st.number_input(
+        #         "Number of training steps", min_value=100, max_value=10_000,
+        #         value=session_state.training_param_dict['param_num_train_steps'],
+        #         step=50, key='param_num_train_steps',
+        #         help="Recommended to train for at least 2000 steps.")
+        # elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
+        #     pass
 
     with aug_config_col:
         # TODO: do this for image classification and segmentation, TFOD API does not need this
-        pass
+        if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
+            pass
 
     # ******************************* Tensorboard *******************************
     # TODO: test whether this works after deployed the app

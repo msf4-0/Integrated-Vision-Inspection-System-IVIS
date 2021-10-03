@@ -80,7 +80,8 @@ def training_configuration():
         elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
             # only storing `batch_size` and `num_train_steps`
             # NOTE: store them in key names starting exactly with `param_`
-            #  refer run_training_page for more info
+            #  to be able to extract them and send them over to the Trainer for training
+            # e.g. param_batch_size -> batch_size at the Trainer later
             with st.form(key='training_config_form'):
                 st.number_input(
                     "Batch size", min_value=1, max_value=128, value=4, step=1,

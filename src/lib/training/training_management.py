@@ -798,7 +798,7 @@ class Training(BaseTraining):
             self.training_model = NewModel()
 
     @property
-    def training_path(self) -> Dict:
+    def training_path(self) -> Dict[str, Path]:
         # modified from get_all_training_path
         # >>>> TRAINING PATH
         paths = {}

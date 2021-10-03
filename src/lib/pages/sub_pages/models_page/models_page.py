@@ -456,7 +456,7 @@ def index():
 
                         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
-        elif session_state.new_training.has_submitted[NewTrainingPagination.Model] == True:
+        elif session_state.new_training.has_submitted[NewTrainingPagination.Model]:
             if session_state.new_training.training_model.name:
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
@@ -468,11 +468,17 @@ def index():
                     if session_state.new_training.update_training_attached_model(
                             attached_model_id=session_state.new_training.attached_model.id,
                             training_model_id=session_state.new_training.training_model.id):
-                        # set has_submitted =True
-                        session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
-                        session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
                         logger.info(
                             f"Successfully updated new training model {session_state.new_training.training_model.id}")
+                        # session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+                        for page, submitted in session_state.new_training.has_submitted.items():
+                            if not submitted:
+                                session_state.new_training_pagination = page
+                        else:
+                            # go to Training page if all forms have been submitted
+                            session_state.new_training_pagination = NewTrainingPagination.Training
+                        logger.debug('New Training Pagination: '
+                                     f'{session_state.new_training_pagination}')
             else:
                 session_state.new_training_place['training_model_name'].error(
                     'Training Model Name already exists, please enter a new name')

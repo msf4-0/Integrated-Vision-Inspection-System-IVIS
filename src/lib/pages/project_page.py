@@ -172,6 +172,8 @@ def dashboard():
     data_table_place = st.empty()
 
     def to_existing_project():
+        # clear out the annoying "Create New Project" button that never vanished from the shadow
+        create_new_project_button_col1.empty()
 
         project_id_tmp = session_state.all_project_table[0]
         logger.debug(f"Entering Project {project_id_tmp}")
