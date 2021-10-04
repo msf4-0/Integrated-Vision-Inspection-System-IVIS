@@ -78,6 +78,10 @@ def infodataset():
         session_state.new_training_pagination = NewTrainingPagination.InfoDataset
     # ************COLUMN PLACEHOLDERS *****************************************************
     st.write("___")
+
+    # to display existing Training info for the users
+    existing_info_place = st.empty()
+
     infocol1, infocol2, infocol3 = st.columns([1.5, 3.5, 0.5])
 
     info_dataset_divider = st.empty()
@@ -93,6 +97,16 @@ def infodataset():
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # >>>> New Training INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    if session_state.new_training.has_submitted[session_state.new_training_pagination]:
+        # display existing information to the users for easier reference when updating
+        # existing training info
+        with existing_info_place.container():
+            st.info(f"""
+            **Current Training Title**: {session_state.new_training.name}  \n
+            **Current Description**: {session_state.new_training.desc}  \n
+            **Current Dataset List**: {session_state.new_training.dataset_chosen}  \n
+            **Current Partition Ratio**: {session_state.new_training.partition_ratio}  \n
+            """)
 
     infocol1.write("## __Training Information :__")
 

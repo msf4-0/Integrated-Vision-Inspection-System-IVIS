@@ -53,7 +53,7 @@ else:
 
 from annotation.annotation_management import (LabellingPagination,
                                               reset_editor_page)
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from data_editor.data_labelling import editor
 from data_editor.editor_config import editor_config
 from data_manager.database_manager import init_connection
@@ -160,7 +160,7 @@ def to_labelling_editor_page(section_enum: IntEnum):
         session_state.new_annotation_flag = 0
     else:
         session_state.new_annotation_flag = 0
-    log_info(
+    logger.info(
         f"Data selected, entering editor for data {session_state.data_selection} for {labelling_section_data_table}")
     st.experimental_rerun()
 
@@ -227,7 +227,7 @@ def index():
 
     # ****************** TEST ******************************
     if not RELEASE:
-        log_info("At Labelling INDEX")
+        logger.info("At Labelling INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -239,13 +239,13 @@ def index():
 
         # ************************TO REMOVE************************
         project_id_tmp = 43
-        log_info(f"Entering Project {project_id_tmp}")
+        logger.info(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
 
         if "project" not in session_state:
             session_state.project = Project(project_id_tmp)
-            log_info("Inside")
+            logger.info("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
         # ****************************** HEADER **********************************************
@@ -327,7 +327,7 @@ def index():
             zipfile_path = session_state.project.download_tasks(
                 return_original_path=True)
             session_state['zipfile_path'] = zipfile_path
-            log_info(f"Zipfile created at: {zipfile_path}")
+            logger.info(f"Zipfile created at: {zipfile_path}")
             session_state['archive_success'] = zipfile_path
 
     with export_labels_col:
@@ -368,7 +368,7 @@ def index():
     labelled_task_dict = Task.get_labelled_task(all_task, True)
     task_queue_dict = Task.get_labelled_task(all_task, False)
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    log_info(f"Navigator: {session_state.labelling_pagination}")
+    logger.info(f"Navigator: {session_state.labelling_pagination}")
 
     if session_state.labelling_pagination != LabellingPagination.Editor:
         # reset the archive success message after go to other pages

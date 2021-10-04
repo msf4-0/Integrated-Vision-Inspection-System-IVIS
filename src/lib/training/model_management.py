@@ -973,17 +973,22 @@ class Model(BaseModel):
         self.perf_metrics = self.get_perf_metrics()
 
     def __repr__(self):
-        return (f"Model(model_row={{'id': {self.id}, 'Name': {self.name}, "
-                f"'Description': {self.desc}, "
-                f"'Metrics': {self.metrics}, "
-                f"'Model Type': {self.model_type}, "
-                f"'Framework': {self.framework}, "
-                f"'Training Name': {self.training_name}, "
-                f"'Date/Time': {self.updated_at}, "
-                f"'Model Path': {self.model_path_relative}, "
-                f"'Deployment Type': {self.deployment_type}"
-                "})"
-                )
+        # return (f"Model(model_row={{'id': {self.id}, 'Name': {self.name}, "
+        #         f"'Description': {self.desc}, "
+        #         f"'Metrics': {self.metrics}, "
+        #         f"'Model Type': {self.model_type}, "
+        #         f"'Framework': {self.framework}, "
+        #         f"'Training Name': {self.training_name}, "
+        #         f"'Date/Time': {self.updated_at}, "
+        #         f"'Model Path': {self.model_path_relative}, "
+        #         f"'Deployment Type': {self.deployment_type}"
+        #         "})"
+        #         )
+        return "<{klass} {attrs}>".format(
+            klass=self.__class__.__name__,
+            attrs=" ".join("{}={!r}".format(k, v)
+                           for k, v in self.__dict__.items()),
+        )
 
     def query_all_fields(self) -> NamedTuple:
 

@@ -30,7 +30,7 @@ else:
     pass
 
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
 
@@ -54,7 +54,7 @@ chdir_root()  # change to root directory
 
 def index():
     RELEASE = True
-    log_info("At Exisiting Project Dashboard INDEX")
+    logger.info("At Exisiting Project Dashboard INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
 
@@ -68,13 +68,13 @@ def index():
 
         # ************************TO REMOVE************************
         project_id_tmp = 7
-        log_info(f"Entering Project {project_id_tmp}")
+        logger.info(f"Entering Project {project_id_tmp}")
 
         session_state.append_project_flag = ProjectPermission.ViewOnly
 
         if "project" not in session_state:
             session_state.project = Project(project_id_tmp)
-            log_info("Inside")
+            logger.info("Inside")
 
         # else:
         #     session_state.project = Project(project_id_tmp)
@@ -101,7 +101,7 @@ def index():
     if 'existing_project_pagination' not in session_state:
         session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
 
-    log_info(
+    logger.info(
         f"Entering Project {session_state.project.id}: {session_state.existing_project_pagination}")
 
     session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -121,7 +121,7 @@ def index():
             del session_state.existing_project_page_navigator_radio
 
     with st.sidebar.expander(session_state.project.name, expanded=True):
-        st.radio("", options=existing_project_page_options,
+        st.radio("Navigation", options=existing_project_page_options,
                  index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 

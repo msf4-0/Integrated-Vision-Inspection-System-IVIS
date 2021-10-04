@@ -56,13 +56,13 @@ else:
     pass
 
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 
 
 conn = init_connection(**st.secrets["postgres"])
 
-# DEPRECATED IN FAVOUR OF 
+# DEPRECATED IN FAVOUR OF
 # https://github.com/msf4-0/Integrated-Vision-Inspection-System/blob/18a3f2107d2e5544bb50015b7c4e5bc94a906903/src/lib/data_manager/dataset_management.py#L192-L199
 def query_dataset_dir(project_id, conn=conn):
     """Query database to obtain path to dt
@@ -88,7 +88,7 @@ def query_dataset_dir(project_id, conn=conn):
 
             conn.commit()
             data_path = cur.fetchall()
-            log_info(data_path)
+            logger.info(data_path)
 
     return data_path
 
@@ -176,7 +176,7 @@ def dataset_partition(project_id, data_path, project_dir=Path.cwd(), a=0.9, b=0.
             assert len(search_dir_list) > 0, "Dataset directory is missing"
         except OSError as e:
             error_message = f"{e}Missing dataset directory"
-            log_error(error_message)
+            logger.error(error_message)
             st.error(error_message)
 
     if output_dir is None:
@@ -214,7 +214,7 @@ def dataset_partition(project_id, data_path, project_dir=Path.cwd(), a=0.9, b=0.
         assert len(train_data_path) > 0
     except Error as e:
         error_message = f"{e}Train dataset empty"
-        log_error(error_message)
+        logger.error(error_message)
         st.error(error_message)
 
     return str(data_path), str(output_dir)
@@ -234,19 +234,19 @@ def data_url_encoder_PIL(image: Image):
     """
     img_byte = BytesIO()
     image_name = Path(image.filename).name  # use Path().name
-    log_info(f"Encoding image into bytes: {str(image_name)}")
+    logger.info(f"Encoding image into bytes: {str(image_name)}")
     image.save(img_byte, format=image.format)
-    log_info("Done enconding into bytes")
+    logger.info("Done enconding into bytes")
 
-    log_info("Start B64 Encoding")
+    logger.info("Start B64 Encoding")
     bb = img_byte.getvalue()
     b64code = b64encode(bb).decode('utf-8')
-    log_info("Done B64 encoding")
+    logger.info("Done B64 encoding")
 
     mime = guess_type(image.filename)[0]
-    log_info(f"{image_name} ; {mime}")
+    logger.info(f"{image_name} ; {mime}")
     data_url = f"data:{mime};base64{b64code}"
-    log_info("Data url generated")
+    logger.info("Data url generated")
 
     return data_url
 
@@ -254,12 +254,12 @@ def data_url_encoder_PIL(image: Image):
 @st.cache(show_spinner=True)
 def load_image_PIL(image_path: Path) -> str:
 
-    log_info("Loading Image")
+    logger.info("Loading Image")
     if image_path.is_file():
         try:
             img = Image.open(image_path)
         except Exception as e:
-            log_error(f"{e}: Failed to load image")
+            logger.error(f"{e}: Failed to load image")
             img = None
 
     else:
@@ -284,20 +284,20 @@ def data_url_encoder_cv2(image: np.ndarray, image_name: str):
         bytes: UTF-8 encoded base64 bytes
     """
 
-    log_info(f"Encoding image into bytes: {str(image_name)}")
+    logger.info(f"Encoding image into bytes: {str(image_name)}")
     extension = Path(image_name).suffix
     _, buffer = cv2.imencode(extension, image)
-    log_info("Done enconding into bytes")
+    logger.info("Done enconding into bytes")
 
-    log_info("Start B64 Encoding")
+    logger.info("Start B64 Encoding")
 
     b64code = b64encode(buffer).decode('utf-8')
-    log_info("Done B64 encoding")
+    logger.info("Done B64 encoding")
 
     mime = guess_type(image_name)[0]
-    log_info(f"{image_name} ; {mime}")
+    logger.info(f"{image_name} ; {mime}")
     data_url = f"data:{mime};base64,{b64code}"
-    log_info("Data url generated")
+    logger.info("Data url generated")
 
     return data_url
 
@@ -305,11 +305,10 @@ def data_url_encoder_cv2(image: np.ndarray, image_name: str):
 @st.cache
 def load_image_cv2(image_path: str) -> str:
 
-    log_info("Loading Image")
+    logger.info("Loading Image")
 
     img = cv2.imread(image_path)
     return img
-
 
 
 def get_image_size(image: Union[np.ndarray, Image.Image]):

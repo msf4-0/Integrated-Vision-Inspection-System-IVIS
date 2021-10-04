@@ -32,7 +32,7 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 from core.color_extract import color_extract
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import db_fetchone, init_connection
 # >>>> User-defined Modules >>>>
@@ -261,7 +261,7 @@ def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
         if isinstance(identifier, str):
             identifier = identifier_dictionary[identifier]
 
-    log_info(f"Type is :{identifier}")
+    logger.info(f"Type is :{identifier}")
 
     return identifier
 
@@ -295,7 +295,7 @@ def get_filetype(file: Union[str, Path, UploadedFile]):
         mime_type = mimetypes.guess_type(file)[0]
         # filetype = str(Path(mime_type).parent)
     elif isinstance(file, UploadedFile):
-        log_info(f"File: {file}")
+        logger.info(f"File: {file}")
         mime_type = file.type
         file.seek(0)
 
@@ -317,9 +317,9 @@ def compare_filetypes(file_tuple: tuple):
         bool: True is if equal, else False
     """
     filetype1, filetype2 = list(map(get_filetype, file_tuple))  # updated
-    log_info(f"File tuple:{file_tuple}")
+    logger.info(f"File tuple:{file_tuple}")
     if filetype1 == filetype2:
-        log_info(f"File types:{filetype1,filetype2}")
+        logger.info(f"File types:{filetype1,filetype2}")
         return True, filetype1, file_tuple[0].name, file_tuple[1].name
     else:
 
@@ -342,20 +342,20 @@ def check_filetype(uploaded_files, dataset, field_placeholder: Dict = None):
         start_time = perf_counter()
         if len(uploaded_files) == 1:
             filetype = get_filetype(uploaded_files[0])
-            log_info("Enter single")
-            log_info(filetype)
+            logger.info("Enter single")
+            logger.info(filetype)
 
         else:
-            log_info("Enter multi")
+            logger.info("Enter multi")
             filetypes = map(compare_filetypes, zip(
                 uploaded_files[:], uploaded_files[1:]))
             for check_result, filetype, file1, file2 in filetypes:
                 if check_result:
-                    log_info("Filetype passed")
+                    logger.info("Filetype passed")
                     pass
                 else:
                     filetype_error_msg = f"Filetype different for {file1} and {file2}"
-                    log_error(filetype_error_msg)
+                    logger.error(filetype_error_msg)
                     if field_placeholder:
                         field_placeholder["upload"].error(
                             filetype_error_msg)
@@ -368,7 +368,7 @@ def check_filetype(uploaded_files, dataset, field_placeholder: Dict = None):
         time_elapsed = end_time - start_time
         number_of_files = len(uploaded_files)
         average_time = time_elapsed / number_of_files
-        log_info(
+        logger.info(
             f"Time taken to compare filetypes {time_elapsed}s with average of {average_time}s for {number_of_files}")
 
 
@@ -423,7 +423,7 @@ def find_net_change(initial_list: List, submitted_list: List) -> Tuple:
 
         removed_elements = list(diff_12)
         flag = NetChange.Removal
-        log_info(f"REMOVAL: {flag}")
+        logger.info(f"REMOVAL: {flag}")
 
         return removed_elements, flag
 
@@ -431,11 +431,11 @@ def find_net_change(initial_list: List, submitted_list: List) -> Tuple:
     elif diff_21:
         added_elements = list(diff_21)
         flag = NetChange.Addition
-        log_info(f"ADDITION: {flag}")
+        logger.info(f"ADDITION: {flag}")
 
         return added_elements, flag
 
     else:
         flag = NetChange.NoChange
-        log_info(f"No Change: {flag}")
+        logger.info(f"No Change: {flag}")
         return None, flag

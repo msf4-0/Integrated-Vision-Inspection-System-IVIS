@@ -37,7 +37,7 @@ else:
 # >>>> User-defined Modules >>>>
 
 from core.utils.helper import remove_suffix
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
 from path_desc import chdir_root, get_temp_dir
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -89,14 +89,14 @@ def delete_file_directory(path: Union[Path, str]):
     if path:
         # convert path string into path-like object
         path = Path(path) if isinstance(path, str) else path
-        log_info(path)
+        logger.info(path)
 
         if path.is_dir():
 
             # remove all contents if path is a folder directory
             try:
                 shutil.rmtree(path)
-                log_info(f"Successfully deleted {path.name} folder")
+                logger.info(f"Successfully deleted {path.name} folder")
                 return True
             except Exception as e:
                 error_msg = f"{e}: Failed to remove directory"
@@ -107,16 +107,16 @@ def delete_file_directory(path: Union[Path, str]):
 
             try:
                 path.unlink()
-                log_info(f"Successfully deleted {path.name}")
+                logger.info(f"Successfully deleted {path.name}")
                 return True
 
             except FileNotFoundError as e:
                 error_msg = f"{e}: {path.name} does not exists"
-                log_error(error_msg)
+                logger.error(error_msg)
                 return False
         else:
             not_path_error_msg = f"Invalid path given......"
-            log_error(not_path_error_msg)
+            logger.error(not_path_error_msg)
             return False
 
 
@@ -158,11 +158,11 @@ def create_folder_if_not_exist(path: Path) -> None:
     if not path.is_dir():
         try:
             path.mkdir(parents=True)
-            log_info(f"Created Directory at {str(path)}")
+            logger.info(f"Created Directory at {str(path)}")
         except FileExistsError as e:
-            log_info(f"Directory already exists: {e}")
+            logger.info(f"Directory already exists: {e}")
     else:
-        log_info(f"Directory already exist")
+        logger.info(f"Directory already exist")
         pass
 
 
@@ -190,7 +190,7 @@ def move_file(src: Union[str, Path], dst: Union[str, Path]) -> bool:
         # returns file path to destination for each file moved
         dst_return = shutil.move(src=str(file),
                                  dst=str(dest_path))
-        log_info(f"Moved {file.name} to {dst_return}")
+        logger.info(f"Moved {file.name} to {dst_return}")
 
     assert len([x for x in Path(dst).rglob('*')]
                ) == initial_foldersize, "Failed to moved all files"
@@ -211,7 +211,7 @@ def write_file(filename: str, dst: Union[str, Path], file: str = None, byte_stre
     dst_path = Path(dst) / str(filename)
     mode = 'wb' if byte_stream else 'w'
 
-    log_info(f"Writing file to {str(dst_path)}")
+    logger.info(f"Writing file to {str(dst_path)}")
     with open(file=dst_path, mode=mode) as f:
         f.seek(0)
         f.write(byte_stream.read())
@@ -341,7 +341,7 @@ def check_archiver_format(filename: str = None):
     elif (len(filename.parts)) > 1:
         archive_format = filename.suffix
     else:
-        log_info("Parsing error")
+        logger.info("Parsing error")
 
     try:
         # get file extension if shutil cannot parse/find format
@@ -357,12 +357,12 @@ def check_archiver_format(filename: str = None):
             return archive_format_list[archive_format]
 
         else:
-            log_error("Archive format invalid!")
+            logger.error("Archive format invalid!")
             st.error("Archive format invalid!")
 
     except KeyError as e:
         error_msg = f"{e}: Archive format invalid!"
-        log_error(error_msg)
+        logger.error(error_msg)
         st.error(error_msg)
 
 
@@ -391,7 +391,7 @@ def file_unarchiver(filename: Union[str, Path], extract_dir: Union[str, Path]):
             shutil.unpack_archive(filename=filename, extract_dir=extract_dir)
         except ValueError as e:
             error_msg = f"{e}: Shutil unable to extract archive format from filename"
-            log_error(error_msg)
+            logger.error(error_msg)
             st.error(error_msg)
 
             # get archiver format from Path suffix
@@ -403,10 +403,10 @@ def file_unarchiver(filename: Union[str, Path], extract_dir: Union[str, Path]):
     else:
         # pass IOError
         error_msg = f"{IOError}: File does not exist"
-        log_error(error_msg)
+        logger.error(error_msg)
         st.error(error_msg)
 
-    log_info("Successfully Unarchive")
+    logger.info("Successfully Unarchive")
 
 
 def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_object=None):
@@ -429,7 +429,7 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
 
         # RETURN TO CALLER IF ARCHIVE FORMAT NOT SUPPORTED !!!!
         error_msg = f"Archiving format {archive_extension} is not supported"
-        log_error(error_msg)
+        logger.error(error_msg)
         st.error(error_msg)
         return
 
@@ -437,7 +437,8 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
         file = file_object if file_object else archived_filepath
         with ZipFile(file=file, mode='r') as zipObj:
             zipObj.extractall(path=dst)
-            log_info(f"Extracting {str(archived_filepath.name)} to {str(dst)}")
+            logger.info(
+                f"Extracting {str(archived_filepath.name)} to {str(dst)}")
 
     else:
         tar_read_format_list = {
@@ -457,7 +458,8 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:
             tarObj.extractall(path=dst)
-            log_info(f"Extracting {str(archived_filepath.name)} to {str(dst)}")
+            logger.info(
+                f"Extracting {str(archived_filepath.name)} to {str(dst)}")
 
 
 def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> List[str]:
@@ -488,7 +490,7 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> 
 
         # RETURN TO CALLER IF ARCHIVE FORMAT NOT SUPPORTED !!!!
         error_msg = f"Archiving format {archive_extension} is not supported"
-        log_error(error_msg)
+        logger.error(error_msg)
         st.error(error_msg)
         return
 
@@ -544,7 +546,7 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
 
         # RETURN TO CALLER IF ARCHIVE FORMAT NOT SUPPORTED !!!!
         error_msg = f"Archiving format {archive_extension} is not supported"
-        log_error(error_msg)
+        logger.error(error_msg)
         st.error(error_msg)
         return
 
@@ -560,7 +562,7 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
                 try:
                     file_bytes = file_bytes.decode(decode)
                 except Exception as e:
-                    log_error(f"{e}")
+                    logger.error(f"{e}")
 
     else:
         tar_read_format_list = {
@@ -574,7 +576,7 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
         if file_object:
             fileobj = deepcopy(file_object)
             filename = None
-        log_info(file_object)
+        logger.info(file_object)
         with tarfile.open(name=filename,
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:
@@ -585,7 +587,7 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
                 try:
                     file_bytes = file_bytes.decode(decode)
                 except Exception as e:
-                    log_error(f"{e}")
+                    logger.error(f"{e}")
             # file_object.seek(0)
 
     return file_bytes
@@ -612,7 +614,7 @@ def single_file_archiver(archive_filename: Path, target_filename: Path, target_r
         with ZipFile(file=archive_filename, mode='w') as zip:
             zip.write(target_filename,
                       arcname=target_base_dir)
-            log_info(f"Successfully archived folder: {archive_filename}")
+            logger.info(f"Successfully archived folder: {archive_filename}")
             st.success(f"Successfully archived folder: {archive_filename}")
 
     else:  # remaining is tarball
@@ -626,12 +628,12 @@ def single_file_archiver(archive_filename: Path, target_filename: Path, target_r
             tar_mode = tar_write_format_list[archive_extension]
 
         else:
-            log_error("Archive format invalid!")
+            logger.error("Archive format invalid!")
             st.error("Archive format invalid!")
 
         with tarfile.open(archive_filename, tar_mode) as tar:
             tar.add(target_filename, arcname=target_base_dir)
-            log_info(f"Successfully archived folder: {archive_filename}")
+            logger.info(f"Successfully archived folder: {archive_filename}")
             st.success(f"Successfully archived folder: {archive_filename}")
     chdir_root()
 
@@ -668,13 +670,13 @@ def file_archiver(archive_filename: Path, target_root_dir: Path, target_base_dir
     try:
         archived_name = shutil.make_archive(base_name=str(
             archive_filename), format=archive_format, root_dir=target_root_dir, base_dir=target_base_dir)
-        log_info(f"Successfully archived {archived_name}")
+        logger.info(f"Successfully archived {archived_name}")
         # return back to initial working directory
         os.chdir(current_working_dir)
         return(archived_name)
     except:
         error_msg = "Failed to archive file"
-        log_info(error_msg)
+        logger.info(error_msg)
         st.error(error_msg)
         # return back to initial working directory
         # os.chdir(current_working_dir)
@@ -721,7 +723,7 @@ def file_archive_handler(archive_filename: Path, target_filename: Path, archive_
 
     # >>>> SINGLE FILE
     if target_filename.is_file():
-        log_info(f"Path is file {target_filename}")
+        logger.info(f"Path is file {target_filename}")
         target_root_dir = target_filename.parents[1]
         target_base_dir = Path(target_filename).resolve(
         ).parent.relative_to(target_root_dir)
@@ -733,13 +735,13 @@ def file_archive_handler(archive_filename: Path, target_filename: Path, archive_
     elif target_filename.is_dir():
         target_root_dir = target_filename.parent
         target_base_dir = target_filename.relative_to(target_root_dir)
-        log_info(f"Path is directory {target_filename}")
+        logger.info(f"Path is directory {target_filename}")
         file_archiver(archive_filename, target_root_dir,
                       target_base_dir, archive_format)
 
     else:
         error_msg = f"{FileNotFoundError} File does not exist"
-        log_error(error_msg)
+        logger.error(error_msg)
         st.error(error_msg)
 
     chdir_root()

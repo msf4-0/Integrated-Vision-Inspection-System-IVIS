@@ -50,7 +50,7 @@ else:
 
 from path_desc import chdir_root
 from core.utils.code_generator import get_random_string
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger  # logger
 from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import init_connection
@@ -140,7 +140,7 @@ def new_project_entry_page():
     def check_if_name_exist(field_placeholder, conn):
         context = {'column_name': 'name',
                    'value': session_state.new_project_name}
-        log_info(context)
+        logger.debug(context)
         if session_state.new_project_name:
             if session_state.new_project.check_if_exists(context, conn):
                 session_state.new_project.name = None
@@ -148,10 +148,10 @@ def new_project_entry_page():
                     f"Project name used. Please enter a new name")
                 sleep(1)
                 field_placeholder['new_project_name'].empty()
-                log_error(f"Project name used. Please enter a new name")
+                logger.error(f"Project name used. Please enter a new name")
             else:
                 session_state.new_project.name = session_state.new_project_name
-                log_info(f"Project name fresh and ready to rumble")
+                logger.info(f"Project name fresh and ready to rumble")
         else:
             pass
 
@@ -360,7 +360,7 @@ def index():
         session_state.new_project_pagination = NewProjectPagination.Entry
 
     new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
-    log_info(
+    logger.debug(
         f" New Project Pagination: {session_state.new_project_pagination}")
     # ******************** TOP PAGE NAV *******************************************************************************************************
     if (session_state.new_project_pagination == NewProjectPagination.Entry) or (session_state.new_project_pagination == NewProjectPagination.NewDataset):
@@ -369,7 +369,7 @@ def index():
         color = [non_current_page, current_page]
     try:
         textColor = get_textColor()
-        log_info(f"{color},{textColor}")
+        logger.debug(f"{color},{textColor}")
         new_project_nav(color, textColor)
     except:
         pass
@@ -388,7 +388,7 @@ def index():
 
         new_project_home_col2.button(
             "Done", key='back_to_project_dashboard', on_click=to_project_dashboard)
-        log_info(
+        logger.debug(
             f"Project ID before editor config: {session_state.new_project.id},{session_state.new_project.editor}")
         new_project_page[session_state.new_project_pagination](
             session_state.new_project)

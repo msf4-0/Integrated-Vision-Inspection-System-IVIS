@@ -41,7 +41,7 @@ else:
 
 # >>>> User-defined Modules >>>>
 from core.utils.helper import check_args_kwargs
-from core.utils.log import log_info
+from core.utils.log import logger
 
 _RELEASE = True
 
@@ -84,21 +84,21 @@ def data_table(
 
     component_value = _component_func(
         rows=rows, columns=columns, checkbox=checkbox, key=key, default=[])
-    log_info("Inside data table function")
+    logger.debug("Inside data table function")
     # create unique key for previous value
     _prev_value_name = str(key) + "_prev_value"
     if _prev_value_name not in session_state:
         session_state[_prev_value_name] = None
-    log_info(
+    logger.debug(
         f"Current: {session_state[key]}; Prev: {session_state[_prev_value_name]}")
 
     # if session_state[_prev_value_name] != session_state[key]:
     #     """Should run method"""
-    log_info(session_state[_prev_value_name] != component_value)
+    logger.debug(session_state[_prev_value_name] != component_value)
 
     if component_value and (session_state[_prev_value_name] != component_value):
         if on_change:
-            log_info("Inside callback")
+            logger.debug("Inside callback")
             wildcard = args if args else kwargs
             if args or kwargs:
                 check_args_kwargs(wildcards=wildcard, func=on_change)
@@ -136,7 +136,7 @@ def data_table(
 #     else:
 #         pass
 
-#     from core.utils.log import log_info, log_error  # logger
+#     from core.utils.log import logger.info, log_error  # logger
 #     from data_manager.database_manager import init_connection, db_fetchone
 #     from data_manager.dataset_management import Dataset
 
