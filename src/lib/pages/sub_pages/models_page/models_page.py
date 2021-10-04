@@ -484,20 +484,19 @@ def index():
                     'Training Model Name already exists, please enter a new name')
 
     # ***************** NEXT BUTTON **************************
-    if session_state.models_pagination == ModelsPagination.ExistingModels:
-        with new_training_section_next_button_place:
-            st.button("Submit Model Info", key="models_page_next_button",
-                      on_click=to_training_configuration_page)
+    with new_training_section_next_button_place:
+        st.button("Submit Model Info", key="models_page_next_button",
+                  on_click=to_training_configuration_page)
 
-        # ***************** BACK BUTTON **************************
-        def to_training_infodataset_page():
-            # session_state.models_pagination = ModelsPagination.TrainingInfoDataset
-            # must update this pagination variable too to make things work properly
-            session_state.new_training_pagination = NewTrainingPagination.InfoDataset
+    # ***************** BACK BUTTON **************************
+    def to_training_infodataset_page():
+        # session_state.models_pagination = ModelsPagination.TrainingInfoDataset
+        # must update this pagination variable too to make things work properly
+        session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
-        with new_training_section_back_button_place:
-            st.button("Modify Training Info", key="models_page_back_button",
-                      on_click=to_training_infodataset_page)
+    with new_training_section_back_button_place:
+        st.button("Modify Training Info", key="models_page_back_button",
+                  on_click=to_training_infodataset_page)
 
     st.write("vars(session_state.new_training)")
     st.write(vars(session_state.new_training))

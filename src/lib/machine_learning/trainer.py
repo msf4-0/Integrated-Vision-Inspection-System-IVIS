@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import os
+import re
 import subprocess
 import sys
 import shutil
@@ -37,6 +38,7 @@ import wget
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
+from streamlit_tensorboard import st_tensorboard
 
 import tensorflow as tf
 import object_detection
@@ -86,25 +88,71 @@ conn = init_connection(**st.secrets["postgres"])
 # *********************PAGINATION**********************
 
 
-def run_command(command_line_args, st_output: bool = False):
-    """
-    Running commands or scripts.
-    Set `st_output` to True to show the console outputs LIVE on Streamlit.
+def run_command(command_line_args: str, st_output: bool = False,
+                filter_by: Optional[List[str]] = None) -> str:
+    """Running commands or scripts
+
+    Args:
+        command_line_args (str): Command line arguments to run.
+        st_output (bool, optional): Set `st_output` to True to 
+            show the console outputs LIVE on Streamlit. Defaults to False.
+        filter_by (Optional[List[str]], optional): Provide `filter_by` to
+            filter out other strings and show the `filter_by` strings on Streamlit app. Defaults to None.
+    Returns:
+        str: The entire console output from the command after finish running.
     """
     # shell=True to work on String instead of list
     logger.info(f"Running command: '{command_line_args}'")
-    process = subprocess.run(command_line_args, shell=True,
-                             # stdout to capture all output
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             # text to directly decode the output
-                             text=True)
+    process = subprocess.Popen(command_line_args, shell=True,
+                               # stdout to capture all output
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               # text to directly decode the output
+                               text=True)
+    if filter_by:
+        output_str_list = []
     for line in process.stdout:
         if st_output:
-            st.markdown(line)
+            if filter_by:
+                for filter_str in filter_by:
+                    if filter_str in line:
+                        st.markdown(line)
+                        output_str_list.append(line)
+            else:
+                st.markdown(line)
         else:
             print(line)
     process.wait()
+    if filter_by:
+        return '\n'.join(output_str_list)
     return process.stdout
+
+
+def run_tensorboard(logdir: Path):
+    # TODO: test whether this TensorBoard works after deployed the app
+    logger.info(f"Running TensorBoard on {logdir}")
+    # NOTE: this st_tensorboard does not work if the path passed in
+    #  is NOT in POSIX format, thus the `as_posix()` method to convert
+    #  from WindowsPath to POSIX format to work in Windows
+    st_tensorboard(logdir=logdir.as_posix(),
+                   port=6007, width=1080, scrolling=True)
+
+
+def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5f') -> str:
+    """
+    Format param_dict to become a nice output to show on Streamlit.
+    `float_format` is used for formatting floats.
+    """
+    config_info = []
+    for k, v in param_dict.items():
+        param_name = ' '.join(k.split('_')).capitalize()
+        try:
+            param_val = f"{float(v):{float_format}}"
+        except ValueError:
+            param_val = v
+        current_info = f'**{param_name}**: {param_val}'
+        config_info.append(current_info)
+    config_info = '  \n'.join(config_info)
+    return config_info
 
 
 class Trainer:
@@ -232,7 +280,7 @@ class Trainer:
                     data_type: str,
                     label_paths: Optional[Path] = None):
         assert data_type in ("train", "valid", "test")
-        image_dest = os.path.join(dest_dir, data_type)
+        image_dest = dest_dir / data_type
 
         logger.info(f"Copying files from {data_type} dataset to {image_dest}")
         if image_dest.exists():
@@ -251,7 +299,17 @@ class Trainer:
             for image_path in image_paths:
                 shutil.copy2(image_path, image_dest)
 
+    def train(self):
+        logger.info(f"Start training for Training {self.training_id}")
+        if self.deployment_type == 'Object Detection with Bounding Boxes':
+            self.run_tfod_training()
+        elif self.deployment_type == "Image Classification":
+            pass
+        elif self.deployment_type == "Semantic Segmentation with Polygons":
+            pass
+
     def run_tfod_training(self):
+        # training_param only consists of 'batch_size' and 'num_train_steps'
         # TODO: beware of user-uploaded model
 
         # this name is used for the output model paths, see self.training_path
@@ -332,6 +390,8 @@ class Trainer:
                 shutil.move(PRETRAINED_MODEL_DIRNAME,
                             paths['PRETRAINED_MODEL_PATH'])
                 os.remove(pretrained_tarfile)
+                logger.info(
+                    f'{PRETRAINED_MODEL_DIRNAME} downloaded successfully')
 
         # ******************** Create label_map.pbtxt *****************
         with st.spinner('Creating labelmap file ...'):
@@ -347,7 +407,7 @@ class Trainer:
                                           deployment_type=self.deployment_type)
 
         # ******************** Generate TFRecords ********************
-        with st.spinner('Generating TFRecords'):
+        with st.spinner('Generating TFRecords ...'):
             run_command(
                 f'python {files["GENERATE_TF_RECORD"]} '
                 f'-x {paths["IMAGE_PATH"] / "train"} '
@@ -386,15 +446,18 @@ class Trainer:
                 logger.error("Pretrained model config is not found!")
 
             pipeline_config.train_config.batch_size = self.training_param['batch_size']
-            pipeline_config.train_config.fine_tune_checkpoint = (
-                paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME / 'checkpoint' / 'ckpt-0')
+            pipeline_config.train_config.fine_tune_checkpoint = str(
+                paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME
+                / 'checkpoint' / 'ckpt-0')
             pipeline_config.train_config.fine_tune_checkpoint_type = "detection"
-            pipeline_config.train_input_reader.label_map_path = files['LABELMAP']
+            pipeline_config.train_input_reader.label_map_path = str(
+                files['LABELMAP'])
             pipeline_config.train_input_reader.tf_record_input_reader.input_path[:] = [
-                paths['ANNOTATION_PATH'] / 'train.record']
-            pipeline_config.eval_input_reader[0].label_map_path = files['LABELMAP']
+                str(paths['ANNOTATION_PATH'] / 'train.record')]
+            pipeline_config.eval_input_reader[0].label_map_path = str(
+                files['LABELMAP'])
             pipeline_config.eval_input_reader[0].tf_record_input_reader.input_path[:] = [
-                paths['ANNOTATION_PATH'] / 'test.record']
+                str(paths['ANNOTATION_PATH'] / 'test.record')]
 
             config_text = text_format.MessageToString(pipeline_config)
             with tf.io.gfile.GFile(files['PIPELINE_CONFIG'], "wb") as f:
@@ -402,7 +465,7 @@ class Trainer:
 
         # ************************ TRAINING ************************
         # the path to the training script file `model_main_tf2.py` used to train our model
-        st.markdown("Training started ...")
+
         TRAINING_SCRIPT = paths['APIMODEL_PATH'] / \
             'research' / 'object_detection' / 'model_main_tf2.py'
         # change the training steps as necessary, recommended start with 300 to test whether it's working, then train for at least 2000 steps
@@ -412,10 +475,34 @@ class Trainer:
                    f"--model_dir={paths['MODELS']} "
                    f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
                    f"--num_train_steps={NUM_TRAIN_STEPS}")
-        run_command(command, st_output=True)
+        with st.spinner("**Training started ... This might take awhile ... "
+                        "Do not refresh the page **"):
+            cmd_output = run_command(command, st_output=True,
+                                     filter_by=['Step', 'Loss/', 'learning_rate'])
+            step = re.findall('(Step)\s+(\d+)', cmd_output)[-1][1]
+            local_loss = re.findall(
+                '(Loss/localization_loss).+(\d+\.\d+)', cmd_output)[-1][1]
+            reg_loss = re.findall(
+                '(Loss/regularization_loss).+(\d+\.\d+)', cmd_output)[-1][1]
+            total_loss = re.findall(
+                '(Loss/total_loss).+(\d+\.\d+)', cmd_output)[-1][1]
+            learning_rate = re.findall(
+                '(learning_rate).+(\d+\.\d+)', cmd_output)[-1][1]
+            session_state.new_training.update_progress(step=int(step))
+            session_state.new_training.update_metrics(
+                localization_loss=float(local_loss),
+                regularization_loss=float(reg_loss),
+                total_loss=float(total_loss),
+                learning_rate=float(learning_rate)
+            )
+        st.success('Model has finished training!')
 
         # *********************** EXPORT MODEL ***********************
         with st.spinner("Exporting model ..."):
+            if paths['EXPORT'].exists():
+                # remove any existing export directory first
+                shutil.rmtree(paths['EXPORT'])
+
             FREEZE_SCRIPT = paths['APIMODEL_PATH'] / 'research' / \
                 'object_detection' / 'exporter_main_v2.py '
             command = (f"python {FREEZE_SCRIPT} "
@@ -424,33 +511,33 @@ class Trainer:
                        f"--trained_checkpoint_dir={paths['MODELS']} "
                        f"--output_directory={paths['EXPORT']}")
             run_command(command)
+            st.success('Model is successfully exported!')
 
             # Also copy the label map file to the exported directory to use for display
             # label names in inference later
-            # self.training_path['labelmap'] is in export path
+            # NOTE: self.training_path['labelmap'] is in export path
             shutil.copy2(files['LABELMAP'], self.training_path['labelmap'])
 
-            if files['MODEL_TARFILE'].exists():
-                # remove any existing tarfile first
-                os.remove(files['MODEL_TARFILE'])
-
             # tar the exported model to be used anywhere
-            # NOTE: be careful with the second argument of tar command,
+            # NOTE: be careful with the second argument of tar -czf command,
             #  if you pass a chain of directories, the directories
-            #  will also be included in the tarfile. That's why we `chdir` first
+            #  will also be included in the tarfile.
+            # That's why we `chdir` first and pass only the file/folder names
             os.chdir(paths['EXPORT'].parent)
             run_command(
-                f"tar -czf {files['MODEL_TARFILE'].name} {paths['EXPORT']}")
+                f"tar -czf {files['MODEL_TARFILE'].name} {paths['EXPORT'].name}")
 
             # after created the tarfile in the current working directory,
             #  then only move to the desired filepath
-            shutil.move(files['MODEL_TARFILE'].name,
-                        files['MODEL_TARFILE'])
+            # ! You don't need this as the tarfile is in the same directory as the export path
+            # shutil.move(files['MODEL_TARFILE'].name,
+            #             files['MODEL_TARFILE'])
 
-            logger.info(
-                f"CONGRATS YO! Successfully created {files['MODEL_TARFILE']}")
+        logger.info(
+            f"CONGRATS YO! Successfully created {files['MODEL_TARFILE']}")
 
-            # and then change back to root dir
-            chdir_root()
+        # and then change back to root dir
+        chdir_root()
+        st.experimental_rerun()
 
         # TODO: INFERENCE

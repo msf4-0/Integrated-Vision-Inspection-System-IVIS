@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
  """
 import json
+import os
 import sys
 from pathlib import Path
 import time
@@ -34,7 +35,7 @@ from streamlit_tensorboard import st_tensorboard
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
-from machine_learning.trainer import Trainer  # logger
+from machine_learning.trainer import Trainer, pretty_format_param, run_tensorboard  # logger
 from training.training_management import NewTrainingPagination
 
 
@@ -81,14 +82,8 @@ def index():
     train_config_col, aug_config_col = st.columns([1, 1])
 
     with train_config_col:
-        config_info = []
-        for k, v in session_state.new_training.training_param_dict.items():
-            # param_name = ' '.join([word.capitalize() for word in k.split('_')])
-            param_name = ' '.join(k.split('_')).capitalize()
-            param_val = str(v) if isinstance(v, int) else "{:.2e}".format(v)
-            current_info = f'**{param_name}**: {param_val}'
-            config_info.append(current_info)
-        config_info = '  \n'.join(config_info)
+        config_info = pretty_format_param(
+            session_state.new_training.training_param_dict)
         st.markdown('### Training Config:')
         st.info(config_info)
 
@@ -98,86 +93,58 @@ def index():
         st.button('Modify Training Config', key='btn_modify_config',
                   on_click=back_config_page)
 
-        # # TODO : image classification and segmentation
-        # if session_state.project.deployment_type == "Image Classification":
-        #     pass
-        # elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
-        #     # only storing `batch_size` and `num_train_steps`
-        #     # NOTE: store them in key names starting exactly with `param_`
-        #     #  to be able to extract them and send them over to the Trainer for training
-        #     # e.g. param_batch_size -> batch_size at the Trainer later
-        #     st.number_input(
-        #         "Batch size", min_value=1, max_value=128,
-        #         value=session_state.training_param_dict['param_batch_size'], step=1,
-        #         key="param_batch_size",
-        #         help=("Update batch size based on the system's memory you"
-        #               " have. Higher batch size will need a higher memory."
-        #               " Recommended to start with 4. Reduce if memory warning happens."))
-        #     st.number_input(
-        #         "Number of training steps", min_value=100, max_value=10_000,
-        #         value=session_state.training_param_dict['param_num_train_steps'],
-        #         step=50, key='param_num_train_steps',
-        #         help="Recommended to train for at least 2000 steps.")
-        # elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
-        #     pass
-
     with aug_config_col:
         # TODO: do this for image classification and segmentation, TFOD API does not need this
         if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
             pass
 
-    # ******************************* Tensorboard *******************************
-    # TODO: test whether this works after deployed the app
-    with st.spinner("Loading TensorBoard ..."):
-        st_tensorboard(logdir=session_state.new_training.training_path['tensorboard_logdir'],
-                       port=6006, width=1080, scrolling=True)
-
     # ******************************* START TRAINING *******************************
-    start_btn_col, stop_btn_col, _ = st.columns([1, 1, 5])
+    start_btn_place = st.empty()
     warning_place = st.empty()  # for warning messages
 
     def start_training_callback():
+        def stop_run_training():
+            # BEWARE that this will just refresh the page
+            warning_place.warning("Training stopped!")
+            time.sleep(2)
+            warning_place.empty()
 
-        logger.info("Exporting tasks for training ...")
-        session_state.project.export_tasks()
-
-        training_param = {}
-        for k, v in session_state.items():
-            if k.startswith('param_'):
-                # store this to keep track of current training config
-                session_state.training_param_dict[k] = v
-                # e.g. param_batch_size -> batch_size
-                new_key = k.replace('param_', '')
-                training_param[new_key] = v
-        session_state.new_training.update_training_param(training_param)
-
-        with st.spinner('Initializing training ...'):
-            trainer = Trainer(session_state.project,
-                              session_state.new_training)
-        if trainer.deployment_type == 'Object Detection with Bounding Boxes':
-            # training_param only consists of 'batch_size' and 'num_train_steps'
-            trainer.run_tfod_training()
-        elif trainer.deployment_type == "Image Classification":
-            pass
-        elif trainer.deployment_type == "Semantic Segmentation with Polygons":
-            pass
-
-    with start_btn_col:
-        training_started = st.button("Start training", key='btn_start_training',
-                                     on_click=start_training_callback)
-
-    def stop_run_training():
-        # BEWARE THAT THIS WILL REFRESH THE PAGE
-        warning_place.warning("Training stopped!")
-        time.sleep(2)
-        warning_place.empty()
-
-    with stop_btn_col:
+        # moved stop button into callback function to ensure it stays visible
         st.button("Stop Training", key='btn_stop_training',
                   on_click=stop_run_training)
         st.markdown('<font size="2">**NOTE**: If you click this button, '
                     'the latest progress might not be saved.</font>',
                     unsafe_allow_html=True)
+
+        with st.spinner("Loading TensorBoard ..."):
+            st.markdown("Refresh the Tensorboard by clicking the refresh "
+                        "icon during training to see the progress:")
+            logdir = session_state.new_training.training_path['tensorboard_logdir']
+            # moved tensorboard into callback function to make sure it stays visible
+            run_tensorboard(logdir)
+
+        with st.spinner("Exporting tasks for training ..."):
+            session_state.project.export_tasks()
+
+        with st.spinner('Initializing training ...'):
+            trainer = Trainer(session_state.project,
+                              session_state.new_training)
+        # start training
+        trainer.train()
+
+    if not session_state.new_training.is_started:
+        with start_btn_place.container():
+            st.button("Start training", key='btn_start_training',
+                      on_click=start_training_callback)
+    else:
+        # ? Maybe add an option for continue training
+        logdir = session_state.new_training.training_path['tensorboard_logdir']
+        # moved tensorboard into callback function to make sure it stays visible
+        run_tensorboard(logdir)
+        metrics = pretty_format_param(
+            session_state.new_training.training_model.metrics)
+        st.markdown("### Training result:")
+        st.info(metrics)
 
 
 if __name__ == "__main__":

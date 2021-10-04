@@ -802,8 +802,7 @@ class Training(BaseTraining):
         # modified from get_all_training_path
         # >>>> TRAINING PATH
         paths = {}
-        paths['ROOT'] = self.get_training_path(
-            self.project_path, self.name)
+        paths['ROOT'] = self.get_training_path(self.project_path, self.name)
         root = paths['ROOT']
         # >>>> MODEL PATH
         # paths['models'] = root / 'models'
@@ -823,7 +822,7 @@ class Training(BaseTraining):
         # this filename is based on the `generate_labelmap_file` function
         # NOTE: this file is probably only needed for TF object detection
         paths['labelmap'] = paths['export'] / 'labelmap.pbtxt'
-        # the tensorboard logdir is the same with models path
+        # the tensorboard logdir is the same with models path but just to be explicit
         paths['tensorboard_logdir'] = paths['models']
         return paths
 
@@ -847,6 +846,54 @@ class Training(BaseTraining):
             logger.error(
                 f"Training with ID {training_id} does not exists in the Database!!!")
             return None
+
+    def update_progress(self,
+                        step: Optional[int] = None,
+                        checkpoint: Optional[int] = None,
+                        is_started: bool = True):
+        assert (step, checkpoint) != (
+            None, None), "Must pass in either `step` or `checkpoint"
+        self.is_started = is_started
+        if step:
+            progress = {'Step': step}
+        else:
+            progress = {'Checkpoint': checkpoint}
+        self.training_model.progress = progress
+
+        sql_query = """
+                UPDATE
+                    public.training
+                SET
+                    is_started = %s,
+                    progress = %s::JSONB
+                WHERE
+                    id = %s;
+        """
+        progress_json = json.dumps(progress)
+        query_vars = [is_started, progress_json, self.id]
+
+        db_no_fetch(sql_query, conn, query_vars)
+        logger.info(f"Updated progress for Training {self.id} "
+                    f"with: '{progress}'")
+
+    def update_metrics(self, **result_metrics):
+        self.is_started = True
+        self.training_model.metrics = result_metrics
+
+        sql_query = """
+                UPDATE
+                    public.models
+                SET
+                    metrics = %s::JSONB
+                WHERE
+                    id = %s;
+        """
+        metrics_json = json.dumps(result_metrics)
+        query_vars = [metrics_json, self.training_model.id]
+
+        db_no_fetch(sql_query, conn, query_vars)
+        logger.info(f"Updated metrics for Training {self.training_model.id} "
+                    f"with: '{result_metrics}'")
 
     def query_all_fields(self) -> NamedTuple:
         """Query fields of current Training
@@ -1210,7 +1257,8 @@ class Training(BaseTraining):
     @staticmethod
     def reset_training_page():
         training_attributes = ["project_training_table", "training", "training_name",
-                               "training_desc", "labelling_pagination", "existing_training_pagination"]
+                               "training_desc", "labelling_pagination", "existing_training_pagination",
+                               "training_param_dict"]
 
         reset_page_attributes(training_attributes)
 

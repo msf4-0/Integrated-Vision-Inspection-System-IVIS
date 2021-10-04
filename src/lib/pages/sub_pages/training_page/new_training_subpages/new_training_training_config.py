@@ -59,7 +59,7 @@ def training_configuration():
 
     st.markdown(f"**Step 2: Select training configuration:** ")
 
-    train_config_col, aug_config_col = st.columns([1, 1])
+    train_config_col, _ = st.columns([1, 1])
 
     with train_config_col:
         def update_training_param():
@@ -95,24 +95,21 @@ def training_configuration():
                     step=50, key='param_num_train_steps',
                     help="Recommended to train for at least 2000 steps."
                 )
-                st.form_submit_button("Submit", on_click=update_training_param,
-                                      #   kwargs={"param_batch_size": param_batch_size,
-                                      #           "param_num_train_steps": param_num_train_steps}
-                                      )
+                # TODO: combine submission with augmentation config together
+                st.form_submit_button("Submit Config",
+                                      on_click=update_training_param)
         elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
             pass
 
-    with aug_config_col:
-        # TODO: do this for image classification and segmentation, TFOD API does not need this
-        pass
+    # TODO: augmentation config for image classification and segmentation,
+    # TFOD API does not need this because TFOD's pipeline config already has own augmentation
 
     # ******************************BACK BUTTON******************************
-    if session_state.new_training_pagination == NewTrainingPagination.TrainingConfig:
-        def to_models_page():
-            session_state.new_training_pagination = NewTrainingPagination.Model
+    def to_models_page():
+        session_state.new_training_pagination = NewTrainingPagination.Model
 
-        st.button("Modify Model Info", key="training_config_back_button",
-                  on_click=to_models_page)
+    st.button("Modify Model Info", key="training_config_back_button",
+              on_click=to_models_page)
 
 
 if __name__ == "__main__":
