@@ -40,7 +40,4 @@ build/static/media/config.*.xml
 *.tar.xz
 *.zip
 
-
-
-
-poetry.lock
+*.lock
