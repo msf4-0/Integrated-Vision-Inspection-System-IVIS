@@ -1467,7 +1467,7 @@ watchdog = {version = "*", markers = "platform_system != \"Darwin\""}
 
 [[package]]
 name = "streamlit-webrtc"
-version = "0.28.1"
+version = "0.29.1"
 description = ""
 category = "main"
 optional = false
@@ -1832,7 +1832,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.8"
-content-hash = "198cd724a4d1a45130c151b3362add602d8622065cf6270ab8da9bc18b3e9571"
+content-hash = "9497810c89bbebfa6f5fbe2b3a0377e2094a4c43e7dd135424f677bcc9beb7a9"
 
 [metadata.files]
 absl-py = [
@@ -3149,8 +3149,8 @@ streamlit = [
     {file = "streamlit-0.89.0.tar.gz", hash = "sha256:39d09c6627255fcf39c938937995665b6377799c4fa141f6b481bcb5e6a688ac"},
 ]
 streamlit-webrtc = [
-    {file = "streamlit-webrtc-0.28.1.tar.gz", hash = "sha256:3ec0a7c2e105587366329c16c1d329e6bd78a099aba10e50f8f7bf3daac10b94"},
-    {file = "streamlit_webrtc-0.28.1-py3-none-any.whl", hash = "sha256:06f6e99a314bb33777d4e25ec2d53f9aa60449520e12b1dd19df560922064faf"},
+    {file = "streamlit-webrtc-0.29.1.tar.gz", hash = "sha256:ebe0a2d12dc868c7ab14477ec51bdec2fe40231fd3945bedf10ea110909e912a"},
+    {file = "streamlit_webrtc-0.29.1-py3-none-any.whl", hash = "sha256:5033d1bcc9f87020a9aee7a55fdd2c8cbe469acd1d2f070c28ff0a415ab8244e"},
 ]
 tensorboard = [
     {file = "tensorboard-2.6.0-py3-none-any.whl", hash = "sha256:f7dac4cdfb52d14c9e3f74585ce2aaf8e6203620a864e51faf84988b09f7bbdb"},
