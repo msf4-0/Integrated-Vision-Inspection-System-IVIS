@@ -31,7 +31,10 @@ import shutil
 from math import ceil
 from pathlib import Path
 from time import sleep
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+import numpy as np
+import cv2
 
 import pandas as pd
 import wget
@@ -45,6 +48,9 @@ import object_detection
 from object_detection.utils import config_util
 from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
+
+from object_detection.utils import label_map_util
+from object_detection.utils import visualization_utils as viz_utils
 
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -77,6 +83,7 @@ from deployment.deployment_management import Deployment, DeploymentType
 from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
+from machine_learning.module.xml_parser import xml_to_csv
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -137,10 +144,12 @@ def run_tensorboard(logdir: Path):
                    port=6007, width=1080, scrolling=True)
 
 
-def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5f') -> str:
+def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -> str:
     """
     Format param_dict to become a nice output to show on Streamlit.
     `float_format` is used for formatting floats.
+    The formatting for significant digits `.5g` is based on:
+    https://stackoverflow.com/questions/25780022/how-to-make-python-format-floats-with-certain-amount-of-significant-digits
     """
     config_info = []
     for k, v in param_dict.items():
@@ -155,6 +164,20 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5f') -
     return config_info
 
 
+def load_image_into_numpy_array(path: str):
+    """Load an image from file into a numpy array.
+    Puts image into numpy array of shape (height, width, channels), where channels=3 for RGB to feed into tensorflow graph.
+    Args:
+    path: the file path to the image
+    Returns:
+    uint8 numpy array with shape (img_height, img_width, 3)
+    """
+    img = cv2.imread(path)
+    # convert from OpenCV's BGR to RGB format
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return np.asarray(img)
+
+
 class Trainer:
     def __init__(self, project: Project, new_training: Training):
         """
@@ -163,6 +186,9 @@ class Trainer:
         """
         self.project_id: int = project.id
         self.training_id: int = new_training.id
+        self.training_model_id: int = new_training.training_model.id
+        self.attached_model_name: str = new_training.attached_model.name
+        self.training_model_name: str = new_training.training_model.name
         self.project_path: Path = project.get_project_path(project.name)
         self.deployment_type: str = project.deployment_type
         self.class_names: List[str] = project.get_existing_unique_labels(
@@ -170,8 +196,6 @@ class Trainer:
         # with keys: 'train', 'eval', 'test'
         self.partition_ratio: Dict[str, float] = new_training.partition_ratio
         self.dataset_export_path: Path = project.get_export_path()
-        self.attached_model_name: str = new_training.attached_model.name
-        self.training_model_name: str = new_training.training_model.name
         # NOTE: Might need these later
         # self.attached_model: Model = new_training.attached_model
         # self.training_model: Model = new_training.training_model
@@ -222,7 +246,7 @@ class Trainer:
         else:
             label_paths = []
 
-        # TODO: maybe can add stratification as an option
+        # TODO: maybe can add stratification as an option (only works for img classification)
         if no_validation:
             train_size = train_size if train_size else round(1 - test_size, 2)
             logger.info("Splitting into train:test dataset"
@@ -303,6 +327,15 @@ class Trainer:
         logger.info(f"Start training for Training {self.training_id}")
         if self.deployment_type == 'Object Detection with Bounding Boxes':
             self.run_tfod_training()
+        elif self.deployment_type == "Image Classification":
+            pass
+        elif self.deployment_type == "Semantic Segmentation with Polygons":
+            pass
+
+    def evaluate(self):
+        logger.info(f"Start evaluation for Training {self.training_id}")
+        if self.deployment_type == 'Object Detection with Bounding Boxes':
+            self.run_tfod_evaluation()
         elif self.deployment_type == "Image Classification":
             pass
         elif self.deployment_type == "Semantic Segmentation with Polygons":
@@ -479,6 +512,8 @@ class Trainer:
                         "Do not refresh the page **"):
             cmd_output = run_command(command, st_output=True,
                                      filter_by=['Step', 'Loss/', 'learning_rate'])
+            # search using regex groups
+            # take the last match, and take the second group for the digits
             step = re.findall('(Step)\s+(\d+)', cmd_output)[-1][1]
             local_loss = re.findall(
                 '(Loss/localization_loss).+(\d+\.\d+)', cmd_output)[-1][1]
@@ -538,6 +573,225 @@ class Trainer:
 
         # and then change back to root dir
         chdir_root()
-        st.experimental_rerun()
 
-        # TODO: INFERENCE
+    @st.cache(show_spinner=False)
+    def load_tfod_model(self):
+        """
+        NOTE: Caching is used on this method to avoid long loading times.
+        Due to this, this method should not be used outside of
+        training/deployment page. Hence, it's not defined as a staticmethod.
+        Maybe can improve this by using st.experimental_memo or other methods. Not sure.
+        """
+        # Loading the exported model from the saved_model directory
+        saved_model_path = self.training_path['export'] / "saved_model"
+
+        logger.info(f'Loading model ID {self.training_model_id} '
+                    f'for Training ID {self.training_id} '
+                    f'from {saved_model_path} ...')
+        start_time = time.perf_counter()
+        # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
+        detect_fn = tf.saved_model.load(str(saved_model_path))
+        end_time = time.perf_counter()
+        logger.info(f'Done! Took {end_time - start_time} seconds')
+        return detect_fn
+
+    @staticmethod
+    def load_labelmap(labelmap_path):
+        """
+        Returns:
+        category_index = 
+        {
+            1: {'id': 1, 'name': 'category_1'},
+            2: {'id': 2, 'name': 'category_2'},
+            3: {'id': 3, 'name': 'category_3'},
+            ...
+        }
+        """
+        category_index = label_map_util.create_category_index_from_labelmap(
+            labelmap_path,
+            use_display_name=True)
+        return category_index
+
+    def tfod_detect(self,
+                    detect_fn: Any,
+                    image_np: np.ndarray,
+                    verbose: bool = False) -> Dict[str, Any]:
+        """`detect_fn` is obtained using `load_tfod_model` method"""
+        start_t = time.perf_counter()
+        # Running the infernce on the image specified in the  image path
+        # The input needs to be a tensor, convert it using `tf.convert_to_tensor`.
+        input_tensor = tf.convert_to_tensor(image_np)
+        # The model expects a batch of images, so add an axis with `tf.expand_dims`.
+        input_tensor = input_tensor[tf.newaxis, ...]
+        # input_tensor = tf.expand_dims(input_tensor, 0)
+
+        # running detection using the loaded model: detect_fn
+        detections = detect_fn(input_tensor)
+
+        # All outputs are batches tensors.
+        # Convert to numpy arrays, and take index [0] to remove the batch dimension.
+        # We're only interested in the first num_detections.
+        num_detections = int(detections.pop('num_detections'))
+        detections = {key: value[0, :num_detections].numpy()
+                      for key, value in detections.items()}
+        detections['num_detections'] = num_detections
+
+        # detection_classes should be ints.
+        detections['detection_classes'] = detections['detection_classes'].astype(
+            np.int64)
+        # print(detections['detection_classes'])
+        end_t = time.perf_counter()
+        if verbose:
+            logger.info(f'Done inference. [{end_t - start_t:.2f} secs]')
+
+        return detections
+
+    @staticmethod
+    def draw_gt_bbox(
+        image_np: np.ndarray,
+        box_coordinates: Sequence[Tuple[float, float, float, float]]
+    ):
+        image_with_gt_box = image_np.copy()
+        for xmin, ymin, xmax, ymax in box_coordinates:
+            cv2.rectangle(
+                image_with_gt_box,
+                (xmin, ymin),
+                (xmax, ymax),
+                color=(0, 255, 0),
+                thickness=2)
+        return image_with_gt_box
+
+    @staticmethod
+    def draw_tfod_bboxes(
+            detections: Dict[str, Any],
+            image_np: np.ndarray,
+            category_index: Dict[int, Any],
+            min_score_thresh: float = 0.6) -> np.ndarray:
+        """`category_index` is loaded using `load_labelmap` method"""
+        label_id_offset = 1  # might need this
+        image_np_with_detections = image_np.copy()
+        viz_utils.visualize_boxes_and_labels_on_image_array(
+            image_np_with_detections,
+            detections['detection_boxes'],
+            # detections['detection_classes'] + label_id_offset,
+            detections['detection_classes'],
+            detections['detection_scores'],
+            category_index,
+            use_normalized_coordinates=True,
+            max_boxes_to_draw=20,
+            min_score_thresh=min_score_thresh,
+            agnostic_mode=False
+        )
+        return image_np_with_detections
+
+    def run_tfod_evaluation(self):
+        """Due to some ongoing issues with using COCO API for evaluation on Windows
+        (refer https://github.com/google/automl/issues/487),
+        I decided not to use the evaluation script for TFOD. Thus, the manual 
+        evaluation here only shows some output images with bounding boxes"""
+        # get the required paths
+        paths = self.training_path
+        with st.spinner("Loading model ... This might take awhile ..."):
+            detect_fn = self.load_tfod_model()
+        category_index = self.load_labelmap(paths['labelmap'])
+
+        # **************** SHOW SOME IMAGES FOR EVALUATION ****************
+        options_col, _ = st.columns([1, 1])
+        prev_btn_col_1, next_btn_col_1, _ = st.columns([1, 1, 3])
+        true_img_col, pred_img_col = st.columns([1, 1])
+        prev_btn_col_2, next_btn_col_2, _ = st.columns([1, 1, 3])
+
+        if 'start_idx' not in session_state:
+            # to keep track of the image index to show
+            session_state['start_idx'] = 0
+
+        @st.experimental_memo
+        def get_test_images_annotations():
+            with st.spinner("Getting images and annotations ..."):
+                test_data_dir = paths['images'] / 'test'
+                test_img_paths = list(list_images(test_data_dir))
+                # get the ground truth bounding box data from XML files
+                gt_xml_df = xml_to_csv(str(test_data_dir))
+            return test_img_paths, gt_xml_df
+
+        # take the test set images
+        image_paths, gt_xml_df = get_test_images_annotations()
+
+        with options_col:
+            def reset_start_idx():
+                session_state['start_idx'] = 0
+            st.number_input(
+                "Number of samples to show:",
+                min_value=1,
+                max_value=10,
+                value=5,
+                step=1,
+                format='%d',
+                key='n_samples',
+                help="Number of samples to run detection and display results.",
+                on_change=reset_start_idx
+            )
+            st.number_input(
+                "Minimum confidence threshold:",
+                min_value=0.1,
+                max_value=0.99,
+                value=0.6,
+                step=0.01,
+                format='%.2f',
+                key='conf_threshold',
+                help=("If a prediction's confidence score exceeds this threshold, "
+                      "then it will be displayed, otherwise discarded."),
+            )
+
+            st.info(f"**Total test set images**: {len(image_paths)}")
+
+        n_samples = session_state['n_samples']
+        start_idx = session_state['start_idx']
+        current_image_paths = image_paths[start_idx: start_idx + n_samples]
+
+        def previous_samples():
+            if session_state['start_idx'] > 0:
+                session_state['start_idx'] -= n_samples
+
+        def next_samples():
+            max_start = len(image_paths) - n_samples
+            if session_state['start_idx'] < max_start:
+                session_state['start_idx'] += n_samples
+
+        with prev_btn_col_1:
+            st.button('Previous samples', key='btn_prev_images_1',
+                      on_click=previous_samples)
+        with next_btn_col_1:
+            st.button('Next samples', key='btn_next_images_1',
+                      on_click=next_samples)
+
+        logger.info(f"Detecting from the test set images: {start_idx}"
+                    f" to {start_idx + n_samples} ...")
+        with st.spinner("Running detections ..."):
+            for i, p in enumerate(current_image_paths):
+                current_img_idx = start_idx + i + 1
+                img = load_image_into_numpy_array(str(p))
+
+                filename = os.path.basename(p)
+                gt_img_boxes = gt_xml_df.loc[
+                    gt_xml_df['filename'] == filename, 'xmin': 'ymax'
+                ].values
+
+                detections = self.tfod_detect(detect_fn, img, verbose=True)
+                img_with_detections = self.draw_tfod_bboxes(
+                    detections, img, category_index,
+                    session_state.conf_threshold)
+
+                with true_img_col:
+                    st.image(self.draw_gt_bbox(img, gt_img_boxes),
+                             caption=f'Image {current_img_idx}: Ground Truth')
+                with pred_img_col:
+                    st.image(img_with_detections,
+                             caption=f'Image {current_img_idx}: Prediction')
+
+        with prev_btn_col_2:
+            st.button('Previous samples', key='btn_prev_images_2',
+                      on_click=previous_samples)
+        with next_btn_col_2:
+            st.button('Next samples', key='btn_next_images_2',
+                      on_click=next_samples)

@@ -291,6 +291,7 @@ def index():
 
         def to_training_dashboard_page():
             NewTraining.reset_new_training_page()
+            Training.reset_training_page()
             session_state.training_pagination = TrainingPagination.Dashboard
 
         training_dashboard_back_button_place.button("Back to Training Dashboard",

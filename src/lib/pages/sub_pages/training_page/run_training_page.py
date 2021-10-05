@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
  """
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 import time
@@ -40,7 +41,15 @@ from training.training_management import NewTrainingPagination
 
 
 def index():
-    logger.debug("At new_training_training_config.py")
+    logger.debug("Navigator: At run_training_page.py")
+
+    if 'trainer' not in session_state:
+        # store the trainer to use for training, inference and deployment
+        with st.spinner("Initializing trainer ..."):
+            logger.info("Initializing trainer")
+            session_state.trainer = Trainer(
+                session_state.project,
+                session_state.new_training)
 
     st.markdown("### Training Info:")
 
@@ -68,14 +77,14 @@ def index():
         session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
     with train_info_btn:
-        st.button('Modify Training Info', key='btn_modify_train_info',
+        st.button('Edit Training Info', key='btn_edit_train_info',
                   on_click=back_train_info_page)
 
     def back_model_page():
         session_state.new_training_pagination = NewTrainingPagination.Model
 
     with model_info_btn:
-        st.button('Modify Model Info', key='btn_modify_model_info',
+        st.button('Edit Model Info', key='btn_edit_model_info',
                   on_click=back_model_page)
 
     # ******************************** CONFIG INFO ********************************
@@ -86,11 +95,15 @@ def index():
             session_state.new_training.training_param_dict)
         st.markdown('### Training Config:')
         st.info(config_info)
+        if session_state.new_training.is_started:
+            st.markdown("**NOTE**: Do not edit model selection or training config"
+                        " unless you want to re-train your model! Otherwise the information"
+                        " stored in database would not correct. ")
 
         def back_config_page():
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
-        st.button('Modify Training Config', key='btn_modify_config',
+        st.button('Edit Training Config', key='btn_edit_config',
                   on_click=back_config_page)
 
     with aug_config_col:
@@ -99,8 +112,9 @@ def index():
             pass
 
     # ******************************* START TRAINING *******************************
-    start_btn_place = st.empty()
+    train_btn_place = st.empty()
     warning_place = st.empty()  # for warning messages
+    result_place = st.empty()
 
     def start_training_callback():
         def stop_run_training():
@@ -109,7 +123,7 @@ def index():
             time.sleep(2)
             warning_place.empty()
 
-        # moved stop button into callback function to ensure it stays visible
+        # moved stop button into callback function to only show when training is started
         st.button("Stop Training", key='btn_stop_training',
                   on_click=stop_run_training)
         st.markdown('<font size="2">**NOTE**: If you click this button, '
@@ -126,25 +140,51 @@ def index():
         with st.spinner("Exporting tasks for training ..."):
             session_state.project.export_tasks()
 
-        with st.spinner('Initializing training ...'):
-            trainer = Trainer(session_state.project,
-                              session_state.new_training)
         # start training
-        trainer.train()
+        session_state.trainer.train()
+
+        # rerun to remove all these progress and refresh the page to show results
+        st.experimental_rerun()
 
     if not session_state.new_training.is_started:
-        with start_btn_place.container():
-            st.button("Start training", key='btn_start_training',
-                      on_click=start_training_callback)
+        with train_btn_place.container():
+            st.button("Start training", key='btn_start_training')
+        if session_state.btn_start_training:
+            # must do it this way instead of using callback on button
+            #  to properly show the training progress below the rendered widgets
+            start_training_callback()
     else:
         # ? Maybe add an option for continue training
-        logdir = session_state.new_training.training_path['tensorboard_logdir']
-        # moved tensorboard into callback function to make sure it stays visible
-        run_tensorboard(logdir)
-        metrics = pretty_format_param(
-            session_state.new_training.training_model.metrics)
-        st.markdown("### Training result:")
-        st.info(metrics)
+        with train_btn_place.container():
+            st.button("Show TensorBoard", key='btn_show_tensorboard')
+            if session_state.btn_show_tensorboard:
+                with st.spinner("Loading Tensorboard ..."):
+                    logdir = session_state.new_training.training_path['tensorboard_logdir']
+                    run_tensorboard(logdir)
+
+            st.button("Re-train", key='btn_retrain')
+            st.markdown('<font size="2">**NOTE**: If you re-train your model, '
+                        'all the existing model data will be overwritten.</font>',
+                        unsafe_allow_html=True)
+            metrics = pretty_format_param(
+                session_state.new_training.training_model.metrics)
+            st.markdown("### Training results:")
+            st.info(metrics)
+
+        with result_place.container():
+            st.markdown("### Evaluation results:")
+            # show evaluation results
+            session_state.trainer.evaluate()
+
+        if session_state.btn_retrain:
+            # clear out the results container
+            result_place.empty()
+
+            logger.info("Removing existing training directory")
+            root = session_state.new_training.training_path['ROOT']
+            if root.exists():
+                shutil.rmtree(root)
+            start_training_callback()
 
 
 if __name__ == "__main__":

@@ -1258,7 +1258,12 @@ class Training(BaseTraining):
     def reset_training_page():
         training_attributes = ["project_training_table", "training", "training_name",
                                "training_desc", "labelling_pagination", "existing_training_pagination",
-                               "training_param_dict"]
+                               "training_param_dict", "new_training", "trainer", "start_idx",
+                               "conf_threshold", "n_samples"]
+        # this is required to avoid issues with caching model-related variables
+        # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89
+        # https://discuss.streamlit.io/t/button-to-clear-cache-and-rerun/3928/12
+        st.legacy_caching.clear_cache()
 
         reset_page_attributes(training_attributes)
 
