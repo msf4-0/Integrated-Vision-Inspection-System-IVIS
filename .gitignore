@@ -43,6 +43,4 @@ build/static/media/config.*.xml
 # TFOD API folder
 TFOD
 
-
-
-poetry.lock
+*.lock
