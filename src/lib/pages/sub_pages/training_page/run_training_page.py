@@ -98,7 +98,7 @@ def index():
         if session_state.new_training.is_started:
             st.markdown("**NOTE**: Do not edit model selection or training config"
                         " unless you want to re-train your model! Otherwise the information"
-                        " stored in database would not correct. ")
+                        " stored in database would not be correct. ")
 
         def back_config_page():
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig

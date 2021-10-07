@@ -1,0 +1,128 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.194.3/containers/python-3-postgres
+// Update the VARIANT arg in docker-compose.yml to pick a Python version: 3, 3.8, 3.7, 3.6
+{
+  "name": "Integrated Vision Inspection System",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  // Set *default* container specific settings.json values on container create.
+  "settings": {
+    "python.formatting.provider": "autopep8",
+    // avoid problem with linting and sorting imports not at top
+    "python.formatting.autopep8Args": ["--ignore", "E402"],
+    "editor.formatOnSave": true,
+    "gitlens.currentLine.enabled": true,
+    "gitlens.hovers.currentLine.over": "annotation",
+    "gitlens.codeLens.enabled": true,
+    "gitlens.hovers.enabled": true,
+    "gitlens.statusBar.enabled": true,
+    "workbench.editor.decorations.badges": true,
+    "workbench.editor.decorations.colors": true,
+    "sqltools.connections": [
+      {
+        "previewLimit": 50,
+        "server": "localhost",
+        "port": 5432,
+        "driver": "PostgreSQL",
+        "name": "shrdc_system",
+        "database": "integrated_vision_inspection_system",
+        "username": "postgres",
+        "password": "shrdc",
+        "connectionTimeout": 30
+      }
+    ],
+    "python.analysis.extraPaths": ["src/lib"],
+    "python.autoComplete.extraPaths": ["src/lib"],
+    "python.pythonPath": "/usr/local/bin/python",
+    "python.languageServer": "Pylance",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
+    "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
+    "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
+    "python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
+    "python.linting.flake8Path": "/usr/local/py-utils/bin/flake8",
+    "python.linting.mypyPath": "/usr/local/py-utils/bin/mypy",
+    "python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
+    "python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
+    "python.linting.pylintPath": "/usr/local/py-utils/bin/pylint",
+    "python.testing.pytestPath": "/usr/local/py-utils/bin/pytest",
+    "better-comments.tags": [
+      {
+        "tag": "!",
+        "color": "#ff4d4d",
+        "strikethrough": false,
+        "underline": false,
+        "backgroundColor": "transparent",
+        "bold": false,
+        "italic": false
+      },
+      {
+        "tag": "?",
+        "color": "#3498DB",
+        "strikethrough": false,
+        "underline": false,
+        "backgroundColor": "transparent",
+        "bold": false,
+        "italic": false
+      },
+      {
+        "tag": "//",
+        "color": "#474747",
+        "strikethrough": true,
+        "underline": false,
+        "backgroundColor": "transparent",
+        "bold": false,
+        "italic": false
+      },
+      {
+        "tag": "todo",
+        "color": "#C678DD",
+        "strikethrough": false,
+        "underline": false,
+        "backgroundColor": "transparent",
+        "bold": false,
+        "italic": false
+      },
+      {
+        "tag": "-",
+        "color": "#FF8C00",
+        "strikethrough": false,
+        "underline": false,
+        "backgroundColor": "transparent",
+        "bold": false,
+        "italic": false
+      }
+    ]
+  },
+
+  // Add the IDs of extensions you want installed when the container is created.
+  "extensions": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    // for using SQL in VS Code
+    "mtxr.sqltools",
+    // for PostgreSQL driver
+    "mtxr.sqltools-driver-pg",
+    // for nice live updates of Git changes
+    "eamodio.gitlens",
+    // for easy pull request
+    "github.vscode-pull-request-github",
+    // to allow checking history of Git commits and changes with nice GUI
+    "donjayamanne.githistory",
+    // show colors on comments, can refer to the custom settings above
+    "aaron-bond.better-comments"
+  ],
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  //   8501 and 8502 may be used by Streamlit
+  "forwardPorts": [5000, 5432, 8501, 8502],
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  "postCreateCommand": "pip install --user -r requirements_no_hash.txt && python src/database_setup.py",
+
+  // Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
+  "remoteUser": "vscode"
+}

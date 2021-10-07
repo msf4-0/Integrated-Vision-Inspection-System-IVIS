@@ -356,6 +356,7 @@ def infodataset():
                     for page, submitted in session_state.new_training.has_submitted.items():
                         if not submitted:
                             session_state.new_training_pagination = page
+                            break
                     else:
                         # go to Training page if all forms have been submitted
                         session_state.new_training_pagination = NewTrainingPagination.Training

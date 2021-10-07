@@ -33,6 +33,7 @@ from psycopg2 import sql, extensions
 from collections import namedtuple
 import traceback
 from enum import IntEnum
+from core.utils.model_details_db_setup import connect_db
 from passlib.hash import argon2
 from typing import List
 import streamlit as st
@@ -277,6 +278,22 @@ def check_if_database_exist(datname: str, conn) -> bool:
         logger.error(e)
         exist_flag = False
 
+    return exist_flag
+
+
+def check_if_table_exist(tablename: str, conn) -> bool:
+    sql_query = """
+    SELECT EXISTS
+        (SELECT * FROM %s);
+    """
+
+    sql_vars = (extensions.AsIs(tablename),)
+
+    query_return = db_fetchone(sql_query, conn, sql_vars)
+    exist_flag = False
+    if query_return:
+        logger.info(f"Table {tablename} exists")
+        exist_flag = True
     return exist_flag
 
 # ************************************ SETUP DATABASE *********************************************************#
@@ -1018,10 +1035,15 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
             create_database(database_name=database_name,
                             conn=conn)
             conn.close()
+        elif not check_if_table_exist('project', conn=conn):
             # create new DSN
             dsn['dbname'] = "integrated_vision_inspection_system"
-            conn = init_connection(**dsn)
+            if st._is_running_with_streamlit:
+                conn = init_connection(**dsn)
+            else:
+                conn = connect_db(**dsn)
             # then create relation in the database
+            logger.info('Creating relation database ...')
             create_relation_database(conn=conn)
 
         return DatabaseStatus.Exist
