@@ -42,11 +42,11 @@ from path_desc import TFOD_DIR, chdir_root
 
 def run_command(command_line_args):
     # shell=True to work on String instead of list
-    process = subprocess.run(command_line_args, shell=True,
-                             # stdout to capture all output
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             # text to directly decode the output
-                             text=True)
+    process = subprocess.Popen(command_line_args, shell=True,
+                               # stdout to capture all output
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               # text to directly decode the output
+                               text=True)
     for line in process.stdout:
         # print the live stdout output from the script
         print(line)
@@ -66,6 +66,7 @@ def install():
         run_command(
             f"git clone https://github.com/tensorflow/models {TFOD_DIR}")
 
+    # TODO: Add COCO API installation
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
     if os.name == 'posix':
         # 'posix' is for Linux (also to use in Colab Notebook)

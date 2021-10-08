@@ -854,10 +854,10 @@ class Training(BaseTraining):
                         progress: Dict[str, int],
                         is_started: bool = True,
                         verbose: bool = False):
-        assert progress.keys() in ('Step', 'Checkpoint')
+        # NOTE: progress for TFOD should be {'Step': <int>, 'Checkpoint': <int>}
 
         self.is_started = is_started
-        self.training_model.progress = progress
+        self.progress = progress
 
         sql_query = """
                 UPDATE
@@ -892,7 +892,7 @@ class Training(BaseTraining):
 
         db_no_fetch(sql_query, conn, query_vars)
         if verbose:
-            logger.info(f"Updated metrics for Training {self.training_model.id} "
+            logger.info(f"Updated metrics for Model {self.training_model.id} "
                         f"with: '{result_metrics}'")
 
     def query_all_fields(self) -> NamedTuple:

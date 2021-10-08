@@ -117,14 +117,15 @@ def index():
     warning_place = st.empty()  # for warning messages
     result_place = st.empty()
 
-    def start_training_callback():
-        root = session_state.new_training.training_path['ROOT']
-        if root.exists():
-            logger.info(f"Removing existing training directory {root}")
-            shutil.rmtree(root)
+    def start_training_callback(resume=False):
+        if not resume:
+            root = session_state.new_training.training_path['ROOT']
+            if root.exists():
+                logger.info(f"Removing existing training directory {root}")
+                shutil.rmtree(root)
 
-        logger.info("Creating training directories ...")
-        session_state.new_training.initialise_training_folder()
+            logger.info("Creating training directories ...")
+            session_state.new_training.initialise_training_folder()
 
         def stop_run_training():
             # BEWARE that this will just refresh the page
@@ -150,6 +151,8 @@ def index():
         with st.spinner("Exporting tasks for training ..."):
             session_state.project.export_tasks()
 
+        # update the trainer's resume attr to consider the case for resume training
+        session_state.trainer.resume = resume
         # start training
         session_state.trainer.train()
 
@@ -177,16 +180,13 @@ def index():
         with retrain_place.container():
             col, _ = st.columns([1, 1])
             with col:
-                st.button("Re-train", key='btn_retrain')
+                st.button("Re-train", key='btn_retrain',
+                          on_click=start_training_callback)
                 st.warning('**NOTE**: If you re-train your model, '
                            'all the existing model data will be overwritten.')
 
-            # TODO: fix the weird shadow of other widgets after clicked this button
-            if session_state.btn_retrain:
-                # clear out the results container
-                train_btn_place.empty()
-                result_place.empty()
-                start_training_callback()
+            # TODO: fix the weird shadow of other widgets after clicked this Re-train button
+            # workaround for now is to use callback function on the button
 
         with result_place.container():
             col, _ = st.columns([1, 1])
@@ -197,6 +197,7 @@ def index():
                 st.info(metrics)
 
             if session_state.new_training.training_path['model_tarfile'].exists():
+                st.markdown("___")
                 st.markdown("### Evaluation results:")
                 # show evaluation results
                 with st.spinner("Running evaluation ..."):
@@ -209,7 +210,8 @@ def index():
         #     # clear out the results container
         #     train_btn_place.empty()
         #     result_place.empty()
-        #     start_training_callback()
+        #     with retrain_place.container():
+        #         start_training_callback()
 
 
 if __name__ == "__main__":

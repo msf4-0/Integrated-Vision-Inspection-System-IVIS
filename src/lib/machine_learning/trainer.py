@@ -152,9 +152,10 @@ def run_command(command_line_args: str, st_output: bool = False,
 def run_command_update_metrics(
     command_line_args: str,
     stdout_output: bool = True,
-    progress_name: str = 'Step',
+    step_name: str = 'Step',
     metric_names: Tuple[str] = None,
-) -> Union[str, None]:
+) -> str:
+    # ! DEPRECATED, Using run_command_update_metrics_2 function
     """
     Running commands or scripts, while getting live stdout
 
@@ -167,8 +168,7 @@ def run_command_update_metrics(
     Returns:
         str: The entire console output from the command after finish running.
     """
-    assert progress_name in ('Step', 'Checkpoint')
-    assert metric_names is not None
+    assert metric_names is not None, "Please pass in metric_names to use for search and updates"
 
     logger.info(f"Running command: '{command_line_args}'")
     process = subprocess.Popen(command_line_args, shell=True,
@@ -177,26 +177,139 @@ def run_command_update_metrics(
                                # text to directly decode the output
                                text=True)
 
-    metrics = {k: 0.0 for k in metric_names}
-    session_state.prev_metrics = metrics
+    prev_progress = session_state.new_training.progress
+    curr_metrics = session_state.new_training.training_model.metrics
+    curr_metrics = copy.copy(curr_metrics)
+    prev_metrics = copy.copy(curr_metrics)
     for line in process.stdout:
         # remove empty trailing spaces, and also string with only spaces
         line = line.strip()
         if line:
-            if progress_name in line:
-                progress_val = find_tfod_metric(name, line)
-                if progress_val:
-                    st.markdown(f"**{progress_name}**: {progress_val}")
-                    progress_dict = {progress_name: progress_val}
-                    session_state.new_training.update_progress(progress_dict)
+            if step_name in line:
+                step_val = find_tfod_metric(step_name, line)
+                # only update the `Step` progress if it's different
+                if step_val and step_val != prev_progress[step_name]:
+                    # update previous step value to be the current
+                    prev_progress[step_name] = step_val
+                    session_state.new_training.update_progress(
+                        prev_progress, verbose=True)
+                    st.markdown(f"**{step_name}**: {step_val}")
             for name in metric_names:
                 if name in line:
                     metric_val = find_tfod_metric(name, line)
                     if metric_val:
-                        metrics[name] = metric_val
-                        pretty_st_metric(metrics, float_format='.3g')
-                        session_state.new_training.update_metrics(metrics)
-                        session_state.prev_metrics = copy.copy(metrics)
+                        curr_metrics[name] = metric_val
+                        num_same_values = np.sum(np.isclose(
+                            list(curr_metrics.values()),
+                            list(prev_metrics.values())))
+                        print(f"{num_same_values}")
+                        # only update and show the metrics when all values
+                        #  are already updated with the latest different metrics
+                        if num_same_values == 0:
+                            session_state.new_training.update_metrics(
+                                curr_metrics, verbose=True)
+                            # show the nicely formatted metrics on Streamlit
+                            pretty_st_metric(
+                                curr_metrics,
+                                prev_metrics,
+                                float_format='.3g')
+                            # update previous metrics to be the current
+                            prev_metrics = copy.copy(curr_metrics)
+        if line and stdout_output:
+            print(line)
+    process.wait()
+    return process.stdout
+
+
+def run_command_update_metrics_2(
+    command_line_args: str,
+    stdout_output: bool = True,
+    step_name: str = 'Step',
+    metric_names: Tuple[str] = None,
+) -> str:
+    """[summary]
+
+    Args:
+        command_line_args (str): Command line arguments to run.
+        stdout_output (bool, optional): Set `stdout_output` to True to 
+            show the console outputs LIVE on terminal. Defaults to True.
+        step_name (str, optional): The key name used to store our training step progress.
+            Should be 'Step' for now. Defaults to 'Step'.
+        metric_names (Tuple[str], optional): The metric names to search for and update our 
+            Model instance and database. Must be passed in. Defaults to None.
+
+    Returns:
+        str: the entire console output generated from the TFOD training script
+    """
+    assert metric_names is not None, "Please pass in metric_names to use for search and updates"
+
+    logger.info(f"Running command: '{command_line_args}'")
+    process = subprocess.Popen(command_line_args, shell=True,
+                               # stdout to capture all output
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               # text to directly decode the output
+                               text=True)
+
+    prev_metrics = copy.copy(
+        session_state.new_training.training_model.metrics)
+    # list of stored stdout lines
+    current_lines = []
+    # flag to track the 'Step' text
+    step_name_found = False
+    for line in process.stdout:
+        # remove empty trailing spaces, and also string with only spaces
+        line = line.strip()
+        if line:
+            # keep storing when stored stdout lines are less than 12,
+            #  12 is the exact number of lines output by the script
+            #  that will contain all the metrics after the line
+            #  with text 'Step', e.g.:
+            """
+            INFO:tensorflow:Step 900 per-step time 0.561s
+            I0813 13:07:28.326545 139687560058752 model_lib_v2.py:700] Step 900 per-step time 0.561s
+            INFO:tensorflow:{'Loss/classification_loss': 0.34123567,
+            'Loss/localization_loss': 0.0464548,
+            'Loss/regularization_loss': 0.24863605,
+            'Loss/total_loss': 0.6363265,
+            'learning_rate': 0.025333151}
+            I0813 13:07:28.326872 139687560058752 model_lib_v2.py:701] {'Loss/classification_loss': 0.34123567,
+            'Loss/localization_loss': 0.0464548,
+            'Loss/regularization_loss': 0.24863605,
+            'Loss/total_loss': 0.6363265,
+            'learning_rate': 0.025333151}
+            """
+            if step_name in line:
+                step_name_found = True
+            if step_name_found:
+                current_lines.append(line)
+            if len(current_lines) == 12:
+                current_lines_str = '\n'.join(current_lines)
+
+                step_val = find_tfod_metric(step_name, current_lines_str)
+                session_state.new_training.progress[step_name] = step_val
+                session_state.new_training.update_progress(
+                    session_state.new_training.progress, verbose=True)
+                st.markdown(f"**{step_name}**: {step_val}")
+
+                metrics = {}
+                for name in metric_names:
+                    metric_val = find_tfod_metric(name, current_lines_str)
+                    metrics[name] = metric_val
+                session_state.new_training.update_metrics(
+                    metrics, verbose=True)
+
+                # if the previous metrics are empty, i.e. the model is not trained,
+                #  initiate it with the initially obtained metrics during training
+                if not prev_metrics:
+                    prev_metrics = copy.copy(metrics)
+                # show the nicely formatted metrics on Streamlit
+                pretty_st_metric(metrics, prev_metrics, float_format='.4g')
+                st.markdown("___")
+                # update the previous metrics with the new ones
+                prev_metrics = copy.copy(metrics)
+                # reset the list of outputs to start storing again
+                current_lines = []
+                step_name_found = False
         if line and stdout_output:
             print(line)
     process.wait()
@@ -255,15 +368,23 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
 
 def pretty_st_metric(
         metrics: Dict[str, Any],
-        float_format: str = '.5g',
-        delta_color: str = 'inverse'):
+        prev_metrics: Dict[str, Any],
+        float_format: str = '.5g'):
     cols = st.columns(len(metrics))
     for col, (name, val) in zip(cols, metrics.items()):
+        # show green color when loss is reduced;
+        # red color when increased
+        delta_color = 'inverse'
+        # get the previous value before prettifying it
+        prev_val = prev_metrics[name]
+        # prettifying the metric name for display
         name = ' '.join(name.split('_')).capitalize()
+        # calculate the difference with previous metric value
+        delta = val - prev_val
+        # formatting the float values for display
         val = f"{val:{float_format}}"
-        prev_val = session_state.prev_metrics[name]
-        prev_val = f"{prev_val:{float_format}}"
-        col.metric(name, val, prev_val, delta_color=delta_color)
+        delta = f"{delta:{float_format}}"
+        col.metric(name, val, delta, delta_color=delta_color)
 
 
 def load_image_into_numpy_array(path: str):
@@ -303,6 +424,7 @@ class Trainer:
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
         self.training_path: Dict[str, Path] = new_training.training_path
+        self.resume: bool = False
 
     @staticmethod
     def train_test_split(image_dir: Path,
@@ -428,7 +550,10 @@ class Trainer:
     def train(self):
         logger.info(f"Start training for Training {self.training_id}")
         if self.deployment_type == 'Object Detection with Bounding Boxes':
+            if not self.resume:
+                self.reset_tfod_progress()
             self.run_tfod_training()
+            # TODO: for resume training from checkpoint
         elif self.deployment_type == "Image Classification":
             pass
         elif self.deployment_type == "Semantic Segmentation with Polygons":
@@ -442,6 +567,15 @@ class Trainer:
             pass
         elif self.deployment_type == "Semantic Segmentation with Polygons":
             pass
+
+    def reset_tfod_progress(self):
+        # reset the training progress
+        training_progress = {'Step': 0, 'Checkpoint': 0}
+        session_state.new_training.update_progress(
+            training_progress, verbose=True)
+
+        # reset the training result metrics
+        session_state.new_training.update_metrics({})
 
     def tfod_update_progress_metrics(self, cmd_output: str) -> Dict[str, float]:
         """
@@ -640,14 +774,16 @@ class Trainer:
                    f"--num_train_steps={NUM_TRAIN_STEPS}")
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
-            run_command_update_metrics(
+            run_command_update_metrics_2(
                 command, stdout_output=True,
-                progress_name='Step',
+                step_name='Step',
                 metric_names=(
+                    'classification_loss',
                     'localization_loss',
                     'regularization_loss',
                     'total_loss',
-                    'learning_rate'
+                    # Learning rate does not seem to be an important metric to track
+                    # 'learning_rate'
                 )
             )
             # cmd_output = run_command(command, st_output=True,
@@ -684,6 +820,8 @@ class Trainer:
             os.chdir(paths['EXPORT'].parent)
             run_command(
                 f"tar -czf {files['MODEL_TARFILE'].name} {paths['EXPORT'].name}")
+            # and then change back to root dir
+            chdir_root()
 
             # after created the tarfile in the current working directory,
             #  then only move to the desired filepath
@@ -693,9 +831,6 @@ class Trainer:
 
         logger.info(
             f"CONGRATS YO! Successfully created {files['MODEL_TARFILE']}")
-
-        # and then change back to root dir
-        chdir_root()
 
     @st.cache(show_spinner=False)
     def load_tfod_model(self):
