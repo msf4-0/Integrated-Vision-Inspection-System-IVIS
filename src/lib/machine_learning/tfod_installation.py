@@ -47,7 +47,9 @@ def run_command(command_line_args):
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              # text to directly decode the output
                              text=True)
-    print(process.stdout)
+    for line in process.stdout:
+        # print the live stdout output from the script
+        print(line)
     process.wait()
     return process.stdout
 

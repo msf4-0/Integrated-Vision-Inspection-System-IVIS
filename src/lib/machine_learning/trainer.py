@@ -795,3 +795,6 @@ class Trainer:
         with next_btn_col_2:
             st.button('Next samples', key='btn_next_images_2',
                       on_click=next_samples)
+
+    def run_classification_training(self):
+        pass

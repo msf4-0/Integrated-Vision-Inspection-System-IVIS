@@ -290,10 +290,11 @@ def check_if_table_exist(tablename: str, conn) -> bool:
     sql_vars = (extensions.AsIs(tablename),)
 
     query_return = db_fetchone(sql_query, conn, sql_vars)
-    exist_flag = False
-    if query_return:
+    if query_return is not None:
         logger.info(f"Table {tablename} exists")
         exist_flag = True
+    else:
+        exist_flag = False
     return exist_flag
 
 # ************************************ SETUP DATABASE *********************************************************#
@@ -1035,7 +1036,7 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
             create_database(database_name=database_name,
                             conn=conn)
             conn.close()
-        elif not check_if_table_exist('project', conn=conn):
+        if not check_if_table_exist('project', conn=conn):
             # create new DSN
             dsn['dbname'] = "integrated_vision_inspection_system"
             if st._is_running_with_streamlit:

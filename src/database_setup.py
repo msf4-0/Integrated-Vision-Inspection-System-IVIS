@@ -227,13 +227,15 @@ def database_setup():
                 db_config_form()
 
 
-def database_devcontainer_setup():
+def database_docker_setup():
     db_config = {
         "host": "localhost",
         "port": "5432",
-        "dbname": "integrated_vision_inspection_system",
-        "user": "postgres",
-        "password": "shrdc"
+        # the rest are obtained from the environment variables
+        # defined in docker-compose.yml
+        "dbname": os.environ['POSTGRES_DB'],
+        "user": os.environ['POSTGRES_USER'],
+        "password": os.environ['POSTGRES_PASSWORD']
     }
     modify_secrets_toml(**db_config)
 
@@ -246,9 +248,9 @@ if __name__ == "__main__":
     if st._is_running_with_streamlit:
         print('[INFO] Setting up database using Streamlit ...')
         database_setup()
-    elif os.environ.get('DEVCONTAINER'):
-        print('[INFO] Setting up database for devcontainer ...')
-        database_devcontainer_setup()
+    elif os.environ.get('DOCKERCONTAINER'):
+        print('[INFO] Setting up database for Docker container ...')
+        database_docker_setup()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
