@@ -807,8 +807,11 @@ class Training(BaseTraining):
         # >>>> MODEL PATH
         # paths['models'] = root / 'models'
         if not self.training_model.name:
-            self.training_model.name = 'temp'
-        paths['models'] = root / 'models' / self.training_model.name
+            model_dirname = 'temp'
+        else:
+            # MUST use this to get a nicely formatted directory name
+            model_dirname = get_directory_name(self.training_model.name)
+        paths['models'] = root / 'models' / model_dirname
         # PARTITIONED DATASET PATH
         paths['images'] = root / 'images'
         # EXPORTED MODEL PATH
@@ -816,7 +819,7 @@ class Training(BaseTraining):
         #     'exported_models'
         paths['export'] = paths['models'] / 'export'
         paths['model_tarfile'] = paths['models'] / \
-            f'{self.training_model.name}.tar.gz'
+            f'{model_dirname}.tar.gz'
         # ANNOTATIONS PATH
         paths['annotations'] = root / 'annotations'
         # this filename is based on the `generate_labelmap_file` function
@@ -848,16 +851,12 @@ class Training(BaseTraining):
             return None
 
     def update_progress(self,
-                        step: Optional[int] = None,
-                        checkpoint: Optional[int] = None,
-                        is_started: bool = True):
-        assert (step, checkpoint) != (
-            None, None), "Must pass in either `step` or `checkpoint"
+                        progress: Dict[str, int],
+                        is_started: bool = True,
+                        verbose: bool = False):
+        assert progress.keys() in ('Step', 'Checkpoint')
+
         self.is_started = is_started
-        if step:
-            progress = {'Step': step}
-        else:
-            progress = {'Checkpoint': checkpoint}
         self.training_model.progress = progress
 
         sql_query = """
@@ -873,11 +872,11 @@ class Training(BaseTraining):
         query_vars = [is_started, progress_json, self.id]
 
         db_no_fetch(sql_query, conn, query_vars)
-        logger.info(f"Updated progress for Training {self.id} "
-                    f"with: '{progress}'")
+        if verbose:
+            logger.info(f"Updated progress for Training {self.id} "
+                        f"with: '{progress}'")
 
-    def update_metrics(self, **result_metrics):
-        self.is_started = True
+    def update_metrics(self, result_metrics: Dict[str, Any], verbose: bool = False):
         self.training_model.metrics = result_metrics
 
         sql_query = """
@@ -892,8 +891,9 @@ class Training(BaseTraining):
         query_vars = [metrics_json, self.training_model.id]
 
         db_no_fetch(sql_query, conn, query_vars)
-        logger.info(f"Updated metrics for Training {self.training_model.id} "
-                    f"with: '{result_metrics}'")
+        if verbose:
+            logger.info(f"Updated metrics for Training {self.training_model.id} "
+                        f"with: '{result_metrics}'")
 
     def query_all_fields(self) -> NamedTuple:
         """Query fields of current Training
@@ -1053,48 +1053,37 @@ class Training(BaseTraining):
 
         '''
         # *************** GENERATE TRAINING PATHS ***************
-
-        # >>>> TRAINING PATH
-        # self.training_path['ROOT'] = self.get_training_path(
-        #     self.project_path, self.name)
-        # # >>>> MODEL PATH
-        # self.training_path['models'] = self.training_path['ROOT'] / 'models'
-        # # PARTITIONED DATASET PATH
-        # self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
-        # # EXPORTED MODEL PATH
-        # self.training_path['exported_models'] = self.training_path['ROOT'] / \
-        #     'exported_models'
-        # # ANNOTATIONS PATH
-        # self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
+        training_paths = self.training_path
 
         # >>>> CREATE Training directory recursively
-        for path in self.training_path.values():
-            if '.' in path.name:
-                # this is a file path and not a directory, thus change it
-                path = path.parent
+        filepath_keys = ('model_tarfile', 'labelmap')
+        for key, path in training_paths.items():
+            if key in filepath_keys:
+                # this is a file path and not a directory, thus skipping
+                continue
             create_folder_if_not_exist(path)
             logger.info(
                 f"Successfully created **{str(path)}**")
 
         # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
         try:
-            assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
-                len(self.training_path) - 1)), f"Failed to create all folders"
+            assert (len([x for x in training_paths['ROOT'].iterdir() if x.is_dir()]) == (
+                len(training_paths) - 1)), f"Failed to create all folders"
             logger.info(
-                f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
+                f"Successfully created **{self.name}** training at {str(training_paths['ROOT'])}")
 
         except AssertionError as e:
 
             # Create a list of sub-folders excluding Training Root
             directory_structure = [
-                x for x in self.training_path.values() if x != self.training_path['ROOT']]
+                x for x in training_paths.values() if x != training_paths['ROOT']]
 
-            missing_folders = [x for x in self.training_path['ROOT'].iterdir(
+            missing_folders = [x for x in training_paths['ROOT'].iterdir(
             ) if x.is_dir() and (x not in directory_structure)]
 
             logger.error(f"{e}: Missing {missing_folders}")
 
-    # ! Deprecated, use get_all_training_path
+    # ! Deprecated, use training_path property
     # @staticmethod
     # def get_trained_filepaths(project_path: str,
     #                           training_name: str,
@@ -1259,11 +1248,11 @@ class Training(BaseTraining):
         training_attributes = ["project_training_table", "training", "training_name",
                                "training_desc", "labelling_pagination", "existing_training_pagination",
                                "training_param_dict", "new_training", "trainer", "start_idx",
-                               "conf_threshold", "n_samples"]
+                               ]
         # this is required to avoid issues with caching model-related variables
         # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89
         # https://discuss.streamlit.io/t/button-to-clear-cache-and-rerun/3928/12
-        st.legacy_caching.clear_cache()
+        # st.legacy_caching.clear_cache()
 
         reset_page_attributes(training_attributes)
 

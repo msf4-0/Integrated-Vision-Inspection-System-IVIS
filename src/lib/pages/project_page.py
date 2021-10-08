@@ -57,6 +57,7 @@ from project.project_management import (NewProject, NewProjectPagination,
                                         Project, ProjectPagination,
                                         ProjectPermission, query_all_projects)
 from user.user_management import User
+from training.training_management import NewTraining, Training
 
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import existing_project, new_project
@@ -243,6 +244,8 @@ def index():
         # TODO #81 Add reset to project page *************************************************************************************
         Project.reset_project_page()
         reset_editor_page()
+        NewTraining.reset_new_training_page()
+        Training.reset_training_page()
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry

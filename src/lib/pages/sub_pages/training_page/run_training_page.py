@@ -96,9 +96,9 @@ def index():
         st.markdown('### Training Config:')
         st.info(config_info)
         if session_state.new_training.is_started:
-            st.markdown("**NOTE**: Do not edit model selection or training config"
-                        " unless you want to re-train your model! Otherwise the information"
-                        " stored in database would not be correct. ")
+            st.warning("**NOTE**: Do not edit model selection or training config"
+                       " unless you want to re-train your model! Otherwise the information"
+                       " stored in database would not be correct. ")
 
         def back_config_page():
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
@@ -113,10 +113,19 @@ def index():
 
     # ******************************* START TRAINING *******************************
     train_btn_place = st.empty()
+    retrain_place = st.empty()
     warning_place = st.empty()  # for warning messages
     result_place = st.empty()
 
     def start_training_callback():
+        root = session_state.new_training.training_path['ROOT']
+        if root.exists():
+            logger.info(f"Removing existing training directory {root}")
+            shutil.rmtree(root)
+
+        logger.info("Creating training directories ...")
+        session_state.new_training.initialise_training_folder()
+
         def stop_run_training():
             # BEWARE that this will just refresh the page
             warning_place.warning("Training stopped!")
@@ -124,11 +133,12 @@ def index():
             warning_place.empty()
 
         # moved stop button into callback function to only show when training is started
-        st.button("Stop Training", key='btn_stop_training',
-                  on_click=stop_run_training)
-        st.markdown('<font size="2">**NOTE**: If you click this button, '
-                    'the latest progress might not be saved.</font>',
-                    unsafe_allow_html=True)
+        col, _ = st.columns([1, 1])
+        with col:
+            st.button("Stop Training", key='btn_stop_training',
+                      on_click=stop_run_training)
+            st.warning('**NOTE**: If you click this button, '
+                       'the latest progress might not be saved.')
 
         with st.spinner("Loading TensorBoard ..."):
             st.markdown("Refresh the Tensorboard by clicking the refresh "
@@ -149,42 +159,57 @@ def index():
     if not session_state.new_training.is_started:
         with train_btn_place.container():
             st.button("Start training", key='btn_start_training')
-        if session_state.btn_start_training:
-            # must do it this way instead of using callback on button
-            #  to properly show the training progress below the rendered widgets
-            start_training_callback()
+            if session_state.btn_start_training:
+                # must do it this way instead of using callback on button
+                #  to properly show the training progress below the rendered widgets
+                start_training_callback()
     else:
         # ? Maybe add an option for continue training
         with train_btn_place.container():
+            st.markdown("___")
+            st.markdown("### Training results:")
             st.button("Show TensorBoard", key='btn_show_tensorboard')
             if session_state.btn_show_tensorboard:
                 with st.spinner("Loading Tensorboard ..."):
                     logdir = session_state.new_training.training_path['tensorboard_logdir']
                     run_tensorboard(logdir)
 
-            st.button("Re-train", key='btn_retrain')
-            st.markdown('<font size="2">**NOTE**: If you re-train your model, '
-                        'all the existing model data will be overwritten.</font>',
-                        unsafe_allow_html=True)
-            metrics = pretty_format_param(
-                session_state.new_training.training_model.metrics)
-            st.markdown("### Training results:")
-            st.info(metrics)
+        with retrain_place.container():
+            col, _ = st.columns([1, 1])
+            with col:
+                st.button("Re-train", key='btn_retrain')
+                st.warning('**NOTE**: If you re-train your model, '
+                           'all the existing model data will be overwritten.')
+
+            # TODO: fix the weird shadow of other widgets after clicked this button
+            if session_state.btn_retrain:
+                # clear out the results container
+                train_btn_place.empty()
+                result_place.empty()
+                start_training_callback()
 
         with result_place.container():
-            st.markdown("### Evaluation results:")
-            # show evaluation results
-            session_state.trainer.evaluate()
+            col, _ = st.columns([1, 1])
+            with col:
+                metrics = pretty_format_param(
+                    session_state.new_training.training_model.metrics)
+                st.markdown("#### Final Metrics:")
+                st.info(metrics)
 
-        if session_state.btn_retrain:
-            # clear out the results container
-            result_place.empty()
+            if session_state.new_training.training_path['model_tarfile'].exists():
+                st.markdown("### Evaluation results:")
+                # show evaluation results
+                with st.spinner("Running evaluation ..."):
+                    session_state.trainer.evaluate()
+            else:
+                logger.info(f"Model {session_state.new_training.training_model_id} "
+                            "is not exported yet. Skipping evaluation")
 
-            logger.info("Removing existing training directory")
-            root = session_state.new_training.training_path['ROOT']
-            if root.exists():
-                shutil.rmtree(root)
-            start_training_callback()
+        # if session_state.btn_retrain:
+        #     # clear out the results container
+        #     train_btn_place.empty()
+        #     result_place.empty()
+        #     start_training_callback()
 
 
 if __name__ == "__main__":

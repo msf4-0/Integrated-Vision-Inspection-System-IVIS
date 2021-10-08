@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import copy
 import os
 import re
 import subprocess
@@ -32,7 +33,7 @@ from math import ceil
 from pathlib import Path
 from time import sleep
 import time
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import cv2
 
@@ -96,8 +97,13 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 def run_command(command_line_args: str, st_output: bool = False,
-                filter_by: Optional[List[str]] = None) -> str:
-    """Running commands or scripts
+                stdout_output: bool = True,
+                filter_by: Optional[List[str]] = None,
+                find_metric_func: Optional[Callable[[
+                    str], Dict[str, Any]]] = None
+                ) -> Union[str, None]:
+    """
+    Running commands or scripts, while getting live stdout
 
     Args:
         command_line_args (str): Command line arguments to run.
@@ -118,7 +124,9 @@ def run_command(command_line_args: str, st_output: bool = False,
     if filter_by:
         output_str_list = []
     for line in process.stdout:
-        if st_output:
+        # remove empty trailing spaces, and also string with only spaces
+        line = line.strip()
+        if line and st_output:
             if filter_by:
                 for filter_str in filter_by:
                     if filter_str in line:
@@ -126,12 +134,93 @@ def run_command(command_line_args: str, st_output: bool = False,
                         output_str_list.append(line)
             else:
                 st.markdown(line)
-        else:
+        if line and stdout_output:
             print(line)
     process.wait()
-    if filter_by:
+    if filter_by and not output_str_list:
+        # there is nothing obtained from the filtered stdout
+        logger.error("Error with training!")
+        st.error("Some error has occurred during training ..."
+                 " Please try again")
+        time.sleep(3)
+        st.experimental_rerun()
+    elif filter_by:
         return '\n'.join(output_str_list)
     return process.stdout
+
+
+def run_command_update_metrics(
+    command_line_args: str,
+    stdout_output: bool = True,
+    progress_name: str = 'Step',
+    metric_names: Tuple[str] = None,
+) -> Union[str, None]:
+    """
+    Running commands or scripts, while getting live stdout
+
+    Args:
+        command_line_args (str): Command line arguments to run.
+        st_output (bool, optional): Set `st_output` to True to 
+            show the console outputs LIVE on Streamlit. Defaults to False.
+        filter_by (Optional[List[str]], optional): Provide `filter_by` to
+            filter out other strings and show the `filter_by` strings on Streamlit app. Defaults to None.
+    Returns:
+        str: The entire console output from the command after finish running.
+    """
+    assert progress_name in ('Step', 'Checkpoint')
+    assert metric_names is not None
+
+    logger.info(f"Running command: '{command_line_args}'")
+    process = subprocess.Popen(command_line_args, shell=True,
+                               # stdout to capture all output
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               # text to directly decode the output
+                               text=True)
+
+    metrics = {k: 0.0 for k in metric_names}
+    session_state.prev_metrics = metrics
+    for line in process.stdout:
+        # remove empty trailing spaces, and also string with only spaces
+        line = line.strip()
+        if line:
+            if progress_name in line:
+                progress_val = find_tfod_metric(name, line)
+                if progress_val:
+                    st.markdown(f"**{progress_name}**: {progress_val}")
+                    progress_dict = {progress_name: progress_val}
+                    session_state.new_training.update_progress(progress_dict)
+            for name in metric_names:
+                if name in line:
+                    metric_val = find_tfod_metric(name, line)
+                    if metric_val:
+                        metrics[name] = metric_val
+                        pretty_st_metric(metrics, float_format='.3g')
+                        session_state.new_training.update_metrics(metrics)
+                        session_state.prev_metrics = copy.copy(metrics)
+        if line and stdout_output:
+            print(line)
+    process.wait()
+    return process.stdout
+
+
+def find_tfod_metric(name: str, cmd_output: str):
+    """
+    Find the specific metric name in the command output (`cmd_output`)
+    and returns only the digits (i.e. values) of the metric.
+
+    Basically search using regex groups, then take the last match, 
+    and take only the second group for the digits.
+    """
+    try:
+        if name == 'Step':
+            value = int(re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1])
+        else:
+            value = float(re.findall(
+                f'({name}).+(\d+\.\d+)', cmd_output)[-1][1])
+    except IndexError:
+        logger.error(f"Value for '{name}' not found from {cmd_output}")
+    else:
+        return value
 
 
 def run_tensorboard(logdir: Path):
@@ -162,6 +251,19 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
         config_info.append(current_info)
     config_info = '  \n'.join(config_info)
     return config_info
+
+
+def pretty_st_metric(
+        metrics: Dict[str, Any],
+        float_format: str = '.5g',
+        delta_color: str = 'inverse'):
+    cols = st.columns(len(metrics))
+    for col, (name, val) in zip(cols, metrics.items()):
+        name = ' '.join(name.split('_')).capitalize()
+        val = f"{val:{float_format}}"
+        prev_val = session_state.prev_metrics[name]
+        prev_val = f"{prev_val:{float_format}}"
+        col.metric(name, val, prev_val, delta_color=delta_color)
 
 
 def load_image_into_numpy_array(path: str):
@@ -341,6 +443,32 @@ class Trainer:
         elif self.deployment_type == "Semantic Segmentation with Polygons":
             pass
 
+    def tfod_update_progress_metrics(self, cmd_output: str) -> Dict[str, float]:
+        """
+        This function updates only the latest metrics from the **entire** stdout,
+        instead of only from a single line. So this does not work for continuously 
+        updating the database during training.
+        Refer 'run_command_update_metrics' function for continuous updates.
+        """
+        step = find_tfod_metric("Step", cmd_output)
+        local_loss = find_tfod_metric(
+            "Loss/localization_loss", cmd_output)
+        reg_loss = find_tfod_metric(
+            "Loss/regularization_loss", cmd_output)
+        total_loss = find_tfod_metric(
+            "Loss/total_loss", cmd_output)
+        learning_rate = find_tfod_metric(
+            "learning_rate", cmd_output)
+        metrics = {
+            "localization_loss": float(local_loss),
+            "regularization_loss": float(reg_loss),
+            "total_loss": float(total_loss),
+            "learning_rate": float(learning_rate)
+        }
+        session_state.new_training.update_progress(step=int(step))
+        session_state.new_training.update_metrics(metrics)
+        return metrics
+
     def run_tfod_training(self):
         # training_param only consists of 'batch_size' and 'num_train_steps'
         # TODO: beware of user-uploaded model
@@ -399,8 +527,10 @@ class Trainer:
                 no_validation=True
             )
 
-            st.markdown(f"Total training images = {len(y_train)}")
-            st.markdown(f"Total testing images = {len(y_test)}")
+        col, _ = st.columns([1, 1])
+        with col:
+            st.code(f"Total training images = {len(y_train)}  \n"
+                    f"Total testing images = {len(y_test)}")
 
         with st.spinner('Copying images to folder, this may take awhile ...'):
             self.copy_images(X_train,
@@ -510,26 +640,19 @@ class Trainer:
                    f"--num_train_steps={NUM_TRAIN_STEPS}")
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
-            cmd_output = run_command(command, st_output=True,
-                                     filter_by=['Step', 'Loss/', 'learning_rate'])
-            # search using regex groups
-            # take the last match, and take the second group for the digits
-            step = re.findall('(Step)\s+(\d+)', cmd_output)[-1][1]
-            local_loss = re.findall(
-                '(Loss/localization_loss).+(\d+\.\d+)', cmd_output)[-1][1]
-            reg_loss = re.findall(
-                '(Loss/regularization_loss).+(\d+\.\d+)', cmd_output)[-1][1]
-            total_loss = re.findall(
-                '(Loss/total_loss).+(\d+\.\d+)', cmd_output)[-1][1]
-            learning_rate = re.findall(
-                '(learning_rate).+(\d+\.\d+)', cmd_output)[-1][1]
-            session_state.new_training.update_progress(step=int(step))
-            session_state.new_training.update_metrics(
-                localization_loss=float(local_loss),
-                regularization_loss=float(reg_loss),
-                total_loss=float(total_loss),
-                learning_rate=float(learning_rate)
+            run_command_update_metrics(
+                command, stdout_output=True,
+                progress_name='Step',
+                metric_names=(
+                    'localization_loss',
+                    'regularization_loss',
+                    'total_loss',
+                    'learning_rate'
+                )
             )
+            # cmd_output = run_command(command, st_output=True,
+            #                          filter_by=['Step', 'Loss/', 'learning_rate'])
+            # self.tfod_update_progress_metrics(cmd_output)
         st.success('Model has finished training!')
 
         # *********************** EXPORT MODEL ***********************
@@ -769,7 +892,7 @@ class Trainer:
                     f" to {start_idx + n_samples} ...")
         with st.spinner("Running detections ..."):
             for i, p in enumerate(current_image_paths):
-                current_img_idx = start_idx + i + 1
+                # current_img_idx = start_idx + i + 1
                 img = load_image_into_numpy_array(str(p))
 
                 filename = os.path.basename(p)
@@ -784,10 +907,10 @@ class Trainer:
 
                 with true_img_col:
                     st.image(self.draw_gt_bbox(img, gt_img_boxes),
-                             caption=f'Image {current_img_idx}: Ground Truth')
+                             caption=f'Ground Truth: {filename}')
                 with pred_img_col:
                     st.image(img_with_detections,
-                             caption=f'Image {current_img_idx}: Prediction')
+                             caption=f'Prediction: {filename}')
 
         with prev_btn_col_2:
             st.button('Previous samples', key='btn_prev_images_2',
