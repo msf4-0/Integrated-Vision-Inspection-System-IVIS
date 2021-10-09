@@ -98,9 +98,7 @@ conn = init_connection(**st.secrets["postgres"])
 
 def run_command(command_line_args: str, st_output: bool = False,
                 stdout_output: bool = True,
-                filter_by: Optional[List[str]] = None,
-                find_metric_func: Optional[Callable[[
-                    str], Dict[str, Any]]] = None
+                filter_by: Optional[List[str]] = None
                 ) -> Union[str, None]:
     """
     Running commands or scripts, while getting live stdout
@@ -109,6 +107,8 @@ def run_command(command_line_args: str, st_output: bool = False,
         command_line_args (str): Command line arguments to run.
         st_output (bool, optional): Set `st_output` to True to 
             show the console outputs LIVE on Streamlit. Defaults to False.
+        stdout_output (bool, optional): Set `stdout_output` to True to 
+            show the console outputs LIVE on terminal. Defaults to True.
         filter_by (Optional[List[str]], optional): Provide `filter_by` to
             filter out other strings and show the `filter_by` strings on Streamlit app. Defaults to None.
     Returns:
@@ -383,7 +383,12 @@ def pretty_st_metric(
         delta = val - prev_val
         # formatting the float values for display
         val = f"{val:{float_format}}"
-        delta = f"{delta:{float_format}}"
+        if delta == 0:
+            # don't show any indicator if there is no difference, or
+            # if it's the initial training metrics
+            delta = None
+        else:
+            delta = f"{delta:{float_format}}"
         col.metric(name, val, delta, delta_color=delta_color)
 
 

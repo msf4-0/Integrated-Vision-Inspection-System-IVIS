@@ -66,14 +66,25 @@ def install():
         run_command(
             f"git clone https://github.com/tensorflow/models {TFOD_DIR}")
 
-    # TODO: Add COCO API installation
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
     if os.name == 'posix':
+        logger.info('Installing COCO API ...')
+        cwd = os.getcwd()
+        run_command("git clone https://github.com/cocodataset/cocoapi.git")
+        os.chdir("cocoapi/PythonAPI")
+        run_command("make")
+        shutil.copytree("pycocotools", TFOD_DIR / 'research')
+        os.chdir(cwd)
+        # removed the unused cloned files from COCO API
+        shutil.rmtree("cocoapi")
         # 'posix' is for Linux (also to use in Colab Notebook)
+        logger.info("Installing protobuf ...")
         run_command(f"apt-get install protobuf-compiler")
         run_command(
             f"cd {TFOD_DIR / 'research'} && protoc object_detection/protos/*.proto --python_out=. && cp object_detection/packages/tf2/setup.py . && python -m pip install . ")
     elif os.name == 'nt':
+        # NOTE: Windows need to install COCO API first
+        # Instructions for COCO API Installation: https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/install.html#coco-api-installation
         # 'nt' is for Windows
         if not (PROTOC_PATH / "bin").exists():
             logger.info("Downloading protobuf dependencies ...")

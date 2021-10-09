@@ -34,22 +34,71 @@ from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
 from streamlit_tensorboard import st_tensorboard
 
+# >>>> **************** TEMP (for debugging) **************** >>>
+# add the paths to be able to import them to this file
+SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
+
+# Set to wide page layout (only uncomment this when debugging)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# >>>> **************** TEMP **************** >>>
+
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
-from machine_learning.trainer import Trainer, pretty_format_param, run_tensorboard  # logger
-from training.training_management import NewTrainingPagination
+with st.spinner("Loading TensorFlow environment ..."):
+    from machine_learning.trainer import Trainer, pretty_format_param, run_tensorboard
+from project.project_management import Project  # logger
+from training.training_management import NewTrainingPagination, Training
+from user.user_management import User
 
 
-def index():
+def index(RELEASE=True):
     logger.debug("Navigator: At run_training_page.py")
 
-    if 'trainer' not in session_state:
-        # store the trainer to use for training, inference and deployment
-        with st.spinner("Initializing trainer ..."):
-            logger.info("Initializing trainer")
-            session_state.trainer = Trainer(
-                session_state.project,
-                session_state.new_training)
+    # ****************** TEST ******************************
+    if not RELEASE:
+
+        # ************************TO REMOVE************************
+        with st.sidebar.container():
+            st.image("resources/MSF-logo.gif", use_column_width=True)
+            st.title("Integrated Vision Inspection System", anchor='title')
+            st.header(
+                "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+            st.markdown("""___""")
+
+        # ************************TO REMOVE************************
+        project_id_tmp = 4
+        logger.debug(f"Entering Project {project_id_tmp}")
+
+        # session_state.append_project_flag = ProjectPermission.ViewOnly
+
+        if "project" not in session_state:
+            session_state.project = Project(project_id_tmp)
+            logger.debug("Inside")
+        if 'user' not in session_state:
+            session_state.user = User(1)
+        if 'new_training' not in session_state:
+            session_state.new_training = Training(2, session_state.project)
+        # ****************************** HEADER **********************************************
+        st.write(f"# {session_state.project.name}")
+
+        project_description = session_state.project.desc if session_state.project.desc is not None else " "
+        st.write(f"{project_description}")
+
+        st.markdown("""___""")
+
+    def initialize_trainer():
+        if 'trainer' not in session_state:
+            # store the trainer to use for training, inference and deployment
+            with st.spinner("Initializing trainer ..."):
+                logger.info("Initializing trainer")
+                session_state.trainer = Trainer(
+                    session_state.project,
+                    session_state.new_training)
 
     st.markdown("### Training Info:")
 
@@ -111,6 +160,8 @@ def index():
         if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
             pass
 
+    st.markdown("___")
+
     # ******************************* START TRAINING *******************************
     train_btn_place = st.empty()
     retrain_place = st.empty()
@@ -118,6 +169,13 @@ def index():
     result_place = st.empty()
 
     def start_training_callback(resume=False):
+        if not RELEASE:
+            # debugging the afterimage problem after clicking re-train button
+            for _ in range(5):
+                st.markdown("testing 123")
+                time.sleep(2)
+            st.experimental_rerun()
+
         if not resume:
             root = session_state.new_training.training_path['ROOT']
             if root.exists():
@@ -134,8 +192,8 @@ def index():
             warning_place.empty()
 
         # moved stop button into callback function to only show when training is started
-        col, _ = st.columns([1, 1])
-        with col:
+        btn_stop_col, _ = st.columns([1, 1])
+        with btn_stop_col:
             st.button("Stop Training", key='btn_stop_training',
                       on_click=stop_run_training)
             st.warning('**NOTE**: If you click this button, '
@@ -151,6 +209,7 @@ def index():
         with st.spinner("Exporting tasks for training ..."):
             session_state.project.export_tasks()
 
+        initialize_trainer()
         # update the trainer's resume attr to consider the case for resume training
         session_state.trainer.resume = resume
         # start training
@@ -169,7 +228,6 @@ def index():
     else:
         # ? Maybe add an option for continue training
         with train_btn_place.container():
-            st.markdown("___")
             st.markdown("### Training results:")
             st.button("Show TensorBoard", key='btn_show_tensorboard')
             if session_state.btn_show_tensorboard:
@@ -178,25 +236,22 @@ def index():
                     run_tensorboard(logdir)
 
         with retrain_place.container():
-            col, _ = st.columns([1, 1])
-            with col:
-                st.button("Re-train", key='btn_retrain',
-                          on_click=start_training_callback)
+            retrain_col_1, _ = st.columns([1, 1])
+            with retrain_col_1:
+                st.button("Re-train", key='btn_retrain')
                 st.warning('**NOTE**: If you re-train your model, '
                            'all the existing model data will be overwritten.')
 
-            # TODO: fix the weird shadow of other widgets after clicked this Re-train button
-            # workaround for now is to use callback function on the button
-
         with result_place.container():
-            col, _ = st.columns([1, 1])
-            with col:
+            metric_col_1, _ = st.columns([1, 1])
+            with metric_col_1:
                 metrics = pretty_format_param(
                     session_state.new_training.training_model.metrics)
                 st.markdown("#### Final Metrics:")
                 st.info(metrics)
 
             if session_state.new_training.training_path['model_tarfile'].exists():
+                initialize_trainer()
                 st.markdown("___")
                 st.markdown("### Evaluation results:")
                 # show evaluation results
@@ -206,17 +261,22 @@ def index():
                 logger.info(f"Model {session_state.new_training.training_model_id} "
                             "is not exported yet. Skipping evaluation")
 
-        # if session_state.btn_retrain:
-        #     # clear out the results container
-        #     train_btn_place.empty()
-        #     result_place.empty()
-        #     with retrain_place.container():
-        #         start_training_callback()
+        if session_state.btn_retrain:
+            # clear out the results container
+            train_btn_place.empty()
+            result_place.empty()
+            with retrain_place.container():
+                start_training_callback()
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        index()
+        # This is set to False for debugging purposes
+        # when running Streamlit directly from this page
+        RELEASE = False
+
+        # run this page in debugging mode
+        index(RELEASE)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
