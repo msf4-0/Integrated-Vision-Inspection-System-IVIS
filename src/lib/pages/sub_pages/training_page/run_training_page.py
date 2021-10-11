@@ -42,9 +42,9 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 # Set to wide page layout (only uncomment this when debugging)
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 # >>>> **************** TEMP **************** >>>
 
 # >>>> User-defined Modules >>>>
@@ -150,15 +150,16 @@ def index(RELEASE=True):
             session_state.new_training.training_param_dict)
         st.markdown('### Training Config:')
         st.info(config_info)
-        if session_state.new_training.is_started:
-            st.warning(
-                "✏️ **NOTE**: Only edit this if you want to re-train or continue training!")
 
         def back_config_page():
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
         st.button('⚙️ Edit Training Config', key='btn_edit_config',
                   on_click=back_config_page)
+
+        if session_state.new_training.is_started:
+            st.warning(
+                "✏️ **NOTE**: Only edit this if you want to re-train or continue training!")
 
     with aug_config_col:
         # TODO: do this for image classification and segmentation, TFOD API does not need this
@@ -248,22 +249,45 @@ def index(RELEASE=True):
                     logdir = session_state.new_training.training_path['tensorboard_logdir']
                     run_tensorboard(logdir)
 
-            model_tarfile_path = session_state.new_training.training_path['model_tarfile']
-            if model_tarfile_path.exists():
-                def show_download_msg():
-                    warning_place.warning("Downloading Model ...")
-                    time.sleep(2)
-                    warning_place.empty()
-                with st.spinner("Preparing model to be downloaded ..."):
-                    with model_tarfile_path.open(mode="rb") as fp:
-                        st.download_button(
-                            label="📁 Download Trained Model",
-                            data=fp,
-                            file_name=model_tarfile_path.name,
-                            mime="application/octet-stream",
-                            key="btn_download_model",
-                            on_click=show_download_msg,
-                        )
+            clone_col, download_col = st.columns([1, 1])
+
+            def clone_train_session():
+                session_state.new_training.clone_training_session()
+
+                # set all the submissions as True to allow proper updates instead of inserting info into DB
+                for page in session_state.new_training.has_submitted:
+                    session_state.new_training.has_submitted[page] = True
+
+                # must go back to the InfoDataset page to allow user to
+                # update the temporarily created names if necessary
+                session_state.new_training_pagination = NewTrainingPagination.InfoDataset
+
+            with clone_col:
+                st.button("📋 Clone the Training Session",
+                          key='btn_clone_session', on_click=clone_train_session)
+                st.warning('✏️ **NOTE**: This will create a new training session, '
+                           'while retaining all the current configuration, '
+                           'to allow you to quickly train another model for benchmarking.')
+
+            with download_col:
+                model_tarfile_path = session_state.new_training.training_path['model_tarfile']
+                if model_tarfile_path.exists():
+                    def show_download_msg():
+                        warning_place.warning("Downloading Model ...")
+                        time.sleep(2)
+                        warning_place.empty()
+                    with st.spinner("Preparing model to be downloaded ..."):
+                        with model_tarfile_path.open(mode="rb") as fp:
+                            st.download_button(
+                                label="📁 Download Trained Model",
+                                data=fp,
+                                file_name=model_tarfile_path.name,
+                                mime="application/octet-stream",
+                                key="btn_download_model",
+                                on_click=show_download_msg,
+                            )
+                        st.warning('✏️ **NOTE**: This may take awhile to download, '
+                                   'depending on the file size of the trained model.')
 
         with retrain_place.container():
             retrain_col_1, resume_train_col = st.columns([1, 1])

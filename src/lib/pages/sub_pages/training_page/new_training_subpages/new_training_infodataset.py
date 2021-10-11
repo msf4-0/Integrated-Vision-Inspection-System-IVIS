@@ -55,7 +55,10 @@ from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
 
-from training.training_management import NewTrainingPagination, NewTrainingSubmissionHandlers, TrainingPagination
+from training.training_management import (NewTraining, NewTrainingPagination,
+                                          NewTrainingSubmissionHandlers,
+                                          Training,
+                                          TrainingPagination)
 from training.model_management import ModelsPagination
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -119,9 +122,9 @@ def infodataset():
         logger.debug(f"New Training: {context}")
 
         if session_state.new_training_name:
-            if session_state.new_training.check_if_exists(context, conn):
+            if NewTraining.check_if_exists(context, conn):
 
-                session_state.new_training.name = None
+                session_state.new_training.name = ''
                 field_placeholder['new_training_name'].error(
                     f"Training name used. Please enter a new name")
                 sleep(1)
@@ -140,6 +143,7 @@ def infodataset():
         # **** TRAINING TITLE ****
         st.text_input(
             "Training Title", key="new_training_name",
+            value=session_state.new_training.name,
             help="Enter the name of the training",
             on_change=check_if_name_exist, args=(session_state.new_training_place, conn,))
         session_state.new_training_place["new_training_name"] = st.empty()
@@ -147,6 +151,7 @@ def infodataset():
         # **** TRAINING DESCRIPTION (Optional) ****
         description = st.text_area(
             "Description (Optional)", key="new_training_desc",
+            value=session_state.new_training.desc,
             help="Enter the description of the training")
 
         if description:
@@ -173,7 +178,8 @@ def infodataset():
         # session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
         # )
         # TODO: REMOVE this session state originally used by the multiselect widget
-        session_state.new_training_dataset_chosen = session_state.project.dataset_dict.keys()
+        session_state.new_training_dataset_chosen = list(
+            session_state.project.dataset_dict.keys())
         # NOTE: This is changed to directly init the new_training.dataset_chosen from `project.dataset_dict.keys()`
 
         if len(session_state.new_training_dataset_chosen) > 0:
@@ -190,9 +196,14 @@ def infodataset():
                     1.0 - session_state.partition_slider[1], 2)
 
             # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            curr_partition_ratio = session_state.new_training.partition_ratio
+            slider_value_1 = curr_partition_ratio['train']
+            slider_value_2 = 1 - curr_partition_ratio['test']
+            slider_value = (slider_value_1, slider_value_2)
+
             st.slider("Dataset Partition Ratio",
                       min_value=0.5, max_value=1.0,
-                      value=(0.8, 1.0), step=0.1,
+                      value=slider_value, step=0.1,
                       key="partition_slider", on_change=update_dataset_partition_ratio)
 
             with st.expander("Partition info"):
@@ -301,8 +312,8 @@ def infodataset():
     # Placeholder for Back and Next button for page navigation
     _, _, new_training_section_next_button_place = st.columns([1, 3, 1])
 
-    if session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
-        # # session_state.new_training is a Training instance, and will not need to insert anymore
+    if isinstance(session_state.new_training, Training):
+        # Training instance will not need to insert new info anymore, just need to update
         def insert_function(): return None
     else:
         insert_function = session_state.new_training.insert_training_info_dataset

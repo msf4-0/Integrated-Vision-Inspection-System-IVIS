@@ -64,7 +64,7 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 from project.project_management import Project
-from training.model_management import Model, NewModel
+from training.model_management import BaseModel, Model, NewModel
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -133,6 +133,7 @@ class DatasetPath(NamedTuple):
     test: Path
     # <<<< Variable Declaration <<<<
 
+
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
@@ -149,7 +150,7 @@ class TrainingParam:
         self.warmup_learning_rate = 0.00001
         self.shuffle_buffer_size = 2048
         self.activation_function: str = 'RELU_6'
-        self.optimizer: str = None
+        self.optimizer: str = ''
         self.classification_loss: str = 'weighted_sigmoid_focal'
         self.training_param_optional: List = []
 
@@ -165,8 +166,8 @@ class Augmentation:
 class BaseTraining:
     def __init__(self, training_id, project: Project) -> None:
         self.id: Union[str, int] = training_id
-        self.name: str = None
-        self.desc: str = None
+        self.name: str = ''
+        self.desc: str = ''
         # NOTE: Might use this, depends
         # self.training_param: Optional[TrainingParam] = TrainingParam()
         self.augmentation: Optional[Augmentation] = Augmentation()  # TODO
@@ -177,8 +178,8 @@ class BaseTraining:
         self.project_model: Model = None
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: str = project.deployment_type
-        self.model_path: str = None
-        self.framework: str = None
+        self.model_path: str = ''
+        self.framework: str = ''
         self.partition_ratio: Dict = {
             'train': 0.8,
             'eval': 0.2,
@@ -190,6 +191,7 @@ class BaseTraining:
             'test': 0
         }
         # self.dataset_chosen: List = []
+        # TODO: AVOID MUTABLE DEFAULTS
         # automatically get the list of dataset names from project
         self.dataset_chosen: List[str] = list(project.dataset_dict.keys())
         self.training_param_dict: Dict = {}
@@ -545,11 +547,9 @@ class BaseTraining:
             logger.error(f"Update training param failed: {e}")
             return False
 
-    def clone_training_session(self):
-        # TODO: clone training session for faster access to training
-        new_training = deepcopy(self)
-        new_training.name = ' '.join([self.name, get_random_string(length=5)])
-        new_training.training_model = ''
+    def update_augment_config(self):
+        # TODO: update augmentation config
+        pass
 
 
 class NewTraining(BaseTraining):
@@ -566,8 +566,9 @@ class NewTraining(BaseTraining):
         return (f"NewTraining(training_id={self.id}, project_id={self.project_id}, "
                 f"attached_model={self.attached_model}, training_model={self.training_model})")
 
+    @staticmethod
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_exists(self, context: Dict, conn) -> bool:
+    def check_if_exists(context: Dict[str, Any], conn) -> bool:
         table = 'public.training'
 
         exists_flag = check_if_exists(
@@ -752,7 +753,6 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
-
     @staticmethod
     def reset_new_training_page():
 
@@ -772,15 +772,9 @@ class Training(BaseTraining):
         # self.training_model_id, self.attached_model_id, self.is_started
         self.query_all_fields()
         # creates self.attached_model and self.training_model
-        self.update_training_details()
+        self.get_training_details()
         # NOTE: self.training_path is now created with `property` decorator below
         # self.training_path = self.get_all_training_path()
-        # creates self.attached_model, self.training_model
-
-        # TODO #136 query training details
-        # get model attached
-        # is_started
-        # progress
 
     def __repr__(self):
         return "<{klass} {attrs}>".format(
@@ -789,7 +783,7 @@ class Training(BaseTraining):
                            for k, v in self.__dict__.items()),
         )
 
-    def update_training_details(self):
+    def get_training_details(self):
         if self.attached_model_id and self.training_model_id:
             self.attached_model = Model(model_id=self.attached_model_id)
             self.training_model = Model(model_id=self.training_model_id)
@@ -831,6 +825,7 @@ class Training(BaseTraining):
 
     @staticmethod
     def query_progress(training_id: int) -> Union[bool, None]:
+        # NOTE: this method is not being used for now
         sql_query = """
                 SELECT
                     is_started
@@ -1162,6 +1157,7 @@ class Training(BaseTraining):
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
 
+
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
                                         deployment_type: Union[str, IntEnum],
@@ -1242,6 +1238,117 @@ class Training(BaseTraining):
             formatted_all_project_training.append(project_training)
 
         return formatted_all_project_training
+
+    def reset_training_progress(self, progress: Optional[Dict[str, int]] = None):
+        if not progress:
+            # can pass in a Dictionary with {'Step': 0, 'Checkpoint': 0} instead
+            progress = {}
+        self.update_progress(progress, is_started=False, verbose=True)
+
+        # reset the training result metrics
+        self.update_metrics({})
+
+    def clone_training_session(self):
+        """
+        Clone the current training session to allow users to have faster access to training,
+        while retaining all the configuration selected for the current training session.
+        After this, the user should be moved to the training info page for modification.
+        Also, do not forget to reset all the `has_submmitted` values to False to allow 
+        the user to seamlessly navigate through the training & model selection forms.
+        """
+        # creating a temporary training session's name
+        new_training_name = '-'.join(
+            [self.name, get_random_string(length=5)])
+        context = {'column_name': 'name', 'value': new_training_name}
+        # just in case the database has the same training session's name
+        while NewTraining.check_if_exists(context, conn):
+            new_training_name = '-'.join(
+                [self.name, get_random_string(length=5)])
+            context = {'column_name': 'name', 'value': new_training_name}
+
+        self.name = new_training_name
+
+        # creating a temporary custom model name
+        new_model_name = '-'.join(
+            [self.training_model.name, get_random_string(length=5)])
+        context = {'column_name': 'name', 'value': new_model_name}
+        # just in case the database has the same custom model's name
+        while BaseModel.check_if_exists(context, conn):
+            new_model_name = '-'.join(
+                [self.training_model.name, get_random_string(length=5)])
+            context = {'column_name': 'name', 'value': new_model_name}
+
+        self.training_model.name = new_model_name
+
+        # insert the clone into the 'training' table and
+        # update self.id with the returned ID
+        insert_training_info_SQL = """
+                INSERT INTO public.training (
+                    name,
+                    description,
+                    attached_model_id,
+                    training_param,
+                    augmentation,
+                    partition_ratio,
+                    is_started,
+                    progress,
+                    project_id)
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s::JSONB,
+                    %s::JSONB,
+                    %s::JSONB,
+                    %s,
+                    %s::JSONB,
+                    %s)
+                RETURNING
+                    id;
+        """
+
+        partition_ratio_json = json.dumps(self.partition_ratio)
+        training_param_json = json.dumps(self.training_param_dict)
+        augment_param_json = json.dumps(self.augmentation_dict)
+        progress_json = json.dumps(self.progress)
+        # CARE self.training_model.id is NOT THE NEW ONE YET
+        insert_training_info_vars = [self.name, self.desc, self.attached_model.id,
+                                     training_param_json, augment_param_json, partition_ratio_json,
+                                     self.is_started, progress_json, self.project_id]
+
+        try:
+            query_return = db_fetchone(insert_training_info_SQL,
+                                       conn,
+                                       insert_training_info_vars).id
+            # NOTE: this will also update self.id with the new id returned from DB
+            self.id = query_return
+            logger.info(
+                f"Successfully load New Training Name, Desc and Partition Size for {self.id} ")
+            # return True
+        except TypeError as e:
+            logger.error(
+                f"{e}: Failed to load New Training Name, Desc and Partition Size for {self.id}")
+            # return False
+
+        # also update the training ID in the `training_model` attribute
+        self.training_model.training_id = self.id
+
+        # Insert as a new Project Training
+        self.insert_project_training()
+
+        # insert as a new training model and
+        # update the model ID with the ID returned from DB
+        self.training_model.insert_new_model(
+            model_type=self.training_model.model_type)
+
+        self.update_training_attached_model(
+            self.attached_model.id,
+            self.training_model.id
+        )
+
+        # finally, reset the clone's training progress and training model's metrics
+        # as we allow the user to use it to train a new model
+        self.reset_training_progress()
 
     @staticmethod
     def reset_training_page():

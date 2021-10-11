@@ -647,11 +647,8 @@ class Trainer:
     def reset_tfod_progress(self):
         # reset the training progress
         training_progress = {'Step': 0, 'Checkpoint': 0}
-        session_state.new_training.update_progress(
-            training_progress, verbose=True)
-
-        # reset the training result metrics
-        session_state.new_training.update_metrics({})
+        session_state.new_training.reset_training_progress(
+            training_progress)
 
     def tfod_update_progress_metrics(self, cmd_output: str) -> Dict[str, float]:
         # ! DEPRECATED, update progress in real time during training using `run_command_update_metrics_2`

@@ -216,9 +216,20 @@ def existing_models():
         for_display=True
     )
     st.dataframe(models_df, width=1500)
+
+    if session_state.new_training.attached_model is not None:
+        # then this has already selected a model before
+        model_name = session_state.new_training.attached_model.name
+        model_idx = int(models_df.query(
+            '`Model Name` == @model_name').index[0]
+        )
+    else:
+        # default to a good default SSD model to show to the user
+        model_idx = 22
     model_selected = st.selectbox(
         "Please select a Pre-trained model",
         options=models_df['Model Name'],
+        index=model_idx,
         key="existing_models_table",
     )
 
@@ -271,7 +282,7 @@ def existing_models():
 
             if session_state.training_model_name:
                 if session_state.new_training.training_model.check_if_exists(context, conn):
-                    session_state.new_training.training_model.name = None
+                    session_state.new_training.training_model.name = ''
                     field_placeholder['training_model_name'].error(
                         f"Model name used. Please enter a new name")
                     sleep(0.7)
@@ -290,6 +301,7 @@ def existing_models():
             f"**Step 2: Enter the name of your model:** ")
 
         st.text_input('Model Name', key="training_model_name",
+                      value=session_state.new_training.training_model.name,
                       help="Enter the name of the model to be exported after training",
                       on_change=check_if_name_exist,
                       args=(session_state.new_training_place, conn,))
@@ -300,6 +312,7 @@ def existing_models():
         # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
         description = st.text_area(
             "Description (Optional)", key="training_model_desc",
+            value=session_state.new_training.training_model.desc,
             help="Enter the description of the model")
 
         if description:

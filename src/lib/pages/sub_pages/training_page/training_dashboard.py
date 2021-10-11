@@ -187,16 +187,8 @@ def dashboard():
             training_id_tmp, project=session_state.project)
         logger.debug("Training instance created successfully")
 
-        is_started = Training.query_progress(training_id_tmp)
-        if is_started:
-            # TODO: implement this for trained data
-            # session_state.training_pagination = TrainingPagination.Deployment
-            pass
-        else:
-            pass
-
-        # must set this to True to tell the `new_training_infodataset.py` that we might
-        # want to update the info stored in database, instead of submitting a new one
+        # this is True because the user must have already submitted the info page to
+        # have already had the data in the database
         session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] = True
         # moving to next page
         session_state.training_pagination = TrainingPagination.Existing
@@ -273,9 +265,8 @@ def index():
         TrainingPagination.Dashboard: dashboard,
         TrainingPagination.New: new_training.index,
 
-        # TODO: Implement these pages
         # although same with TrainingPagination.New, but the new_training script will directly
-        # link to models_page by setting the `NewTrainingPagination` in this script before moving
+        # link to next page by setting the `NewTrainingPagination` in this script before moving
         TrainingPagination.Existing: new_training.index,
         TrainingPagination.NewModel: None
     }

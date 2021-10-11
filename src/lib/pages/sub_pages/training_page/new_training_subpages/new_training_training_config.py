@@ -77,27 +77,39 @@ def training_configuration():
 
         if session_state.project.deployment_type == "Image Classification":
             pass
+
         elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
             # only storing `batch_size` and `num_train_steps`
+            if session_state.new_training.training_param_dict:
+                # taking the stored param from DB
+                batch_size = session_state.new_training.training_param_dict['batch_size']
+                num_train_steps = session_state.new_training.training_param_dict['num_train_steps']
+            else:
+                batch_size = 4
+                num_train_steps = 2000
+
             # NOTE: store them in key names starting exactly with `param_`
             #  to be able to extract them and send them over to the Trainer for training
             # e.g. param_batch_size -> batch_size at the Trainer later
             with st.form(key='training_config_form'):
                 st.number_input(
-                    "Batch size", min_value=1, max_value=128, value=4, step=1,
+                    "Batch size", min_value=1, max_value=128,
+                    value=batch_size, step=1,
                     key="param_batch_size",
                     help=("Update batch size based on the system's memory you"
                           " have. Higher batch size will need a higher memory."
                           " Recommended to start with 4. Reduce if memory warning happens.")
                 )
                 st.number_input(
-                    "Number of training steps", min_value=100, max_value=10_000, value=2000,
+                    "Number of training steps", min_value=100, max_value=10_000,
+                    value=num_train_steps,
                     step=50, key='param_num_train_steps',
                     help="Recommended to train for at least 2000 steps."
                 )
                 # TODO: combine submission with augmentation config together
                 st.form_submit_button("Submit Config",
                                       on_click=update_training_param)
+
         elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
             pass
 

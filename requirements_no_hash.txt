@@ -138,6 +138,7 @@ toolz==0.11.1; python_version >= "3.6"
 tornado==6.1; python_version >= "3.7" and python_version < "4.0" and python_full_version >= "3.6.1"
 tqdm==4.62.3; python_version >= "3.6" and python_full_version < "3.0.0" and python_version < "4.0" or python_version >= "3.6" and python_version < "4.0" and python_full_version >= "3.4.0"
 traitlets==5.1.0; python_full_version >= "3.6.1" and python_version >= "3.7"
+typeguard==2.13.0
 typing-extensions==3.7.4.3; python_version < "3.10" and python_version >= "3.7"
 tzdata==2021.2.post0; platform_system == "Windows" and python_version >= "3.6"
 tzlocal==3.0; python_version >= "3.6" and python_version < "4.0"
