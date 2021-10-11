@@ -48,8 +48,10 @@ def run_command(command_line_args):
                                # text to directly decode the output
                                text=True)
     for line in process.stdout:
+        line = line.strip()
         # print the live stdout output from the script
-        print(line)
+        if line:
+            print(line)
     process.wait()
     return process.stdout
 
@@ -67,6 +69,7 @@ def install():
             f"git clone https://github.com/tensorflow/models {TFOD_DIR}")
 
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
+    # NOTE: Install COCO API ONLY if you want to perform evaluation
     if os.name == 'posix':
         logger.info('Installing COCO API ...')
         cwd = os.getcwd()
@@ -83,7 +86,8 @@ def install():
         run_command(
             f"cd {TFOD_DIR / 'research'} && protoc object_detection/protos/*.proto --python_out=. && cp object_detection/packages/tf2/setup.py . && python -m pip install . ")
     elif os.name == 'nt':
-        # NOTE: Windows need to install COCO API first
+        # NOTE: Windows need to install COCO API first, but there is currently an ongoing issue
+        # for running COCO evaluation on Windows, refer to here https://github.com/google/automl/issues/487
         # Instructions for COCO API Installation: https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/install.html#coco-api-installation
         # 'nt' is for Windows
         if not (PROTOC_PATH / "bin").exists():
@@ -111,8 +115,6 @@ def install():
     run_command(f"python {VERIFICATION_SCRIPT}")
     logger.info(
         "If the last line above returns 'OK' then TFOD API is installed successfully.")
-
-    import object_detection  # try import to confirm it's working
 
     chdir_root()
 

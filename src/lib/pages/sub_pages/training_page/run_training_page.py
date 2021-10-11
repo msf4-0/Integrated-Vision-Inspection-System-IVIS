@@ -42,9 +42,9 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 # Set to wide page layout (only uncomment this when debugging)
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 # >>>> **************** TEMP **************** >>>
 
 # >>>> User-defined Modules >>>>
@@ -116,6 +116,7 @@ def index(RELEASE=True):
     **Dataset List**: {dataset_chosen_str}  \n
     **Partition Ratio**: training : validation : test -> 
     {partition_ratio['train']} : {partition_ratio['eval']} : {partition_ratio['test']}  \n
+    **Pretrained Model Name**: {session_state.new_training.attached_model.name}  \n
     **Model Name**: {session_state.new_training.training_model.name}  \n
     **Model Description**: {session_state.new_training.training_model.desc}
     """)
@@ -126,15 +127,20 @@ def index(RELEASE=True):
         session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
     with train_info_btn:
-        st.button('Edit Training Info', key='btn_edit_train_info',
+        st.button('⚙️ Edit Training Info', key='btn_edit_train_info',
                   on_click=back_train_info_page)
 
     def back_model_page():
         session_state.new_training_pagination = NewTrainingPagination.Model
 
     with model_info_btn:
-        st.button('Edit Model Info', key='btn_edit_model_info',
+        st.button('⚙️ Edit Model Info', key='btn_edit_model_info',
                   on_click=back_model_page)
+
+    if session_state.new_training.is_started:
+        st.warning("✏️ **NOTE**: Only edit the model selection"
+                   " if you haven't started training your model! Otherwise the information"
+                   " stored in database would not be correct.")
 
     # ******************************** CONFIG INFO ********************************
     train_config_col, aug_config_col = st.columns([1, 1])
@@ -145,14 +151,13 @@ def index(RELEASE=True):
         st.markdown('### Training Config:')
         st.info(config_info)
         if session_state.new_training.is_started:
-            st.warning("**NOTE**: Do not edit model selection or training config"
-                       " unless you want to re-train your model! Otherwise the information"
-                       " stored in database would not be correct. ")
+            st.warning(
+                "✏️ **NOTE**: Only edit this if you want to re-train or continue training!")
 
         def back_config_page():
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
-        st.button('Edit Training Config', key='btn_edit_config',
+        st.button('⚙️ Edit Training Config', key='btn_edit_config',
                   on_click=back_config_page)
 
     with aug_config_col:
@@ -168,15 +173,15 @@ def index(RELEASE=True):
     warning_place = st.empty()  # for warning messages
     result_place = st.empty()
 
-    def start_training_callback(resume=False):
-        if not RELEASE:
-            # debugging the afterimage problem after clicking re-train button
-            for _ in range(5):
-                st.markdown("testing 123")
-                time.sleep(2)
-            st.experimental_rerun()
+    def start_training_callback(is_resume=False):
+        # if not RELEASE:
+        #     # debugging the afterimage problem after clicking re-train button
+        #     for _ in range(5):
+        #         st.markdown("testing 123")
+        #         time.sleep(2)
+        #     st.experimental_rerun()
 
-        if not resume:
+        if not is_resume:
             root = session_state.new_training.training_path['ROOT']
             if root.exists():
                 logger.info(f"Removing existing training directory {root}")
@@ -194,15 +199,25 @@ def index(RELEASE=True):
         # moved stop button into callback function to only show when training is started
         btn_stop_col, _ = st.columns([1, 1])
         with btn_stop_col:
-            st.button("Stop Training", key='btn_stop_training',
+            st.button("⛔ Stop Training", key='btn_stop_training',
                       on_click=stop_run_training)
-            st.warning('**NOTE**: If you click this button, '
+            st.warning('✏️ **NOTE**: If you click this button, '
                        'the latest progress might not be saved.')
 
         with st.spinner("Loading TensorBoard ..."):
             st.markdown("Refresh the Tensorboard by clicking the refresh "
                         "icon during training to see the progress:")
             logdir = session_state.new_training.training_path['tensorboard_logdir']
+            logdir_folders = (logdir / 'train', logdir / 'validation')
+            for p in logdir_folders:
+                if p.exists():
+                    # this is to avoid the problem with Tensorboard displaying
+                    # overlapping graphs when continue training, probably because the
+                    # 'Step' or 'Epoch' always starts from 0 even though we are continue
+                    # training from an existing checkpoint
+                    logger.debug("Removing existing TensorBoard logdir "
+                                 f"before training: {p}")
+                    shutil.rmtree(p)
             # moved tensorboard into callback function to make sure it stays visible
             run_tensorboard(logdir)
 
@@ -210,37 +225,57 @@ def index(RELEASE=True):
             session_state.project.export_tasks()
 
         initialize_trainer()
-        # update the trainer's resume attr to consider the case for resume training
-        session_state.trainer.resume = resume
-        # start training
-        session_state.trainer.train()
+        # start training, set `stdout_output` to True to print the logging outputs generated
+        #  from the TFOD scripts; set to False to avoid clutterring the console outputs
+        session_state.trainer.train(is_resume, stdout_output=False)
 
         # rerun to remove all these progress and refresh the page to show results
         st.experimental_rerun()
 
     if not session_state.new_training.is_started:
         with train_btn_place.container():
-            st.button("Start training", key='btn_start_training')
+            st.button("⚡ Start training", key='btn_start_training')
             if session_state.btn_start_training:
                 # must do it this way instead of using callback on button
                 #  to properly show the training progress below the rendered widgets
                 start_training_callback()
     else:
-        # ? Maybe add an option for continue training
         with train_btn_place.container():
             st.markdown("### Training results:")
-            st.button("Show TensorBoard", key='btn_show_tensorboard')
+            st.button("📈 Show TensorBoard", key='btn_show_tensorboard')
             if session_state.btn_show_tensorboard:
                 with st.spinner("Loading Tensorboard ..."):
                     logdir = session_state.new_training.training_path['tensorboard_logdir']
                     run_tensorboard(logdir)
 
+            model_tarfile_path = session_state.new_training.training_path['model_tarfile']
+            if model_tarfile_path.exists():
+                def show_download_msg():
+                    warning_place.warning("Downloading Model ...")
+                    time.sleep(2)
+                    warning_place.empty()
+                with st.spinner("Preparing model to be downloaded ..."):
+                    with model_tarfile_path.open(mode="rb") as fp:
+                        st.download_button(
+                            label="📁 Download Trained Model",
+                            data=fp,
+                            file_name=model_tarfile_path.name,
+                            mime="application/octet-stream",
+                            key="btn_download_model",
+                            on_click=show_download_msg,
+                        )
+
         with retrain_place.container():
-            retrain_col_1, _ = st.columns([1, 1])
+            retrain_col_1, resume_train_col = st.columns([1, 1])
             with retrain_col_1:
-                st.button("Re-train", key='btn_retrain')
-                st.warning('**NOTE**: If you re-train your model, '
+                st.button("⚡ Re-train", key='btn_retrain')
+                st.warning('✏️ **NOTE**: If you re-train your model, '
                            'all the existing model data will be overwritten.')
+
+            with resume_train_col:
+                st.button("⚡ Continue training", key='btn_resume_train')
+                st.warning('✏️ If you think your model needs more training, '
+                           'This will continue training your model from the latest progress.')
 
         with result_place.container():
             metric_col_1, _ = st.columns([1, 1])
@@ -256,17 +291,25 @@ def index(RELEASE=True):
                 st.markdown("### Evaluation results:")
                 # show evaluation results
                 with st.spinner("Running evaluation ..."):
-                    session_state.trainer.evaluate()
+                    try:
+                        session_state.trainer.evaluate()
+                    except Exception as e:
+                        st.error("Some error has occurred. Please try "
+                                 "training/exporting the model again.")
+                        logger.error(f"Error evaluating: {e}")
             else:
                 logger.info(f"Model {session_state.new_training.training_model_id} "
                             "is not exported yet. Skipping evaluation")
 
-        if session_state.btn_retrain:
-            # clear out the results container
+        if session_state.btn_retrain or session_state.btn_resume_train:
+            # clear out the unnecessary placeholders
             train_btn_place.empty()
             result_place.empty()
+            retrain_place.empty()
+
+            is_resume = False if session_state.btn_retrain else True
             with retrain_place.container():
-                start_training_callback()
+                start_training_callback(is_resume)
 
 
 if __name__ == "__main__":

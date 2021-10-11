@@ -28,11 +28,13 @@ import os
 import re
 import subprocess
 import sys
+import pprint
 import shutil
 from math import ceil
 from pathlib import Path
 from time import sleep
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import cv2
@@ -98,7 +100,8 @@ conn = init_connection(**st.secrets["postgres"])
 
 def run_command(command_line_args: str, st_output: bool = False,
                 stdout_output: bool = True,
-                filter_by: Optional[List[str]] = None
+                filter_by: Optional[List[str]] = None,
+                pretty_print: Optional[bool] = False,
                 ) -> Union[str, None]:
     """
     Running commands or scripts, while getting live stdout
@@ -114,8 +117,10 @@ def run_command(command_line_args: str, st_output: bool = False,
     Returns:
         str: The entire console output from the command after finish running.
     """
-    # shell=True to work on String instead of list
+    if pretty_print:
+        command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
+    # shell=True to work on String instead of list
     process = subprocess.Popen(command_line_args, shell=True,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -225,7 +230,8 @@ def run_command_update_metrics_2(
     command_line_args: str,
     stdout_output: bool = True,
     step_name: str = 'Step',
-    metric_names: Tuple[str] = None,
+    pretty_print: Optional[bool] = False,
+    # metric_names: Tuple[str] = None,
 ) -> str:
     """[summary]
 
@@ -235,14 +241,16 @@ def run_command_update_metrics_2(
             show the console outputs LIVE on terminal. Defaults to True.
         step_name (str, optional): The key name used to store our training step progress.
             Should be 'Step' for now. Defaults to 'Step'.
+        # ! Deprecated
         metric_names (Tuple[str], optional): The metric names to search for and update our 
             Model instance and database. Must be passed in. Defaults to None.
 
     Returns:
         str: the entire console output generated from the TFOD training script
     """
-    assert metric_names is not None, "Please pass in metric_names to use for search and updates"
-
+    # assert metric_names is not None, "Please pass in metric_names to use for search and updates"
+    if pretty_print:
+        command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
     process = subprocess.Popen(command_line_args, shell=True,
                                # stdout to capture all output
@@ -250,8 +258,7 @@ def run_command_update_metrics_2(
                                # text to directly decode the output
                                text=True)
 
-    prev_metrics = copy.copy(
-        session_state.new_training.training_model.metrics)
+    pretty_metric_printer = PrettyMetricPrinter()
     # list of stored stdout lines
     current_lines = []
     # flag to track the 'Step' text
@@ -259,6 +266,9 @@ def run_command_update_metrics_2(
     for line in process.stdout:
         # remove empty trailing spaces, and also string with only spaces
         line = line.strip()
+        if stdout_output and line:
+            # print to console
+            print(line)
         if line:
             # keep storing when stored stdout lines are less than 12,
             #  12 is the exact number of lines output by the script
@@ -283,57 +293,53 @@ def run_command_update_metrics_2(
             if step_name_found:
                 current_lines.append(line)
             if len(current_lines) == 12:
-                current_lines_str = '\n'.join(current_lines)
-
-                step_val = find_tfod_metric(step_name, current_lines_str)
+                # take the first line because that's where `step_name` was found and appended first
+                _, step_val = find_tfod_metric(step_name, current_lines[0])
                 session_state.new_training.progress[step_name] = step_val
                 session_state.new_training.update_progress(
                     session_state.new_training.progress, verbose=True)
                 st.markdown(f"**{step_name}**: {step_val}")
 
                 metrics = {}
-                for name in metric_names:
-                    metric_val = find_tfod_metric(name, current_lines_str)
-                    metrics[name] = metric_val
+                # for name in metric_names:
+                for line in current_lines[2:]:
+                    metric = find_tfod_metric('Loss', line)
+                    if metric:
+                        metric_name, metric_val = metric
+                        metrics[metric_name] = metric_val
                 session_state.new_training.update_metrics(
                     metrics, verbose=True)
 
-                # if the previous metrics are empty, i.e. the model is not trained,
-                #  initiate it with the initially obtained metrics during training
-                if not prev_metrics:
-                    prev_metrics = copy.copy(metrics)
                 # show the nicely formatted metrics on Streamlit
-                pretty_st_metric(metrics, prev_metrics, float_format='.4g')
+                pretty_metric_printer.write(metrics)
                 st.markdown("___")
-                # update the previous metrics with the new ones
-                prev_metrics = copy.copy(metrics)
+
                 # reset the list of outputs to start storing again
                 current_lines = []
                 step_name_found = False
-        if line and stdout_output:
-            print(line)
     process.wait()
     return process.stdout
 
 
-def find_tfod_metric(name: str, cmd_output: str):
+def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]]:
     """
     Find the specific metric name in the command output (`cmd_output`)
     and returns only the digits (i.e. values) of the metric.
 
     Basically search using regex groups, then take the last match, 
-    and take only the second group for the digits.
+    then take the first group for the metric name, and the second group for the digits.
     """
+    assert name in ('Step', 'Loss')
     try:
         if name == 'Step':
-            value = int(re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1])
+            value = re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1]
+            return name, int(value)
         else:
-            value = float(re.findall(
-                f'({name}).+(\d+\.\d+)', cmd_output)[-1][1])
+            loss_name, value = re.findall(
+                f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
+            return loss_name, float(value)
     except IndexError:
         logger.error(f"Value for '{name}' not found from {cmd_output}")
-    else:
-        return value
 
 
 def run_tensorboard(logdir: Path):
@@ -370,6 +376,7 @@ def pretty_st_metric(
         metrics: Dict[str, Any],
         prev_metrics: Dict[str, Any],
         float_format: str = '.5g'):
+    # ! DEPRECATED, use PrettyMetricPrinter class
     cols = st.columns(len(metrics))
     for col, (name, val) in zip(cols, metrics.items()):
         # show green color when loss is reduced;
@@ -406,6 +413,67 @@ def load_image_into_numpy_array(path: str):
     return np.asarray(img)
 
 
+@dataclass(order=False, eq=False)
+class PrettyMetricPrinter:
+    """
+    Wrapper class for pretty print using st.metric function https://docs.streamlit.io/en/stable/api.html#streamlit.metric.
+
+    Args:
+        float_format (str | Dict[str, str], optional): the formatting used for floats.
+            Can pass in either a `str` to use the same formatting for all metrics, or pass in a `Dict` for different formatting for each metric.
+            Defaults to `.5g` for 5 significant figures.
+        delta_color (str | Dict[str, str]], optional): Similar to `float_format`, can pass in `str` or `Dict`. 
+            Defaults to `inverse` when the metric name contains `loss`, else `normal`.
+            Refer to Streamlit docs for the effects on colors.
+    """
+    float_format: Union[str, Dict[str, str]] = '.5g'
+    delta_color: Union[str, Dict[str, str]] = None
+    # NOTE: this should not be passed in, it's used in the write method
+    prev_metrics: Dict[str, float] = None
+
+    def write(self, metrics: Dict[str, float]):
+        """
+        Use this to directly print out the current metrics in a nicely formatted way in columns and st.metric.
+        metrics (Dict[str, Any]): The dictionary containing the metrics such as loss or accuracy
+        """
+        if not self.delta_color:
+            self.delta_color = {
+                name: 'inverse'
+                if 'loss' in name
+                else 'normal'
+                for name in metrics
+            }
+        if isinstance(self.float_format, str):
+            self.float_format = {name: self.float_format for name in metrics}
+        if not self.prev_metrics:
+            self.prev_metrics = metrics.copy()
+
+        cols = st.columns(len(metrics))
+        for col, (name, val) in zip(cols, metrics.items()):
+            # get the current parameters for the metric before updating them
+            # and before prettifying the metric name
+            delta_color = self.delta_color[name]
+            float_format = self.float_format[name]
+            prev_val = self.prev_metrics[name]
+            # prettifying the metric name for display
+            name = ' '.join(name.split('_')).capitalize()
+            # calculate the difference with previous metric value
+            delta = val - prev_val
+            # formatting the float values for display
+            val = f"{val:{float_format}}"
+            if delta == 0:
+                # don't show any indicator if there is no difference, or
+                # if it's the initial training metrics
+                delta = None
+            else:
+                delta = f"{delta:{float_format}}"
+            # using the st.metric function here
+            col.metric(name, val, delta, delta_color=delta_color)
+
+        # updating previous metrics before proceeding
+        self.prev_metrics = metrics.copy()
+
+
 class Trainer:
     def __init__(self, project: Project, new_training: Training):
         """
@@ -429,7 +497,6 @@ class Trainer:
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
         self.training_path: Dict[str, Path] = new_training.training_path
-        self.resume: bool = False
 
     @staticmethod
     def train_test_split(image_dir: Path,
@@ -552,12 +619,16 @@ class Trainer:
             for image_path in image_paths:
                 shutil.copy2(image_path, image_dest)
 
-    def train(self):
+    def train(self, is_resume: bool = False, stdout_output: bool = False):
         logger.info(f"Start training for Training {self.training_id}")
         if self.deployment_type == 'Object Detection with Bounding Boxes':
-            if not self.resume:
+            if not is_resume:
                 self.reset_tfod_progress()
-            self.run_tfod_training()
+            else:
+                progress = session_state.new_training.progress
+                progress['Checkpoint'] += 1
+                session_state.new_training.update_progress(progress)
+            self.run_tfod_training(stdout_output)
             # TODO: for resume training from checkpoint
         elif self.deployment_type == "Image Classification":
             pass
@@ -583,6 +654,7 @@ class Trainer:
         session_state.new_training.update_metrics({})
 
     def tfod_update_progress_metrics(self, cmd_output: str) -> Dict[str, float]:
+        # ! DEPRECATED, update progress in real time during training using `run_command_update_metrics_2`
         """
         This function updates only the latest metrics from the **entire** stdout,
         instead of only from a single line. So this does not work for continuously 
@@ -608,7 +680,13 @@ class Trainer:
         session_state.new_training.update_metrics(metrics)
         return metrics
 
-    def run_tfod_training(self):
+    def run_tfod_training(self, stdout_output: bool = False):
+        """
+        Run training for TensorFlow Object Detection (TFOD) API.
+        Can be used for Mask R-CNN model for image segmentation if wanted.
+        Set `stdout_output` to True to print out the long console outputs
+        generated from the script. 
+        """
         # training_param only consists of 'batch_size' and 'num_train_steps'
         # TODO: beware of user-uploaded model
 
@@ -773,6 +851,7 @@ class Trainer:
         # change the training steps as necessary, recommended start with 300 to test whether it's working, then train for at least 2000 steps
         NUM_TRAIN_STEPS = self.training_param['num_train_steps']
 
+        start = time.perf_counter()
         command = (f"python {TRAINING_SCRIPT} "
                    f"--model_dir={paths['MODELS']} "
                    f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
@@ -780,21 +859,16 @@ class Trainer:
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
             run_command_update_metrics_2(
-                command, stdout_output=True,
-                step_name='Step',
-                metric_names=(
-                    'classification_loss',
-                    'localization_loss',
-                    'regularization_loss',
-                    'total_loss',
-                    # Learning rate does not seem to be an important metric to track
-                    # 'learning_rate'
-                )
-            )
+                command, stdout_output=stdout_output,
+                step_name='Step')
             # cmd_output = run_command(command, st_output=True,
             #                          filter_by=['Step', 'Loss/', 'learning_rate'])
             # self.tfod_update_progress_metrics(cmd_output)
-        st.success('Model has finished training!')
+        time_elapsed = time.perf_counter() - start
+        m, s = divmod(time_elapsed, 60)
+        m, s = int(m), int(s)
+        logger.info(f'Finished training! Took {m}m {s}s')
+        st.success(f'Model has finished training! Took **{m}m {s}s**')
 
         # *********************** EXPORT MODEL ***********************
         with st.spinner("Exporting model ..."):
@@ -809,7 +883,7 @@ class Trainer:
                        f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
                        f"--trained_checkpoint_dir={paths['MODELS']} "
                        f"--output_directory={paths['EXPORT']}")
-            run_command(command)
+            run_command(command, stdout_output)
             st.success('Model is successfully exported!')
 
             # Also copy the label map file to the exported directory to use for display
@@ -855,7 +929,7 @@ class Trainer:
         # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
         detect_fn = tf.saved_model.load(str(saved_model_path))
         end_time = time.perf_counter()
-        logger.info(f'Done! Took {end_time - start_time} seconds')
+        logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
         return detect_fn
 
     @staticmethod
@@ -1022,10 +1096,10 @@ class Trainer:
                 session_state['start_idx'] += n_samples
 
         with prev_btn_col_1:
-            st.button('Previous samples', key='btn_prev_images_1',
+            st.button('⏮️ Previous samples', key='btn_prev_images_1',
                       on_click=previous_samples)
         with next_btn_col_1:
-            st.button('Next samples', key='btn_next_images_1',
+            st.button('Next samples ⏭️', key='btn_next_images_1',
                       on_click=next_samples)
 
         logger.info(f"Detecting from the test set images: {start_idx}"
@@ -1053,10 +1127,10 @@ class Trainer:
                              caption=f'Prediction: {filename}')
 
         with prev_btn_col_2:
-            st.button('Previous samples', key='btn_prev_images_2',
+            st.button('⏮️ Previous samples', key='btn_prev_images_2',
                       on_click=previous_samples)
         with next_btn_col_2:
-            st.button('Next samples', key='btn_next_images_2',
+            st.button('Next samples ⏭️', key='btn_next_images_2',
                       on_click=next_samples)
 
     def run_classification_training(self):

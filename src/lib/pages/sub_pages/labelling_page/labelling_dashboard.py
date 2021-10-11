@@ -336,8 +336,8 @@ def index():
 
     def reset_zipfile_state():
         # clear out the `download_button` after the user has clicked it
-        session_state['zipfile_path'] = None
-        session_state['archive_success'] = None
+        del session_state['zipfile_path']
+        del session_state['archive_success']
 
     with download_task_col:
         zipfile_path = session_state.get('zipfile_path')
