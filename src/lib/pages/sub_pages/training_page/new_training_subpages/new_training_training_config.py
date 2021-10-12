@@ -73,6 +73,7 @@ def training_configuration():
                     training_param[new_key] = v
             # update the database and our Training instance
             session_state.new_training.update_training_param(training_param)
+            session_state.new_training.has_submitted[NewTrainingPagination.TrainingConfig] = True
             session_state.new_training_pagination = NewTrainingPagination.Training
 
         if session_state.project.deployment_type == "Image Classification":

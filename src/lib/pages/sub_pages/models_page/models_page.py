@@ -85,8 +85,8 @@ def existing_models():
     if isinstance(session_state.new_training, NewTraining):
         # done creating the info in database, thus converting it
         # to a Training instance
-        session_state.new_training = Training(
-            session_state.new_training.id, project=session_state.project)
+        session_state.new_training = Training.from_new_training(
+            session_state.new_training, session_state.project)
         logger.debug("Converted NewTraining to Training instance")
 
     existing_models, existing_models_column_names = deepcopy(Model.query_model_table(

@@ -198,7 +198,7 @@ def infodataset():
             # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             curr_partition_ratio = session_state.new_training.partition_ratio
             slider_value_1 = curr_partition_ratio['train']
-            slider_value_2 = 1 - curr_partition_ratio['test']
+            slider_value_2 = 1.0 - curr_partition_ratio['test']
             slider_value = (slider_value_1, slider_value_2)
 
             st.slider("Dataset Partition Ratio",
@@ -353,7 +353,7 @@ def infodataset():
                         f"Successfully created new training {session_state.new_training.id}")
 
         # >>>> UPDATE if Training has already been submitted prior to this
-        elif session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] == True:
+        elif session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
             if session_state.new_training.name:
 
                 # UPDATE Database

@@ -34,7 +34,7 @@ from math import ceil
 from pathlib import Path
 from time import sleep
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import cv2
@@ -428,8 +428,7 @@ class PrettyMetricPrinter:
     """
     float_format: Union[str, Dict[str, str]] = '.5g'
     delta_color: Union[str, Dict[str, str]] = None
-    # NOTE: this should not be passed in, it's used in the write method
-    prev_metrics: Dict[str, float] = None
+    prev_metrics: Dict[str, float] = field(default=None, init=False)
 
     def write(self, metrics: Dict[str, float]):
         """

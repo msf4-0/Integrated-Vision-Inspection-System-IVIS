@@ -191,7 +191,6 @@ class BaseTraining:
             'test': 0
         }
         # self.dataset_chosen: List = []
-        # TODO: AVOID MUTABLE DEFAULTS
         # automatically get the list of dataset names from project
         self.dataset_chosen: List[str] = list(project.dataset_dict.keys())
         self.training_param_dict: Dict = {}
@@ -782,6 +781,22 @@ class Training(BaseTraining):
             attrs=" ".join("{}={!r}".format(k, v)
                            for k, v in self.__dict__.items()),
         )
+
+    @classmethod
+    def from_new_training(cls, new_training: NewTraining, project: Project):
+        logger.debug("Converting from NewTraining to Training instance")
+        new_instance = cls(new_training.id, project)
+
+        for k, v in new_training.__dict__.items():
+            # - this `hasattr` checking can optionally be removed in the future,
+            # currently using it here for debugging
+            if hasattr(new_instance, k):
+                setattr(new_instance, k, v)
+            else:
+                logger.debug(
+                    f'Skipping `{k}` attribute when converting to Training instance')
+
+        return new_instance
 
     def get_training_details(self):
         if self.attached_model_id and self.training_model_id:
