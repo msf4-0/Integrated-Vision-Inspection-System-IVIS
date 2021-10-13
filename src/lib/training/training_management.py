@@ -194,7 +194,8 @@ class BaseTraining:
         # automatically get the list of dataset names from project
         self.dataset_chosen: List[str] = list(project.dataset_dict.keys())
         self.training_param_dict: Dict = {}
-        self.augmentation_dict: Dict = {}
+        self.augmentation_dict: Dict[str, Any] = {
+            'interface_type': 'Simple', 'augmentations': {}}
         self.is_started: bool = False
         self.progress: Dict = {}
         # self.training_path: Dict[str, Path] = {
@@ -546,9 +547,27 @@ class BaseTraining:
             logger.error(f"Update training param failed: {e}")
             return False
 
-    def update_augment_config(self):
-        # TODO: update augmentation config
-        pass
+    def update_augment_config(self, augmentation_dict: Dict[str, Any]) -> bool:
+        # Maybe can try using the TrainingParam class, but seems like not necessary
+        self.augmentation_dict = augmentation_dict
+
+        # required for storing JSONB format
+        augmentation_json = json.dumps(augmentation_dict)
+        sql_query = """
+        UPDATE
+            public.training
+        SET
+            augmentation = %s::JSONB
+        WHERE
+            id = %s
+        """
+        query_vars = [augmentation_json, self.id]
+        try:
+            db_no_fetch(sql_query, conn, query_vars)
+            return True
+        except Exception as e:
+            logger.error(f"Update training param failed: {e}")
+            return False
 
 
 class NewTraining(BaseTraining):
@@ -1370,8 +1389,9 @@ class Training(BaseTraining):
         training_attributes = ["project_training_table", "training", "training_name",
                                "training_desc", "labelling_pagination", "existing_training_pagination",
                                "training_param_dict", "new_training", "trainer", "start_idx",
+                               "augment_config"
                                ]
-        # this is required to avoid issues with caching model-related variables
+        # this might be required to avoid issues with caching model-related variables
         # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89
         # https://discuss.streamlit.io/t/button-to-clear-cache-and-rerun/3928/12
         # st.legacy_caching.clear_cache()

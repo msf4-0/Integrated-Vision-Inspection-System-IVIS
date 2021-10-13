@@ -416,7 +416,7 @@ def load_image_into_numpy_array(path: str):
 @dataclass(order=False, eq=False)
 class PrettyMetricPrinter:
     """
-    Wrapper class for pretty print using st.metric function https://docs.streamlit.io/en/stable/api.html#streamlit.metric.
+    Wrapper class for pretty print using [st.metric function](https://docs.streamlit.io/en/stable/api.html#streamlit.metric).
 
     Args:
         float_format (str | Dict[str, str], optional): the formatting used for floats.
@@ -982,15 +982,19 @@ class Trainer:
     @staticmethod
     def draw_gt_bbox(
         image_np: np.ndarray,
-        box_coordinates: Sequence[Tuple[float, float, float, float]]
-    ):
+        box_coordinates: Sequence[Sequence[int, int, int, int]],
+        color: Tuple[int, int, int] = (0, 255, 0)
+    ) -> np.ndarray:
         image_with_gt_box = image_np.copy()
         for xmin, ymin, xmax, ymax in box_coordinates:
+            if isinstance(xmin, float):
+                xmin, ymin = int(xmin), int(ymin)
+                xmax, ymax = int(xmax), int(ymax)
             cv2.rectangle(
                 image_with_gt_box,
                 (xmin, ymin),
                 (xmax, ymax),
-                color=(0, 255, 0),
+                color=color,
                 thickness=2)
         return image_with_gt_box
 
