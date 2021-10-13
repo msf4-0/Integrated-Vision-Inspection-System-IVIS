@@ -38,7 +38,7 @@ LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-from machine_learning.module.xml_parser import xml_to_csv
+from machine_learning.utils import xml_to_csv
 
 # Initiate argument parser
 parser = argparse.ArgumentParser(

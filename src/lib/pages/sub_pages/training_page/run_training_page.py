@@ -50,7 +50,9 @@ if str(LIB_PATH) not in sys.path:
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 with st.spinner("Loading TensorFlow environment ..."):
-    from machine_learning.trainer import Trainer, pretty_format_param, run_tensorboard
+    from machine_learning.trainer import Trainer
+    from machine_learning.utils import run_tensorboard
+    from machine_learning.visuals import pretty_format_param
 from project.project_management import Project  # logger
 from training.training_management import NewTrainingPagination, Training
 from user.user_management import User
@@ -112,6 +114,7 @@ def index(RELEASE=True):
         dataset_chosen_str = '  \n'.join(dataset_chosen_str)
     partition_ratio = session_state.new_training.partition_ratio
     st.info(f"""
+    **Training Session Name**: {session_state.new_training.name}  \n
     **Training Description**: {session_state.new_training.desc}  \n
     **Dataset List**: {dataset_chosen_str}  \n
     **Partition Ratio**: training : validation : test -> 
@@ -308,6 +311,17 @@ def index(RELEASE=True):
                     session_state.new_training.training_model.metrics)
                 st.markdown("#### Final Metrics:")
                 st.info(metrics)
+                st.markdown(
+                    "From [TFOD docs](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html#training-the-model):  \n")
+                st.markdown("""Following what people have said online,
+                it seems that it is advisable to allow your model to reach a `Total loss`
+                of **at least 2** (ideally 1 and lower) if you want to achieve “fair” 
+                detection results. Obviously, lower `Total loss` is better, however very 
+                low `Total loss` should be avoided, as the model may end up overfitting 
+                the dataset, meaning that it will perform poorly when applied to images
+                outside the dataset it has been trained on. To monitor `Total loss`, as well
+                as a number of other metrics even while your model is training, have a look at 
+                the **TensorBoard** above.""")
 
             if session_state.new_training.training_path['model_tarfile'].exists():
                 initialize_trainer()

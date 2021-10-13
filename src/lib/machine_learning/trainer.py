@@ -23,70 +23,45 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
-import copy
 import os
-import re
-import subprocess
 import sys
-import pprint
 import shutil
-from math import ceil
 from pathlib import Path
-from time import sleep
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional
 import numpy as np
-import cv2
 
 import pandas as pd
 import wget
 import streamlit as st
-from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
-from streamlit_tensorboard import st_tensorboard
 
 import tensorflow as tf
-import object_detection
-from object_detection.utils import config_util
 from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
 
-from object_detection.utils import label_map_util
-from object_detection.utils import visualization_utils as viz_utils
-
-
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
+from sklearn.model_selection import train_test_split
+from imutils.paths import list_images
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 # >>>> User-defined Modules >>>>
-from sklearn.model_selection import train_test_split
-from imutils.paths import list_images
-from core.utils.file_handler import create_folder_if_not_exist
-from core.utils.form_manager import (check_if_exists, check_if_field_empty,
-                                     reset_page_attributes)
-from core.utils.helper import (NetChange, datetime_formatter, find_net_change,
-                               get_directory_name, join_string)
 from core.utils.log import logger  # logger
-from data_manager.database_manager import (db_fetchall, db_fetchone,
-                                           db_no_fetch, init_connection)
+from data_manager.database_manager import init_connection
 from project.project_management import Project
-from data_manager.dataset_management import Dataset
-from training.model_management import Model, NewModel
 from training.training_management import Training
 from training.labelmap_management import Framework, Labels
-from deployment.deployment_management import Deployment, DeploymentType
 from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
-from machine_learning.module.xml_parser import xml_to_csv
+from .utils import (run_command, run_command_update_metrics_2,
+                    find_tfod_metric, load_image_into_numpy_array, load_labelmap,
+                    xml_to_csv)
+from .visuals import draw_gt_bbox, draw_tfod_bboxes
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -96,381 +71,6 @@ from machine_learning.module.xml_parser import xml_to_csv
 conn = init_connection(**st.secrets["postgres"])
 
 # *********************PAGINATION**********************
-
-
-def run_command(command_line_args: str, st_output: bool = False,
-                stdout_output: bool = True,
-                filter_by: Optional[List[str]] = None,
-                pretty_print: Optional[bool] = False,
-                ) -> Union[str, None]:
-    """
-    Running commands or scripts, while getting live stdout
-
-    Args:
-        command_line_args (str): Command line arguments to run.
-        st_output (bool, optional): Set `st_output` to True to 
-            show the console outputs LIVE on Streamlit. Defaults to False.
-        stdout_output (bool, optional): Set `stdout_output` to True to 
-            show the console outputs LIVE on terminal. Defaults to True.
-        filter_by (Optional[List[str]], optional): Provide `filter_by` to
-            filter out other strings and show the `filter_by` strings on Streamlit app. Defaults to None.
-    Returns:
-        str: The entire console output from the command after finish running.
-    """
-    if pretty_print:
-        command_line_args = pprint.pformat(command_line_args)
-    logger.info(f"Running command: '{command_line_args}'")
-    # shell=True to work on String instead of list
-    process = subprocess.Popen(command_line_args, shell=True,
-                               # stdout to capture all output
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               # text to directly decode the output
-                               text=True)
-    if filter_by:
-        output_str_list = []
-    for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if line and st_output:
-            if filter_by:
-                for filter_str in filter_by:
-                    if filter_str in line:
-                        st.markdown(line)
-                        output_str_list.append(line)
-            else:
-                st.markdown(line)
-        if line and stdout_output:
-            print(line)
-    process.wait()
-    if filter_by and not output_str_list:
-        # there is nothing obtained from the filtered stdout
-        logger.error("Error with training!")
-        st.error("Some error has occurred during training ..."
-                 " Please try again")
-        time.sleep(3)
-        st.experimental_rerun()
-    elif filter_by:
-        return '\n'.join(output_str_list)
-    return process.stdout
-
-
-def run_command_update_metrics(
-    command_line_args: str,
-    stdout_output: bool = True,
-    step_name: str = 'Step',
-    metric_names: Tuple[str] = None,
-) -> str:
-    # ! DEPRECATED, Using run_command_update_metrics_2 function
-    """
-    Running commands or scripts, while getting live stdout
-
-    Args:
-        command_line_args (str): Command line arguments to run.
-        st_output (bool, optional): Set `st_output` to True to 
-            show the console outputs LIVE on Streamlit. Defaults to False.
-        filter_by (Optional[List[str]], optional): Provide `filter_by` to
-            filter out other strings and show the `filter_by` strings on Streamlit app. Defaults to None.
-    Returns:
-        str: The entire console output from the command after finish running.
-    """
-    assert metric_names is not None, "Please pass in metric_names to use for search and updates"
-
-    logger.info(f"Running command: '{command_line_args}'")
-    process = subprocess.Popen(command_line_args, shell=True,
-                               # stdout to capture all output
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               # text to directly decode the output
-                               text=True)
-
-    prev_progress = session_state.new_training.progress
-    curr_metrics = session_state.new_training.training_model.metrics
-    curr_metrics = copy.copy(curr_metrics)
-    prev_metrics = copy.copy(curr_metrics)
-    for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if line:
-            if step_name in line:
-                step_val = find_tfod_metric(step_name, line)
-                # only update the `Step` progress if it's different
-                if step_val and step_val != prev_progress[step_name]:
-                    # update previous step value to be the current
-                    prev_progress[step_name] = step_val
-                    session_state.new_training.update_progress(
-                        prev_progress, verbose=True)
-                    st.markdown(f"**{step_name}**: {step_val}")
-            for name in metric_names:
-                if name in line:
-                    metric_val = find_tfod_metric(name, line)
-                    if metric_val:
-                        curr_metrics[name] = metric_val
-                        num_same_values = np.sum(np.isclose(
-                            list(curr_metrics.values()),
-                            list(prev_metrics.values())))
-                        print(f"{num_same_values}")
-                        # only update and show the metrics when all values
-                        #  are already updated with the latest different metrics
-                        if num_same_values == 0:
-                            session_state.new_training.update_metrics(
-                                curr_metrics, verbose=True)
-                            # show the nicely formatted metrics on Streamlit
-                            pretty_st_metric(
-                                curr_metrics,
-                                prev_metrics,
-                                float_format='.3g')
-                            # update previous metrics to be the current
-                            prev_metrics = copy.copy(curr_metrics)
-        if line and stdout_output:
-            print(line)
-    process.wait()
-    return process.stdout
-
-
-def run_command_update_metrics_2(
-    command_line_args: str,
-    stdout_output: bool = True,
-    step_name: str = 'Step',
-    pretty_print: Optional[bool] = False,
-    # metric_names: Tuple[str] = None,
-) -> str:
-    """[summary]
-
-    Args:
-        command_line_args (str): Command line arguments to run.
-        stdout_output (bool, optional): Set `stdout_output` to True to 
-            show the console outputs LIVE on terminal. Defaults to True.
-        step_name (str, optional): The key name used to store our training step progress.
-            Should be 'Step' for now. Defaults to 'Step'.
-        # ! Deprecated
-        metric_names (Tuple[str], optional): The metric names to search for and update our 
-            Model instance and database. Must be passed in. Defaults to None.
-
-    Returns:
-        str: the entire console output generated from the TFOD training script
-    """
-    # assert metric_names is not None, "Please pass in metric_names to use for search and updates"
-    if pretty_print:
-        command_line_args = pprint.pformat(command_line_args)
-    logger.info(f"Running command: '{command_line_args}'")
-    process = subprocess.Popen(command_line_args, shell=True,
-                               # stdout to capture all output
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               # text to directly decode the output
-                               text=True)
-
-    pretty_metric_printer = PrettyMetricPrinter()
-    # list of stored stdout lines
-    current_lines = []
-    # flag to track the 'Step' text
-    step_name_found = False
-    for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if stdout_output and line:
-            # print to console
-            print(line)
-        if line:
-            # keep storing when stored stdout lines are less than 12,
-            #  12 is the exact number of lines output by the script
-            #  that will contain all the metrics after the line
-            #  with text 'Step', e.g.:
-            """
-            INFO:tensorflow:Step 900 per-step time 0.561s
-            I0813 13:07:28.326545 139687560058752 model_lib_v2.py:700] Step 900 per-step time 0.561s
-            INFO:tensorflow:{'Loss/classification_loss': 0.34123567,
-            'Loss/localization_loss': 0.0464548,
-            'Loss/regularization_loss': 0.24863605,
-            'Loss/total_loss': 0.6363265,
-            'learning_rate': 0.025333151}
-            I0813 13:07:28.326872 139687560058752 model_lib_v2.py:701] {'Loss/classification_loss': 0.34123567,
-            'Loss/localization_loss': 0.0464548,
-            'Loss/regularization_loss': 0.24863605,
-            'Loss/total_loss': 0.6363265,
-            'learning_rate': 0.025333151}
-            """
-            if step_name in line:
-                step_name_found = True
-            if step_name_found:
-                current_lines.append(line)
-            if len(current_lines) == 12:
-                # take the first line because that's where `step_name` was found and appended first
-                _, step_val = find_tfod_metric(step_name, current_lines[0])
-                session_state.new_training.progress[step_name] = step_val
-                session_state.new_training.update_progress(
-                    session_state.new_training.progress, verbose=True)
-                st.markdown(f"**{step_name}**: {step_val}")
-
-                metrics = {}
-                # for name in metric_names:
-                for line in current_lines[2:]:
-                    metric = find_tfod_metric('Loss', line)
-                    if metric:
-                        metric_name, metric_val = metric
-                        metrics[metric_name] = metric_val
-                session_state.new_training.update_metrics(
-                    metrics, verbose=True)
-
-                # show the nicely formatted metrics on Streamlit
-                pretty_metric_printer.write(metrics)
-                st.markdown("___")
-
-                # reset the list of outputs to start storing again
-                current_lines = []
-                step_name_found = False
-    process.wait()
-    return process.stdout
-
-
-def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]]:
-    """
-    Find the specific metric name in the command output (`cmd_output`)
-    and returns only the digits (i.e. values) of the metric.
-
-    Basically search using regex groups, then take the last match, 
-    then take the first group for the metric name, and the second group for the digits.
-    """
-    assert name in ('Step', 'Loss')
-    try:
-        if name == 'Step':
-            value = re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1]
-            return name, int(value)
-        else:
-            loss_name, value = re.findall(
-                f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
-            return loss_name, float(value)
-    except IndexError:
-        logger.error(f"Value for '{name}' not found from {cmd_output}")
-
-
-def run_tensorboard(logdir: Path):
-    # TODO: test whether this TensorBoard works after deployed the app
-    logger.info(f"Running TensorBoard on {logdir}")
-    # NOTE: this st_tensorboard does not work if the path passed in
-    #  is NOT in POSIX format, thus the `as_posix()` method to convert
-    #  from WindowsPath to POSIX format to work in Windows
-    st_tensorboard(logdir=logdir.as_posix(),
-                   port=6007, width=1080, scrolling=True)
-
-
-def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -> str:
-    """
-    Format param_dict to become a nice output to show on Streamlit.
-    `float_format` is used for formatting floats.
-    The formatting for significant digits `.5g` is based on:
-    https://stackoverflow.com/questions/25780022/how-to-make-python-format-floats-with-certain-amount-of-significant-digits
-    """
-    config_info = []
-    for k, v in param_dict.items():
-        param_name = ' '.join(k.split('_')).capitalize()
-        try:
-            param_val = f"{float(v):{float_format}}"
-        except ValueError:
-            param_val = v
-        current_info = f'**{param_name}**: {param_val}'
-        config_info.append(current_info)
-    config_info = '  \n'.join(config_info)
-    return config_info
-
-
-def pretty_st_metric(
-        metrics: Dict[str, Any],
-        prev_metrics: Dict[str, Any],
-        float_format: str = '.5g'):
-    # ! DEPRECATED, use PrettyMetricPrinter class
-    cols = st.columns(len(metrics))
-    for col, (name, val) in zip(cols, metrics.items()):
-        # show green color when loss is reduced;
-        # red color when increased
-        delta_color = 'inverse'
-        # get the previous value before prettifying it
-        prev_val = prev_metrics[name]
-        # prettifying the metric name for display
-        name = ' '.join(name.split('_')).capitalize()
-        # calculate the difference with previous metric value
-        delta = val - prev_val
-        # formatting the float values for display
-        val = f"{val:{float_format}}"
-        if delta == 0:
-            # don't show any indicator if there is no difference, or
-            # if it's the initial training metrics
-            delta = None
-        else:
-            delta = f"{delta:{float_format}}"
-        col.metric(name, val, delta, delta_color=delta_color)
-
-
-def load_image_into_numpy_array(path: str):
-    """Load an image from file into a numpy array.
-    Puts image into numpy array of shape (height, width, channels), where channels=3 for RGB to feed into tensorflow graph.
-    Args:
-    path: the file path to the image
-    Returns:
-    uint8 numpy array with shape (img_height, img_width, 3)
-    """
-    img = cv2.imread(path)
-    # convert from OpenCV's BGR to RGB format
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return np.asarray(img)
-
-
-@dataclass(order=False, eq=False)
-class PrettyMetricPrinter:
-    """
-    Wrapper class for pretty print using st.metric function https://docs.streamlit.io/en/stable/api.html#streamlit.metric.
-
-    Args:
-        float_format (str | Dict[str, str], optional): the formatting used for floats.
-            Can pass in either a `str` to use the same formatting for all metrics, or pass in a `Dict` for different formatting for each metric.
-            Defaults to `.5g` for 5 significant figures.
-        delta_color (str | Dict[str, str]], optional): Similar to `float_format`, can pass in `str` or `Dict`. 
-            Defaults to `inverse` when the metric name contains `loss`, else `normal`.
-            Refer to Streamlit docs for the effects on colors.
-    """
-    float_format: Union[str, Dict[str, str]] = '.5g'
-    delta_color: Union[str, Dict[str, str]] = None
-    prev_metrics: Dict[str, float] = field(default=None, init=False)
-
-    def write(self, metrics: Dict[str, float]):
-        """
-        Use this to directly print out the current metrics in a nicely formatted way in columns and st.metric.
-        metrics (Dict[str, Any]): The dictionary containing the metrics such as loss or accuracy
-        """
-        if not self.delta_color:
-            self.delta_color = {
-                name: 'inverse'
-                if 'loss' in name
-                else 'normal'
-                for name in metrics
-            }
-        if isinstance(self.float_format, str):
-            self.float_format = {name: self.float_format for name in metrics}
-        if not self.prev_metrics:
-            self.prev_metrics = metrics.copy()
-
-        cols = st.columns(len(metrics))
-        for col, (name, val) in zip(cols, metrics.items()):
-            # get the current parameters for the metric before updating them
-            # and before prettifying the metric name
-            delta_color = self.delta_color[name]
-            float_format = self.float_format[name]
-            prev_val = self.prev_metrics[name]
-            # prettifying the metric name for display
-            name = ' '.join(name.split('_')).capitalize()
-            # calculate the difference with previous metric value
-            delta = val - prev_val
-            # formatting the float values for display
-            val = f"{val:{float_format}}"
-            if delta == 0:
-                # don't show any indicator if there is no difference, or
-                # if it's the initial training metrics
-                delta = None
-            else:
-                delta = f"{delta:{float_format}}"
-            # using the st.metric function here
-            col.metric(name, val, delta, delta_color=delta_color)
-
-        # updating previous metrics before proceeding
-        self.prev_metrics = metrics.copy()
 
 
 class Trainer:
@@ -517,7 +117,7 @@ class Trainer:
             test_size (float): Size of test set in percentage
             no_validation (bool, optional): If True, only split into train and test sets. Defaults to False.
             annotation_dir (Optional[Path]): Pass in this parameter to also split the annotation paths. Defaults to None.
-            val_size (Optional[float]): Size of validation split, only needed if `no_validation` is True. Defaults to 0.0.
+            val_size (Optional[float]): Size of validation split, only needed if `no_validation` is False. Defaults to 0.0.
             train_size (Optional[float]): This is only used for logging, can be inferred, thus not required. Defaults to 0.0.
             random_seed (Optional[int]): random seed to use for splitting. Defaults to 42.
 
@@ -628,7 +228,6 @@ class Trainer:
                 progress['Checkpoint'] += 1
                 session_state.new_training.update_progress(progress)
             self.run_tfod_training(stdout_output)
-            # TODO: for resume training from checkpoint
         elif self.deployment_type == "Image Classification":
             pass
         elif self.deployment_type == "Semantic Segmentation with Polygons":
@@ -928,23 +527,6 @@ class Trainer:
         logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
         return detect_fn
 
-    @staticmethod
-    def load_labelmap(labelmap_path):
-        """
-        Returns:
-        category_index = 
-        {
-            1: {'id': 1, 'name': 'category_1'},
-            2: {'id': 2, 'name': 'category_2'},
-            3: {'id': 3, 'name': 'category_3'},
-            ...
-        }
-        """
-        category_index = label_map_util.create_category_index_from_labelmap(
-            labelmap_path,
-            use_display_name=True)
-        return category_index
-
     def tfod_detect(self,
                     detect_fn: Any,
                     image_np: np.ndarray,
@@ -979,44 +561,6 @@ class Trainer:
 
         return detections
 
-    @staticmethod
-    def draw_gt_bbox(
-        image_np: np.ndarray,
-        box_coordinates: Sequence[Tuple[float, float, float, float]]
-    ):
-        image_with_gt_box = image_np.copy()
-        for xmin, ymin, xmax, ymax in box_coordinates:
-            cv2.rectangle(
-                image_with_gt_box,
-                (xmin, ymin),
-                (xmax, ymax),
-                color=(0, 255, 0),
-                thickness=2)
-        return image_with_gt_box
-
-    @staticmethod
-    def draw_tfod_bboxes(
-            detections: Dict[str, Any],
-            image_np: np.ndarray,
-            category_index: Dict[int, Any],
-            min_score_thresh: float = 0.6) -> np.ndarray:
-        """`category_index` is loaded using `load_labelmap` method"""
-        label_id_offset = 1  # might need this
-        image_np_with_detections = image_np.copy()
-        viz_utils.visualize_boxes_and_labels_on_image_array(
-            image_np_with_detections,
-            detections['detection_boxes'],
-            # detections['detection_classes'] + label_id_offset,
-            detections['detection_classes'],
-            detections['detection_scores'],
-            category_index,
-            use_normalized_coordinates=True,
-            max_boxes_to_draw=20,
-            min_score_thresh=min_score_thresh,
-            agnostic_mode=False
-        )
-        return image_np_with_detections
-
     def run_tfod_evaluation(self):
         """Due to some ongoing issues with using COCO API for evaluation on Windows
         (refer https://github.com/google/automl/issues/487),
@@ -1026,7 +570,7 @@ class Trainer:
         paths = self.training_path
         with st.spinner("Loading model ... This might take awhile ..."):
             detect_fn = self.load_tfod_model()
-        category_index = self.load_labelmap(paths['labelmap'])
+        category_index = load_labelmap(paths['labelmap'])
 
         # **************** SHOW SOME IMAGES FOR EVALUATION ****************
         options_col, _ = st.columns([1, 1])
@@ -1111,12 +655,12 @@ class Trainer:
                 ].values
 
                 detections = self.tfod_detect(detect_fn, img, verbose=True)
-                img_with_detections = self.draw_tfod_bboxes(
+                img_with_detections = draw_tfod_bboxes(
                     detections, img, category_index,
                     session_state.conf_threshold)
 
                 with true_img_col:
-                    st.image(self.draw_gt_bbox(img, gt_img_boxes),
+                    st.image(draw_gt_bbox(img, gt_img_boxes),
                              caption=f'Ground Truth: {filename}')
                 with pred_img_col:
                     st.image(img_with_detections,

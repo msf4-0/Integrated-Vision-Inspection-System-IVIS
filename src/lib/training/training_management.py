@@ -756,7 +756,7 @@ class NewTraining(BaseTraining):
     def reset_new_training_page():
 
         new_training_attributes = ["new_training", "new_training_name", "new_training_pagination",
-                                   "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
+                                   "new_training_desc"]
 
         reset_page_attributes(new_training_attributes)
 
@@ -1367,14 +1367,14 @@ class Training(BaseTraining):
 
     @staticmethod
     def reset_training_page():
-        training_attributes = ["project_training_table", "training", "training_name",
-                               "training_desc", "labelling_pagination", "existing_training_pagination",
+        training_attributes = ["training", "training_pagination", "labelling_pagination",
                                "training_param_dict", "new_training", "trainer", "start_idx",
                                ]
         # this is required to avoid issues with caching model-related variables
         # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89
         # https://discuss.streamlit.io/t/button-to-clear-cache-and-rerun/3928/12
-        # st.legacy_caching.clear_cache()
+        logger.debug("Clearing all existing Streamlit cache")
+        st.legacy_caching.clear_cache()
 
         reset_page_attributes(training_attributes)
 
