@@ -17,18 +17,32 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
     """
     Format param_dict to become a nice output to show on Streamlit.
     `float_format` is used for formatting floats.
-    The formatting for significant digits `.5g` is based on:
-    https://stackoverflow.com/questions/25780022/how-to-make-python-format-floats-with-certain-amount-of-significant-digits
+    The formatting for significant digits `.5g` is based on [StackOverflow](https://stackoverflow.com/questions/25780022/how-to-make-python-format-floats-with-certain-amount-of-significant-digits).
     """
+    def str2float(val: str):
+        try:
+            param_val = f"{float(val):{float_format}}"
+        except Exception as e:
+            logger.debug(f"Skip converting {val}: {e}")
+            param_val = val
+        return param_val
+
     config_info = []
     for k, v in param_dict.items():
-        param_name = ' '.join(k.split('_')).capitalize()
-        try:
-            param_val = f"{float(v):{float_format}}"
-        except ValueError:
-            param_val = v
-        current_info = f'**{param_name}**: {param_val}'
-        config_info.append(current_info)
+        if "_" in k:
+            param_name = ' '.join(k.split('_')).capitalize()
+        else:
+            param_name = k
+        if isinstance(v, dict):
+            config_info.append(f"#### {param_name}")
+            for nested_name, nested_v in v.items():
+                param_val = str2float(nested_v)
+                current_info = f'**{nested_name}**: {param_val}'
+                config_info.append(current_info)
+        else:
+            param_val = str2float(v)
+            current_info = f'**{param_name}**: {param_val}'
+            config_info.append(current_info)
     config_info = '  \n'.join(config_info)
     return config_info
 
@@ -123,11 +137,12 @@ class PrettyMetricPrinter:
 def draw_gt_bbox(
     image_np: np.ndarray,
     box_coordinates: Sequence[Tuple[int, int, int, int]],
+    class_names: Union[List[str], str] = None,
     color: Tuple[int, int, int] = (0, 150, 0),
-    class_names: List[str] = None,
 ) -> np.ndarray:
     image_with_gt_box = image_np.copy()
     logger.debug(f"Total annotations for the image: {len(box_coordinates)}")
+    logger.debug(f"{class_names = }")
 
     if class_names is None:
         class_names = []

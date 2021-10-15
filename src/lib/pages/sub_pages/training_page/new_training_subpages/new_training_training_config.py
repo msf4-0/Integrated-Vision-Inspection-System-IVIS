@@ -122,8 +122,8 @@ def training_configuration():
     def to_models_page():
         session_state.new_training_pagination = NewTrainingPagination.Model
 
-    st.button("Modify Model Info", key="training_config_back_button",
-              on_click=to_models_page)
+    st.sidebar.button("Back to Modify Model Info", key="training_config_back_button",
+                      on_click=to_models_page)
 
 
 if __name__ == "__main__":

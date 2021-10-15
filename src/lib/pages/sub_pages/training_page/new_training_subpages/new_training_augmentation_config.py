@@ -231,8 +231,17 @@ def augmentation_configuration(RELEASE=True):
                 f"### Step 3: Select augmentation configuration at sidebar "
                 "and see the changes in the transformed image.")
             st.markdown(
-                "The `Professional` mode allows more than one transformation, "
-                "and also the option to upload an image of your choice.")
+                """The `Professional` mode allows more than one transformation, 
+                and also the option to upload an image of your choice.""")
+            st.warning("""
+                ✏️ NOTE: Image augmentation may be very useful to increase the number of 
+                images in our training set, but it could hurt your deep learning algorithm 
+                if your label has changed after the transformation, e.g. a 
+                horizontally-flipped digit would not be representative of a real scenario 
+                as it is not a correct digit anymore. Therefore, choose your transformation
+                techniques wisely. Recommended to start with `RandomBrightness`,
+                `RandomBrightnessContrast` or similar ones that will not tremendously
+                alter the appearance of the relevant objects in the image.""")
             st.markdown("#### Demo of image augmentation result")
 
             # Set this image width for the size of our image to display on Streamlit

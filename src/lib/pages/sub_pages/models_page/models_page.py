@@ -423,8 +423,9 @@ def index():
     models_page[session_state.models_pagination]()
     # ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
     # Placeholder for Back and Next button for page navigation
-    new_training_section_back_button_place, _, \
-        new_training_section_next_button_place = st.columns([0.5, 3, 0.5])
+    # new_training_section_back_button_place, _, \
+    #     new_training_section_next_button_place = st.columns([0.5, 3, 0.5])
+    new_training_section_next_button_place = st.empty()
 
     # typing.NamedTuple type
 
@@ -508,8 +509,8 @@ def index():
         # must update this pagination variable too to make things work properly
         session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
-    with new_training_section_back_button_place:
-        st.button("Modify Training Info", key="models_page_back_button",
+    # with new_training_section_back_button_place:
+    st.sidebar.button("Back to Modify Training Info", key="models_page_back_button",
                   on_click=to_training_infodataset_page)
 
     st.write("vars(session_state.new_training)")

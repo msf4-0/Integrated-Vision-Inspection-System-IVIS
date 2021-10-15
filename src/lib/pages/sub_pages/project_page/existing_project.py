@@ -39,7 +39,7 @@ from pages.sub_pages.project_page.existing_project_pages import existing_project
 from pages.sub_pages.labelling_page import labelling_dashboard
 
 from annotation.annotation_management import reset_editor_page
-from training.training_management import NewTraining
+from training.training_management import NewTraining, Training
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -126,11 +126,13 @@ def index():
             reset_editor_page()
         elif navigation_selected == "Training":
             NewTraining.reset_new_training_page()
+            Training.reset_training_page()
         # TODO: Add reset on other selections
 
     with st.sidebar.expander(session_state.project.name, expanded=True):
         st.radio("Navigation", options=existing_project_page_options,
                  index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
+    st.sidebar.markdown("___")
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

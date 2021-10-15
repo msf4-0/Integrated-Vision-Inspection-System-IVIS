@@ -276,7 +276,7 @@ def index():
 
     # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    training_dashboard_back_button_place = st.empty()
+    training_dashboard_back_button_place = st.sidebar.empty()
 
     if session_state.training_pagination != TrainingPagination.Dashboard:
 
@@ -293,7 +293,7 @@ def index():
         training_dashboard_back_button_place.empty()
 
     # >>>> RETURN TO TRAINING PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    training_page_back_place = st.empty()
+    training_page_back_place = st.sidebar.empty()
 
     # show btn if all forms are submitted and currently not in training page
     if 'new_training' in session_state and \

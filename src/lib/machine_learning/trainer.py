@@ -35,6 +35,7 @@ import pandas as pd
 import wget
 import streamlit as st
 from streamlit import session_state
+from stqdm import stqdm
 
 import tensorflow as tf
 from object_detection.protos import pipeline_pb2
@@ -58,9 +59,9 @@ from training.labelmap_management import Framework, Labels
 from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
-from .utils import (run_command, run_command_update_metrics_2,
+from .utils import (generate_tfod_xml_csv, get_bbox_label_info, run_command, run_command_update_metrics_2,
                     find_tfod_metric, load_image_into_numpy_array, load_labelmap,
-                    xml_to_csv)
+                    xml_to_df)
 from .visuals import draw_gt_bbox, draw_tfod_bboxes
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -95,6 +96,8 @@ class Trainer:
         # self.attached_model: Model = new_training.attached_model
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
+        self.augmentation_dict: Dict[str,
+                                     Any] = new_training.augmentation_dict['augmentations']
         self.training_path: Dict[str, Path] = new_training.training_path
 
     @staticmethod
@@ -196,27 +199,22 @@ class Trainer:
     @staticmethod
     def copy_images(image_paths: Path,
                     dest_dir: Path,
-                    data_type: str,
                     label_paths: Optional[Path] = None):
-        assert data_type in ("train", "valid", "test")
-        image_dest = dest_dir / data_type
-
-        logger.info(f"Copying files from {data_type} dataset to {image_dest}")
-        if image_dest.exists():
+        if dest_dir.exists():
             # remove the existing images
-            shutil.rmtree(image_dest, ignore_errors=False)
+            shutil.rmtree(dest_dir, ignore_errors=False)
 
         # create new directories
-        os.makedirs(image_dest)
+        os.makedirs(dest_dir)
 
         if label_paths:
-            for image_path, label_path in zip(image_paths, label_paths):
+            for image_path, label_path in stqdm(zip(image_paths, label_paths), total=len(image_paths)):
                 # copy the image file and label file to the new directory
-                shutil.copy2(image_path, image_dest)
-                shutil.copy2(label_path, image_dest)
+                shutil.copy2(image_path, dest_dir)
+                shutil.copy2(label_path, dest_dir)
         else:
             for image_path in image_paths:
-                shutil.copy2(image_path, image_dest)
+                shutil.copy2(image_path, dest_dir)
 
     def train(self, is_resume: bool = False, stdout_output: bool = False):
         logger.info(f"Start training for Training {self.training_id}")
@@ -344,14 +342,27 @@ class Trainer:
             st.code(f"Total training images = {len(y_train)}  \n"
                     f"Total testing images = {len(y_test)}")
 
+        # initialize to check whether these paths exist for generating TF Records
+        train_xml_csv_path = None
         with st.spinner('Copying images to folder, this may take awhile ...'):
-            self.copy_images(X_train,
-                             dest_dir=paths['IMAGE_PATH'],
-                             data_type="train",
-                             label_paths=y_train)
+            if self.augmentation_dict:
+                with st.spinner("Generating augmented training images ..."):
+                    # these csv files are temporarily generated to use for generating TF Records, should be removed later
+                    train_xml_csv_path = paths['ANNOTATION_PATH'] / 'train.csv'
+                    generate_tfod_xml_csv(
+                        image_paths=X_train,
+                        xml_dir=self.dataset_export_path / "Annotations",
+                        output_img_dir=paths['IMAGE_PATH'] / 'train',
+                        csv_path=train_xml_csv_path
+                    )
+            else:
+                # if not augmenting data, directly copy the train images to the folder
+                self.copy_images(X_train,
+                                 dest_dir=paths['IMAGE_PATH'] / "train",
+                                 label_paths=y_train)
+            # test set images should not be augmented
             self.copy_images(X_test,
-                             dest_dir=paths['IMAGE_PATH'],
-                             data_type="test",
+                             dest_dir=paths['IMAGE_PATH'] / "test",
                              label_paths=y_test)
             logger.info("Dataset files copied successfully.")
 
@@ -383,12 +394,24 @@ class Trainer:
 
         # ******************** Generate TFRecords ********************
         with st.spinner('Generating TFRecords ...'):
-            run_command(
-                f'python {files["GENERATE_TF_RECORD"]} '
-                f'-x {paths["IMAGE_PATH"] / "train"} '
-                f'-l {files["LABELMAP"]} '
-                f'-o {paths["ANNOTATION_PATH"] / "train.record"}'
-            )
+            if train_xml_csv_path is not None:
+                # using the CSV file generated during the augmentation process above
+                # Must provide both image_dir and csv_path to skip the `xml_to_df` conversion step
+                run_command(
+                    f'python {files["GENERATE_TF_RECORD"]} '
+                    f'-i {paths["IMAGE_PATH"] / "train"} '
+                    f'-l {files["LABELMAP"]} '
+                    f'-d {train_xml_csv_path} '
+                    f'-o {paths["ANNOTATION_PATH"] / "train.record"} '
+                )
+            else:
+                run_command(
+                    f'python {files["GENERATE_TF_RECORD"]} '
+                    f'-x {paths["IMAGE_PATH"] / "train"} '
+                    f'-l {files["LABELMAP"]} '
+                    f'-o {paths["ANNOTATION_PATH"] / "train.record"}'
+                )
+            # test set images are not augmented
             run_command(
                 f'python {files["GENERATE_TF_RECORD"]} '
                 f'-x {paths["IMAGE_PATH"] / "test"} '
@@ -414,11 +437,15 @@ class Trainer:
                 pipeline_config.model.center_net.num_classes = len(CLASS_NAMES)
             elif 'ssd' in PRETRAINED_MODEL_URL or 'efficientdet' in PRETRAINED_MODEL_URL:
                 pipeline_config.model.ssd.num_classes = len(CLASS_NAMES)
-            elif 'faster_rcnn' in PRETRAINED_MODEL_URL:
+            elif 'faster_rcnn' in PRETRAINED_MODEL_URL or 'mask_rcnn' in PRETRAINED_MODEL_URL:
                 pipeline_config.model.faster_rcnn.num_classes = len(
                     CLASS_NAMES)
             else:
                 logger.error("Pretrained model config is not found!")
+                st.error(f"Error with pretrained model: {self.attached_model_name}. "
+                         "Please try selecting another model and train again.")
+                time.sleep(5)
+                st.experimental_rerun()
 
             pipeline_config.train_config.batch_size = self.training_param['batch_size']
             pipeline_config.train_config.fine_tune_checkpoint = str(
@@ -464,6 +491,11 @@ class Trainer:
         m, s = int(m), int(s)
         logger.info(f'Finished training! Took {m}m {s}s')
         st.success(f'Model has finished training! Took **{m}m {s}s**')
+
+        # remove the existing train test images since they are not required anymore
+        # NOTE: IF DELETE THE TEST IMAGES, THEN WE CANNOT SHOW EVALUATION WITH THEM
+        # shutil.rmtree(paths['IMAGE_PATH'])
+        # logger.debug(f"Removed the directory in {paths['IMAGE_PATH']}")
 
         # *********************** EXPORT MODEL ***********************
         with st.spinner("Exporting model ..."):
@@ -586,9 +618,10 @@ class Trainer:
         def get_test_images_annotations():
             with st.spinner("Getting images and annotations ..."):
                 test_data_dir = paths['images'] / 'test'
-                test_img_paths = list(list_images(test_data_dir))
+                logger.debug(f"Test set image directory: {test_data_dir}")
+                test_img_paths = sorted(list_images(test_data_dir))
                 # get the ground truth bounding box data from XML files
-                gt_xml_df = xml_to_csv(str(test_data_dir))
+                gt_xml_df = xml_to_df(str(test_data_dir))
             return test_img_paths, gt_xml_df
 
         # take the test set images
@@ -650,9 +683,7 @@ class Trainer:
                 img = load_image_into_numpy_array(str(p))
 
                 filename = os.path.basename(p)
-                gt_img_boxes = gt_xml_df.loc[
-                    gt_xml_df['filename'] == filename, 'xmin': 'ymax'
-                ].values
+                class_names, bboxes = get_bbox_label_info(gt_xml_df, filename)
 
                 detections = self.tfod_detect(detect_fn, img, verbose=True)
                 img_with_detections = draw_tfod_bboxes(
@@ -660,7 +691,7 @@ class Trainer:
                     session_state.conf_threshold)
 
                 with true_img_col:
-                    st.image(draw_gt_bbox(img, gt_img_boxes),
+                    st.image(draw_gt_bbox(img, bboxes, class_names=class_names),
                              caption=f'Ground Truth: {filename}')
                 with pred_img_col:
                     st.image(img_with_detections,

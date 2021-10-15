@@ -278,7 +278,7 @@ class Project(BaseProject):
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory.
         Allow download images and annotations if necessary.
         """
-        logger.info(
+        logger.debug(
             f"Exporting labeled tasks for Project ID: {session_state.project.id}")
 
         json_path = self.generate_label_json()
@@ -292,7 +292,7 @@ class Project(BaseProject):
 
         # initialize a Label Studio Converter to convert to specific output formats
         # the `editor.editor_config` contains the current project's config in XML string format
-        #  but need to replace the remove this line of encoding description text to work
+        #  but need to remove this line of encoding description text to work
         config_xml = self.editor.editor_config.replace(
             r'<?xml version="1.0" encoding="utf-8"?>', '')
         converter = Converter(config=config_xml)
@@ -324,17 +324,16 @@ class Project(BaseProject):
 
         elif self.deployment_type == "Object Detection with Bounding Boxes":
             # using Pascal VOC XML format for TensorFlow Object Detection API
-            logger.info(
-                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             converter.convert_to_voc(
                 json_path, output_dir=output_dir, is_dir=False)
 
         elif self.deployment_type == "Semantic Segmentation with Polygons":
-            logger.info(
-                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
             # using COCO JSON format for segmentation
             converter.convert_to_coco(
                 json_path, output_dir=output_dir, is_dir=False)
+
+        logger.debug(
+            f"Exported tasks for {self.deployment_type} for Project ID: {self.id}")
 
     def get_export_path(self) -> Path:
         """Get the path to the exported images and annotations"""

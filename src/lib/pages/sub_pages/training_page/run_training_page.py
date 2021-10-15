@@ -160,14 +160,27 @@ def index(RELEASE=True):
         st.button('⚙️ Edit Training Config', key='btn_edit_config',
                   on_click=back_config_page)
 
-        if session_state.new_training.is_started:
-            st.warning(
-                "✏️ **NOTE**: Only edit this if you want to re-train or continue training!")
-
     with aug_config_col:
-        # TODO: do this for image classification and segmentation, TFOD API does not need this
-        if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
-            pass
+        # TODO: confirm that this works for image classification and segmentation
+        st.markdown('### Augmentation Config:')
+        augmentation_dict = session_state.new_training.augmentation_dict
+        if augmentation_dict:
+            aug_config_info = pretty_format_param(
+                augmentation_dict['augmentations'])
+            st.info(aug_config_info)
+        else:
+            st.info("No augmentation config selected yet.")
+
+        def back_aug_config_page():
+            session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig
+
+        st.button('⚙️ Edit Augmentation Config', key='btn_edit_aug_config',
+                  on_click=back_aug_config_page)
+
+    if session_state.new_training.is_started:
+        st.warning(
+            "✏️ **NOTE**: Only edit training/augmentation config if you want to "
+            "re-train or continue training!")
 
     st.markdown("___")
 
