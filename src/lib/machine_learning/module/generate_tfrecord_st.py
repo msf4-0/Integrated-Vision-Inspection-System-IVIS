@@ -38,7 +38,7 @@ LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-from machine_learning.utils import xml_to_csv
+from machine_learning.utils import xml_to_df
 
 # Initiate argument parser
 parser = argparse.ArgumentParser(
@@ -49,6 +49,7 @@ parser.add_argument(
     "--xml_dir",
     help="Path to the folder where the input .xml files are stored.",
     type=str,
+    default=None
 )
 parser.add_argument(
     "-l", "--labels_path", help="Path to the labels (.pbtxt) file.", type=str
@@ -60,7 +61,8 @@ parser.add_argument(
     "-i",
     "--image_dir",
     help="Path to the folder where the input image files are stored. "
-    "Defaults to the same directory as XML_DIR.",
+    "Defaults to the same directory as XML_DIR. Can also choose to provide a CSV file `csv_path` "
+    "with this `image_dir` to skip converting XML to CSV, especially for data augmentation purposes",
     type=str,
     default=None,
 )
@@ -69,14 +71,21 @@ parser.add_argument(
     "--image_ext",
     # LABEL STUDIO outputs XML filenames without extensions included,
     # therefore the script needs to append the file extension at the end
-    help="Extension of the images used, excluding the 'dot'. REQUIRED FOR LABEL STUDIO",
+    help="Extension of the images used, e.g. `-e jpg png`. REQUIRED FOR LABEL STUDIO",
     type=str,
     nargs="*",
     default=None,
 )
 parser.add_argument(
+    "-d",
+    "--input_csv_path",
+    help="Path of input .csv file. If none provided, then the table data will be generated from the input XML file",
+    type=str,
+    default=None,
+)
+parser.add_argument(
     "-c",
-    "--csv_path",
+    "--output_csv_path",
     help="Path of output .csv file. If none provided, then no file will be " "written.",
     type=str,
     default=None,
@@ -119,7 +128,7 @@ def create_tf_example(group, path):
     if not os.path.exists(image_path):
         raise FileNotFoundError(
             f"Image {image_path} is not found. If you are using Label Studio, "
-            'try pass in -e <IMAGE_EXTENSIONS> as an argument (e.g. -e "jpg png") '
+            'try pass in -e <IMAGE_EXTENSIONS> as an argument (e.g. -e jpg png) '
             "to append the image extension at the end as the XML file exported "
             "from Label Studio did not include file extension in the filename."
         )
@@ -206,7 +215,12 @@ def main(_):
 
     writer = tf.python_io.TFRecordWriter(args.output_path)
     path = os.path.join(args.image_dir)
-    examples = xml_to_csv(args.xml_dir)
+    if args.input_csv_path:
+        examples = pd.read_csv(args.input_csv_path)
+    else:
+        assert args.xml_dir is not None, "xml_dir must be provided if csv_path and image_dir are not provided"
+        examples = xml_to_df(args.xml_dir)
+    # directly use a DF loaded from CSV file if supplied -- CSV file containing augmented bboxes
     grouped = split(examples, "filename")
 
     for group in grouped:
@@ -216,9 +230,9 @@ def main(_):
         writer.write(tf_example.SerializeToString())
     writer.close()
     print("Successfully created the TFRecord file: {}".format(args.output_path))
-    if args.csv_path is not None:
-        examples.to_csv(args.csv_path, index=None)
-        print("Successfully created the CSV file: {}".format(args.csv_path))
+    if args.output_csv_path is not None:
+        examples.to_csv(args.output_csv_path, index=None)
+        print("Successfully created the CSV file: {}".format(args.output_csv_path))
 
     if error_images:
         # NOTE: originally asks for user input, but now automatically remove bad images

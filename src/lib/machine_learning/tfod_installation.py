@@ -86,10 +86,12 @@ def install():
         run_command(
             f"cd {TFOD_DIR / 'research'} && protoc object_detection/protos/*.proto --python_out=. && cp object_detection/packages/tf2/setup.py . && python -m pip install . ")
     elif os.name == 'nt':
+        # 'nt' is for Windows
         # NOTE: Windows need to install COCO API first, but there is currently an ongoing issue
         # for running COCO evaluation on Windows, refer to here https://github.com/google/automl/issues/487
-        # Instructions for COCO API Installation: https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/install.html#coco-api-installation
-        # 'nt' is for Windows
+        # Instructions for COCO API Installation: https://github.com/ansonnn07/object-detection#coco-api-installation
+        #  (under the COCO API installation section)
+        # - BUT Windows still has issue when trying to use the Shapely library to convert annotations to a COCO JSON file
         if not (PROTOC_PATH / "bin").exists():
             logger.info("Downloading protobuf dependencies ...")
             url = "https://github.com/protocolbuffers/protobuf/releases/download/v3.15.6/protoc-3.15.6-win64.zip"

@@ -1,47 +1,49 @@
+from typing import List, Tuple
 import cv2
 import os
 import numpy as np
 import json
-import argparse
+from imutils.paths import list_images
 
 import streamlit as st
 from streamlit import session_state
+
+from data_manager.dataset_management import Dataset
 
 CONFIG_PATH = "src/lib/pages/sub_pages/training_page/new_training_subpages/augmentation/augmentations.json"
 
 
 @st.experimental_memo
-def get_arguments():
-    """Return the values of CLI params"""
-    parser = argparse.ArgumentParser()
-    sample_image_path = "src/lib/pages/sub_pages/training_page/new_training_subpages/images"
-    parser.add_argument("--image_folder", default=sample_image_path)
-    parser.add_argument("--image_width", default=400, type=int)
-    args = parser.parse_args()
-    return getattr(args, "image_folder"), getattr(args, "image_width")
+def get_image_dir():
+    # originally this function takes the image_folder from the sample image folder
+    # image_folder = "src/lib/pages/sub_pages/training_page/new_training_subpages/images"
+    first_project_dataset_name = session_state.project.data_name_list[0]
+    image_folder = Dataset.get_dataset_path(first_project_dataset_name)
+    return image_folder
 
 
 @st.experimental_memo
-def get_images_list(path_to_folder: str) -> list:
+def get_images_list(path_to_folder: str, n_images: int = 10) -> Tuple[List[str], List[str]]:
     """Return the list of images from folder
     Args:
         path_to_folder (str): absolute or relative path to the folder with images
+        n_images (str): maximum number of images to display as options. Set to 0 to use all images
     """
-    image_names_list = [
-        x for x in os.listdir(path_to_folder) if x[-3:] in ["jpg", "peg", "png"]
-    ]
-    return image_names_list
+    if n_images == 0:
+        image_paths = sorted(list_images(path_to_folder))
+    else:
+        image_paths = sorted(list_images(path_to_folder))[:n_images]
+    image_names_list = [os.path.basename(x) for x in image_paths]
+    return image_names_list, image_paths
 
 
 @st.experimental_memo
-def load_image(image_name: str, path_to_folder: str, bgr2rgb: bool = True):
+def load_image(path_to_image: str, bgr2rgb: bool = True):
     """Load the image
     Args:
-        image_name (str): name of the image
-        path_to_folder (str): path to the folder with image
+        path_to_image (str): path to the image file itself
         bgr2rgb (bool): converts BGR image to RGB if True
     """
-    path_to_image = os.path.join(path_to_folder, image_name)
     image = cv2.imread(path_to_image)
     if bgr2rgb:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -49,7 +51,7 @@ def load_image(image_name: str, path_to_folder: str, bgr2rgb: bool = True):
 
 
 def upload_image(bgr2rgb: bool = True):
-    """Uoload the image
+    """Upload the image
     Args:
         bgr2rgb (bool): converts BGR image to RGB if True
     """
@@ -184,13 +186,15 @@ def select_transformations(augmentations: dict, interface_type: str) -> list:
 
 def show_random_params(data: dict, interface_type: str = "Professional"):
     """Shows random params used for transformation (from A.ReplayCompose)"""
-    if interface_type == "Professional":
-        st.subheader("Random params used")
-        st.markdown(
-            "This will be `NULL` when the transformation is not applied due to the assigned probability.")
-        random_values = {}
-        for applied_params in data["replay"]["transforms"]:
-            random_values[
-                applied_params["__class_fullname__"].split(".")[-1]
-            ] = applied_params["params"]
-        st.write(random_values)
+    st.subheader("Random params used")
+    st.markdown(
+        "<p style='border: 2px solid lightgray; border-radius: 0.5em; padding: 5px'>"
+        "This will be NULL when the transformation is not applied due to the assigned "
+        "probability to the associated transformation.</p>",
+        unsafe_allow_html=True)
+    random_values = {}
+    for applied_params in data["replay"]["transforms"]:
+        random_values[
+            applied_params["__class_fullname__"].split(".")[-1]
+        ] = applied_params["params"]
+    st.write(random_values)

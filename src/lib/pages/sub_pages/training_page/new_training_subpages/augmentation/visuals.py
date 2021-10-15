@@ -6,8 +6,8 @@ from streamlit import session_state
 
 import albumentations as A
 
-from augmentation.control import param2func
-from augmentation.utils import get_images_list, load_image, upload_image
+from .control import param2func
+from .utils import get_images_list, load_image, upload_image
 
 SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -22,15 +22,12 @@ from core.utils.log import logger
 DEBUG = False
 
 
-def show_logo():
-    st.image(load_image("logo.png", "../images"), format="PNG")
-
-
-def select_image(path_to_images: str, interface_type: str = "Simple"):
+def select_image(path_to_images: str, interface_type: str = "Simple", n_images: int = 10):
     """ Show interface to choose the image, and load it
     Args:
         path_to_images (dict): path ot folder with images
         interface_type (dict): mode of the interface used
+        n_images (str): maximum number of images to display as options
     Returns:
         (status, image)
         status (int):
@@ -38,9 +35,9 @@ def select_image(path_to_images: str, interface_type: str = "Simple"):
             1 - if there is error during loading of image file
             2 - if user hasn't uploaded photo yet
     """
-    image_names_list = get_images_list(path_to_images)
+    image_names_list, image_paths = get_images_list(path_to_images, n_images)
     if len(image_names_list) < 1:
-        return 1, 0
+        return 1, 0, None
     else:
         if interface_type == "Professional":
             image_name = st.sidebar.selectbox(
@@ -52,18 +49,20 @@ def select_image(path_to_images: str, interface_type: str = "Simple"):
 
         if image_name != "Upload my image":
             try:
-                image = load_image(image_name, path_to_images)
-                return 0, image
+                idx = image_names_list.index(image_name)
+                image = load_image(image_paths[idx])
+                return 0, image, image_name
             except cv2.error:
-                return 1, 0
+                return 1, 0, image_name
         else:
+            # all of these will return `image_name` of "Upload my image"
             try:
                 image = upload_image()
-                return 0, image
+                return 0, image, image_name
             except cv2.error:
-                return 1, 0
+                return 1, 0, image_name
             except AttributeError:
-                return 2, 0
+                return 2, 0, image_name
 
 
 def show_transform_control(transform_params: dict,
@@ -98,7 +97,7 @@ def show_transform_control(transform_params: dict,
                 if control_type in ('num_interval', 'checkbox'):
                     default_key = 'defaults'
                 elif control_type == 'radio':
-                    default_key = 'options_list'
+                    default_key = 'default_str'
                 else:
                     # elif control_type == ('several_nums', 'rgb', 'min_max'):
                     default_key = 'defaults_list'
@@ -168,8 +167,39 @@ def get_transormations_params(transform_names: list, augmentations: dict) -> lis
     return transforms
 
 
+def show_bbox_params_selection():
+    st.sidebar.subheader("Bounding box parameters")
+    existing_config = session_state.new_training.augmentation_dict
+    if 'min_area' in existing_config:
+        min_area = existing_config['min_area']
+    else:
+        min_area = 200  # default suggested value
+    if 'min_visibility' in existing_config:
+        min_visibility = existing_config['min_visibility']
+    else:
+        min_visibility = 0.1  # default suggested value
+
+    min_area = st.sidebar.slider(
+        "Minimum visible area", 1, 20_000, min_area, 1,
+        key='bbox_min_area',
+        help="""**Minimum visible area** is a value in pixels. If the area 
+            of a bounding box after augmentation becomes smaller than **Minimum 
+            visible area**, the transform will drop that box. So the returned 
+            list of augmented bounding boxes won't contain that bounding box.
+            **Suggested**: 200""")
+    min_visibility = st.sidebar.slider(
+        "Minimum visibility", 0.01, 1.0, min_visibility, 0.01, key='bbox_min_visibility',
+        help="""**Minimum visibility** is a value between 0 and 1. If the ratio of
+            the bounding box area after augmentation to the area of the 
+            bounding box before augmentation becomes smaller than 
+            **Minimum visibility**, the transform will drop that box. So if the 
+            augmentation process cuts the most of the bounding box, that 
+            box won't be present in the returned list of the augmented 
+            bounding boxes. **Suggested**: 0.1""")
+    return min_area, min_visibility
+
+
 def show_docstring(obj_with_ds):
-    st.markdown("* * *")
     st.subheader("Information (Docstring) for Transformation: " +
                  obj_with_ds.__class__.__name__)
     st.text(obj_with_ds.__doc__)

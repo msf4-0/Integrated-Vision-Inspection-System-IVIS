@@ -95,11 +95,16 @@ def replace_none(string):
         return string
 
 
-def select_radio(param_name, options_list, n_for_hash, **kwargs):
+def select_radio(param_name, options_list, n_for_hash, default_str=None, **kwargs):
     st.sidebar.subheader(param_name)
     key = f"aug_{param_name}{n_for_hash}"
+    if default_str:
+        # this is from the existing data that has been submitted before
+        idx = options_list.index(default_str)
+    else:
+        idx = 0
     result = st.sidebar.radio(
-        "", options_list, key=key)
+        "", options_list, index=idx, key=key)
     if DEBUG:
         st.sidebar.write(f"select_radio")
         st.sidebar.write(f"{key = }")

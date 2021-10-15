@@ -21,6 +21,7 @@ import json
 import os
 import sys
 from pathlib import Path
+import time
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
@@ -34,13 +35,6 @@ LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-
-# DEFINE wide page layout for debugging on this page
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
-
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import logger
@@ -48,26 +42,22 @@ from data_manager.database_manager import init_connection
 from training.training_management import NewTrainingPagination, Training
 from project.project_management import Project
 from user.user_management import User
+from machine_learning.utils import get_bbox_label_info, xml_to_df
+from machine_learning.visuals import draw_gt_bbox
 
 # augmentation config from https://github.com/IliaLarchenko/albumentations-demo/blob/master/src/app.py
-from augmentation.utils import (
+from .augmentation.utils import (
     load_augmentations_config,
-    get_arguments,
     get_placeholder_params,
     select_transformations,
     show_random_params,
 )
-from augmentation.visuals import (
+from .augmentation.visuals import (
     select_image,
     show_docstring,
     get_transormations_params,
+    show_bbox_params_selection
 )
-
-# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
-
-# >>>> Variable Declaration <<<<
-conn = init_connection(**st.secrets["postgres"])
-# <<<< Variable Declaration <<<<
 
 
 def augmentation_configuration(RELEASE=True):
@@ -114,7 +104,7 @@ def augmentation_configuration(RELEASE=True):
     # - This is for None or empty dict; also to create a nested `augmentations` Dict inside
     if not session_state.new_training.augmentation_dict:
         session_state.new_training.augmentation_dict = {}
-        session_state.new_training.augmentation_dict['augmentations'] = {
+        session_state.new_training.augmentation_dict = {
             'interface_type': 'Simple',
             "augmentations": {}
         }
@@ -130,11 +120,22 @@ def augmentation_configuration(RELEASE=True):
 
     # ************************ Config column ************************
 
-    # get CLI params: the path to images and image width
-    path_to_images, width_original = get_arguments()
+    # get project exported dataset folder
+    exported_dataset_dir = session_state.project.get_export_path()
+    if not exported_dataset_dir.exists():
+        # export the dataset with the correct structure if not done yet
+        session_state.project.export_tasks()
+    if session_state.new_training.deployment_type == 'Image Classification':
+        image_folder = exported_dataset_dir
+    elif session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+        image_folder = exported_dataset_dir / "images"
+        bbox_label_folder = exported_dataset_dir / "Annotations"
+    elif session_state.new_training.deployment_type == 'Semantic Segmentation with Polygons':
+        image_folder = exported_dataset_dir / "images"
+        coco_json_path = exported_dataset_dir / "result.json"
 
-    if not os.path.isdir(path_to_images):
-        st.title("There is no directory: " + path_to_images)
+    if not os.path.isdir(image_folder):
+        st.title("There is no directory: " + image_folder)
         st.stop()
 
     # select interface type
@@ -151,7 +152,7 @@ def augmentation_configuration(RELEASE=True):
     session_state['augment_config']['interface_type'] = interface_type
 
     # select image
-    status, image = select_image(path_to_images, interface_type)
+    status, image, image_name = select_image(image_folder, interface_type, 50)
     if status == 1:
         st.title("Can't load image")
     if status == 2:
@@ -163,9 +164,10 @@ def augmentation_configuration(RELEASE=True):
         # load the config from augmentations.json
         augmentations = load_augmentations_config(placeholder_params)
 
-        # get the list of transformations names
+        # show the widgets and get the list of transformations names
         transform_names = select_transformations(
             augmentations, interface_type)
+        st.sidebar.markdown("___")
 
         # reset augment_config to avoid storing all unwanted previous selections
         session_state.augment_config = {
@@ -173,13 +175,38 @@ def augmentation_configuration(RELEASE=True):
             'augmentations': {}
         }
 
-        # get parameters for each transform
+        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+            min_area, min_visibility = show_bbox_params_selection()
+            st.sidebar.markdown("___")
+            # store them to use for update DB
+            session_state.augment_config['min_area'] = min_area
+            session_state.augment_config['min_visibility'] = min_visibility
+
+            if image_name != "Upload my image":
+                xml_df = xml_to_df(bbox_label_folder)
+                class_names, bboxes = get_bbox_label_info(xml_df, image_name)
+
+        # show the widgets and get parameters for each transform
         transforms = get_transormations_params(
             transform_names, augmentations)
 
         try:
-            # apply the transformation to the image
-            data = A.ReplayCompose(transforms)(image=image)
+            if image_name != "Upload my image":
+                if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                    # apply the transformation to the image with consideration of bboxes
+                    data = A.ReplayCompose(
+                        transforms,
+                        bbox_params=A.BboxParams(
+                            format='pascal_voc',
+                            min_area=min_area,
+                            min_visibility=min_visibility,
+                            label_fields=['class_names']
+                        )
+                    )(image=image, bboxes=bboxes, class_names=class_names)
+            # TODO for mask augmentation
+            else:
+                # apply the transformation to the image
+                data = A.ReplayCompose(transforms)(image=image)
             error = 0
         except ValueError:
             error = 1
@@ -187,6 +214,12 @@ def augmentation_configuration(RELEASE=True):
                 "The error has occurred. Most probably you have passed wrong set of parameters. \
             Check transforms that change the shape of image."
             )
+        except NotImplementedError as e:
+            error = 1
+            st.error(f"""Transformation of **{str(e).split()[-1]}** is not available for 
+            the current computer vision task: **{session_state.new_training.deployment_type}**.
+            Please try another transformation.""")
+            st.stop()
 
         # ********************** Details column **********************
 
@@ -194,37 +227,59 @@ def augmentation_configuration(RELEASE=True):
         if error == 0:
             augmented_image = data["image"]
             # show title
-            st.markdown("## Demo of Image Augmentation")
             st.markdown(
-                f"**Step 3: Select augmentation configuration at sidebar "
-                "and see the changes in the transformed image.**")
+                f"### Step 3: Select augmentation configuration at sidebar "
+                "and see the changes in the transformed image.")
             st.markdown(
                 "The `Professional` mode allows more than one transformation, "
                 "and also the option to upload an image of your choice.")
+            st.markdown("#### Demo of image augmentation result")
 
-            # show the images
-            width_transformed = int(
-                width_original / image.shape[1] * augmented_image.shape[1]
-            )
+            # Set this image width for the size of our image to display on Streamlit
+            # width_original = 400
+            # # show the images
+            # width_transformed = int(
+            #     width_original / image.shape[1] * augmented_image.shape[1]
+            # )
 
-            st.image(image, caption="Original image", width=width_original)
-            st.image(
-                augmented_image,
-                caption="Transformed image",
-                width=width_transformed,
-            )
+            if image_name != "Upload my image":
+                if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                    image = draw_gt_bbox(
+                        image, bboxes, class_names=class_names)
+                    augmented_image = draw_gt_bbox(augmented_image, data['bboxes'],
+                                                   class_names=data['class_names'])
+            # TODO: add for mask augmentation
+
+            true_img_col, aug_img_col = st.columns(2)
+            with true_img_col:
+                st.image(image, caption="Original image",
+                         use_column_width=True)
+            with aug_img_col:
+                st.image(
+                    augmented_image,
+                    caption="Transformed image",
+                    use_column_width=True,
+                )
 
             # comment about refreshing
             st.markdown(
                 "*Press 'R' to refresh to try for different random results*")
 
-            # random values used to get transformations
-            show_random_params(data, interface_type)
+            st.markdown("___")
 
-            # print additional info
-            for transform in transforms:
-                show_docstring(transform)
-                st.code(str(transform))
+            if interface_type == "Professional":
+                random_param_col, docstring_col = st.columns([1, 2])
+                with random_param_col:
+                    # random values used to get transformations
+                    show_random_params(data, interface_type)
+            else:
+                docstring_col = st.container()
+
+            with docstring_col:
+                # print additional info
+                for transform in transforms:
+                    show_docstring(transform)
+                    st.code(str(transform))
 
     # ******************************SUBMIT BUTTON******************************
 
@@ -244,6 +299,12 @@ def augmentation_configuration(RELEASE=True):
 
 
 if __name__ == "__main__":
+    # DEFINE wide page layout for debugging on this page
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+    conn = init_connection(**st.secrets["postgres"])
+
     if st._is_running_with_streamlit:
         augmentation_configuration(RELEASE=False)
     else:

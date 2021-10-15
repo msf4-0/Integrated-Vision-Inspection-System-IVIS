@@ -102,7 +102,8 @@ def training_configuration():
                           " Recommended to start with 4. Reduce if memory warning happens.")
                 )
                 st.number_input(
-                    "Number of training steps", min_value=100, max_value=10_000,
+                    "Number of training steps", min_value=100,
+                    max_value=20_000,  # NOTE: this max_value should be adjusted according to our server limit
                     value=num_train_steps,
                     step=50, key='param_num_train_steps',
                     help="Recommended to train for at least 2000 steps."

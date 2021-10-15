@@ -1,11 +1,16 @@
+from itertools import zip_longest
+import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
+from pathlib import Path
 import numpy as np
 import cv2
 
 import streamlit as st
 
 from object_detection.utils import visualization_utils as viz_utils
+
+from core.utils.log import logger
 
 
 def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -> str:
@@ -118,10 +123,21 @@ class PrettyMetricPrinter:
 def draw_gt_bbox(
     image_np: np.ndarray,
     box_coordinates: Sequence[Tuple[int, int, int, int]],
-    color: Tuple[int, int, int] = (0, 255, 0)
+    color: Tuple[int, int, int] = (0, 150, 0),
+    class_names: List[str] = None,
 ) -> np.ndarray:
     image_with_gt_box = image_np.copy()
-    for xmin, ymin, xmax, ymax in box_coordinates:
+    logger.debug(f"Total annotations for the image: {len(box_coordinates)}")
+
+    if class_names is None:
+        class_names = []
+    elif isinstance(class_names, str):
+        # set the label to be the same for each box
+        class_names = [class_names] * len(box_coordinates)
+    elif len(class_names) == 1:
+        class_names = class_names * len(box_coordinates)
+
+    for (xmin, ymin, xmax, ymax), class_name in zip_longest(box_coordinates, class_names):
         if isinstance(xmin, float):
             xmin, ymin = int(xmin), int(ymin)
             xmax, ymax = int(xmax), int(ymax)
@@ -131,6 +147,35 @@ def draw_gt_bbox(
             (xmax, ymax),
             color=color,
             thickness=2)
+        # draw the class name if given
+        if class_name:
+            ((label_width, label_height), _) = cv2.getTextSize(
+                class_name, fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=1.75, thickness=2
+            )
+
+            cv2.rectangle(
+                image_with_gt_box,
+                (xmin, ymin),
+                (
+                    int(xmin + label_width + label_width * 0.05),
+                    int(ymin + label_height + label_height * 1),
+                ),
+                color=color,
+                thickness=cv2.FILLED,
+            )
+
+            cv2.putText(
+                image_with_gt_box,
+                class_name,
+                (
+                    int(xmin + label_width * 0.03),
+                    int(ymin + label_height + label_height * 0.5),
+                ),  # bottom left
+                fontFace=cv2.FONT_HERSHEY_PLAIN,
+                fontScale=1.75,
+                color=(255, 255, 255),
+                thickness=2,
+            )
     return image_with_gt_box
 
 
