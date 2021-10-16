@@ -28,7 +28,7 @@ import sys
 import shutil
 from pathlib import Path
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 import pandas as pd
@@ -96,8 +96,7 @@ class Trainer:
         # self.attached_model: Model = new_training.attached_model
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
-        self.augmentation_dict: Dict[str,
-                                     Any] = new_training.augmentation_dict['augmentations']
+        self.augmentation_dict: Dict[str, Any] = new_training.augmentation_dict
         self.training_path: Dict[str, Path] = new_training.training_path
 
     @staticmethod
@@ -109,7 +108,7 @@ class Trainer:
                          val_size: Optional[float] = 0.0,
                          train_size: Optional[float] = 0.0,
                          random_seed: Optional[int] = 42
-                         ):
+                         ) -> Tuple[List[str], ...]:
         """
         Splitting the dataset into train set, test set, and optionally validation set
         if `no_validation` is True.
@@ -125,7 +124,7 @@ class Trainer:
             random_seed (Optional[int]): random seed to use for splitting. Defaults to 42.
 
         Returns:
-            Tuples of lists of image paths, and optionally annotation paths, 
+            Tuples of lists of image paths (str), and optionally annotation paths, 
             optionally split without validation set too.
         """
         if no_validation:
@@ -345,7 +344,7 @@ class Trainer:
         # initialize to check whether these paths exist for generating TF Records
         train_xml_csv_path = None
         with st.spinner('Copying images to folder, this may take awhile ...'):
-            if self.augmentation_dict:
+            if self.augmentation_dict['augmentation']:
                 with st.spinner("Generating augmented training images ..."):
                     # these csv files are temporarily generated to use for generating TF Records, should be removed later
                     train_xml_csv_path = paths['ANNOTATION_PATH'] / 'train.csv'
@@ -353,7 +352,8 @@ class Trainer:
                         image_paths=X_train,
                         xml_dir=self.dataset_export_path / "Annotations",
                         output_img_dir=paths['IMAGE_PATH'] / 'train',
-                        csv_path=train_xml_csv_path
+                        csv_path=train_xml_csv_path,
+                        train_size=self.augmentation_dict['train_size']
                     )
             else:
                 # if not augmenting data, directly copy the train images to the folder

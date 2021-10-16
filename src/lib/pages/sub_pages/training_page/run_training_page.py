@@ -165,8 +165,7 @@ def index(RELEASE=True):
         st.markdown('### Augmentation Config:')
         augmentation_dict = session_state.new_training.augmentation_dict
         if augmentation_dict:
-            aug_config_info = pretty_format_param(
-                augmentation_dict['augmentations'])
+            aug_config_info = pretty_format_param(augmentation_dict)
             st.info(aug_config_info)
         else:
             st.info("No augmentation config selected yet.")

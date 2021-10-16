@@ -382,6 +382,9 @@ def xml_to_df(path: str) -> pd.DataFrame:
     return xml_df
 
 
+st.experimental_memo
+
+
 def get_bbox_label_info(xml_df: pd.DataFrame,
                         image_name: str) -> Tuple[List[str], Tuple[int, int, int, int]]:
     """Get the class name and bounding box coordinates associated with the image."""
@@ -415,7 +418,11 @@ def get_transform():
     return transform
 
 
-def generate_tfod_xml_csv(image_paths: Path, xml_dir: Path, output_img_dir: Path, csv_path: Path):
+def generate_tfod_xml_csv(image_paths: List[str],
+                          xml_dir: Path,
+                          output_img_dir: Path,
+                          csv_path: Path,
+                          train_size: int):
     """Generate TFOD's CSV file for augmented images and bounding boxes used for generating TF Records.
     Also save the transformed images to the `output_img_dir` at the same time."""
 
@@ -423,6 +430,13 @@ def generate_tfod_xml_csv(image_paths: Path, xml_dir: Path, output_img_dir: Path
 
     transform = get_transform()
     xml_df = xml_to_df(str(xml_dir))
+
+    if train_size > len(image_paths):
+        # randomly select the remaining paths and extend them to the original List
+        # to make sure to go through the entire dataset for at least once
+        n_remaining = train_size - image_paths
+        image_paths.extend(np.random.choice(
+            image_paths, size=n_remaining, replace=True))
 
     logger.info('Generating CSV file for augmented bounding boxes ...')
     start = time.perf_counter()

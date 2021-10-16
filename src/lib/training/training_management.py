@@ -193,6 +193,8 @@ class BaseTraining:
         # list of dataset names
         self.dataset_chosen: List[str] = []
         self.training_param_dict: Dict = {}
+        # note that for object detection, this will also have the following keys:
+        #  `min_area`, `min_visibility` and `train_size`
         self.augmentation_dict: Dict[str, Any] = {
             'interface_type': 'Simple', 'augmentations': {}}
         self.is_started: bool = False

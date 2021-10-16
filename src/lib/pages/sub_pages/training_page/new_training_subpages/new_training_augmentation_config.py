@@ -138,6 +138,25 @@ def augmentation_configuration(RELEASE=True):
         st.title("There is no directory: " + image_folder)
         st.stop()
 
+    # select the number of images to generate from the augmentation, ONLY needed for TFOD
+    if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+        if session_state.new_training.partition_size['train'] == 0:
+            session_state.new_training.calc_dataset_partition_size(
+                session_state.new_training.dataset_chosen,
+                session_state.project.dataset_dict
+            )
+        train_size = session_state.new_training.partition_size['train']
+        st.sidebar.number_input(
+            "Select the number of images to generate",
+            min_value=train_size, max_value=train_size * 5,
+            value=train_size * 2, step=1, key='aug_train_size',
+            help="""This is the total number of images that will be augmented and use
+            for training (`train_size`). This is only needed for object detection task because we are
+            generating the images before training, rather than augmenting them on fly."""
+        )
+        # store it in our config to store in DB
+        session_state.augment_config['train_size'] = session_state.aug_train_size
+
     # select interface type
     options = ("Simple", "Professional")
     curr_idx = options.index(
