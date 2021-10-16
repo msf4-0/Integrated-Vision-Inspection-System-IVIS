@@ -118,6 +118,21 @@ def augmentation_configuration(RELEASE=True):
     st.sidebar.button("Back to Modify Training Config", key="augment_config_back_button",
                       on_click=to_training_config_page)
 
+    def skip_augmentation():
+        # reset the augment_config
+        session_state.augment_config = {
+            'interface_type': 'Simple', 'augmentations': {}}
+        # update the database and our Training instance
+        session_state.new_training.update_augment_config(
+            session_state.augment_config)
+        session_state.new_training.has_submitted[NewTrainingPagination.AugmentationConfig] = True
+        session_state.new_training_pagination = NewTrainingPagination.Training
+
+    st.sidebar.button("Skip augmentation", key="augment_config_back_button",
+                      on_click=skip_augmentation)
+    st.sidebar.warning("""NOTE: You can skip augmentation if you deem it's not necessary. 
+    It is completely optional, although image augmentation is beneficial in most cases.""")
+
     # ************************ Config column ************************
 
     # get project exported dataset folder

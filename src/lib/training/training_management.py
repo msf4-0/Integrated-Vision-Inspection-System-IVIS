@@ -954,9 +954,6 @@ class Training(BaseTraining):
                     , partition_ratio
                     , training_model_id
                     , attached_model_id
-                    , (
-
-                )
                 FROM
                     public.training
                 WHERE

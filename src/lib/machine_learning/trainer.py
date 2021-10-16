@@ -344,7 +344,7 @@ class Trainer:
         # initialize to check whether these paths exist for generating TF Records
         train_xml_csv_path = None
         with st.spinner('Copying images to folder, this may take awhile ...'):
-            if self.augmentation_dict['augmentation']:
+            if self.augmentation_dict['augmentations']:
                 with st.spinner("Generating augmented training images ..."):
                     # these csv files are temporarily generated to use for generating TF Records, should be removed later
                     train_xml_csv_path = paths['ANNOTATION_PATH'] / 'train.csv'

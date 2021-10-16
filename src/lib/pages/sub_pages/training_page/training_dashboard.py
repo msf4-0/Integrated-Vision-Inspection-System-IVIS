@@ -102,14 +102,20 @@ def dashboard():
 
     # ****************************** CREATE NEW PROJECT BUTTON ****************************************
 
-    def to_new_training_page():
+    existing_annotations = session_state.project.query_annotations(
+        session_state.project_id)
+    if len(existing_annotations) >= 10:
+        def to_new_training_page():
+            session_state.training_pagination = TrainingPagination.New
+            NewTraining.reset_new_training_page()
 
-        session_state.training_pagination = TrainingPagination.New
-        NewTraining.reset_new_training_page()
-
-    create_new_training_button_col1.button(
-        "Create New Training Session", key='create_new_training_from_training_dashboard',
-        on_click=to_new_training_page, help="Create a new training session")
+        create_new_training_button_col1.button(
+            "Create New Training Session", key='create_new_training_from_training_dashboard',
+            on_click=to_new_training_page, help="Create a new training session")
+    else:
+        st.warning("""No annotations found for this project yet. Please go to the
+        **Labelling** page and label for at least 10 images first before entering here.
+        But note that 10 is only the minimum number of data to be used for a test run 😆""")
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
 

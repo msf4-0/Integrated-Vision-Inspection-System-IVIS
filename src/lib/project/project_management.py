@@ -346,6 +346,8 @@ class Project(BaseProject):
         """
         Generate the output JSON with the format following Label Studio and returns the path to the file.
         Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
+        If `for_training_id` is provided, then the JSON file is based on the annotations
+        associated with the dataset used for the `training_id`.
         """
         all_annots, col_names = self.query_annotations(
             self.id, for_training_id)
@@ -417,6 +419,8 @@ class Project(BaseProject):
 
     @staticmethod
     def query_annotations(project_id: int, return_dict: bool = True, for_training_id: int = 0) -> Tuple[List[Dict], List]:
+        """Query annotatinos for this project. If `for_training_id` is provided,
+        then only the annotations associated with the `training_id` is queried."""
         if for_training_id > 0:
             sql_query = """
                 SELECT a.id AS id,

@@ -164,11 +164,11 @@ def index(RELEASE=True):
         # TODO: confirm that this works for image classification and segmentation
         st.markdown('### Augmentation Config:')
         augmentation_dict = session_state.new_training.augmentation_dict
-        if augmentation_dict:
+        if augmentation_dict['augmentations']:
             aug_config_info = pretty_format_param(augmentation_dict)
             st.info(aug_config_info)
         else:
-            st.info("No augmentation config selected yet.")
+            st.info("No augmentation config selected.")
 
         def back_aug_config_page():
             session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig

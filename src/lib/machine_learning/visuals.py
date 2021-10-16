@@ -23,7 +23,7 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
         try:
             param_val = f"{float(val):{float_format}}"
         except Exception as e:
-            logger.debug(f"Skip converting {val}: {e}")
+            logger.debug(f"Skip converting `{val}``: {e}")
             param_val = val
         return param_val
 
@@ -34,12 +34,16 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
         else:
             param_name = k
         if isinstance(v, dict):
+            if not v.values():
+                continue
             config_info.append(f"#### {param_name}")
             for nested_name, nested_v in v.items():
                 param_val = str2float(nested_v)
                 current_info = f'**{nested_name}**: {param_val}'
                 config_info.append(current_info)
         else:
+            if not v:
+                continue
             param_val = str2float(v)
             current_info = f'**{param_name}**: {param_val}'
             config_info.append(current_info)
