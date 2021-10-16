@@ -250,7 +250,8 @@ class Project(BaseProject):
         """
         Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder.
         Or you may also pass in a directory to the `target_path` parameter to move the file there.
-        If `return_original_path` is passed, this will only return the path to where the zipfile is created. 
+        NOTE: If `return_original_path` is passed, this will only return the path to where the zipfile is created,
+        and the zipfile will not be moved to the "Downloads" folder.
         """
         self.export_tasks()
         export_path = self.get_export_path()
@@ -273,15 +274,15 @@ class Project(BaseProject):
         if return_target_path:
             return target_path
 
-    def export_tasks(self):
+    def export_tasks(self, for_training_id: int = 0):
         """
-        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory.
-        Allow download images and annotations if necessary.
+        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to the dataset export directory.
+        If `for_training_id` > 0, this will only export the annotated dataset associated with the `training_id`, to use for training.
         """
         logger.debug(
             f"Exporting labeled tasks for Project ID: {session_state.project.id}")
 
-        json_path = self.generate_label_json()
+        json_path = self.generate_label_json(for_training_id)
         output_dir = self.get_export_path()
 
         # - beware here I added removing the entire existing directory before proceeding
@@ -341,12 +342,13 @@ class Project(BaseProject):
         output_dir = project_path / "export"
         return output_dir
 
-    def generate_label_json(self) -> Path:
+    def generate_label_json(self, for_training_id: int = 0) -> Path:
         """
         Generate the output JSON with the format following Label Studio and returns the path to the file.
         Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
         """
-        all_annots, col_names = self.query_annotations(self.id)
+        all_annots, col_names = self.query_annotations(
+            self.id, for_training_id)
         # the col_names can be changed if necessary
         df = pd.DataFrame(all_annots, columns=col_names)
 
@@ -414,22 +416,39 @@ class Project(BaseProject):
         return unique_labels
 
     @staticmethod
-    def query_annotations(project_id: int, return_dict: bool = True) -> Tuple[List[Dict], List]:
-        sql_query = """
-                SELECT 
-                    a.id AS id,
+    def query_annotations(project_id: int, return_dict: bool = True, for_training_id: int = 0) -> Tuple[List[Dict], List]:
+        if for_training_id > 0:
+            sql_query = """
+                SELECT a.id AS id,
                     a.result AS result,
                     -- flag of 'g' to match every pattern instead of only the first
-                    CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
+                    CONCAT_WS('/', regexp_replace(trim(both from d.name), '\s+', '-', 'g'), t.name) AS image_path
                 FROM annotations a
                         LEFT JOIN task t on a.id = t.annotation_id
-                        LEFT JOIN dataset d on t.dataset_id = d.id
-                WHERE a.project_id = %s
+                        LEFT JOIN training_dataset td on t.dataset_id = td.dataset_id
+                        LEFT JOIN dataset d on td.dataset_id = d.id
+                WHERE td.training_id = %s and a.project_id = %s
                 ORDER BY id;
-        """
-        query_vars = [project_id]
-        logger.info(
-            f"Querying annotations from database for Project ID: {project_id}")
+            """
+            query_vars = [for_training_id, project_id]
+            logger.info(f"""Querying annotations from database for Project ID: {project_id}
+                        and Training ID: {for_training_id}""")
+        else:
+            sql_query = """
+                    SELECT 
+                        a.id AS id,
+                        a.result AS result,
+                        -- flag of 'g' to match every pattern instead of only the first
+                        CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
+                    FROM annotations a
+                            LEFT JOIN task t on a.id = t.annotation_id
+                            LEFT JOIN dataset d on t.dataset_id = d.id
+                    WHERE a.project_id = %s
+                    ORDER BY id;
+            """
+            query_vars = [project_id]
+            logger.info(
+                f"Querying annotations from database for Project ID: {project_id}")
 
         try:
             all_annots, column_names = db_fetchall(

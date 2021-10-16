@@ -239,7 +239,8 @@ def index(RELEASE=True):
             run_tensorboard(logdir)
 
         with st.spinner("Exporting tasks for training ..."):
-            session_state.project.export_tasks()
+            session_state.project.export_tasks(
+                for_training_id=session_state.new_training.id)
 
         initialize_trainer()
         # start training, set `stdout_output` to True to print the logging outputs generated

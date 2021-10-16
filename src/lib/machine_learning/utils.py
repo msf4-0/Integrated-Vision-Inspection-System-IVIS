@@ -406,8 +406,6 @@ def get_transform():
             transform_list,
             bbox_params=A.BboxParams(
                 format='pascal_voc',
-                # ? maybe this two params can allow changing, but it could be
-                #  difficult for users to understand, maybe try showing sample outputs from our data?
                 min_area=min_area,
                 min_visibility=min_visibility,
                 label_fields=['class_names']

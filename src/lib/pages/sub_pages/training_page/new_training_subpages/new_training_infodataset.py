@@ -171,16 +171,11 @@ def infodataset():
     with datasetcol3.container():
 
         # >>>> Store SELECTED DATASET >>>>
-        # - JUST include all the dataset selected during the project creation
-        # st.multiselect(
-        #     "Dataset List", key="new_training_dataset_chosen",
-        #     options=session_state.project.dataset_dict, help="Assign dataset to the training")
-        # session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
-        # )
-        # TODO: REMOVE this session state originally used by the multiselect widget
-        session_state.new_training_dataset_chosen = list(
-            session_state.project.dataset_dict.keys())
-        # NOTE: This is changed to directly init the new_training.dataset_chosen from `project.dataset_dict.keys()`
+        st.multiselect(
+            "Dataset List", key="new_training_dataset_chosen",
+            options=session_state.project.dataset_dict, help="Assign dataset to the training")
+        session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
+        )
 
         if len(session_state.new_training_dataset_chosen) > 0:
 

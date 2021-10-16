@@ -190,9 +190,8 @@ class BaseTraining:
             'eval': 0,
             'test': 0
         }
-        # self.dataset_chosen: List = []
-        # automatically get the list of dataset names from project
-        self.dataset_chosen: List[str] = list(project.dataset_dict.keys())
+        # list of dataset names
+        self.dataset_chosen: List[str] = []
         self.training_param_dict: Dict = {}
         self.augmentation_dict: Dict[str, Any] = {
             'interface_type': 'Simple', 'augmentations': {}}
@@ -788,7 +787,10 @@ class Training(BaseTraining):
         # `query_all_fields` creates self.name, self.desc, self.training_param_dict,
         # self.augmentation_dict, self.progress, self.partition_ratio
         # self.training_model_id, self.attached_model_id, self.is_started
+        # from `training` table
         self.query_all_fields()
+        # creates from `training_dataset` table; could have multiple datasets
+        self.dataset_chosen = self.query_dataset_chosen(self.id)
         # creates self.attached_model and self.training_model
         self.get_training_details()
         # NOTE: self.training_path is now created with `property` decorator below
@@ -950,6 +952,9 @@ class Training(BaseTraining):
                     , partition_ratio
                     , training_model_id
                     , attached_model_id
+                    , (
+
+                )
                 FROM
                     public.training
                 WHERE
@@ -976,6 +981,30 @@ class Training(BaseTraining):
             training_field = None
 
         return training_field
+
+    @staticmethod
+    def query_dataset_chosen(training_id: int) -> NamedTuple:
+        sql_query = """
+                SELECT  d.id   AS id,
+                        d.name AS dataset_chosen
+                FROM training_dataset t
+                        JOIN dataset d ON t.dataset_id = d.id
+                WHERE training_id = %s;
+        """
+        query_vars = [training_id]
+
+        # return List[namedtuple]
+        query_return = db_fetchall(sql_query, conn, query_vars)
+
+        if query_return:
+            dataset_chosen = [record.dataset_chosen for record in query_return]
+            logger.info(
+                f"Training of ID {training_id} has selected datasets: {dataset_chosen}")
+        else:
+            logger.info(
+                f"Training of ID {training_id} has not selected any training_dataset yet")
+
+        return dataset_chosen
 
     @staticmethod
     def query_all_project_training(project_id: int,
@@ -1369,6 +1398,9 @@ class Training(BaseTraining):
 
         # Insert as a new Project Training
         self.insert_project_training()
+
+        # Insert Training Dataset
+        self.insert_training_dataset(added_dataset=self.dataset_chosen)
 
         # insert as a new training model and
         # update the model ID with the ID returned from DB

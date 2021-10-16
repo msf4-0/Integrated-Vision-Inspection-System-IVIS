@@ -30,28 +30,20 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
-
-# DEFINE Web APP page configuration
-layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger  # logger
 from training.training_management import NewTrainingPagination
 
 
-def training_configuration():
+def training_configuration(RELEASE=True):
     logger.debug("At new_training_training_config.py")
 
     if 'training_param_dict' not in session_state:
@@ -103,20 +95,17 @@ def training_configuration():
                 )
                 st.number_input(
                     "Number of training steps", min_value=100,
-                    max_value=20_000,  # NOTE: this max_value should be adjusted according to our server limit
+                    # NOTE: this max_value should be adjusted according to our server limit
+                    max_value=20_000,
                     value=num_train_steps,
                     step=50, key='param_num_train_steps',
                     help="Recommended to train for at least 2000 steps."
                 )
-                # TODO: combine submission with augmentation config together
                 st.form_submit_button("Submit Config",
                                       on_click=update_training_param)
 
         elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
             pass
-
-    # TODO: augmentation config for image classification and segmentation,
-    # TFOD API does not need this because TFOD's pipeline config already has own augmentation
 
     # ******************************BACK BUTTON******************************
     def to_models_page():
@@ -127,8 +116,13 @@ def training_configuration():
 
 
 if __name__ == "__main__":
+    # DEFINE wide page layout for debugging when running this page directly
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
     if st._is_running_with_streamlit:
-        training_configuration()
+        training_configuration(RELEASE=False)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
