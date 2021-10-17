@@ -56,7 +56,8 @@ from .augmentation.visuals import (
     select_image,
     show_docstring,
     get_transormations_params,
-    show_bbox_params_selection
+    show_bbox_params_selection,
+    show_train_size_selection
 )
 
 
@@ -102,14 +103,11 @@ def augmentation_configuration(RELEASE=True):
             'interface_type': 'Simple', 'augmentations': {}}
 
     # - This is for None or empty dict; also to create a nested `augmentations` Dict inside
-    if not session_state.new_training.augmentation_dict:
-        session_state.new_training.augmentation_dict = {}
-        session_state.new_training.augmentation_dict = {
+    if not session_state.new_training.has_augmentation():
+        session_state.new_training.augmentation_config = {
             'interface_type': 'Simple',
             "augmentations": {}
         }
-    elif not session_state.new_training.augmentation_dict['augmentations']:
-        session_state.new_training.augmentation_dict['augmentations'] = {}
 
     # ******************************BACK BUTTON******************************
     def to_training_config_page():
@@ -130,7 +128,7 @@ def augmentation_configuration(RELEASE=True):
 
     st.sidebar.button("Skip augmentation", key="augment_config_back_button",
                       on_click=skip_augmentation)
-    st.sidebar.warning("""NOTE: You can skip augmentation if you deem it's not necessary. 
+    st.sidebar.info("""NOTE: You can skip augmentation if you deem it's not necessary. 
     It is completely optional, although image augmentation is beneficial in most cases.""")
 
     # ************************ Config column ************************
@@ -153,29 +151,25 @@ def augmentation_configuration(RELEASE=True):
         st.title("There is no directory: " + image_folder)
         st.stop()
 
+    # reset augment_config to avoid storing all unwanted previous selections
+    # when the user changed the transformations
+    session_state.augment_config = {
+        'interface_type': session_state.aug_interface_type,
+        'augmentations': {}
+    }
+
     # select the number of images to generate from the augmentation, ONLY needed for TFOD
     if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
-        if session_state.new_training.partition_size['train'] == 0:
-            session_state.new_training.calc_dataset_partition_size(
-                session_state.new_training.dataset_chosen,
-                session_state.project.dataset_dict
-            )
-        train_size = session_state.new_training.partition_size['train']
-        st.sidebar.number_input(
-            "Select the number of images to generate",
-            min_value=train_size, max_value=train_size * 5,
-            value=train_size * 2, step=1, key='aug_train_size',
-            help="""This is the total number of images that will be augmented and use
-            for training (`train_size`). This is only needed for object detection task because we are
-            generating the images before training, rather than augmenting them on fly."""
-        )
-        # store it in our config to store in DB
-        session_state.augment_config['train_size'] = session_state.aug_train_size
+        ori_train_size, aug_train_size = show_train_size_selection()
+        diff = aug_train_size - ori_train_size
+        pct_change = round(diff / ori_train_size * 100, 1)
+        st.sidebar.info(f"Relative increase: **{diff} ({pct_change}%)**  \n"
+                        f"Original training size: **{ori_train_size}**")
 
     # select interface type
     options = ("Simple", "Professional")
     curr_idx = options.index(
-        session_state.new_training.augmentation_dict['interface_type'])
+        session_state.new_training.augmentation_config['interface_type'])
     interface_type = st.sidebar.radio(
         "Select the interface mode",
         options,
@@ -203,18 +197,9 @@ def augmentation_configuration(RELEASE=True):
             augmentations, interface_type)
         st.sidebar.markdown("___")
 
-        # reset augment_config to avoid storing all unwanted previous selections
-        session_state.augment_config = {
-            'interface_type': session_state.aug_interface_type,
-            'augmentations': {}
-        }
-
         if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
             min_area, min_visibility = show_bbox_params_selection()
             st.sidebar.markdown("___")
-            # store them to use for update DB
-            session_state.augment_config['min_area'] = min_area
-            session_state.augment_config['min_visibility'] = min_visibility
 
             if image_name != "Upload my image":
                 xml_df = xml_to_df(bbox_label_folder)
@@ -267,7 +252,7 @@ def augmentation_configuration(RELEASE=True):
             st.markdown(
                 """The `Professional` mode allows more than one transformation, 
                 and also the option to upload an image of your choice.""")
-            st.warning("""
+            st.info("""
                 ✏️ NOTE: Image augmentation may be very useful to increase the number of 
                 images in our training set, but it could hurt your deep learning algorithm 
                 if your label has changed after the transformation, e.g. a 
@@ -339,6 +324,9 @@ def augmentation_configuration(RELEASE=True):
     st.markdown("___")
     st.markdown("**Acknowledgement**: Huge thanks to [albumentations](https://github.com/IliaLarchenko/albumentations-demo) "
                 "for the amazing data augmentation library and also the [Streamlit demo](https://albumentations-demo.herokuapp.com/) as reference.")
+
+    st.write("session_state.augment_config")
+    st.write(session_state.augment_config)
 
 
 if __name__ == "__main__":

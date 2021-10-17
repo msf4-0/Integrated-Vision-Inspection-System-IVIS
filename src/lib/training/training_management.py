@@ -195,7 +195,7 @@ class BaseTraining:
         self.training_param_dict: Dict = {}
         # note that for object detection, this will also have the following keys:
         #  `min_area`, `min_visibility` and `train_size`
-        self.augmentation_dict: Dict[str, Any] = {
+        self.augmentation_config: Dict[str, Any] = {
             'interface_type': 'Simple', 'augmentations': {}}
         self.is_started: bool = False
         self.progress: Dict = {}
@@ -548,12 +548,12 @@ class BaseTraining:
             logger.error(f"Update training param failed: {e}")
             return False
 
-    def update_augment_config(self, augmentation_dict: Dict[str, Any]) -> bool:
+    def update_augment_config(self, augmentation_config: Dict[str, Any]) -> bool:
         # Maybe can try using the TrainingParam class, but seems like not necessary
-        self.augmentation_dict = augmentation_dict
+        self.augmentation_config = augmentation_config
 
         # required for storing JSONB format
-        augmentation_json = json.dumps(augmentation_dict)
+        augmentation_json = json.dumps(augmentation_config)
         sql_query = """
         UPDATE
             public.training
@@ -569,6 +569,14 @@ class BaseTraining:
         except Exception as e:
             logger.error(f"Update training param failed: {e}")
             return False
+
+    def has_augmentation(self) -> bool:
+        """Check if any augmentations have been chosen and submitted for this instance."""
+        if self.augmentation_config is not None \
+            and 'augmentations' in self.augmentation_config \
+                and self.augmentation_config['augmentations']:
+            return True
+        return False
 
 
 class NewTraining(BaseTraining):
@@ -787,7 +795,7 @@ class Training(BaseTraining):
         super().__init__(training_id, project)
 
         # `query_all_fields` creates self.name, self.desc, self.training_param_dict,
-        # self.augmentation_dict, self.progress, self.partition_ratio
+        # self.augmentation_config, self.progress, self.partition_ratio
         # self.training_model_id, self.attached_model_id, self.is_started
         # from `training` table
         self.query_all_fields()
@@ -970,7 +978,7 @@ class Training(BaseTraining):
 
         if training_field:
             self.name, self.desc,\
-                self.training_param_dict, self.augmentation_dict,\
+                self.training_param_dict, self.augmentation_config,\
                 self.is_started, self.progress, self.partition_ratio, \
                 self.training_model_id, self.attached_model_id = training_field
         else:
@@ -1371,7 +1379,7 @@ class Training(BaseTraining):
 
         partition_ratio_json = json.dumps(self.partition_ratio)
         training_param_json = json.dumps(self.training_param_dict)
-        augment_param_json = json.dumps(self.augmentation_dict)
+        augment_param_json = json.dumps(self.augmentation_config)
         progress_json = json.dumps(self.progress)
         # CARE self.training_model.id is NOT THE NEW ONE YET
         insert_training_info_vars = [self.name, self.desc, self.attached_model.id,

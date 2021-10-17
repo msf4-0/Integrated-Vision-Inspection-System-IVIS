@@ -163,9 +163,9 @@ def index(RELEASE=True):
     with aug_config_col:
         # TODO: confirm that this works for image classification and segmentation
         st.markdown('### Augmentation Config:')
-        augmentation_dict = session_state.new_training.augmentation_dict
-        if augmentation_dict['augmentations']:
-            aug_config_info = pretty_format_param(augmentation_dict)
+        augmentation_config = session_state.new_training.augmentation_config
+        if session_state.new_training.has_augmentation():
+            aug_config_info = pretty_format_param(augmentation_config)
             st.info(aug_config_info)
         else:
             st.info("No augmentation config selected.")
@@ -324,17 +324,20 @@ def index(RELEASE=True):
                     session_state.new_training.training_model.metrics)
                 st.markdown("#### Final Metrics:")
                 st.info(metrics)
-                st.markdown(
-                    "From [TFOD docs](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html#training-the-model):  \n")
-                st.markdown("""Following what people have said online,
-                it seems that it is advisable to allow your model to reach a `Total loss`
-                of **at least 2** (ideally 1 and lower) if you want to achieve “fair” 
-                detection results. Obviously, lower `Total loss` is better, however very 
-                low `Total loss` should be avoided, as the model may end up overfitting 
-                the dataset, meaning that it will perform poorly when applied to images
-                outside the dataset it has been trained on. To monitor `Total loss`, as well
-                as a number of other metrics even while your model is training, have a look at 
-                the **TensorBoard** above.""")
+
+                if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                    with st.expander("Notions about the metrics"):
+                        st.markdown(
+                            "From [TFOD docs](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html#training-the-model):  \n")
+                        st.markdown("""Following what people have said online,
+                        it seems that it is advisable to allow your model to reach a `Total loss`
+                        of **at least 2** (ideally 1 and lower) if you want to achieve “fair” 
+                        detection results. Obviously, lower `Total loss` is better, however very 
+                        low `Total loss` should be avoided, as the model may end up overfitting 
+                        the dataset, meaning that it will perform poorly when applied to images
+                        outside the dataset it has been trained on. To monitor `Total loss`, as well
+                        as a number of other metrics even while your model is training, have a look at 
+                        the **TensorBoard** above.""")
 
             if session_state.new_training.training_path['model_tarfile'].exists():
                 initialize_trainer()

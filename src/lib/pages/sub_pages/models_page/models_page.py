@@ -209,8 +209,9 @@ def existing_models():
         #            checkbox=False,
         #            key='existing_models_table', on_change=instantiate_model)
 
-    logger.debug(f"Project ID: {session_state.project.id} with deployment type: "
-                 f"'{session_state.project.deployment_type}'")
+    logger.debug(f"""Loading pretrained model details for Project ID:
+        {session_state.project.id} with deployment type:
+        '{session_state.project.deployment_type}'""")
     models_df = Model.get_pretrained_model_details(
         session_state.project.deployment_type,
         for_display=True
@@ -511,7 +512,7 @@ def index():
 
     # with new_training_section_back_button_place:
     st.sidebar.button("Back to Modify Training Info", key="models_page_back_button",
-                  on_click=to_training_infodataset_page)
+                      on_click=to_training_infodataset_page)
 
     st.write("vars(session_state.new_training)")
     st.write(vars(session_state.new_training))

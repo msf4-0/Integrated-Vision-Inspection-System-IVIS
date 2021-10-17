@@ -102,8 +102,8 @@ def dashboard():
 
     # ****************************** CREATE NEW PROJECT BUTTON ****************************************
 
-    existing_annotations = session_state.project.query_annotations(
-        session_state.project_id)
+    existing_annotations, _ = session_state.project.query_annotations(
+        session_state.project.id)
     if len(existing_annotations) >= 10:
         def to_new_training_page():
             session_state.training_pagination = TrainingPagination.New

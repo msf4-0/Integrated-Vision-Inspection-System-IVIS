@@ -871,6 +871,7 @@ class BaseModel:
         return True
 
     @staticmethod
+    @st.experimental_memo
     def get_pretrained_model_details(deployment_type: str, for_display: bool = False) -> pd.DataFrame:
         """Get the model details from the CSV files scraped from their websites,
         based on the `deployment_type`.

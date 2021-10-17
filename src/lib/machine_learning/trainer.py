@@ -96,7 +96,8 @@ class Trainer:
         # self.attached_model: Model = new_training.attached_model
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
-        self.augmentation_dict: Dict[str, Any] = new_training.augmentation_dict
+        self.augmentation_config: Dict[str,
+                                       Any] = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.training_path
 
     @staticmethod
@@ -338,13 +339,18 @@ class Trainer:
 
         col, _ = st.columns([1, 1])
         with col:
-            st.code(f"Total training images = {len(y_train)}  \n"
+            if 'train_size' in self.augmentation_config:
+                # only train set is affected by augmentation
+                train_size = self.augmentation_config['train_size']
+            else:
+                train_size = len(y_train)
+            st.code(f"Total training images = {train_size}  \n"
                     f"Total testing images = {len(y_test)}")
 
         # initialize to check whether these paths exist for generating TF Records
         train_xml_csv_path = None
         with st.spinner('Copying images to folder, this may take awhile ...'):
-            if self.augmentation_dict['augmentations']:
+            if session_state.new_training.has_augmentation():
                 with st.spinner("Generating augmented training images ..."):
                     # these csv files are temporarily generated to use for generating TF Records, should be removed later
                     train_xml_csv_path = paths['ANNOTATION_PATH'] / 'train.csv'
@@ -353,7 +359,7 @@ class Trainer:
                         xml_dir=self.dataset_export_path / "Annotations",
                         output_img_dir=paths['IMAGE_PATH'] / 'train',
                         csv_path=train_xml_csv_path,
-                        train_size=self.augmentation_dict['train_size']
+                        train_size=self.augmentation_config['train_size']
                     )
             else:
                 # if not augmenting data, directly copy the train images to the folder

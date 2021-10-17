@@ -1,4 +1,5 @@
 import sys
+from typing import Tuple
 import cv2
 from pathlib import Path
 import streamlit as st
@@ -144,7 +145,7 @@ def show_credentials():
 
 
 def get_transormations_params(transform_names: list, augmentations: dict) -> list:
-    existing_aug = session_state.new_training.augmentation_dict['augmentations']
+    existing_aug = session_state.new_training.augmentation_config['augmentations']
 
     transforms = []
     for i, transform_name in enumerate(transform_names):
@@ -167,9 +168,30 @@ def get_transormations_params(transform_names: list, augmentations: dict) -> lis
     return transforms
 
 
-def show_bbox_params_selection():
+def show_train_size_selection() -> Tuple[int, int]:
+    if session_state.new_training.partition_size['train'] == 0:
+        session_state.new_training.calc_dataset_partition_size(
+            session_state.new_training.dataset_chosen,
+            session_state.project.dataset_dict
+        )
+    train_size = session_state.new_training.partition_size['train']
+    aug_train_size = st.sidebar.number_input(
+        "Select the number of images to generate",
+        min_value=train_size, max_value=train_size * 5,
+        value=train_size * 2, step=1, key='aug_train_size',
+        help="""This is the total number of images that will be augmented and use
+        for training (`train_size`). This is only needed for object detection task because we are
+        generating the images before training, rather than augmenting them on the fly.
+        NOTE: only allows a maximum relative increase of up to 400%"""
+    )
+    # store it in our config to store in DB
+    session_state.augment_config['train_size'] = aug_train_size
+    return train_size, aug_train_size
+
+
+def show_bbox_params_selection() -> Tuple[int, float]:
     st.sidebar.subheader("Bounding box parameters")
-    existing_config = session_state.new_training.augmentation_dict
+    existing_config = session_state.new_training.augmentation_config
     if 'min_area' in existing_config:
         min_area = existing_config['min_area']
     else:
@@ -196,6 +218,9 @@ def show_bbox_params_selection():
             augmentation process cuts the most of the bounding box, that 
             box won't be present in the returned list of the augmented 
             bounding boxes. **Suggested**: 0.1""")
+    # store them to use for update DB
+    session_state.augment_config['min_area'] = min_area
+    session_state.augment_config['min_visibility'] = min_visibility
     return min_area, min_visibility
 
 

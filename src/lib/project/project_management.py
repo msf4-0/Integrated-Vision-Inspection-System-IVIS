@@ -457,6 +457,7 @@ class Project(BaseProject):
         try:
             all_annots, column_names = db_fetchall(
                 sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
+            logger.debug(f"Total annotations: {len(all_annots)}")
 
         except Exception as e:
             logger.error(f"{e}: No annotation found for Project {project_id} ")

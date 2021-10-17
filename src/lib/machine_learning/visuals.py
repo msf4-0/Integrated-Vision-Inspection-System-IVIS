@@ -32,7 +32,7 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
         if "_" in k:
             param_name = ' '.join(k.split('_')).capitalize()
         else:
-            param_name = k
+            param_name = k.capitalize()
         if isinstance(v, dict):
             if not v.values():
                 continue

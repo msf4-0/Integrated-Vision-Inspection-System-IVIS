@@ -37,7 +37,6 @@ def get_images_list(path_to_folder: str, n_images: int = 10) -> Tuple[List[str],
     return image_names_list, image_paths
 
 
-@st.experimental_memo
 def load_image(path_to_image: str, bgr2rgb: bool = True):
     """Load the image
     Args:
@@ -132,7 +131,7 @@ def select_transformations(augmentations: dict, interface_type: str) -> list:
     all_transform_names = sorted(list(augmentations.keys()))
 
     # extracting all the data stored in our Training instance
-    existing_config = session_state.new_training.augmentation_dict
+    existing_config = session_state.new_training.augmentation_config
     aug = existing_config['augmentations']
     existing_transforms = list(aug.keys())
 
@@ -144,7 +143,7 @@ def select_transformations(augmentations: dict, interface_type: str) -> list:
 
     # in the Simple mode you can choose only one transform
     if interface_type == "Simple":
-        transform_names = [
+        selected_transform_names = [
             st.sidebar.selectbox(
                 "Select a transformation:", all_transform_names,
                 index=first_transform_idx
@@ -152,27 +151,27 @@ def select_transformations(augmentations: dict, interface_type: str) -> list:
         ]
     # in the professional mode you can choose several transforms
     elif interface_type == "Professional":
-        transform_names = [
+        selected_transform_names = [
             st.sidebar.selectbox(
                 "Select transformation №1:", all_transform_names,
                 index=first_transform_idx
             )
         ]
 
-        while transform_names[-1] != "None":
+        while selected_transform_names[-1] != "None":
             filtered_transform_names = all_transform_names.copy()
-            for t in transform_names:
+            for t in selected_transform_names:
                 # to avoid duplicated transforms, also make database management much easier
                 filtered_transform_names.remove(t)
 
-            current_idx = len(transform_names)
+            current_idx = len(selected_transform_names)
             if len(existing_transforms) > current_idx:
-                selection_idx = transform_names.index(
+                selection_idx = all_transform_names.index(
                     existing_transforms[current_idx])
             else:
                 selection_idx = 0
 
-            transform_names.append(
+            selected_transform_names.append(
                 st.sidebar.selectbox(
                     f"Select transformation №{current_idx + 1}:",
                     ["None"] + filtered_transform_names,
@@ -180,8 +179,8 @@ def select_transformations(augmentations: dict, interface_type: str) -> list:
                     # key=f'aug_func_{current_idx}'
                 )
             )
-        transform_names = transform_names[:-1]
-    return transform_names
+        selected_transform_names = selected_transform_names[:-1]
+    return selected_transform_names
 
 
 def show_random_params(data: dict, interface_type: str = "Professional"):
@@ -189,7 +188,7 @@ def show_random_params(data: dict, interface_type: str = "Professional"):
     st.subheader("Random params used")
     st.markdown(
         "<p style='border: 2px solid lightgray; border-radius: 0.5em; padding: 5px'>"
-        "This will be NULL when the transformation is not applied due to the assigned "
+        "This will show NULL value when the transformation is not applied due to the assigned "
         "probability to the associated transformation.</p>",
         unsafe_allow_html=True)
     random_values = {}
