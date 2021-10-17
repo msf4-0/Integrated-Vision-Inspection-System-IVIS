@@ -145,7 +145,7 @@ def show_credentials():
 
 
 def get_transormations_params(transform_names: list, augmentations: dict) -> list:
-    existing_aug = session_state.new_training.augmentation_config['augmentations']
+    existing_aug = session_state.new_training.augmentation_config.augmentations
 
     transforms = []
     for i, transform_name in enumerate(transform_names):
@@ -162,7 +162,7 @@ def get_transormations_params(transform_names: list, augmentations: dict) -> lis
             logger.debug(f"{param_values = }")
             st.sidebar.write(param_values)
         # store the augmentation's transform name and param_values here
-        session_state.augment_config['augmentations'][transform_name] = param_values
+        session_state.augmentation_config.augmentations[transform_name] = param_values
 
         transforms.append(getattr(A, transform_name)(**param_values))
     return transforms
@@ -185,19 +185,19 @@ def show_train_size_selection() -> Tuple[int, int]:
         NOTE: only allows a maximum relative increase of up to 400%"""
     )
     # store it in our config to store in DB
-    session_state.augment_config['train_size'] = aug_train_size
+    session_state.augmentation_config.train_size = aug_train_size
     return train_size, aug_train_size
 
 
 def show_bbox_params_selection() -> Tuple[int, float]:
     st.sidebar.subheader("Bounding box parameters")
     existing_config = session_state.new_training.augmentation_config
-    if 'min_area' in existing_config:
-        min_area = existing_config['min_area']
+    if existing_config.min_area:
+        min_area = existing_config.min_area
     else:
         min_area = 200  # default suggested value
-    if 'min_visibility' in existing_config:
-        min_visibility = existing_config['min_visibility']
+    if existing_config.min_visibility:
+        min_visibility = existing_config.min_visibility
     else:
         min_visibility = 0.1  # default suggested value
 
@@ -219,8 +219,8 @@ def show_bbox_params_selection() -> Tuple[int, float]:
             box won't be present in the returned list of the augmented 
             bounding boxes. **Suggested**: 0.1""")
     # store them to use for update DB
-    session_state.augment_config['min_area'] = min_area
-    session_state.augment_config['min_visibility'] = min_visibility
+    session_state.augmentation_config.min_area = min_area
+    session_state.augmentation_config.min_visibility = min_visibility
     return min_area, min_visibility
 
 

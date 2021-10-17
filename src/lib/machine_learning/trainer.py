@@ -54,7 +54,7 @@ if str(LIB_PATH) not in sys.path:
 from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from project.project_management import Project
-from training.training_management import Training
+from training.training_management import Training, AugmentationConfig
 from training.labelmap_management import Framework, Labels
 from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
@@ -96,8 +96,7 @@ class Trainer:
         # self.attached_model: Model = new_training.attached_model
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
-        self.augmentation_config: Dict[str,
-                                       Any] = new_training.augmentation_config
+        self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.training_path
 
     @staticmethod
@@ -339,9 +338,9 @@ class Trainer:
 
         col, _ = st.columns([1, 1])
         with col:
-            if 'train_size' in self.augmentation_config:
+            if self.augmentation_config.train_size is not None:
                 # only train set is affected by augmentation
-                train_size = self.augmentation_config['train_size']
+                train_size = self.augmentation_config.train_size
             else:
                 train_size = len(y_train)
             st.code(f"Total training images = {train_size}  \n"
@@ -350,7 +349,7 @@ class Trainer:
         # initialize to check whether these paths exist for generating TF Records
         train_xml_csv_path = None
         with st.spinner('Copying images to folder, this may take awhile ...'):
-            if session_state.new_training.has_augmentation():
+            if self.augmentation_config.exists():
                 with st.spinner("Generating augmented training images ..."):
                     # these csv files are temporarily generated to use for generating TF Records, should be removed later
                     train_xml_csv_path = paths['ANNOTATION_PATH'] / 'train.csv'
@@ -359,7 +358,7 @@ class Trainer:
                         xml_dir=self.dataset_export_path / "Annotations",
                         output_img_dir=paths['IMAGE_PATH'] / 'train',
                         csv_path=train_xml_csv_path,
-                        train_size=self.augmentation_config['train_size']
+                        train_size=self.augmentation_config.train_size
                     )
             else:
                 # if not augmenting data, directly copy the train images to the folder

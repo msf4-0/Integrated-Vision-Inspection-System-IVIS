@@ -39,7 +39,7 @@ if str(LIB_PATH) not in sys.path:
 from path_desc import chdir_root
 from core.utils.log import logger
 from data_manager.database_manager import init_connection
-from training.training_management import NewTrainingPagination, Training
+from training.training_management import AugmentationConfig, NewTrainingPagination, Training
 from project.project_management import Project
 from user.user_management import User
 from machine_learning.utils import get_bbox_label_info, xml_to_df
@@ -96,37 +96,32 @@ def augmentation_configuration(RELEASE=True):
 
     # ************************ Session state ************************
 
-    if 'augment_config' not in session_state:
+    if 'augmentation_config' not in session_state:
         # this is to store all the config, to send to callback on submit to update database
         # You can refer to augmentation/sample_augment_config.json for a sample output
-        session_state.augment_config = {
-            'interface_type': 'Simple', 'augmentations': {}}
+        session_state.augmentation_config = AugmentationConfig()
 
-    # - This is for None or empty dict; also to create a nested `augmentations` Dict inside
-    if not session_state.new_training.has_augmentation():
-        session_state.new_training.augmentation_config = {
-            'interface_type': 'Simple',
-            "augmentations": {}
-        }
+    # # - This is for None or empty dict; also to create a nested `augmentations` Dict inside
+    # if not session_state.new_training.has_augmentation():
+    #     session_state.new_training.augmentation_config = AugmentationConfig()
 
     # ******************************BACK BUTTON******************************
     def to_training_config_page():
         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
-    st.sidebar.button("Back to Modify Training Config", key="augment_config_back_button",
+    st.sidebar.button("Back to Modify Training Config", key="btn_back_train_config",
                       on_click=to_training_config_page)
 
     def skip_augmentation():
-        # reset the augment_config
-        session_state.augment_config = {
-            'interface_type': 'Simple', 'augmentations': {}}
+        session_state.augmentation_config.reset()
         # update the database and our Training instance
         session_state.new_training.update_augment_config(
-            session_state.augment_config)
+            session_state.augmentation_config)
+        # set the current page as submitted and move to next page
         session_state.new_training.has_submitted[NewTrainingPagination.AugmentationConfig] = True
         session_state.new_training_pagination = NewTrainingPagination.Training
 
-    st.sidebar.button("Skip augmentation", key="augment_config_back_button",
+    st.sidebar.button("Skip augmentation", key="btn_augment_config_skip",
                       on_click=skip_augmentation)
     st.sidebar.info("""NOTE: You can skip augmentation if you deem it's not necessary. 
     It is completely optional, although image augmentation is beneficial in most cases.""")
@@ -151,12 +146,9 @@ def augmentation_configuration(RELEASE=True):
         st.title("There is no directory: " + image_folder)
         st.stop()
 
-    # reset augment_config to avoid storing all unwanted previous selections
+    # reset augmentation_config to avoid storing all unwanted previous selections
     # when the user changed the transformations
-    session_state.augment_config = {
-        'interface_type': session_state.aug_interface_type,
-        'augmentations': {}
-    }
+    session_state.augmentation_config.reset()
 
     # select the number of images to generate from the augmentation, ONLY needed for TFOD
     if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
@@ -169,7 +161,7 @@ def augmentation_configuration(RELEASE=True):
     # select interface type
     options = ("Simple", "Professional")
     curr_idx = options.index(
-        session_state.new_training.augmentation_config['interface_type'])
+        session_state.new_training.augmentation_config.interface_type)
     interface_type = st.sidebar.radio(
         "Select the interface mode",
         options,
@@ -177,7 +169,7 @@ def augmentation_configuration(RELEASE=True):
         key='aug_interface_type'
     )
     # update this to store in DB later
-    session_state['augment_config']['interface_type'] = interface_type
+    session_state.augmentation_config.interface_type = interface_type
 
     # select image
     status, image, image_name = select_image(image_folder, interface_type, 50)
@@ -314,19 +306,19 @@ def augmentation_configuration(RELEASE=True):
     def update_augment_config():
         # update the database and our Training instance
         session_state.new_training.update_augment_config(
-            session_state.augment_config)
+            session_state.augmentation_config)
         session_state.new_training.has_submitted[NewTrainingPagination.AugmentationConfig] = True
         session_state.new_training_pagination = NewTrainingPagination.Training
 
-    st.sidebar.button("Submit Augmentation Config", key="augment_config_submit_button",
+    st.sidebar.button("Submit Augmentation Config", key="btn_augment_config_submit",
                       on_click=update_augment_config)
 
     st.markdown("___")
     st.markdown("**Acknowledgement**: Huge thanks to [albumentations](https://github.com/IliaLarchenko/albumentations-demo) "
                 "for the amazing data augmentation library and also the [Streamlit demo](https://albumentations-demo.herokuapp.com/) as reference.")
 
-    st.write("session_state.augment_config")
-    st.write(session_state.augment_config)
+    st.write("session_state.augmentation_config")
+    st.write(session_state.augmentation_config)
 
 
 if __name__ == "__main__":

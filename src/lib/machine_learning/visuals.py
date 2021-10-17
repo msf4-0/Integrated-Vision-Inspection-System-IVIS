@@ -82,6 +82,8 @@ def pretty_st_metric(
 class PrettyMetricPrinter:
     """
     Wrapper class for pretty print using [st.metric function](https://docs.streamlit.io/en/stable/api.html#streamlit.metric).
+    This class is created mainly to store the previous metrics, to facilitate the
+    calculation of the difference between the current and previous metric values.
 
     Args:
         float_format (str | Dict[str, str], optional): the formatting used for floats.

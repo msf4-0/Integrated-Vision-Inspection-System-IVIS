@@ -132,7 +132,7 @@ def select_transformations(augmentations: dict, interface_type: str) -> list:
 
     # extracting all the data stored in our Training instance
     existing_config = session_state.new_training.augmentation_config
-    aug = existing_config['augmentations']
+    aug = existing_config.augmentations
     existing_transforms = list(aug.keys())
 
     if existing_transforms:

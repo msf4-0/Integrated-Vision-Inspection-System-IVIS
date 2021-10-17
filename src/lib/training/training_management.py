@@ -33,7 +33,7 @@ from math import ceil, floor
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 
 import pandas as pd
 import project
@@ -155,12 +155,37 @@ class TrainingParam:
         self.training_param_optional: List = []
 
 
-# >>>> TODO >>>>
+@dataclass(eq=False, order=False)
+class AugmentationConfig:
+    # the interface mode used in the augmentation config page (either "Simple" or "Professional")
+    interface_type: str = "Simple"
+    # These three attributes are used only for object detection
+    min_area: int = None
+    min_visibility: float = None
+    train_size: int = None
+    # this augmentations dictionary is directly used for Albumentations for creating transforms
+    # Putting this augmentations attribute at the bottom to display the
+    #  augmentation config nicely in the run_training_page
+    augmentations: Dict[str, Any] = field(default_factory=dict)
 
+    def __len__(self):
+        return len(self.augmentations)
 
-class Augmentation:
-    def __init__(self) -> None:
-        pass
+    def exists(self) -> bool:
+        """Check if any augmentations have been chosen and submitted for this instance."""
+        if len(self) > 0:
+            return True
+        return False
+
+    def reset(self):
+        self.augmentations = {}
+        self.min_area = None
+        self.min_visibility = None
+        self.train_size = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        # return asdict(self)
+        return deepcopy(self.__dict__)  # this is faster than asdict
 
 
 class BaseTraining:
@@ -170,7 +195,8 @@ class BaseTraining:
         self.desc: str = ''
         # NOTE: Might use this, depends
         # self.training_param: Optional[TrainingParam] = TrainingParam()
-        self.augmentation: Optional[Augmentation] = Augmentation()  # TODO
+        # TODO
+        # self.augmentation: Optional[AugmentationConfig] = AugmentationConfig()
         self.project_id: int = project.id
         self.project_path = project.project_path
         self.model_id: int = None
@@ -195,8 +221,7 @@ class BaseTraining:
         self.training_param_dict: Dict = {}
         # note that for object detection, this will also have the following keys:
         #  `min_area`, `min_visibility` and `train_size`
-        self.augmentation_config: Dict[str, Any] = {
-            'interface_type': 'Simple', 'augmentations': {}}
+        self.augmentation_config: AugmentationConfig()
         self.is_started: bool = False
         self.progress: Dict = {}
         # self.training_path: Dict[str, Path] = {
@@ -548,12 +573,11 @@ class BaseTraining:
             logger.error(f"Update training param failed: {e}")
             return False
 
-    def update_augment_config(self, augmentation_config: Dict[str, Any]) -> bool:
-        # Maybe can try using the TrainingParam class, but seems like not necessary
+    def update_augment_config(self, augmentation_config: AugmentationConfig) -> bool:
         self.augmentation_config = augmentation_config
 
         # required for storing JSONB format
-        augmentation_json = json.dumps(augmentation_config)
+        augmentation_json = json.dumps(augmentation_config.to_dict())
         sql_query = """
         UPDATE
             public.training
@@ -572,11 +596,7 @@ class BaseTraining:
 
     def has_augmentation(self) -> bool:
         """Check if any augmentations have been chosen and submitted for this instance."""
-        if self.augmentation_config is not None \
-            and 'augmentations' in self.augmentation_config \
-                and self.augmentation_config['augmentations']:
-            return True
-        return False
+        return self.augmentation_config.exists()
 
 
 class NewTraining(BaseTraining):
@@ -978,9 +998,12 @@ class Training(BaseTraining):
 
         if training_field:
             self.name, self.desc,\
-                self.training_param_dict, self.augmentation_config,\
+                self.training_param_dict, augmentation_config,\
                 self.is_started, self.progress, self.partition_ratio, \
                 self.training_model_id, self.attached_model_id = training_field
+            # need to convert from Dictionary to the dataclass
+            self.augmentation_config = AugmentationConfig(
+                **augmentation_config)
         else:
             logger.error(
                 f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")
@@ -1379,7 +1402,7 @@ class Training(BaseTraining):
 
         partition_ratio_json = json.dumps(self.partition_ratio)
         training_param_json = json.dumps(self.training_param_dict)
-        augment_param_json = json.dumps(self.augmentation_config)
+        augment_param_json = json.dumps(self.augmentation_config.to_dict())
         progress_json = json.dumps(self.progress)
         # CARE self.training_model.id is NOT THE NEW ONE YET
         insert_training_info_vars = [self.name, self.desc, self.attached_model.id,
@@ -1427,7 +1450,7 @@ class Training(BaseTraining):
     def reset_training_page():
         training_attributes = ["training", "training_pagination", "labelling_pagination",
                                "training_param_dict", "new_training", "trainer", "start_idx",
-                               "augment_config"
+                               "augmentation_config"
                                ]
         # this might be required to avoid issues with caching model-related variables
         # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89

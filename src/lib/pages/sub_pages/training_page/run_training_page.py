@@ -164,8 +164,9 @@ def index(RELEASE=True):
         # TODO: confirm that this works for image classification and segmentation
         st.markdown('### Augmentation Config:')
         augmentation_config = session_state.new_training.augmentation_config
-        if session_state.new_training.has_augmentation():
-            aug_config_info = pretty_format_param(augmentation_config)
+        if augmentation_config.exists():
+            aug_config_info = pretty_format_param(
+                augmentation_config.to_dict())
             st.info(aug_config_info)
         else:
             st.info("No augmentation config selected.")

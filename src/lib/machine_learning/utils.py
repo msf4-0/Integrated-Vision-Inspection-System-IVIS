@@ -393,15 +393,15 @@ def get_bbox_label_info(xml_df: pd.DataFrame,
 
 def get_transform():
     """Get the Albumentations' transform using the existing augmentation config stored in DB."""
-    existing_aug = session_state.new_training.augmentation_config['augmentations']
+    existing_aug = session_state.new_training.augmentation_config.augmentations
 
     transform_list = []
     for transform_name, param_values in existing_aug.items():
         transform_list.append(getattr(A, transform_name)(**param_values))
 
     if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
-        min_area = session_state.new_training.augmentation_config['min_area']
-        min_visibility = session_state.new_training.augmentation_config['min_visibility']
+        min_area = session_state.new_training.augmentation_config.min_area
+        min_visibility = session_state.new_training.augmentation_config.min_visibility
         transform = A.Compose(
             transform_list,
             bbox_params=A.BboxParams(
