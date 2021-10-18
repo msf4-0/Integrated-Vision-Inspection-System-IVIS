@@ -382,6 +382,7 @@ class Project(BaseProject):
         """
         Extracting the unique label names used in existing annotations.
         Each 'result' value from the 'all_annots' is a list like this:
+        ```
         "result": [
           {
             ...
@@ -392,6 +393,7 @@ class Project(BaseProject):
             ...
             "type": "label_key"
           }
+        ```
         """
         # 'all_annots' is a list of dictionaries for each annotation
         all_annots, col_names = Project.query_annotations(

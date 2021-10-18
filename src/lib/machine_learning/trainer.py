@@ -62,7 +62,7 @@ from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
 from .utils import (generate_tfod_xml_csv, get_bbox_label_info, run_command, run_command_update_metrics_2,
                     find_tfod_metric, load_image_into_numpy_array, load_labelmap,
                     xml_to_df)
-from .visuals import draw_gt_bbox, draw_tfod_bboxes
+from .visuals import create_class_colors, draw_gt_bbox, draw_tfod_bboxes
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -226,7 +226,7 @@ class Trainer:
                 session_state.new_training.update_progress(progress)
             self.run_tfod_training(stdout_output)
         elif self.deployment_type == "Image Classification":
-            pass
+            self.run_classification_training()
         elif self.deployment_type == "Semantic Segmentation with Polygons":
             pass
 
@@ -635,6 +635,7 @@ class Trainer:
         with options_col:
             def reset_start_idx():
                 session_state['start_idx'] = 0
+
             st.number_input(
                 "Number of samples to show:",
                 min_value=1,
@@ -683,6 +684,9 @@ class Trainer:
         logger.info(f"Detecting from the test set images: {start_idx}"
                     f" to {start_idx + n_samples} ...")
         with st.spinner("Running detections ..."):
+            # create the colors for each class to draw the bboxes nicely
+            class_colors = create_class_colors(self.class_names)
+
             for i, p in enumerate(current_image_paths):
                 # current_img_idx = start_idx + i + 1
                 img = load_image_into_numpy_array(str(p))
@@ -696,8 +700,10 @@ class Trainer:
                     session_state.conf_threshold)
 
                 with true_img_col:
-                    st.image(draw_gt_bbox(img, bboxes, class_names=class_names),
-                             caption=f'Ground Truth: {filename}')
+                    img = draw_gt_bbox(img, bboxes,
+                                       class_names=class_names,
+                                       class_colors=class_colors)
+                    st.image(img, caption=f'Ground Truth: {filename}')
                 with pred_img_col:
                     st.image(img_with_detections,
                              caption=f'Prediction: {filename}')
@@ -710,4 +716,48 @@ class Trainer:
                       on_click=next_samples)
 
     def run_classification_training(self):
-        pass
+        # defining all the paths
+        paths = self.training_path
+        TRAIN_PATH = paths['images'] / "train"
+        VAL_PATH = paths['images'] / "valid"
+        TEST_PATH = paths['images'] / "test"
+
+        # ************* Generate train & test images in the folder *************
+        if self.partition_ratio['test'] != 0:
+            with st.spinner('Generating train test splits ...'):
+                X_train, X_val, X_test = self.train_test_split(
+                    # - BEWARE that the directories might be different if it's user uploaded
+                    image_dir=self.dataset_export_path / "images",
+                    test_size=self.partition_ratio['test'],
+                    val_size=self.partition_ratio['eval'],
+                    no_validation=False
+                )
+
+            col, _ = st.columns([1, 1])
+            with col:
+                st.code(f"Total training images = {len(X_train)}  \n"
+                        f"Total validation images = {len(X_val)}"
+                        f"Total testing images = {len(X_test)}")
+        else:
+            # the user did not select a test size, i.e. only using validation set for testing,
+            # thus for our train_test_split implementation, we assume we only
+            # want to use the test_size without val_size (sorry this might sound confusing)
+            with st.spinner('Generating train test splits ...'):
+                X_train, X_test = self.train_test_split(
+                    # - BEWARE that the directories might be different if it's user uploaded
+                    image_dir=self.dataset_export_path / "images",
+                    test_size=self.partition_ratio['eval'],
+                    no_validation=True
+                )
+
+            col, _ = st.columns([1, 1])
+            with col:
+                st.code(f"Total training images = {len(X_train)}  \n"
+                        f"Total validation images = {len(X_test)}")
+
+        with st.spinner('Copying images to folder, this may take awhile ...'):
+            self.copy_images(X_train, dest_dir=TRAIN_PATH)
+            if self.partition_ratio['test'] != 0:
+                self.copy_images(X_val, dest_dir=VAL_PATH)
+            self.copy_images(X_test, dest_dir=TEST_PATH)
+            logger.info("Dataset files copied successfully.")

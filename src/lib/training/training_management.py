@@ -131,10 +131,11 @@ class DatasetPath(NamedTuple):
     train: Path
     eval: Path
     test: Path
-    # <<<< Variable Declaration <<<<
+
+# <<<< Variable Declaration <<<<
 
 
-    # >>>> TODO >>>>
+# >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
 CLASSIFICATION_LOSS = []
@@ -173,7 +174,7 @@ class AugmentationConfig:
 
     def exists(self) -> bool:
         """Check if any augmentations have been chosen and submitted for this instance."""
-        if len(self) > 0:
+        if len(self.augmentations) > 0:
             return True
         return False
 
@@ -224,6 +225,7 @@ class BaseTraining:
         self.augmentation_config: AugmentationConfig()
         self.is_started: bool = False
         self.progress: Dict = {}
+        # currently training_path is created using `property` in the Training class
         # self.training_path: Dict[str, Path] = {
         #     'ROOT': None,
         #     'annotations': None,
@@ -800,6 +802,7 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
+
     @staticmethod
     def reset_new_training_page():
 
@@ -1002,8 +1005,11 @@ class Training(BaseTraining):
                 self.is_started, self.progress, self.partition_ratio, \
                 self.training_model_id, self.attached_model_id = training_field
             # need to convert from Dictionary to the dataclass
-            self.augmentation_config = AugmentationConfig(
-                **augmentation_config)
+            if augmentation_config is not None:
+                self.augmentation_config = AugmentationConfig(
+                    **augmentation_config)
+            else:
+                self.augmentation_config = AugmentationConfig()
         else:
             logger.error(
                 f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")
@@ -1249,7 +1255,6 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
-
 
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],

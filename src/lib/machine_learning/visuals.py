@@ -140,12 +140,45 @@ class PrettyMetricPrinter:
         self.prev_metrics = metrics.copy()
 
 
+@st.experimental_memo
+def create_class_colors(class_names: List[str]) -> Dict[str, str]:
+    """Randomly assign colors for different classes. `class_names` should be obtained
+    from the `Trainer.class_names` attribute for more efficient computations"""
+    np.random.seed(42)
+    colors = np.random.randint(0, 255,
+                               size=(len(class_names), 3),
+                               dtype=np.uint8)
+    class_colors = {name: color for name, color in zip(class_names, colors)}
+    if 'background' in class_names:
+        # set background to black color
+        class_colors['background'] = np.array([0, 0, 0], dtype=np.uint8)
+    return class_colors
+
+
 def draw_gt_bbox(
     image_np: np.ndarray,
     box_coordinates: Sequence[Tuple[int, int, int, int]],
     class_names: Union[List[str], str] = None,
     color: Tuple[int, int, int] = (0, 150, 0),
+    class_colors: Dict[str, Tuple[int, int, int]] = None
 ) -> np.ndarray:
+    """Draw bounding boxes on the image and return the drawn image as a copy.
+
+    Args:
+        image_np (np.ndarray): the image to be drawn
+        box_coordinates (Sequence[Tuple[int, int, int, int]]): bounding box coordinates
+            in the order used by Pascal VOC format: (xmin, ymin, xmax, ymax)
+        class_names (Union[List[str], str], optional): a single class name `str` for only single class,
+            or a `list` of class names to use for each bounding box. Defaults to None.
+        color (Tuple[int, int, int], optional): color to use for the bounding boxes in
+            this image. Defaults to (0, 150, 0).
+        class_colors (Dict[str, Tuple[int, int, int]], optional): Can be created with the
+            `create_class_colors` function. If this is passed in,
+            these colors are used instead of the `color` passed in. Defaults to None.
+
+    Returns:
+        np.ndarray: the image drawn with bounding boxes
+    """
     image_with_gt_box = image_np.copy()
     logger.debug(f"Total annotations for the image: {len(box_coordinates)}")
     logger.debug(f"{class_names = }")
@@ -162,6 +195,8 @@ def draw_gt_bbox(
         if isinstance(xmin, float):
             xmin, ymin = int(xmin), int(ymin)
             xmax, ymax = int(xmax), int(ymax)
+        if class_colors:
+            color = class_colors[class_name]
         cv2.rectangle(
             image_with_gt_box,
             (xmin, ymin),

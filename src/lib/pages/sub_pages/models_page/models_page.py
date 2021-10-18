@@ -225,8 +225,13 @@ def existing_models():
             '`Model Name` == @model_name').index[0]
         )
     else:
-        # default to a good default SSD model to show to the user
-        model_idx = 22
+        if session_state.project.deployment_type == "Object Detection with Bounding Boxes":
+            # default to a good default SSD model to show to the user
+            model_idx = 22
+        elif session_state.project.deployment_type == "Image Classification":
+            model_idx = int(models_df.loc[
+                models_df['Model Name'] == "ResNet50"].index[0])
+
     model_selected = st.selectbox(
         "Please select a Pre-trained model",
         options=models_df['Model Name'],

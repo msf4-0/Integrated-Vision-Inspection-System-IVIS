@@ -29,10 +29,14 @@ import sys
 from pathlib import Path
 import time
 from typing import Any, Dict
+
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
-from streamlit_tensorboard import st_tensorboard
+
+
+with st.spinner("Loading TensorFlow ..."):
+    import tensorflow as tf
 
 # >>>> **************** TEMP (for debugging) **************** >>>
 # add the paths to be able to import them to this file
@@ -53,7 +57,7 @@ with st.spinner("Loading TensorFlow environment ..."):
     from machine_learning.trainer import Trainer
     from machine_learning.utils import run_tensorboard
     from machine_learning.visuals import pretty_format_param
-from project.project_management import Project  # logger
+from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training
 from user.user_management import User
 
@@ -253,6 +257,9 @@ def index(RELEASE=True):
     if not session_state.new_training.is_started:
         with train_btn_place.container():
             st.button("⚡ Start training", key='btn_start_training')
+            if not tf.config.list_physical_devices('GPU'):
+                st.warning("""WARNING: You don't have access to GPU. Training will
+                take much longer time to complete without GPU.""")
             if session_state.btn_start_training:
                 # must do it this way instead of using callback on button
                 #  to properly show the training progress below the rendered widgets
