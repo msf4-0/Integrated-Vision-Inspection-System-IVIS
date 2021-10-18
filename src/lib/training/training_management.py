@@ -863,6 +863,7 @@ class Training(BaseTraining):
     @property
     def training_path(self) -> Dict[str, Path]:
         # modified from get_all_training_path
+        # NOTE: need to exclude file paths from the `initialise_training_folder` method
         # >>>> TRAINING PATH
         paths = {}
         paths['ROOT'] = self.get_training_path(self.project_path, self.name)
@@ -881,6 +882,9 @@ class Training(BaseTraining):
         # paths['exported_models'] = root / \
         #     'exported_models'
         paths['export'] = paths['models'] / 'export'
+        # model weights only available for image classification and segmentation tasks
+        # when using Keras
+        paths['model_weights'] = paths['export'] / f"{model_dirname}.h5"
         paths['model_tarfile'] = paths['models'] / \
             f'{model_dirname}.tar.gz'
         # ANNOTATIONS PATH
@@ -1150,7 +1154,7 @@ class Training(BaseTraining):
         training_paths = self.training_path
 
         # >>>> CREATE Training directory recursively
-        filepath_keys = ('model_tarfile', 'labelmap')
+        filepath_keys = ('model_tarfile', 'labelmap', 'keras_model', 'model_weights')
         for key, path in training_paths.items():
             if key in filepath_keys:
                 # this is a file path and not a directory, thus skipping

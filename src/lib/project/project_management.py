@@ -305,23 +305,34 @@ class Project(BaseProject):
                 is_dir=False,
             )
 
-            csv_path = output_dir / 'result.csv'
-            df = pd.read_csv(csv_path)
+            # if it's not for training, then we copy the images to let the user download them
+            if for_training_id == 0:
+                # the CSV file generated has these columns:
+                # image, id, label, annotator, annotation_id, created_at, updated_at, lead_time.
+                # The first col `image` contains the absolute paths to the images
+                csv_path = output_dir / 'result.csv'
+                df = pd.read_csv(csv_path)
 
-            project_img_path = output_dir / "images"
-            unique_labels = df['label'].unique()
-            for label in unique_labels:
-                class_path = project_img_path / label
-                os.makedirs(class_path)
+                project_img_path = output_dir / "images"
+                unique_labels = df['label'].unique().astype(str)
+                for label in unique_labels:
+                    class_path = project_img_path / label
+                    logger.debug(
+                        f"Creating folder for class '{label}' at {class_path}")
+                    os.makedirs(class_path)
 
-            def copy_images(image_path: Path, label: str):
-                class_path = project_img_path / label
-                shutil.copy2(image_path, class_path)
+                def copy_images(image_path: Path, label: str):
+                    class_path = project_img_path / label
+                    shutil.copy2(image_path, class_path)
 
-            for row in df.values:
-                image_path = Path(row[0])   # first row for image_path
-                label = str(row[2])         # third row for label name
-                copy_images(image_path, label)
+                logger.debug(
+                    f"Copying images into each class folder in {project_img_path}")
+                for row in df.values:
+                    image_path = Path(row[0])   # first row for image_path
+                    label = str(row[2])         # third row for label name
+                    copy_images(image_path, label)
+                logger.info(
+                    f"Image folders for each class {unique_labels} created successfully for Project ID {self.id}")
 
         elif self.deployment_type == "Object Detection with Bounding Boxes":
             # using Pascal VOC XML format for TensorFlow Object Detection API

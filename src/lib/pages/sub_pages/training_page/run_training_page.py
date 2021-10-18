@@ -34,9 +34,7 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
 
-
-with st.spinner("Loading TensorFlow ..."):
-    import tensorflow as tf
+import tensorflow as tf
 
 # >>>> **************** TEMP (for debugging) **************** >>>
 # add the paths to be able to import them to this file
@@ -45,18 +43,13 @@ LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-# Set to wide page layout (only uncomment this when debugging)
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 # >>>> **************** TEMP **************** >>>
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
-with st.spinner("Loading TensorFlow environment ..."):
-    from machine_learning.trainer import Trainer
-    from machine_learning.utils import run_tensorboard
-    from machine_learning.visuals import pretty_format_param
+from machine_learning.trainer import Trainer
+from machine_learning.utils import run_tensorboard
+from machine_learning.visuals import pretty_format_param
 from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training
 from user.user_management import User
@@ -77,7 +70,8 @@ def index(RELEASE=True):
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 4
+        # for Anson: 4 for TFOD, 9 for img classif
+        project_id_tmp = 9
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -88,7 +82,8 @@ def index(RELEASE=True):
         if 'user' not in session_state:
             session_state.user = User(1)
         if 'new_training' not in session_state:
-            session_state.new_training = Training(2, session_state.project)
+            # for Anson: 2 for TFOD, 17 for img classif
+            session_state.new_training = Training(17, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -114,8 +109,8 @@ def index(RELEASE=True):
     else:
         dataset_chosen_str = []
         for idx, data in enumerate(dataset_chosen):
-            dataset_chosen_str.append(f"{idx+1}. {data}")
-        dataset_chosen_str = '  \n'.join(dataset_chosen_str)
+            dataset_chosen_str.append(f"**{idx+1}**. {data}")
+        dataset_chosen_str = '; '.join(dataset_chosen_str)
     partition_ratio = session_state.new_training.partition_ratio
     st.info(f"""
     **Training Session Name**: {session_state.new_training.name}  \n
@@ -242,17 +237,13 @@ def index(RELEASE=True):
             # moved tensorboard into callback function to make sure it stays visible
             run_tensorboard(logdir)
 
-        with st.spinner("Exporting tasks for training ..."):
-            session_state.project.export_tasks(
-                for_training_id=session_state.new_training.id)
-
         initialize_trainer()
         # start training, set `stdout_output` to True to print the logging outputs generated
         #  from the TFOD scripts; set to False to avoid clutterring the console outputs
         session_state.trainer.train(is_resume, stdout_output=False)
 
-        # rerun to remove all these progress and refresh the page to show results
-        st.experimental_rerun()
+        st.button("Refresh training page", key='btn_refresh_page',
+                  help="Refresh this page to show other results")
 
     if not session_state.new_training.is_started:
         with train_btn_place.container():
@@ -347,18 +338,21 @@ def index(RELEASE=True):
                         as a number of other metrics even while your model is training, have a look at 
                         the **TensorBoard** above.""")
 
-            if session_state.new_training.training_path['model_tarfile'].exists():
-                initialize_trainer()
-                st.markdown("___")
-                st.markdown("### Evaluation results:")
-                # show evaluation results
-                with st.spinner("Running evaluation ..."):
-                    try:
-                        session_state.trainer.evaluate()
-                    except Exception as e:
-                        st.error("Some error has occurred. Please try "
-                                 "training/exporting the model again.")
-                        logger.error(f"Error evaluating: {e}")
+            if session_state.new_training.training_path['models'].exists():
+                st.button("Evaluate Model", key='btn_eval_model')
+
+                if session_state.btn_eval_model:
+                    initialize_trainer()
+                    st.markdown("___")
+                    st.markdown("### Evaluation results:")
+                    # show evaluation results
+                    with st.spinner("Running evaluation ..."):
+                        try:
+                            session_state.trainer.evaluate()
+                        except Exception as e:
+                            st.error("Some error has occurred. Please try "
+                                     "training/exporting the model again.")
+                            logger.error(f"Error evaluating: {e}")
             else:
                 logger.info(f"Model {session_state.new_training.training_model_id} "
                             "is not exported yet. Skipping evaluation")
@@ -375,6 +369,10 @@ def index(RELEASE=True):
 
 
 if __name__ == "__main__":
+    # Set to wide page layout for debugging on this page
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
     if st._is_running_with_streamlit:
         # This is set to False for debugging purposes
         # when running Streamlit directly from this page

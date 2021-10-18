@@ -36,9 +36,7 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
 from core.utils.log import logger
-from data_manager.database_manager import init_connection
 from training.training_management import AugmentationConfig, NewTrainingPagination, Training
 from project.project_management import Project
 from user.user_management import User
@@ -46,13 +44,13 @@ from machine_learning.utils import get_bbox_label_info, xml_to_df
 from machine_learning.visuals import draw_gt_bbox
 
 # augmentation config from https://github.com/IliaLarchenko/albumentations-demo/blob/master/src/app.py
-from .augmentation.utils import (
+from pages.sub_pages.training_page.new_training_subpages.augmentation.utils import (
     load_augmentations_config,
     get_placeholder_params,
     select_transformations,
     show_random_params,
 )
-from .augmentation.visuals import (
+from pages.sub_pages.training_page.new_training_subpages.augmentation.visuals import (
     select_image,
     show_docstring,
     get_transormations_params,
@@ -74,7 +72,8 @@ def augmentation_configuration(RELEASE=True):
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 4
+        # for Anson: 4 for TFOD, 9 for img classif
+        project_id_tmp = 9
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -85,7 +84,8 @@ def augmentation_configuration(RELEASE=True):
         if 'user' not in session_state:
             session_state.user = User(1)
         if 'new_training' not in session_state:
-            session_state.new_training = Training(2, session_state.project)
+            # for Anson: 2 for TFOD, 17 for img classif
+            session_state.new_training = Training(17, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -174,9 +174,11 @@ def augmentation_configuration(RELEASE=True):
     # select image
     status, image, image_name = select_image(image_folder, interface_type, 50)
     if status == 1:
-        st.title("Can't load image")
+        st.title("Sorry, Can't load image")
+        st.stop()
     if status == 2:
         st.title("Please, upload the image")
+        st.stop()
     else:
         # image was loaded successfully
         placeholder_params = get_placeholder_params(image)
@@ -215,7 +217,7 @@ def augmentation_configuration(RELEASE=True):
                         )
                     )(image=image, bboxes=bboxes, class_names=class_names)
             # TODO for mask augmentation
-            else:
+            if session_state.new_training.deployment_type == 'Image Classification':
                 # apply the transformation to the image
                 data = A.ReplayCompose(transforms)(image=image)
             error = 0
@@ -326,7 +328,6 @@ if __name__ == "__main__":
     layout = 'wide'
     st.set_page_config(page_title="Integrated Vision Inspection System",
                        page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-    conn = init_connection(**st.secrets["postgres"])
 
     if st._is_running_with_streamlit:
         augmentation_configuration(RELEASE=False)

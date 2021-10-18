@@ -15,6 +15,8 @@ import glob
 import pandas as pd
 import albumentations as A
 
+from tensorflow.keras.callbacks import Callback
+
 import streamlit as st
 from streamlit import session_state
 from streamlit_tensorboard import st_tensorboard
@@ -486,3 +488,40 @@ def generate_tfod_xml_csv(image_paths: List[str],
 
 def get_augmented_data(image_paths: Path, mask_paths: Path = None):
     transform = get_transform()
+
+
+class StreamlitOutputCallback(Callback):
+    def __init__(self, pretty_metric_printer: PrettyMetricPrinter,
+                 num_epochs, steps_per_epoch, progress_placeholder: Dict[str, Any],
+                 refresh_rate=20):
+        self.pretty_metric = pretty_metric_printer
+        self.num_epochs = num_epochs
+        self.steps_per_epoch = steps_per_epoch
+        self.refresh_rate = refresh_rate
+        self.progress_placeholder = progress_placeholder
+
+    def on_epoch_begin(self, epoch, logs=None):
+        with self.progress_placeholder['epoch'].container():
+            st.markdown(
+                f"**Current epoch {epoch + 1} / {self.num_epochs}**:")
+            session_state.current_batch_text = st.empty()
+
+        session_state.batch_progress_bar = (
+            self.progress_placeholder['batch'].progress(0)
+        )
+
+    def on_batch_end(self, batch, logs=None):
+        batch += 1
+        if (batch % self.refresh_rate) == 0 or batch == self.steps_per_epoch:
+            session_state.current_batch_text.markdown(
+                f"Step: {batch} / {self.steps_per_epoch}")
+            session_state.batch_progress_bar.progress(
+                batch / self.steps_per_epoch)
+
+    def on_epoch_end(self, epoch, logs=None):
+        # NOTE: MUST INCLUDE at least one line of Streamlit function here to make
+        # Keras interacts with Streamlit
+        epoch = epoch + 1  # add one to start from 1 instead of 0
+        st.markdown(f"**Epoch {epoch} / {self.num_epochs}**:")
+        self.pretty_metric.write(logs)
+        st.markdown('___')

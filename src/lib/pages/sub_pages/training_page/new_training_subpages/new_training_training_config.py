@@ -22,7 +22,6 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
  """
-import json
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -83,9 +82,6 @@ def training_configuration(RELEASE=True):
 
         st.markdown("""___""")
 
-    if 'training_param_dict' not in session_state:
-        session_state.training_param_dict = {}
-
     st.markdown(f"**Step 2: Select training configuration:** ")
 
     train_config_col, _ = st.columns([1, 1])
@@ -95,8 +91,6 @@ def training_configuration(RELEASE=True):
             training_param = {}
             for k, v in session_state.items():
                 if k.startswith('param_'):
-                    # store this to keep track of current training config startswith 'param_'
-                    session_state.training_param_dict[k] = v
                     # e.g. param_batch_size -> batch_size
                     new_key = k.replace('param_', '')
                     training_param[new_key] = v
@@ -108,12 +102,14 @@ def training_configuration(RELEASE=True):
         if session_state.project.deployment_type == "Image Classification":
             if session_state.new_training.training_param_dict:
                 # taking the stored param from DB
+                image_size = session_state.new_training.training_param_dict['image_size']
                 learning_rate = session_state.new_training.training_param_dict['learning_rate']
                 optimizer = session_state.new_training.training_param_dict['optimizer']
                 batch_size = session_state.new_training.training_param_dict['batch_size']
                 num_epochs = session_state.new_training.training_param_dict['num_epochs']
                 fine_tune_all = session_state.new_training.training_param_dict['fine_tune_all']
             else:
+                image_size = 224
                 learning_rate = 1e-4
                 optimizer = "Adam"
                 batch_size = 32
@@ -124,6 +120,16 @@ def training_configuration(RELEASE=True):
             #  to be able to extract them and send them over to the Trainer for training
             # e.g. param_batch_size -> batch_size at the Trainer later
             with st.form(key='training_config_form'):
+                st.number_input(
+                    "Image size", min_value=32, max_value=500,
+                    value=image_size, step=1,
+                    key="param_image_size",
+                    help="""Image size to resize our image width and height into, e.g. 224 will
+                    resize our image into size of 224 x 224. Larger image size could result in
+                    better performance but most of the time it will just make the training
+                    unnecessarily longer without significant improvement. Recommended to just
+                    go with **224**, which is the most common input image size."""
+                )
                 lr_choices = (1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.1)
                 st.select_slider(
                     "Learning rate", lr_choices,
