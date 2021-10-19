@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import os
 import shutil
 import sys
 from copy import deepcopy
@@ -336,6 +337,7 @@ def index():
 
     def reset_zipfile_state():
         # clear out the `download_button` after the user has clicked it
+        os.remove(session_state['zipfile_path'])
         del session_state['zipfile_path']
         del session_state['archive_success']
 

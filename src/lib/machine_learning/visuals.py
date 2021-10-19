@@ -148,10 +148,13 @@ def create_class_colors(class_names: List[str]) -> Dict[str, str]:
     colors = np.random.randint(0, 255,
                                size=(len(class_names), 3),
                                dtype=np.uint8)
-    class_colors = {name: color for name, color in zip(class_names, colors)}
+    class_colors = {}
+    for name, color in zip(class_names, colors):
+        color = [int(c) for c in color]
+        class_colors[name] = tuple(color)
     if 'background' in class_names:
         # set background to black color
-        class_colors['background'] = np.array([0, 0, 0], dtype=np.uint8)
+        class_colors['background'] = (0, 0, 0)
     return class_colors
 
 

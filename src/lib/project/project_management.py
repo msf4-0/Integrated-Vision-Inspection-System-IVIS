@@ -282,7 +282,6 @@ class Project(BaseProject):
         logger.debug(
             f"Exporting labeled tasks for Project ID: {session_state.project.id}")
 
-        json_path = self.generate_label_json(for_training_id)
         output_dir = self.get_export_path()
 
         # - beware here I added removing the entire existing directory before proceeding
@@ -290,6 +289,10 @@ class Project(BaseProject):
             logger.warning(
                 f"[INFO] Removing existing exported directory: {output_dir}")
             shutil.rmtree(output_dir)
+        os.makedirs(output_dir)
+
+        json_path = self.generate_label_json(
+            for_training_id, output_dir=output_dir)
 
         # initialize a Label Studio Converter to convert to specific output formats
         # the `editor.editor_config` contains the current project's config in XML string format
@@ -353,7 +356,7 @@ class Project(BaseProject):
         output_dir = project_path / "export"
         return output_dir
 
-    def generate_label_json(self, for_training_id: int = 0) -> Path:
+    def generate_label_json(self, for_training_id: int = 0, output_dir: Path = None) -> Path:
         """
         Generate the output JSON with the format following Label Studio and returns the path to the file.
         Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
@@ -380,8 +383,11 @@ class Project(BaseProject):
 
         # convert to json format to export to the project_path and use for conversion
         result = df.to_json(orient="records")
-        project_path = self.get_project_path(self.name)
-        json_path = project_path / f"project-{self.id}.json"
+        if not output_dir:
+            output_dir = self.get_export_path()
+        else:
+            os.makedirs(output_dir, exist_ok=True)
+        json_path = output_dir / f"project-{self.id}.json"
         with open(json_path, "w") as f:
             parsed = json.loads(result)
             logger.debug(f"DUMPING TASK JSON to {json_path}")
@@ -389,7 +395,7 @@ class Project(BaseProject):
         return json_path
 
     @staticmethod
-    def get_existing_unique_labels(project_id: int) -> np.ndarray:
+    def get_existing_unique_labels(project_id: int) -> List[str]:
         """
         Extracting the unique label names used in existing annotations.
         Each 'result' value from the 'all_annots' is a list like this:
@@ -424,7 +430,7 @@ class Project(BaseProject):
         df['label'] = df["result"].apply(get_label_names)
 
         # need to use `explode` method to turn each list of labels into individual rows
-        unique_labels = df['label'].explode().unique()
+        unique_labels = sorted(df['label'].explode().unique())
 
         logger.info(
             f"Unique labels for Project ID {project_id}: {unique_labels}")

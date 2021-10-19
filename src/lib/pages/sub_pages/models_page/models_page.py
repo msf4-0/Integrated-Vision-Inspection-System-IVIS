@@ -216,7 +216,6 @@ def existing_models():
         session_state.project.deployment_type,
         for_display=True
     )
-    st.dataframe(models_df, width=1500)
 
     if session_state.new_training.attached_model is not None:
         # then this has already selected a model before
@@ -229,8 +228,14 @@ def existing_models():
             # default to a good default SSD model to show to the user
             model_idx = 22
         elif session_state.project.deployment_type == "Image Classification":
+            unwanted_idxs = models_df.loc[models_df['Model Name'].str.contains(
+                "(deprecated|Mask R-CNN)")].index
+            # drop deprecated models and Mask R-CNN model
+            models_df = models_df.drop(unwanted_idxs).reset_index(drop=True)
             model_idx = int(models_df.loc[
                 models_df['Model Name'] == "ResNet50"].index[0])
+
+    st.dataframe(models_df, width=1500)
 
     model_selected = st.selectbox(
         "Please select a Pre-trained model",

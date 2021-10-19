@@ -71,7 +71,7 @@ def index(RELEASE=True):
 
         # ************************TO REMOVE************************
         # for Anson: 4 for TFOD, 9 for img classif
-        project_id_tmp = 9
+        project_id_tmp = 4
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -83,7 +83,7 @@ def index(RELEASE=True):
             session_state.user = User(1)
         if 'new_training' not in session_state:
             # for Anson: 2 for TFOD, 17 for img classif
-            session_state.new_training = Training(17, session_state.project)
+            session_state.new_training = Training(2, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -186,17 +186,10 @@ def index(RELEASE=True):
     # ******************************* START TRAINING *******************************
     train_btn_place = st.empty()
     retrain_place = st.empty()
-    warning_place = st.empty()  # for warning messages
+    message_place = st.empty()  # for warning messages
     result_place = st.empty()
 
     def start_training_callback(is_resume=False):
-        # if not RELEASE:
-        #     # debugging the afterimage problem after clicking re-train button
-        #     for _ in range(5):
-        #         st.markdown("testing 123")
-        #         time.sleep(2)
-        #     st.experimental_rerun()
-
         if not is_resume:
             root = session_state.new_training.training_path['ROOT']
             if root.exists():
@@ -208,9 +201,9 @@ def index(RELEASE=True):
 
         def stop_run_training():
             # BEWARE that this will just refresh the page
-            warning_place.warning("Training stopped!")
+            message_place.warning("Training stopped!")
             time.sleep(2)
-            warning_place.empty()
+            message_place.empty()
 
         # moved stop button into callback function to only show when training is started
         btn_stop_col, _ = st.columns([1, 1])
@@ -220,21 +213,28 @@ def index(RELEASE=True):
             st.warning('✏️ **NOTE**: If you click this button, '
                        'the latest progress might not be saved.')
 
-        with st.spinner("Loading TensorBoard ..."):
-            st.markdown("Refresh the Tensorboard by clicking the refresh "
-                        "icon during training to see the progress:")
+        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+            # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
+            #  folders and store the logs inside this folder, so don't accidentally
+            #  delete this entire folder
             logdir = session_state.new_training.training_path['tensorboard_logdir']
             logdir_folders = (logdir / 'train', logdir / 'validation')
             for p in logdir_folders:
                 if p.exists():
                     # this is to avoid the problem with Tensorboard displaying
                     # overlapping graphs when continue training, probably because the
-                    # 'Step' or 'Epoch' always starts from 0 even though we are continue
+                    # TFOD 'Step' always starts from 0 even though we are continue
                     # training from an existing checkpoint
                     logger.debug("Removing existing TensorBoard logdir "
                                  f"before training: {p}")
                     shutil.rmtree(p)
-            # moved tensorboard into callback function to make sure it stays visible
+
+        with st.spinner("Loading TensorBoard ..."):
+            st.markdown("Refresh the Tensorboard by clicking the refresh "
+                        "icon during training to see the progress:")
+            # need to sleep for 3 seconds, otherwise the TensorBoard might accidentally
+            #  load the previous checkpoints
+            time.sleep(3)
             run_tensorboard(logdir)
 
         initialize_trainer()
@@ -285,12 +285,18 @@ def index(RELEASE=True):
                            'to allow you to quickly train another model for benchmarking.')
 
             with download_col:
-                model_tarfile_path = session_state.new_training.training_path['model_tarfile']
-                if model_tarfile_path.exists():
+                initialize_trainer()
+                exist_dict = session_state.trainer.check_model_exists()
+
+                if exist_dict['model_tarfile']:
                     def show_download_msg():
-                        warning_place.warning("Downloading Model ...")
+                        message_place.warning("Downloading Model ...")
                         time.sleep(2)
-                        warning_place.empty()
+                        message_place.empty()
+                        # remove the tarfile after downloaded
+                        os.remove(model_tarfile_path)
+
+                    model_tarfile_path = session_state.new_training.training_path['model_tarfile']
                     with st.spinner("Preparing model to be downloaded ..."):
                         with model_tarfile_path.open(mode="rb") as fp:
                             st.download_button(
@@ -303,6 +309,29 @@ def index(RELEASE=True):
                             )
                         st.warning('✏️ **NOTE**: This may take awhile to download, '
                                    'depending on the file size of the trained model.')
+                        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                            st.warning("""The exported object detection model will also be
+                            removed after you have downloaded it. You can try checking the
+                            evaluation result below after exporting, because it will load
+                            from the exported SavedModel format instead of checkpoint, the
+                            results could be different.""")
+                # only show Export button if model checkpoint/weights file is found
+                elif exist_dict['ckpt']:
+                    def export_callback():
+                        with message_place.container():
+                            try:
+                                session_state.trainer.export_model()
+                                st.experimental_rerun()
+                            except Exception as e:
+                                st.error("""Some error has occurred when exporting,
+                                    please try re-training again""")
+                                logger.error(f"Error exporting model: {e}")
+                                st.stop()
+
+                    st.button("📁 Export Model", key='btn_export_model',
+                              on_click=export_callback)
+                    st.warning('✏️ **NOTE**: This may take awhile to export, '
+                               'depending on the size of the trained model.')
 
         with retrain_place.container():
             retrain_col_1, resume_train_col = st.columns([1, 1])
@@ -339,20 +368,21 @@ def index(RELEASE=True):
                         the **TensorBoard** above.""")
 
             if session_state.new_training.training_path['models'].exists():
-                st.button("Evaluate Model", key='btn_eval_model')
-
-                if session_state.btn_eval_model:
-                    initialize_trainer()
-                    st.markdown("___")
-                    st.markdown("### Evaluation results:")
-                    # show evaluation results
-                    with st.spinner("Running evaluation ..."):
-                        try:
-                            session_state.trainer.evaluate()
-                        except Exception as e:
-                            st.error("Some error has occurred. Please try "
-                                     "training/exporting the model again.")
-                            logger.error(f"Error evaluating: {e}")
+                initialize_trainer()
+                st.markdown("___")
+                st.markdown("### Evaluation results:")
+                # show evaluation results
+                with st.spinner("Loading TensorBoard ..."):
+                    run_tensorboard(
+                        session_state.trainer.training_path['tensorboard_logdir']
+                    )
+                with st.spinner("Running evaluation ..."):
+                    # try:
+                    session_state.trainer.evaluate()
+                    # except Exception as e:
+                    #     st.error("Some error has occurred. Please try "
+                    #              "training/exporting the model again.")
+                    #     logger.error(f"Error evaluating: {e}")
             else:
                 logger.info(f"Model {session_state.new_training.training_model_id} "
                             "is not exported yet. Skipping evaluation")

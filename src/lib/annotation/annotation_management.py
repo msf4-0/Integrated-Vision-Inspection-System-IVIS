@@ -24,6 +24,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import json
+import os
+import shutil
 import sys
 from base64 import b64encode
 from collections import namedtuple
@@ -826,8 +828,20 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> Dict:
 
 
 def reset_editor_page():
+    if session_state.get('zipfile_path'):
+        if os.path.exists(session_state['zipfile_path']):
+            logger.debug("Removing exported zipfile: "
+                         f"{session_state['zipfile_path']}")
+            # don't need it anymore
+            os.remove(session_state['zipfile_path'])
+    dataset_export_path = session_state.project.get_export_path()
+    if dataset_export_path.exists():
+        logger.debug(f"Removing dataset export path: {dataset_export_path}")
+        shutil.rmtree(dataset_export_path)
+
     editor_attributes = ["labelling_interface", "new_annotation_flag", "task",
-                         "annotation", "data_labelling_table", 'labelling_prev_results', 'data_selection']
+                         "annotation", "data_labelling_table", 'labelling_prev_results',
+                         'data_selection', 'zipfile_path', 'archive_success']
 
     logger.info(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)

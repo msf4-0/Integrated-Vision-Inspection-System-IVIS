@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 from functools import partial
+from itertools import cycle
 import math
 import os
 import sys
@@ -34,7 +35,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 import pickle
+import glob
+import re
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
 import wget
 import streamlit as st
@@ -44,11 +49,15 @@ from stqdm import stqdm
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint, TensorBoard
+from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
+from object_detection.utils import config_util
+from object_detection.builders import model_builder
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
 from imutils.paths import list_images
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -66,19 +75,10 @@ from training.labelmap_management import Framework, Labels
 from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
-from .utils import (StreamlitOutputCallback, generate_tfod_xml_csv, get_bbox_label_info, get_transform, run_command, run_command_update_metrics_2,
+from .utils import (LRTensorBoard, StreamlitOutputCallback, generate_tfod_xml_csv, get_bbox_label_info, get_transform, run_command, run_command_update_metrics_2,
                     find_tfod_metric, load_image_into_numpy_array, load_labelmap,
                     xml_to_df)
 from .visuals import PrettyMetricPrinter, create_class_colors, draw_gt_bbox, draw_tfod_bboxes
-
-# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
-
-# >>>> Variable Declaration >>>>
-
-# initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
-
-# *********************PAGINATION**********************
 
 
 class Trainer:
@@ -95,19 +95,25 @@ class Trainer:
         self.project_path: Path = project.get_project_path(project.name)
         self.deployment_type: str = project.deployment_type
         self.class_names: List[str] = project.get_existing_unique_labels(
-            project.id).tolist()
+            project.id)
         # with keys: 'train', 'eval', 'test'
         self.partition_ratio: Dict[str, float] = new_training.partition_ratio
         # if user selected both validation and testing partition ratio, we will have validation set
         self.has_valid_set = True if self.partition_ratio['test'] > 0 else False
         self.dataset_export_path: Path = project.get_export_path()
-        self.test_set_pkl_path: Path = self.dataset_export_path / 'test_images_and_labels.pkl'
         # NOTE: Might need these later
         # self.attached_model: Model = new_training.attached_model
         # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.training_path
+        # created this path to save all the test set related paths and encoded_labels
+        self.test_set_pkl_path: Path = self.training_path['models'] / \
+            'test_images_and_labels.pkl'
+        self.test_result_txt_path: Path = self.training_path['models'] / \
+            'test_result.txt'
+        self.confusion_matrix_path: Path = self.training_path['models'] / \
+            'confusion_matrix.png'
 
     @staticmethod
     def train_test_split(image_paths: List[Path],
@@ -117,6 +123,7 @@ class Trainer:
                          labels: Union[List[str], List[Path]],
                          val_size: Optional[float] = 0.0,
                          train_size: Optional[float] = 0.0,
+                         stratify: Optional[bool] = False,
                          random_seed: Optional[int] = 42
                          ) -> Tuple[List[str], ...]:
         """
@@ -131,6 +138,7 @@ class Trainer:
             labels (Union[str, Path]): Pass in this parameter to split the labels or label paths.
             val_size (Optional[float]): Size of validation split, only needed if `no_validation` is False. Defaults to 0.0.
             train_size (Optional[float]): This is only used for logging, can be inferred, thus not required. Defaults to 0.0.
+            stratify (Optional[bool]): stratification should only be used for image classification. Defaults to False
             random_seed (Optional[int]): random seed to use for splitting. Defaults to 42.
 
         Returns:
@@ -145,6 +153,9 @@ class Trainer:
         total_images = len(image_paths)
         assert total_images == len(labels)
 
+        # NOTE: only use stratification for image classification labels
+        stratify = labels if stratify else None
+
         # get the image paths and sort them
         logger.info(f"Total images = {total_images}")
 
@@ -156,6 +167,7 @@ class Trainer:
             X_train, X_test, y_train, y_test = train_test_split(
                 image_paths, labels,
                 test_size=test_size,
+                stratify=stratify,
                 random_state=random_seed
             )
             return X_train, X_test, y_train, y_test
@@ -168,12 +180,14 @@ class Trainer:
             X_train, X_val_test, y_train, y_val_test = train_test_split(
                 image_paths, labels,
                 test_size=(val_size + test_size),
+                stratify=stratify,
                 random_state=random_seed
             )
             X_val, X_test, y_val, y_test = train_test_split(
                 X_val_test, y_val_test,
                 test_size=(test_size / (val_size + test_size)),
                 shuffle=False,
+                stratify=stratify,
                 random_state=random_seed,
             )
             return X_train, X_val, X_test, y_train, y_val, y_test
@@ -199,6 +213,11 @@ class Trainer:
                 shutil.copy2(image_path, dest_dir)
 
     def train(self, is_resume: bool = False, stdout_output: bool = False):
+        logger.debug("Clearing all existing Streamlit cache")
+        # clearing all cache in case there is something weird happen with the
+        # st.experimental_memo methods
+        st.legacy_caching.clear_cache()
+
         with st.spinner("Exporting tasks for training ..."):
             session_state.project.export_tasks(
                 for_training_id=session_state.new_training.id)
@@ -213,10 +232,12 @@ class Trainer:
                 session_state.new_training.update_progress(progress)
             self.run_tfod_training(stdout_output)
         elif self.deployment_type == "Image Classification":
-            self.run_keras_training(classification=True)
+            if not is_resume:
+                self.reset_keras_progress()
+            self.run_keras_training(is_resume=is_resume, classification=True)
         elif self.deployment_type == "Semantic Segmentation with Polygons":
             # TODO: train image segmentation model
-            # self.run_keras_training(segmentation=True)
+            # self.run_keras_training(is_resume=is_resume, segmentation=True)
             pass
 
     def evaluate(self):
@@ -228,9 +249,25 @@ class Trainer:
         elif self.deployment_type == "Semantic Segmentation with Polygons":
             pass
 
+    def export_model(self):
+        # msg_container is generated from st.container to show message under
+        # the Export button
+        logger.info(f"Exporting model for Training ID {self.training_id}, "
+                    f"Model ID {self.training_model_id}")
+        if self.deployment_type == 'Object Detection with Bounding Boxes':
+            self.export_tfod_model(stdout_output=False)
+        else:
+            self.export_keras_model()
+
     def reset_tfod_progress(self):
         # reset the training progress
         training_progress = {'Step': 0, 'Checkpoint': 0}
+        session_state.new_training.reset_training_progress(
+            training_progress)
+
+    def reset_keras_progress(self):
+        # reset the training progress
+        training_progress = {'Epoch': 0}
         session_state.new_training.reset_training_progress(
             training_progress)
 
@@ -260,6 +297,41 @@ class Trainer:
         session_state.new_training.update_progress(step=int(step))
         session_state.new_training.update_metrics(metrics)
         return metrics
+
+    def get_tfod_last_ckpt_path(self) -> Path:
+        """Find and return the latest TFOD checkpoint path.
+        Return None if no ckpt-*.index file found"""
+        ckpt_dir = self.training_path['models']
+        ckpt_filepaths = glob.glob(str(ckpt_dir / 'ckpt-*.index'))
+        if not ckpt_filepaths:
+            logger.warning("""There is no checkpoint file found,
+            the TFOD model is not trained yet.""")
+            return None
+
+        def get_ckpt_cnt(path):
+            ckpt = path.split("ckpt-")[-1].split(".")[0]
+            return int(ckpt)
+
+        latest_ckpt = sorted(ckpt_filepaths, key=get_ckpt_cnt, reverse=True)[0]
+        return Path(latest_ckpt)
+
+    def check_model_exists(self) -> Dict[str, bool]:
+        """Check whether model weights (aka checkpoint) and exported model tarfile exists.
+        This is to check whether our model needs to be exported first before letting the
+        user to download."""
+        ckpt_found = model_tarfile_found = False
+        if self.deployment_type == 'Image Classification':
+            ckpt_path = self.training_path['keras_model_file']
+        elif self.deployment_type == 'Object Detection with Bounding Boxes':
+            ckpt_path = self.get_tfod_last_ckpt_path()
+
+        if ckpt_path.exists():
+            ckpt_found = True
+        if self.training_path['model_tarfile'].exists():
+            model_tarfile_found = True
+
+        return {'ckpt': ckpt_found,
+                'model_tarfile': model_tarfile_found}
 
     def run_tfod_training(self, stdout_output: bool = False):
         """
@@ -302,8 +374,7 @@ class Trainer:
             # this generate_tfrecord.py script is modified from https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html
             # to convert our PascalVOC XML annotation files into TFRecords which will be used by the TFOD API
             'GENERATE_TF_RECORD': LIB_PATH / "machine_learning" / "module" / "generate_tfrecord_st.py",
-            # this is a temporary path for labelmap file, will move to desired path later
-            'LABELMAP': paths['ANNOTATION_PATH'] / LABEL_MAP_NAME,
+            'LABELMAP': self.training_path['labelmap_file'],
             'MODEL_TARFILE': self.training_path['model_tarfile'],
         }
 
@@ -386,8 +457,7 @@ class Trainer:
                 framework=Framework.TensorFlow,
                 deployment_type=self.deployment_type)
             Labels.generate_labelmap_file(labelmap_string=labelmap_string,
-                                          # labelmap file resides here
-                                          dst=paths['ANNOTATION_PATH'],
+                                          dst=files["LABELMAP"].parent,
                                           framework=Framework.TensorFlow,
                                           deployment_type=self.deployment_type)
 
@@ -496,63 +566,96 @@ class Trainer:
         # shutil.rmtree(paths['IMAGE_PATH'])
         # logger.debug(f"Removed the directory in {paths['IMAGE_PATH']}")
 
-        # *********************** EXPORT MODEL ***********************
-        with st.spinner("Exporting model ..."):
-            if paths['EXPORT'].exists():
-                # remove any existing export directory first
-                shutil.rmtree(paths['EXPORT'])
-
-            FREEZE_SCRIPT = paths['APIMODEL_PATH'] / 'research' / \
-                'object_detection' / 'exporter_main_v2.py '
-            command = (f"python {FREEZE_SCRIPT} "
-                       "--input_type=image_tensor "
-                       f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
-                       f"--trained_checkpoint_dir={paths['MODELS']} "
-                       f"--output_directory={paths['EXPORT']}")
-            run_command(command, stdout_output)
-            st.success('Model is successfully exported!')
-
-            # Also copy the label map file to the exported directory to use for display
-            # label names in inference later
-            # NOTE: self.training_path['labelmap'] is in export path
-            shutil.copy2(files['LABELMAP'], self.training_path['labelmap'])
-
-            # tar the exported model to be used anywhere
-            # NOTE: be careful with the second argument of tar -czf command,
-            #  if you pass a chain of directories, the directories
-            #  will also be included in the tarfile.
-            # That's why we `chdir` first and pass only the file/folder names
-            os.chdir(paths['EXPORT'].parent)
-            run_command(
-                f"tar -czf {files['MODEL_TARFILE'].name} {paths['EXPORT'].name}")
-            # and then change back to root dir
-            chdir_root()
-
-            # after created the tarfile in the current working directory,
-            #  then only move to the desired filepath
-            # ! You don't need this as the tarfile is in the same directory as the export path
-            # shutil.move(files['MODEL_TARFILE'].name,
-            #             files['MODEL_TARFILE'])
-
-        logger.info(
-            f"CONGRATS YO! Successfully created {files['MODEL_TARFILE']}")
-
         # rerun to remove all these progress and refresh the page to show results
         st.experimental_rerun()
 
+    def export_tfod_model(self, stdout_output=False):
+        training_path = self.training_path
+        if training_path['export'].exists():
+            # remove any existing export directory first
+            shutil.rmtree(training_path['export'])
+
+        with st.spinner("Exporting model ... This may take awhile ..."):
+            pipeline_conf_path = training_path['models'] / 'pipeline.config'
+            FREEZE_SCRIPT = TFOD_DIR / 'research' / \
+                'object_detection' / 'exporter_main_v2.py '
+            command = (f"python {FREEZE_SCRIPT} "
+                       "--input_type=image_tensor "
+                       f"--pipeline_config_path={pipeline_conf_path} "
+                       f"--trained_checkpoint_dir={training_path['models']} "
+                       f"--output_directory={training_path['export']}")
+            run_command(command, stdout_output)
+        st.success('Model is successfully exported!')
+
+        # tar the exported model to be used anywhere
+        # NOTE: be careful with the second argument of tar -czf command,
+        #  if you pass a chain of directories, the directories
+        #  will also be included in the tarfile.
+        # That's why we `chdir` first and pass only the file/folder names
+        with st.spinner("Creating tarfile to download ..."):
+            os.chdir(training_path['export'].parent)
+            run_command(
+                f"tar -czf {training_path['model_tarfile'].name} "
+                f"{training_path['export'].name}")
+            # and then change back to root dir
+            chdir_root()
+
+        logger.info(
+            f"CONGRATS YO! Successfully created {training_path['model_tarfile']}")
+
     @st.cache(show_spinner=False)
-    def load_tfod_model(self):
+    def load_tfod_checkpoint(self):
+        """
+        Loading from checkpoint instead of the exported savedmodel.
+        """
+        pipeline_conf_path = self.training_path['models'] / 'pipeline.config'
+        ckpt_path = self.get_tfod_last_ckpt_path()
+
+        logger.info(f'Loading TFOD checkpoint model ID {self.training_model_id} '
+                    f'for Training ID {self.training_id} '
+                    f'from {ckpt_path} ...')
+        start_time = time.perf_counter()
+
+        # Load pipeline config and build a detection model
+        configs = config_util.get_configs_from_pipeline_file(
+            pipeline_conf_path)
+        model_config = configs['model']
+        detection_model = model_builder.build(
+            model_config=model_config, is_training=False)
+
+        # Restore checkpoint
+        ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
+        # need to remove the .index extension at the end
+        ckpt.restore(str(ckpt_path).strip('.index')).expect_partial()
+
+        @tf.function
+        def detect_fn(image):
+            """Detect objects in image."""
+
+            image, shapes = detection_model.preprocess(image)
+            prediction_dict = detection_model.predict(image, shapes)
+            detections = detection_model.postprocess(prediction_dict, shapes)
+
+            return detections
+
+        end_time = time.perf_counter()
+        logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
+        return detect_fn
+
+    @st.cache(show_spinner=False)
+    def load_tfod_model(_self):
         """
         NOTE: Caching is used on this method to avoid long loading times.
         Due to this, this method should not be used outside of
         training/deployment page. Hence, it's not defined as a staticmethod.
         Maybe can improve this by using st.experimental_memo or other methods. Not sure.
+        Using `_self` instead of `self` to avoid hashing it for memo
         """
         # Loading the exported model from the saved_model directory
-        saved_model_path = self.training_path['export'] / "saved_model"
+        saved_model_path = _self.training_path['export'] / "saved_model"
 
-        logger.info(f'Loading model ID {self.training_model_id} '
-                    f'for Training ID {self.training_id} '
+        logger.info(f'Loading model ID {_self.training_model_id} '
+                    f'for Training ID {_self.training_id} '
                     f'from {saved_model_path} ...')
         start_time = time.perf_counter()
         # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
@@ -602,9 +705,14 @@ class Trainer:
         evaluation here only shows some output images with bounding boxes"""
         # get the required paths
         paths = self.training_path
+        exist_dict = self.check_model_exists()
         with st.spinner("Loading model ... This might take awhile ..."):
-            detect_fn = self.load_tfod_model()
-        category_index = load_labelmap(paths['labelmap'])
+            # only use the full exported model after the user has exported it
+            if exist_dict['model_tarfile']:
+                detect_fn = self.load_tfod_model()
+            else:
+                self.load_tfod_checkpoint()
+        category_index = load_labelmap(paths['labelmap_file'])
 
         # **************** SHOW SOME IMAGES FOR EVALUATION ****************
         options_col, _ = st.columns([1, 1])
@@ -711,6 +819,8 @@ class Trainer:
         with next_btn_col_2:
             st.button('Next samples ⏭️', key='btn_next_images_2',
                       on_click=next_samples)
+
+    # ********************* METHODS FOR KERAS TRAINING *********************
 
     def create_tf_dataset(self, X_train: List[str], y_train: List[str],
                           X_test: List[str], y_test: List[str],
@@ -834,7 +944,9 @@ class Trainer:
                                  self.training_param['optimizer'])
         lr = self.training_param['learning_rate']
 
-        opt = optimizer_func(learning_rate=lr)
+        # using a simple decay for now, can use cosine annealing if wanted
+        opt = optimizer_func(learning_rate=lr,
+                             decay=lr / self.training_param['num_epochs'])
         model.compile(loss="sparse_categorical_crossentropy",
                       optimizer=opt, metrics=["accuracy"])
         return model
@@ -842,21 +954,19 @@ class Trainer:
     def create_callbacks(self, train_size: int,
                          progress_placeholder: Dict[str, Any]) -> List[Callback]:
         # this callback saves the checkpoint with the best `val_loss`
-        ckpt_cb = ModelCheckpoint(filepath=self.training_path['model_weights'],
-                                  save_weights_only=True,
-                                  monitor='val_loss',
-                                  mode='min',
-                                  save_best_only=True)
+        ckpt_cb = ModelCheckpoint(
+            filepath=self.training_path['model_weights_file'],
+            save_weights_only=True,
+            monitor='val_loss',
+            mode='min',
+            save_best_only=True
+        )
 
-        # this callback will stop the training when the `val_loss` has not changed for
-        #   `patience` epochs
-        # `restore_best_weights` is used to restore the model to the best checkpoint
-        #   after training
-        # TODO: allow user to set the early stopping patience
-        early_stopping_cb = EarlyStopping(patience=10, monitor='val_loss',
-                                          mode='min', restore_best_weights=True)
+        # maybe early_stopping is not necessary
+        # early_stopping_cb = EarlyStopping(patience=10, monitor='val_loss',
+        #                                   mode='min', restore_best_weights=True)
 
-        tensorboard_cb = TensorBoard(
+        tensorboard_cb = LRTensorBoard(
             log_dir=self.training_path['tensorboard_logdir'])
 
         pretty_metric_printer = PrettyMetricPrinter()
@@ -870,21 +980,38 @@ class Trainer:
             refresh_rate=20
         )
 
-        return [ckpt_cb, early_stopping_cb, tensorboard_cb, st_output_cb]
+        return [ckpt_cb, tensorboard_cb, st_output_cb]
 
-    @st.experimental_memo
-    def load_model_weights(self, model: keras.Model = None, build_model: bool = False):
+    def load_model_weights(self, build_model: bool = False, model: keras.Model = None):
         """Load the model weights for evaluation or inference. 
-        If `build_model` is `True`, the model will be rebuilt and load back the weights"""
+        If `build_model` is `True`, the model will be rebuilt and load back the weights.
+        Or just send in a built model to directly use it to load the weights"""
         if build_model:
             if self.deployment_type == 'Image Classification':
                 model = self.build_classification_model()
             # TODO load weights for segmentation model
         if model is not None:
-            model.load_weights(self.training_path['model_weights'])
+            model.load_weights(self.training_path['model_weights_file'])
+            return model
+        else:
+            st.error(
+                "Model is not loaded. Some error has occurred. Please try again.")
+            logger.error(f"""Model {self.training_model_id} is not loaded, please pass
+            in a `model` or set `build_model` to True to rebuild the model layers.""")
+            st.stop()
+
+    @st.cache(show_spinner=False)
+    def load_keras_model(self):
+        """load the exported keras model instead of only weights
+        Using `_self` instead of `self` to avoid hashing it for memo"""
+        model = keras.models.load_model(
+            self.training_path['keras_model_file'])
         return model
 
-    def run_keras_training(self, classification: bool = False, segmentation: bool = False):
+    def run_keras_training(self,
+                           is_resume: bool = False,
+                           classification: bool = False,
+                           segmentation: bool = False):
         assert any((classification, segmentation))
 
         if classification:
@@ -930,7 +1057,8 @@ class Trainer:
                     image_paths=image_paths,
                     test_size=self.partition_ratio['eval'],
                     labels=encoded_labels,
-                    no_validation=True
+                    no_validation=True,
+                    stratify=True,
                 )
 
             col, _ = st.columns([1, 1])
@@ -955,8 +1083,19 @@ class Trainer:
                     X_train, y_train, X_test, y_test)
 
         # ***************** Build model and callbacks *****************
-        with st.spinner("Building the model ..."):
-            model = self.build_classification_model()
+        if not is_resume:
+            with st.spinner("Building the model ..."):
+                model = self.build_classification_model()
+            initial_epoch = 0
+            num_epochs = self.training_param['num_epochs']
+        else:
+            logger.info(f"Loading Model ID {self.training_model_id} "
+                        "to resume training ...")
+            with st.spinner("Loading trained model to resume training ..."):
+                # load the checkpoint from disk
+                model = self.load_keras_model()
+            initial_epoch = session_state.new_training.progress['Epoch']
+            num_epochs = initial_epoch + self.training_param['num_epochs']
 
         progress_placeholder = {}
         progress_placeholder['epoch'] = st.empty()
@@ -964,7 +1103,7 @@ class Trainer:
         callbacks = self.create_callbacks(
             train_size=len(y_train), progress_placeholder=progress_placeholder)
 
-        # ***************** Train the model *****************
+        # ********************** Train the model **********************
         if self.has_valid_set:
             validation_data = val_ds
         else:
@@ -976,7 +1115,8 @@ class Trainer:
             history = model.fit(
                 train_ds,
                 validation_data=validation_data,
-                epochs=self.training_param['num_epochs'],
+                initial_epoch=initial_epoch,
+                epochs=num_epochs,
                 callbacks=callbacks,
                 # turn off printing training progress in console
                 verbose=0
@@ -988,25 +1128,91 @@ class Trainer:
         logger.info(f'Finished training! Took {m}m {s}s')
         st.success(f'Model has finished training! Took **{m}m {s}s**')
 
-        if self.has_valid_set:
-            (loss, accuracy) = model.evaluate(val_ds)
-            st.info("Validation Accuracy: {:.2f}%".format(accuracy * 100))
-            # show the accuracy on the test set
-            (loss, accuracy) = model.evaluate(test_ds)
-            st.info("Testing Accuracy: {:.2f}%".format(accuracy * 100))
-        else:
-            (loss, accuracy) = model.evaluate(test_ds)
-            st.info("Validation Accuracy: {:.2f}%".format(accuracy * 100))
+        with st.spinner("Loading the model with the best validation loss ..."):
+            model = self.load_model_weights(model)
+
+        with st.spinner("Saving the trained TensorFlow model ..."):
+            model.save(self.training_path['keras_model_file'])
+
+        # ************************ Evaluation ************************
+        with st.spinner("Evaluating on validation set and test set if available ..."):
+            if self.has_valid_set:
+                (val_loss, val_accuracy) = model.evaluate(val_ds)
+                txt_1 = (f"Validation aval_ccuracy: {val_accuracy * 100:.2f}%  \n"
+                         f"Validation loss: {val_loss:.4f}")
+                st.info(txt_1)
+
+                # show the accuracy on the test set
+                (test_loss, test_accuracy) = model.evaluate(test_ds)
+                txt_2 = (f"Testing accuracy: {test_accuracy * 100:.2f}%  \n"
+                         f"Testing loss: {test_loss:.4f}")
+                st.info(txt_2)
+
+                # save the results in a txt file
+                with open(self.test_result_txt_path, "w") as f:
+                    f.write("  \n".join([txt_1, txt_2]))
+            else:
+                (test_loss, test_accuracy) = model.evaluate(test_ds)
+                txt_1 = (f"Validation accuracy: {test_accuracy * 100:.2f}%  \n"
+                         f"Validation loss: {test_loss:.4f}")
+                with open(self.test_result_txt_path, "w") as f:
+                    f.write(txt_1)
+
+        # show a nicely formatted classification report
+        with st.spinner("Making predictions of the test set ..."):
+            pred_proba = model.predict(test_ds)
+            preds = np.argmax(pred_proba, axis=-1)
+            y_true = np.concatenate([y for x, y in test_ds], axis=0)
+            st.write(f"{np.unique(y_true) = }")
+            unique_labels = [str(encoded_label_dict[label])
+                             for label in np.unique(y_true)]
+            st.write(f"{unique_labels = }")
+
+        with st.spinner("Generating classification report ..."):
+            classif_report = classification_report(
+                y_true, preds, target_names=unique_labels
+            )
+            st.subheader("Classification report")
+            st.text(classif_report)
+
+            # append to the test results
+            with open(self.test_result_txt_path, "a") as f:
+                header_txt = "  \nClassification report:"
+                f.write("  \n".join([header_txt, classif_report]))
+
+        with st.spinner("Creating confusion matrix ..."):
+            cm = confusion_matrix(y_true, preds)
+
+            fig = plt.figure()
+            ax = sns.heatmap(
+                cm,
+                cmap="Blues",
+                annot=True,
+                fmt="d",
+                cbar=False,
+            )
+            plt.title("Confusion Matrix", size=12, fontfamily="serif")
+            plt.ylabel('Actual')
+            plt.xlabel('Predicted')
+            # save the figure to reuse later
+            plt.savefig(str(self.confusion_matrix_path),
+                        bbox_inches="tight")
+            st.pyplot(fig)
+
+        # remove the model weights file, which is basically just used for loading
+        # the best weights with the lowest val_loss. Decided to just use the
+        # full model h5 file to make things easier to resume training.
+        weights_path = self.training_path['model_weights_file']
+        logger.debug(f"Removing unused model_weights file: {weights_path}")
+        os.remove(weights_path)
 
     def run_classification_eval(self):
-        paths = self.training_path
-
-        # load back the best model weights
-        model = self.load_model_weights(build_model=True)
+        # load back the best model
+        model = self.load_keras_model()
 
         options_col, _ = st.columns([1, 1])
         prev_btn_col_1, next_btn_col_1, _ = st.columns([1, 1, 3])
-        image_col, pred_info_col = st.columns([1, 1])
+        image_col, image_col_2 = st.columns([1, 1])
         prev_btn_col_2, next_btn_col_2, _ = st.columns([1, 1, 3])
 
         if 'start_idx' not in session_state:
@@ -1016,14 +1222,25 @@ class Trainer:
         @st.experimental_memo
         def get_test_images_labels():
             with st.spinner("Getting images and labels ..."):
-                X_test, y_test, encoded_label_dict = pickle.load(
-                    self.test_set_pkl_path)
-            return X_test, y_test, encoded_label_dict
+                with open(self.test_set_pkl_path, 'rb') as f:
+                    X_test, y_test, encoded_label_dict = pickle.load(f)
+                return X_test, y_test, encoded_label_dict
 
-        # take the test set images
-        image_paths, labels, encoded_label_dict = get_test_images_labels()
+        X_test, y_test, encoded_label_dict = get_test_images_labels()
+
+        with open(self.test_result_txt_path) as f:
+            result_txt = f.read()
+        st.subheader("Evaluation result on validation set and "
+                     "test set if available")
+        st.text(result_txt)
+
+        st.subheader("Confusion matrix:")
+        image = plt.imread(self.confusion_matrix_path)
+        st.image(image)
 
         with options_col:
+            st.header("Prediction results on test set")
+
             def reset_start_idx():
                 session_state['start_idx'] = 0
 
@@ -1039,19 +1256,19 @@ class Trainer:
                 on_change=reset_start_idx
             )
 
-            st.info(f"**Total test set images**: {len(image_paths)}")
+            st.info(f"**Total test set images**: {len(X_test)}")
 
         n_samples = session_state['n_samples']
         start_idx = session_state['start_idx']
-        current_image_paths = image_paths[start_idx: start_idx + n_samples]
-        current_labels = labels[start_idx: start_idx + n_samples]
+        current_image_paths = X_test[start_idx: start_idx + n_samples]
+        current_labels = y_test[start_idx: start_idx + n_samples]
 
         def previous_samples():
             if session_state['start_idx'] > 0:
                 session_state['start_idx'] -= n_samples
 
         def next_samples():
-            max_start = len(image_paths) - n_samples
+            max_start = len(X_test) - n_samples
             if session_state['start_idx'] < max_start:
                 session_state['start_idx'] += n_samples
 
@@ -1064,23 +1281,27 @@ class Trainer:
 
         logger.info(f"Detecting from the test set images: {start_idx}"
                     f" to {start_idx + n_samples} ...")
+        image_cols = cycle((image_col, image_col_2))
         with st.spinner("Running classifications ..."):
-            for p, label in zip(current_image_paths, current_labels):
+            for p, label, col in zip(current_image_paths, current_labels, image_cols):
                 filename = os.path.basename(p)
 
                 img = load_image_into_numpy_array(str(p))
-                img = np.expand_dims(img, axis=-1)
+                image_size = self.training_param["image_size"]
+                resized_img = cv2.resize(img, (image_size, image_size))
+                resized_img = np.expand_dims(resized_img, axis=0)
 
-                preds = model.predict(img)
-                y_pred = np.argmax(preds, axis=-1)
+                pred = model.predict(resized_img)
+                y_pred = np.argmax(pred, axis=-1)[0]
                 pred_classname = encoded_label_dict[y_pred]
                 true_classname = encoded_label_dict[label]
 
-                with image_col:
-                    st.image(img, caption=filename)
-                with pred_info_col:
-                    st.info(f"Actual: {true_classname}  \n"
-                            f"Predicted: {pred_classname}")
+                caption = (f"{filename}; "
+                           f"Actual: {true_classname}; "
+                           f"Predicted: {pred_classname}")
+
+                with col:
+                    st.image(img, caption=caption)
 
         with prev_btn_col_2:
             st.button('⏮️ Previous samples', key='btn_prev_images_2',
@@ -1089,14 +1310,17 @@ class Trainer:
             st.button('Next samples ⏭️', key='btn_next_images_2',
                       on_click=next_samples)
 
-    def export_keras_model(self, model):
-        with st.spinner("Saving model ..."):
-            logger.info("Saving h5 model...")
-            model.save(self.training_path['keras_model'], save_format="h5")
-        with st.spinner("Creating model tarfile ..."):
+    def export_keras_model(self):
+        # just create a tarfile for the user to download
+        with st.spinner("Creating model tarfile to download ..."):
             os.chdir(self.training_path['export'].parent)
+            export_foldername = self.training_path['export'].name
+            model_tarfile_name = self.training_path['model_tarfile'].name
+            # tarring the "export" folder within its parent folder using `tar` command
             run_command(
-                f"tar -czf {self.training_path['model_tarfile'].name} "
-                f"{self.training_path['export'].name}")
+                f"tar -czf {model_tarfile_name} "
+                f"{export_foldername}")
         # and then change back to root dir
         chdir_root()
+        logger.debug("Keras model tarfile created at: "
+                     f"{self.training_path['model_tarfile']}")

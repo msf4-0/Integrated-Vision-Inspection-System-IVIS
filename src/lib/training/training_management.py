@@ -25,6 +25,8 @@ SPDX-License-Identifier: Apache-2.0
 
 from copy import deepcopy
 import json
+import os
+import shutil
 import sys
 import traceback
 from collections import namedtuple
@@ -806,7 +808,7 @@ class NewTraining(BaseTraining):
     @staticmethod
     def reset_new_training_page():
 
-        new_training_attributes = ["new_training", "new_training_name", "new_training_pagination",
+        new_training_attributes = ["new_training_name", "new_training_pagination",
                                    "new_training_desc"]
 
         reset_page_attributes(new_training_attributes)
@@ -863,7 +865,6 @@ class Training(BaseTraining):
     @property
     def training_path(self) -> Dict[str, Path]:
         # modified from get_all_training_path
-        # NOTE: need to exclude file paths from the `initialise_training_folder` method
         # >>>> TRAINING PATH
         paths = {}
         paths['ROOT'] = self.get_training_path(self.project_path, self.name)
@@ -876,24 +877,35 @@ class Training(BaseTraining):
             # MUST use this to get a nicely formatted directory name
             model_dirname = get_directory_name(self.training_model.name)
         paths['models'] = root / 'models' / model_dirname
+        # the tensorboard logdir is the same with models path but just to be explicit
+        # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
+        #  folders and store the logs inside this folder, so don't accidentally
+        #  delete this entire folder
+        paths['tensorboard_logdir'] = paths['models']
         # PARTITIONED DATASET PATH
         paths['images'] = root / 'images'
         # EXPORTED MODEL PATH
         # paths['exported_models'] = root / \
         #     'exported_models'
         paths['export'] = paths['models'] / 'export'
-        # model weights only available for image classification and segmentation tasks
-        # when using Keras
-        paths['model_weights'] = paths['export'] / f"{model_dirname}.h5"
-        paths['model_tarfile'] = paths['models'] / \
-            f'{model_dirname}.tar.gz'
         # ANNOTATIONS PATH
         paths['annotations'] = root / 'annotations'
+
+        # ************************** FILE paths **************************
+        # NOTE: need to exclude file paths from the `initialise_training_folder` method.
+        # currently setting every filepath's key to end with "file" to easily skip them
+
         # this filename is based on the `generate_labelmap_file` function
-        # NOTE: this file is probably only needed for TF object detection
-        paths['labelmap'] = paths['export'] / 'labelmap.pbtxt'
-        # the tensorboard logdir is the same with models path but just to be explicit
-        paths['tensorboard_logdir'] = paths['models']
+        # this file is probably only needed for TF object detection
+        paths['labelmap_file'] = paths['export'] / 'labelmap.pbtxt'
+        # model weights only available for image classification and segmentation tasks
+        # when using Keras
+        paths['model_weights_file'] = paths['export'] / \
+            f"{model_dirname}-weights.h5"
+        paths['keras_model_file'] = paths['export'] / f"{model_dirname}.h5"
+        paths['model_tarfile'] = paths['models'] / \
+            f'{model_dirname}.tar.gz'
+
         return paths
 
     @staticmethod
@@ -1154,9 +1166,10 @@ class Training(BaseTraining):
         training_paths = self.training_path
 
         # >>>> CREATE Training directory recursively
-        filepath_keys = ('model_tarfile', 'labelmap', 'keras_model', 'model_weights')
+        # filepath_keys = ('model_tarfile', 'labelmap', 'keras_model', 'model_weights')
         for key, path in training_paths.items():
-            if key in filepath_keys:
+            # if key in filepath_keys:
+            if key.endswith('file'):
                 # this is a file path and not a directory, thus skipping
                 continue
             create_folder_if_not_exist(path)
@@ -1457,6 +1470,21 @@ class Training(BaseTraining):
 
     @staticmethod
     def reset_training_page():
+        # remove unwanted files to save space, only files needed
+        # for continue training, or test set evaluation are kept
+        if 'new_training' in session_state:
+            paths = session_state.new_training.training_path
+            dataset_export_path = session_state.project.get_export_path()
+            paths_to_del = (paths['export'], dataset_export_path)
+            for p in paths_to_del:
+                if p.exists():
+                    if p.is_file():
+                        logger.debug(
+                            f"Removing unnecessary existing training related path: {p}")
+                        os.remove(p)
+                    else:
+                        shutil.rmtree(p)
+
         training_attributes = ["training", "training_pagination", "labelling_pagination",
                                "training_param_dict", "new_training", "trainer", "start_idx",
                                "augmentation_config"
