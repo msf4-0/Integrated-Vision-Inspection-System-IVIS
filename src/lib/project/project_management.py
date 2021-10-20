@@ -287,7 +287,7 @@ class Project(BaseProject):
         # - beware here I added removing the entire existing directory before proceeding
         if output_dir.exists():
             logger.warning(
-                f"[INFO] Removing existing exported directory: {output_dir}")
+                f"Removing existing exported directory: {output_dir}")
             shutil.rmtree(output_dir)
         os.makedirs(output_dir)
 

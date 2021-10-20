@@ -897,12 +897,14 @@ class Training(BaseTraining):
 
         # this filename is based on the `generate_labelmap_file` function
         # this file is probably only needed for TF object detection
-        paths['labelmap_file'] = paths['export'] / 'labelmap.pbtxt'
+        paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
         # model weights only available for image classification and segmentation tasks
         # when using Keras
-        paths['model_weights_file'] = paths['export'] / \
+        paths['model_weights_file'] = paths['models'] / \
             f"{model_dirname}-weights.h5"
-        paths['keras_model_file'] = paths['export'] / f"{model_dirname}.h5"
+        paths['keras_model_file'] = paths['models'] / f"{model_dirname}.h5"
+        # model_tarfile should be in the same folder with 'export' folder,
+        # because we are tarring the 'export' folder
         paths['model_tarfile'] = paths['models'] / \
             f'{model_dirname}.tar.gz'
 
@@ -1475,7 +1477,7 @@ class Training(BaseTraining):
         if 'new_training' in session_state:
             paths = session_state.new_training.training_path
             dataset_export_path = session_state.project.get_export_path()
-            paths_to_del = (paths['export'], dataset_export_path)
+            paths_to_del = (paths['model_tarfile'], dataset_export_path)
             for p in paths_to_del:
                 if p.exists():
                     if p.is_file():

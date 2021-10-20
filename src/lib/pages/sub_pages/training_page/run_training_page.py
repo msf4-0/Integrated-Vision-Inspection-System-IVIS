@@ -213,11 +213,12 @@ def index(RELEASE=True):
             st.warning('✏️ **NOTE**: If you click this button, '
                        'the latest progress might not be saved.')
 
+        logdir = session_state.new_training.training_path['tensorboard_logdir']
+
         if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
             # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
             #  folders and store the logs inside this folder, so don't accidentally
             #  delete this entire folder
-            logdir = session_state.new_training.training_path['tensorboard_logdir']
             logdir_folders = (logdir / 'train', logdir / 'validation')
             for p in logdir_folders:
                 if p.exists():
@@ -242,8 +243,13 @@ def index(RELEASE=True):
         #  from the TFOD scripts; set to False to avoid clutterring the console outputs
         session_state.trainer.train(is_resume, stdout_output=False)
 
-        st.button("Refresh training page", key='btn_refresh_page',
-                  help="Refresh this page to show other results")
+        def refresh_page():
+            time.sleep(1)
+            st.experimental_rerun()
+
+        st.button("Refresh Training Page", key='btn_refresh_page',
+                  help="Refresh this page to show all the results",
+                  on_click=refresh_page)
 
     if not session_state.new_training.is_started:
         with train_btn_place.container():
@@ -293,6 +299,9 @@ def index(RELEASE=True):
                         message_place.warning("Downloading Model ...")
                         time.sleep(2)
                         message_place.empty()
+                        # remove exported directory after downloaded
+                        shutil.rmtree(
+                            session_state.trainer.training_path['export'])
                         # remove the tarfile after downloaded
                         os.remove(model_tarfile_path)
 
@@ -327,8 +336,11 @@ def index(RELEASE=True):
                                     please try re-training again""")
                                 logger.error(f"Error exporting model: {e}")
                                 st.stop()
-
-                    st.button("📁 Export Model", key='btn_export_model',
+                    if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                        label = "📁 Export TensorFlow SavedModel"
+                    else:
+                        label = "📁 Export TensorFlow Keras Model"
+                    st.button(label, key='btn_export_model',
                               on_click=export_callback)
                     st.warning('✏️ **NOTE**: This may take awhile to export, '
                                'depending on the size of the trained model.')
@@ -371,18 +383,15 @@ def index(RELEASE=True):
                 initialize_trainer()
                 st.markdown("___")
                 st.markdown("### Evaluation results:")
-                # show evaluation results
-                with st.spinner("Loading TensorBoard ..."):
-                    run_tensorboard(
-                        session_state.trainer.training_path['tensorboard_logdir']
-                    )
                 with st.spinner("Running evaluation ..."):
-                    # try:
-                    session_state.trainer.evaluate()
-                    # except Exception as e:
-                    #     st.error("Some error has occurred. Please try "
-                    #              "training/exporting the model again.")
-                    #     logger.error(f"Error evaluating: {e}")
+                    try:
+                        session_state.trainer.evaluate()
+                    except Exception as e:
+                        if not RELEASE:
+                            st.exception(e)
+                        st.error("Some error has occurred. Please try "
+                                 "training/exporting the model again.")
+                        logger.error(f"Error evaluating: {e}")
             else:
                 logger.info(f"Model {session_state.new_training.training_model_id} "
                             "is not exported yet. Skipping evaluation")

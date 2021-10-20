@@ -13,8 +13,10 @@ import cv2
 import xml.etree.ElementTree as ET
 import glob
 import pandas as pd
+from PIL import Image
 import albumentations as A
 
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback, TensorBoard
 from tensorflow import keras
 
@@ -68,13 +70,34 @@ def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]
                 f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
             return loss_name, float(value)
     except IndexError:
-        logger.error(f"Value for '{name}' not found from {cmd_output}")
+        logger.debug(f"Value for '{name}' not found from {cmd_output}")
+
+
+def find_tfod_eval_metrics(cmd_output) -> str:
+    """
+    Find the specific evaluation metric names in the command output (`cmd_output`)
+    and returns the concatenated lines of strings to display to the user on Streamlit.
+    """
+    all_lines = []
+    metric_names = ('DetectionBoxes_Precision/',
+                    'DetectionBoxes_Recall/', 'Loss/')
+    try:
+        for name in metric_names:
+            lines = re.findall(f"{name}.+", cmd_output)
+            # remove duplicated lines
+            lines = list(set(lines))
+            all_lines.append('  \n'.join(lines))
+        all_lines_str = '  \n'.join(all_lines)
+        return all_lines_str
+    except IndexError:
+        logger.debug(f"Value for '{name}' not found from {cmd_output}")
 
 
 def run_command(command_line_args: str, st_output: bool = False,
                 stdout_output: bool = True,
                 filter_by: Optional[List[str]] = None,
                 pretty_print: Optional[bool] = False,
+                is_cocoeval: Optional[bool] = False
                 ) -> Union[str, None]:
     """
     Running commands or scripts, while getting live stdout
@@ -93,8 +116,10 @@ def run_command(command_line_args: str, st_output: bool = False,
     if pretty_print:
         command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
-    # shell=True to work on String instead of list
-    process = subprocess.Popen(command_line_args, shell=True,
+    # shell=True to work on String instead of list -- not really sure about this...
+    # using shell=False for COCO eval to easily stop the process with process.terminate()
+    shell = False if is_cocoeval else True
+    process = subprocess.Popen(command_line_args, shell=shell,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
@@ -104,20 +129,26 @@ def run_command(command_line_args: str, st_output: bool = False,
     for line in process.stdout:
         # remove empty trailing spaces, and also string with only spaces
         line = line.strip()
-        if line and st_output:
+        if line:
+            if stdout_output:
+                print(line)
+            if is_cocoeval and 'Loss/total_loss' in line:
+                # stop the process after see this line in COCO eval script
+                logger.debug("NOTE: TERMINATING COCO EVAL SCRIPT")
+                process.terminate()
             if filter_by:
                 for filter_str in filter_by:
                     if filter_str in line:
-                        st.markdown(line)
                         output_str_list.append(line)
-            else:
+                        if st_output:
+                            st.markdown(line)
+            elif st_output:
                 st.markdown(line)
-        if line and stdout_output:
-            print(line)
     process.wait()
     if filter_by and not output_str_list:
         # there is nothing obtained from the filtered stdout
-        logger.error("Error with training!")
+        logger.error("Error getting any filtered text "
+                     "from the command outputs!")
         st.error("Some error has occurred during training ..."
                  " Please try again")
         time.sleep(3)
@@ -302,10 +333,11 @@ def load_image_into_numpy_array(path: str):
     Returns:
     uint8 numpy array with shape (img_height, img_width, 3)
     """
-    img = cv2.imread(path)
+    # always read in 3 channels
+    img = cv2.imread(path, cv2.IMREAD_COLOR)
     # convert from OpenCV's BGR to RGB format
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return np.asarray(img)
+    return img
 
 
 def load_labelmap(labelmap_path):
@@ -485,6 +517,17 @@ def generate_tfod_xml_csv(image_paths: List[str],
     xml_df.to_csv(csv_path)
     time_elapsed = time.perf_counter() - start
     logger.info(f"Done. {time_elapsed = :.4f} seconds")
+
+
+@tf.function
+def tfod_ckpt_detect_fn(image, detection_model):
+    """Detect objects in image."""
+
+    image, shapes = detection_model.preprocess(image)
+    prediction_dict = detection_model.predict(image, shapes)
+    detections = detection_model.postprocess(prediction_dict, shapes)
+
+    return detections
 
 
 class StreamlitOutputCallback(Callback):

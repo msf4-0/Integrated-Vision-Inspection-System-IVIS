@@ -91,6 +91,9 @@ def install():
         # for running COCO evaluation on Windows, refer to here https://github.com/google/automl/issues/487
         # Instructions for COCO API Installation: https://github.com/ansonnn07/object-detection#coco-api-installation
         #  (under the COCO API installation section)
+        # NOTE: using this new repo created to fix Windows installation for now
+        run_command(
+            "pip install git+https://github.com/gautamchitnis/cocoapi.git@cocodataset-master#subdirectory=PythonAPI")
         # - BUT Windows still has issue when trying to use the Shapely library to convert annotations to a COCO JSON file
         if not (PROTOC_PATH / "bin").exists():
             logger.info("Downloading protobuf dependencies ...")

@@ -665,12 +665,6 @@ class Converter(object):
 
         ensure_dir(output_dir)
 
-        # - beware here I added removing the entire existing directory before proceeding
-        if os.path.exists(output_dir):
-            print(
-                f"[INFO] Removing existing exported directory: {output_dir}")
-            shutil.rmtree(output_dir)
-
         if output_image_dir is not None:
             ensure_dir(output_image_dir)
             output_image_dir_rel = output_image_dir
