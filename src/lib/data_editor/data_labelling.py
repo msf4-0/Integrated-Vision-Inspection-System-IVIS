@@ -4,6 +4,7 @@ Date: 15/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
+import copy
 import sys
 from pathlib import Path
 from typing import List
@@ -48,7 +49,7 @@ from streamlit.report_thread import add_report_ctx
 
 
 def editor(data_id: List = []):
-    logger.info("Inside Editor function")
+    logger.debug("Inside Editor function")
     chdir_root()  # change to root directory
 
     # ******** SESSION STATE ***********************************************************
@@ -58,17 +59,18 @@ def editor(data_id: List = []):
     if "new_annotation_flag" not in session_state:
         session_state.new_annotation_flag = 0
     if "data_labelling_table" not in session_state:
-        session_state.data_labelling_table = data_id
+        session_state.data_labelling_table = data_id or [None]
     if "labelling_prev_result" not in session_state:
         session_state.labelling_prev_result = []
     if "show_next_unlabeled" not in session_state:
         # a flag to decide whether to show next unlabeled data
-        session_state.show_next_unlabeled = False
+        session_state.show_next_unlabeled = True
 
     # ******** SESSION STATE *********************************************************
 
 # ************************************** COLUMN PLACEHOLDERS***************************************
     back_to_labelling_dashboard_button_place = st.empty()
+    note_place = st.empty()
     main_col1, main_col2 = st.columns([2.5, 3])
     main_col1.write("### **Data Labelling**")
 # ************************************** COLUMN PLACEHOLDERS***************************************
@@ -77,7 +79,7 @@ def editor(data_id: List = []):
     def to_labelling_dashboard_page():
         session_state.labelling_pagination = LabellingPagination.AllTask
         reset_editor_page()
-        logger.info(
+        logger.debug(
             f"Returning to labelling dashboard: {session_state.labelling_pagination}")
 
     back_to_labelling_dashboard_button_place.button("Return to Labelling Dashboard",
@@ -112,14 +114,17 @@ def editor(data_id: List = []):
         else:
             logger.info("All tasks labeled successfully for Project ID: "
                         f"{session_state.project.id}")
+            st.success("🎉 **You have labeled all tasks!**")
+            st.stop()
 
     def load_data(task_df):
-        logger.info(f"Inside load data CALLBACK")
+        logger.debug(f"Inside load data CALLBACK")
         if session_state.data_labelling_table:
             task_id = session_state.data_labelling_table[0]
             task_row = get_task_row(task_id, task_df)
 
         if "labelling_interface" in session_state:
+            logger.debug("Deleting session_state.labelling_interface")
             del session_state.labelling_interface
 
         # >>>> INSTANTIATE TASK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -168,6 +173,15 @@ def editor(data_id: List = []):
                 all_task[0]['id']]  # set value as first ID
             load_data(task_df)
 # ************************ FIRST RENDER: ********************************************************
+
+
+# ************************ NOTES about the feature of auto-next task ****************************
+    with note_place.expander("NOTES about the feature of auto move to next unlabeled task"):
+        st.info("""If you want to make use of the this feature, do not click into the
+        table to select a particular image, otherwise this feature will not work properly
+        and you will need to click the "Return to Labelling Dashboard" to fix this problem.
+        """)
+
 
 # TODO Fix Data Table is_labelled not updated at re-run
 # ************************** DATA TABLE ********************************************************
@@ -224,7 +238,7 @@ def editor(data_id: List = []):
                     results = session_state.labelling_interface
                     # st.write("Inside extra result update function")
                     result, flag = results if results else (None, None)
-                    logger.info(f"Flag at main: {flag}")
+                    logger.debug(f"Flag at main: {flag}")
                     # st.write("Result", result)
 
                     # >>>> IF results exists => if there is submission / update
@@ -233,7 +247,7 @@ def editor(data_id: List = []):
                         #     "Inside extra result update function results exist")
 
                         if flag == EditorFlag.START:  # LOAD EDITOR
-                            logger.info("Editor Loaded (In result)")
+                            logger.debug("Editor Loaded (In result)")
                             pass
 
                         elif flag == EditorFlag.SUBMIT:  # NEW ANNOTATION
@@ -245,7 +259,7 @@ def editor(data_id: List = []):
 
                                 # Memoir prev results
                                 session_state.labelling_prev_result = session_state.labelling_interface
-                                logger.info(
+                                logger.debug(
                                     f'{session_state.annotation.result}')
                                 logger.info(
                                     f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
@@ -290,7 +304,7 @@ def editor(data_id: List = []):
 
                     else:
                         if flag == EditorFlag.START:  # LOAD EDITOR
-                            logger.info("Editor Loaded")
+                            logger.debug("Editor Loaded")
                             pass
 
                         elif flag == EditorFlag.SKIP:  # SKIP ANNOTATION
@@ -321,6 +335,7 @@ def editor(data_id: List = []):
 
        # *************************************** LABELLING INTERFACE *******************************************
             with main_col2:
+                logger.debug("Showing LABEL STUDIO EDITOR INTERFACE")
                 st.write(
                     f"### **{session_state.task.filetype.name}: {session_state.task.name}**")
                 labelstudio_editor(
@@ -343,7 +358,39 @@ def editor(data_id: List = []):
                     'image': load_buffer_image()
             }
         }
-    # st.json(task)
+
+# ************************ AUTO NEXT TASK ********************************************************
+# NOTE: This method makes the Label Studio Editor's component sometimes get hidden
+#  within the small `div` container after a submission,
+#  so it does not work properly for now....
+
+# only show the Label Studio interface for labeling, without data_table
+    # if session_state.show_next_unlabeled:
+    #     st.markdown("___")
+    #     # reset the flag to prevent issues when refreshing
+    #     # session_state.show_next_unlabeled = False
+    #     # automatically move the labeling interface to the next unlabeled task
+    #     unlabeled_task_ids = task_df.query(
+    #         "`Is Labelled` == False and Skipped == False")['id']
+    #     current_id = session_state.data_labelling_table[0]
+    #     # only do this if there is still unlabeled task
+    #     if not unlabeled_task_ids.empty:
+    #         # must use `int` to change it from `numpy.int` dtypes
+    #         next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
+    #         # set this to show the next task, must set it to a list as this is how the `data_table` returns
+    #         session_state.data_labelling_table = [next_unlabeled_task_id]
+    #         if next_unlabeled_task_id != current_id:
+    #             logger.info(
+    #                 f"Proceeding to next task ID: {next_unlabeled_task_id}")
+    #             load_data(task_df)
+    #             logger.debug("REFRESHINGGG")
+    #             st.experimental_rerun()
+    #     else:
+    #         logger.info("All tasks labeled successfully for Project ID: "
+    #                     f"{session_state.project.id}")
+    #         st.success("🎉 **You have labeled all tasks!**")
+    #         st.stop()
+# ************************ AUTO NEXT TASK ********************************************************
 
 
 # ********************************************************************************************************
@@ -354,7 +401,7 @@ def index():
 
     # ****************** TEST ******************************
     if not RELEASE:
-        logger.info("At Labelling INDEX")
+        logger.debug("At Labelling INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -366,7 +413,7 @@ def index():
 
         # ************************TO REMOVE************************
         project_id_tmp = 43
-        logger.info(f"Entering Project {project_id_tmp}")
+        logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
 
@@ -374,7 +421,7 @@ def index():
             # Editor will be instantiated inside Project class at same instance
             session_state.project = Project(project_id_tmp)
 
-            logger.info(
+            logger.debug(
                 f"NOT RELEASE: Instantiating Project {session_state.project.name}")
         if 'user' not in session_state:
             session_state.user = User(1)

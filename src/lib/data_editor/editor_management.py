@@ -9,10 +9,10 @@ import json
 import sys
 import xml.dom
 from base64 import b64encode, decode
-from enum import IntEnum
+from enum import Enum, IntEnum
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Union
+from typing import Dict, List, NamedTuple, Tuple, Union
 from xml.dom import minidom
 
 import pandas as pd
@@ -21,6 +21,7 @@ from PIL import Image
 from streamlit import session_state as session_state
 
 from core.utils.helper import create_dataframe
+from data_export.label_studio_converter.converter import Converter
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -518,6 +519,47 @@ class Editor(BaseEditor):
                               sort=True, sort_by='Annotation Type')
         df = df.fillna(0)
         return df
+
+    @st.cache
+    def get_labelstudio_converter(self):
+        # initialize a Label Studio Converter to convert to specific output formats
+        # the `editor.editor_config` contains the current project's config in XML string format
+        #  but need to remove this line of encoding description text to work
+        config_xml = self.editor_config.replace(
+            r'<?xml version="1.0" encoding="utf-8"?>', '')
+        converter = Converter(config=config_xml)
+        return converter
+
+    @st.cache
+    def get_supported_format_info(
+        self,
+        converter: Converter = None
+    ) -> Tuple[pd.DataFrame, Dict[str, Enum]]:
+        """
+        Get the supported formats from the converter. Then create a DataFrame from it,
+        original column names are: title, description, link, tags. But we rename them to
+        these columns: Format, Description, Reference Link, Tags. 
+
+        Returns the DataFrame and also the Dict to convert from Format str to Format Enum,
+        which is needed to use the converter.
+        """
+        if converter is None:
+            converter = self.get_labelstudio_converter()
+        df = pd.DataFrame(converter._FORMAT_INFO).T
+        df.index = df.index.astype(str)
+
+        supported_formats = converter.supported_formats
+        df = df[df.index.isin(supported_formats)]
+        # getting the mapping of index: title, i.e. Format Enum: Format str
+        enum2str = df['title'].to_dict()
+        str2enum = {v: k for k, v in enum2str.items()}
+
+        # drop the index column containing the Format Enum
+        df.reset_index(drop=True, inplace=True)
+        df.columns = ['Format', 'Description',
+                      'Reference Link', 'Tags']
+
+        return df, str2enum
 
 
 @st.cache

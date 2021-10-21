@@ -105,6 +105,7 @@ class LabellingPagination(IntEnum):
     Editor = 3
     Performance = 4
     EditorConfig = 5
+    Export = 6
 
     def __str__(self):
         return self.name
@@ -839,11 +840,11 @@ def reset_editor_page():
         logger.debug(f"Removing dataset export path: {dataset_export_path}")
         shutil.rmtree(dataset_export_path)
 
-    editor_attributes = ["labelling_interface", "new_annotation_flag", "task",
-                         "annotation", "data_labelling_table", 'labelling_prev_results',
+    editor_attributes = ["new_annotation_flag", "task", "show_next_unlabeled"
+                         "annotation", "data_labelling_table", "labelling_prev_result"
                          'data_selection', 'zipfile_path', 'archive_success']
 
-    logger.info(f"Resetting Editor Page......")
+    logger.debug(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)
 
 

@@ -36,12 +36,6 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
 
-# DEFINE Web APP page configuration
-layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
-
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
@@ -68,7 +62,7 @@ from data_manager.data_table_component.data_table import data_table
 from user.user_management import User
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
+# conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
@@ -222,13 +216,94 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
                checkbox=False, key='all_task_table_key', on_change=to_labelling_editor_page, args=(LabellingPagination.AllTask,))
 
 
-def index():
+def export_section():
+    if 'archive_success' not in session_state:
+        # to check whether exported zipfile successfully
+        session_state['archive_success'] = False
+    if 'zipfile_path' not in session_state:
+        # initialize the path to the zipfile for images & annotations
+        session_state['zipfile_path'] = None
 
-    RELEASE = True
+    st.subheader("Export data")
+    table_place = st.empty()
+    export_labels_col, download_task_col, _ = st.columns([1, 1, 3])
+    archive_success_message = st.empty()
 
+    with table_place.container():
+        st.markdown(
+            "#### You can export dataset in one of the following formats:")
+        converter = session_state.project.editor.get_labelstudio_converter()
+        format_df, str2enum = session_state.project.editor.get_supported_format_info(
+            converter)
+        st.table(format_df)
+
+        depl_type = session_state.project.deployment_type
+        if depl_type == "Image Classification":
+            st.info("""📝 Recommended to choose CSV format, which will also copy your
+            images into individual folders for each class.""")
+        elif depl_type == "Object Detection with Bounding Boxes":
+            st.info("""📝 Recommended to choose Pascal VOC XML format, which is one of
+            the most common formats used for many object detection training algorithms,
+            also the format used for our TensorFlow Object Detection training in this
+            application.""")
+        elif depl_type == "Semantic Segmentation with Polygons":
+            st.info("""📝 Recommended to choose COCO JSON format, which is the most common
+            format used for image segmentation tasks, also the format used for our training
+            in this application.""")
+
+        st.selectbox("Select your choice of format to export the labeled tasks:",
+                     options=format_df['Format'], key='export_format')
+
+    def download_export_tasks():
+        with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
+            # zipfile_path = session_state.project.download_tasks(
+            #     return_target_path=True)
+            format_enum = str2enum[session_state.export_format]
+            zipfile_path = session_state.project.download_tasks(
+                converter=converter,
+                export_format=format_enum,
+                return_original_path=True)
+            session_state['zipfile_path'] = zipfile_path
+            logger.info(f"Zipfile created at: {zipfile_path}")
+            session_state['archive_success'] = True
+
+    with export_labels_col:
+        st.button("Export Tasks", key='export_labels_button',
+                  on_click=download_export_tasks)
+
+    def reset_zipfile_state():
+        # clear out the `download_button` after the user has clicked it
+        os.remove(session_state['zipfile_path'])
+        session_state.archive_success = False
+        session_state['zipfile_path'] = None
+
+    with download_task_col:
+        zipfile_path = session_state.get('zipfile_path')
+        if zipfile_path is not None and zipfile_path.exists():
+            with st.spinner("Creating the Zipfile button to download ... This may take awhile ..."):
+                with open(zipfile_path, "rb") as fp:
+                    st.download_button(
+                        label="Download Zipfile",
+                        data=fp,
+                        file_name="images_annotations.zip",
+                        mime="application/zip",
+                        key="download_tasks_btn",
+                        on_click=reset_zipfile_state,
+                    )
+
+    if session_state['archive_success']:
+        # - commenting out this line in case we are only deploying for local machine,
+        # - this is to show message to the user about the "Downloads" folder path
+        # archive_success_message.success(
+        #     f"Zipfile created successfully at **{session_state['archive_success']}**")
+        archive_success_message.success(
+            f"Zipfile created successfully, you may download it by pressing the 'Download ZIP' button")
+
+
+def index(RELEASE=True):
     # ****************** TEST ******************************
     if not RELEASE:
-        logger.info("At Labelling INDEX")
+        logger.debug("At Labelling INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -239,14 +314,15 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 43
-        logger.info(f"Entering Project {project_id_tmp}")
+        # for Anson: 4 for TFOD, 9 for img classif
+        project_id_tmp = 5
+        logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
 
         if "project" not in session_state:
             session_state.project = Project(project_id_tmp)
-            logger.info("Inside")
+            logger.debug("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
         # ****************************** HEADER **********************************************
@@ -266,11 +342,9 @@ def index():
         [0.5, 0.5, 1.5, 0.5, 2, 0.5, 2, 3])
     filter_msg_col.markdown("**Filter:**")
 
-    action_msg_col, _, start_labelling_button_col, _, edit_labeling_config_col, _, export_labels_col, _, download_task_col, _ = st.columns(
-        [0.5, 0.5, 1.5, 0.5, 2, 0.5, 2, 0.5, 2, 0.5])
+    action_msg_col, _, start_labelling_button_col, _, edit_labeling_config_col, _, export_section_col, _ = st.columns(
+        [0.5, 0.5, 1.5, 0.5, 2, 0.5, 2, 3])
     action_msg_col.markdown("**Action:**")
-
-    archive_success_message = st.empty()
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     labelling_page = {
@@ -279,7 +353,8 @@ def index():
         LabellingPagination.Queue: no_labelled,
         LabellingPagination.Editor: editor,
         LabellingPagination.EditorConfig: editor_config,
-        LabellingPagination.Performance: None
+        LabellingPagination.Performance: None,
+        LabellingPagination.Export: export_section
     }
 
     # >>>> INSTANTIATE LABELLING PAGINATION
@@ -288,18 +363,18 @@ def index():
     if 'data_selection' not in session_state:
         # state store for Data Table
         session_state.data_selection = []
-    if 'archive_success' not in session_state:
-        # to check whether exported zipfile successfully
-        session_state.archive_success = None
-    if 'zipfile_path' not in session_state:
-        # initialize the path to the zipfile for images & annotations
-        session_state['zipfile_path'] = None
+    if "show_next_unlabeled" not in session_state:
+        # a flag to decide whether to show next unlabeled data
+        session_state.show_next_unlabeled = False
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def to_labelling_section(section_name: IntEnum):
+    def to_labelling_section(section_name: IntEnum, show_next: bool = False):
         session_state.labelling_pagination = section_name
         reset_editor_page()
+        # NOTE: not using this for now because it causes problem of overflowed
+        #  LabelStudio Editor...
+        session_state.show_next_unlabeled = show_next
 
     with all_task_button_col:
         st.button("All Task", key='all_task_button', on_click=to_labelling_section, args=(
@@ -314,73 +389,29 @@ def index():
             LabellingPagination.Queue,))
 
     with start_labelling_button_col:
+        # only show next when clicking "Start Labelling" button, instead of
+        # clicking on the data_table directly
         st.button("Start Labelling", key='start_labelling_button',
-                  on_click=to_labelling_section, args=(LabellingPagination.Editor,))
+                  on_click=to_labelling_section, args=(LabellingPagination.Editor, True))
 
     with edit_labeling_config_col:
         st.button("Edit Editor/Labeling Config", key='edit_labelling_config_button',
                   on_click=to_labelling_section, args=(LabellingPagination.EditorConfig,))
 
-    def download_export_tasks():
-        with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
-            # zipfile_path = session_state.project.download_tasks(
-            #     return_target_path=True)
-            zipfile_path = session_state.project.download_tasks(
-                return_original_path=True)
-            session_state['zipfile_path'] = zipfile_path
-            logger.info(f"Zipfile created at: {zipfile_path}")
-            session_state['archive_success'] = zipfile_path
-
-    with export_labels_col:
-        st.button("Export Labelled Tasks", key='export_labels_button',
-                  on_click=download_export_tasks)
-
-    def reset_zipfile_state():
-        # clear out the `download_button` after the user has clicked it
-        os.remove(session_state['zipfile_path'])
-        del session_state['zipfile_path']
-        del session_state['archive_success']
-
-    with download_task_col:
-        zipfile_path = session_state.get('zipfile_path')
-        if zipfile_path is not None and zipfile_path.exists():
-            with st.spinner("Creating the Zipfile button to download ... This may take awhile ..."):
-                with open(zipfile_path, "rb") as fp:
-                    st.download_button(
-                        label="Download ZIP",
-                        data=fp,
-                        file_name="images_annotations.zip",
-                        mime="application/zip",
-                        key="download_tasks_btn",
-                        on_click=reset_zipfile_state,
-                    )
-
-    if session_state['archive_success']:
-        # - commenting out this line in case we are only deploying for local machine,
-        # - this is to show message to the user about the "Downloads" folder path
-        # archive_success_message.success(
-        #     f"Zipfile created successfully at **{session_state['archive_success']}**")
-        archive_success_message.success(
-            f"Zipfile created successfully, you may download it by pressing the 'Download ZIP' button")
+    with export_section_col:
+        st.button("Export", key='export_section_button',
+                  on_click=to_labelling_section, args=(LabellingPagination.Export,))
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     project_id = session_state.project.id
-    all_task, all_task_column_names = Task.query_all_task(project_id,
-                                                          return_dict=True, for_data_table=True)
-    labelled_task_dict = Task.get_labelled_task(all_task, True)
-    task_queue_dict = Task.get_labelled_task(all_task, False)
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    logger.info(f"Navigator: {session_state.labelling_pagination}")
+    logger.debug(f"Navigator: {session_state.labelling_pagination}")
 
-    if session_state.labelling_pagination != LabellingPagination.Editor:
+    if session_state.labelling_pagination != LabellingPagination.Export:
         # reset the archive success message after go to other pages
         session_state.archive_success = False
 
     if session_state.labelling_pagination == LabellingPagination.Editor:
-        # if "new_annotation_flag" not in session_state:
-        #     session_state.new_annotation_flag = 0
-        # else:
-        #     session_state.new_annotation_flag = 0
         labelling_page[session_state.labelling_pagination](
             session_state.data_selection)
 
@@ -388,14 +419,26 @@ def index():
         labelling_page[session_state.labelling_pagination](
             session_state.project)
 
+    elif session_state.labelling_pagination == LabellingPagination.Export:
+        labelling_page[session_state.labelling_pagination]()
+
     else:
+        all_task, all_task_column_names = Task.query_all_task(project_id,
+                                                              return_dict=True, for_data_table=True)
+        labelled_task_dict = Task.get_labelled_task(all_task, True)
+        task_queue_dict = Task.get_labelled_task(all_task, False)
         labelling_page[session_state.labelling_pagination](
             all_task, labelled_task_dict, task_queue_dict)
 
 
 if __name__ == "__main__":
+    # DEFINE wide layout for debugging when running this script/page directly
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
     if st._is_running_with_streamlit:
-        index()
+        index(RELEASE=False)
 
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]

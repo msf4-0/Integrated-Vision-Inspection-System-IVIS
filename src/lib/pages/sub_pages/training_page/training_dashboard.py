@@ -113,7 +113,7 @@ def dashboard():
             "Create New Training Session", key='create_new_training_from_training_dashboard',
             on_click=to_new_training_page, help="Create a new training session")
     else:
-        st.warning("""No annotations found for this project yet. Please go to the
+        st.warning("""Not enough annotations found for this project yet. Please go to the
         **Labelling** page and label for at least 10 images first before entering here.
         But note that 10 is only the minimum number of data to be used for a test run 😆""")
 

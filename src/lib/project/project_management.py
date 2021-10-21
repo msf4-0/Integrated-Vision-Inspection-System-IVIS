@@ -29,7 +29,7 @@ import sys
 import json
 from pathlib import Path
 from collections import namedtuple
-from typing import NamedTuple, Tuple, Union, List, Dict
+from typing import NamedTuple, Optional, Tuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
@@ -246,14 +246,17 @@ class Project(BaseProject):
         # Instantiate Editor class object
         self.editor: str = Editor(self.id, self.deployment_type)
 
-    def download_tasks(self, *, target_path: Path = None, return_original_path: bool = False, return_target_path: bool = True) -> Union[None, Path]:
+    def download_tasks(self, *,
+                       converter: Converter = None, export_format: str = None,
+                       target_path: Path = None, return_original_path: bool = False,
+                       return_target_path: bool = True) -> Union[None, Path]:
         """
         Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder.
         Or you may also pass in a directory to the `target_path` parameter to move the file there.
         NOTE: If `return_original_path` is passed, this will only return the path to where the zipfile is created,
         and the zipfile will not be moved to the "Downloads" folder.
         """
-        self.export_tasks()
+        self.export_tasks(converter=converter, export_format=export_format)
         export_path = self.get_export_path()
         filename_no_ext = export_path.parent.name
         file_archive_handler(filename_no_ext, export_path, ".zip")
@@ -274,7 +277,9 @@ class Project(BaseProject):
         if return_target_path:
             return target_path
 
-    def export_tasks(self, for_training_id: int = 0):
+    def export_tasks(self, converter: Optional[Converter] = None,
+                     export_format: Optional[Format] = None,
+                     for_training_id: Optional[int] = 0):
         """
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to the dataset export directory.
         If `for_training_id` > 0, this will only export the annotated dataset associated with the `training_id`, to use for training.
@@ -294,22 +299,24 @@ class Project(BaseProject):
         json_path = self.generate_label_json(
             for_training_id, output_dir=output_dir)
 
-        # initialize a Label Studio Converter to convert to specific output formats
-        # the `editor.editor_config` contains the current project's config in XML string format
-        #  but need to remove this line of encoding description text to work
-        config_xml = self.editor.editor_config.replace(
-            r'<?xml version="1.0" encoding="utf-8"?>', '')
-        converter = Converter(config=config_xml)
+        if converter is None:
+            converter = self.editor.get_labelstudio_converter()
 
         if self.deployment_type == "Image Classification":
-            converter.convert_to_csv(
-                json_path,
-                output_dir=output_dir,
-                is_dir=False,
-            )
+            if for_training_id != 0:
+                # using CSV format to get our image_paths for training
+                export_format = Format.CSV
 
-            # if it's not for training, then we copy the images to let the user download them
-            if for_training_id == 0:
+            # if it's not for training but using CSV format, then we copy the images
+            #  into class folders to let the user download them
+            if for_training_id == 0 and export_format == Format.CSV:
+                logger.debug("Exporting in CSV format for the user")
+                # training must use CSV file format for our implementation
+                converter.convert_to_csv(
+                    json_path,
+                    output_dir=output_dir,
+                    is_dir=False,
+                )
                 # the CSV file generated has these columns:
                 # image, id, label, annotator, annotation_id, created_at, updated_at, lead_time.
                 # The first col `image` contains the absolute paths to the images
@@ -336,19 +343,23 @@ class Project(BaseProject):
                     copy_images(image_path, label)
                 logger.info(
                     f"Image folders for each class {unique_labels} created successfully for Project ID {self.id}")
+                # done and directly return back
+                return
 
         elif self.deployment_type == "Object Detection with Bounding Boxes":
-            # using Pascal VOC XML format for TensorFlow Object Detection API
-            converter.convert_to_voc(
-                json_path, output_dir=output_dir, is_dir=False)
+            if for_training_id != 0:
+                # using Pascal VOC XML format for TensorFlow Object Detection API
+                export_format = Format.VOC
 
         elif self.deployment_type == "Semantic Segmentation with Polygons":
-            # using COCO JSON format for segmentation
-            converter.convert_to_coco(
-                json_path, output_dir=output_dir, is_dir=False)
+            if for_training_id != 0:
+                # using COCO JSON format for segmentation
+                export_format = Format.COCO
 
-        logger.debug(
-            f"Exported tasks for {self.deployment_type} for Project ID: {self.id}")
+        converter.convert(json_path, output_dir, export_format, is_dir=False)
+
+        logger.debug(f"Exported tasks in format {export_format} for "
+                     f"{self.deployment_type} for Project ID: {self.id}")
 
     def get_export_path(self) -> Path:
         """Get the path to the exported images and annotations"""
