@@ -98,6 +98,10 @@ def new_project_entry_page():
     else:
         session_state.project_status = ProjectPagination.New
 
+    if 'labeled_dataset' not in session_state:
+        # to check whether user choose to upload a labeled dataset
+        session_state.labeled_dataset = False
+
     # ******** SESSION STATE *********************************************************
     if session_state.new_project.has_submitted:
 
@@ -203,7 +207,6 @@ def new_project_entry_page():
     # ******************************* Right Column to select dataset *******************************
 
     with datasetcol3:
-
         session_state.new_project.dataset_chosen = st.multiselect(
             "Dataset List", key="new_project_dataset_chosen",
             options=dataset_dict, help="Assign dataset to the project")
@@ -218,7 +221,7 @@ def new_project_entry_page():
                   on_click=to_new_dataset_page, help="Create new dataset")
 
         # >>>> DISPLAY CHOSEN DATASET>>>>
-        st.write("### Dataset choosen:")
+        st.write("### Dataset chosen:")
         if len(session_state.new_project.dataset_chosen) > 0:
             for idx, data in enumerate(session_state.new_project.dataset_chosen):
                 st.write(f"{idx+1}. {data}")
@@ -307,7 +310,10 @@ def new_project_entry_page():
 
     submit_col1, submit_col2 = st.columns([3, 0.5])
 
-    def new_project_submit():
+    def new_project_submit(labeled=False):
+        # if this is True, we will send to New Dataset page for uploading
+        session_state.labeled_dataset = labeled
+
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
             context, field_placeholder=place, name_key='new_project_name')
 
@@ -325,7 +331,11 @@ def new_project_entry_page():
                     sleep(1)
                     success_place.empty()
 
-                    session_state.new_project_pagination = NewProjectPagination.EditorConfig  # TODO
+                    if labeled:
+                        # send to the NewDataset page to upload labeled dataset
+                        session_state.new_project_pagination = NewProjectPagination.NewDataset
+                    else:
+                        session_state.new_project_pagination = NewProjectPagination.EditorConfig
                 else:
                     success_place.error(
                         f"Failed to stored **{session_state.new_editor.name}** editor config in database")
@@ -336,6 +346,14 @@ def new_project_entry_page():
     # TODO #72 Change to 'Update' when 'has_submitted' == True
     submit_button = submit_col2.button(
         "Submit", key="submit", on_click=new_project_submit)
+
+    st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
+              on_click=new_project_submit, kwargs={'labeled': True})
+    with st.expander("NOTES about uploading a labeled dataset"):
+        st.info("""If you choose to upload a labeled dataset, you must make sure to
+        use the Label Studio JSON format exported from the Label Studio labeling
+        application itself. Because currently, this is the only supported format
+        to be uploaded into our application.""")
 
     # >>>> Removed
     # session_state.new_project.has_submitted = False

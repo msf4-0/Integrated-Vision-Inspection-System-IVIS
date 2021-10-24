@@ -278,7 +278,7 @@ class Project(BaseProject):
             return target_path
 
     def export_tasks(self, converter: Optional[Converter] = None,
-                     export_format: Optional[Format] = None,
+                     export_format: Optional[str] = None,
                      for_training_id: Optional[int] = 0):
         """
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to the dataset export directory.
@@ -301,6 +301,9 @@ class Project(BaseProject):
 
         if converter is None:
             converter = self.editor.get_labelstudio_converter()
+
+        if export_format:
+            export_format = Format.from_string(export_format)
 
         if self.deployment_type == "Image Classification":
             if for_training_id != 0:

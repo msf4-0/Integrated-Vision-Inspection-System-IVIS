@@ -24,8 +24,10 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+import json
 import os
 import sys
+from operator import itemgetter
 from base64 import b64encode
 from collections import namedtuple
 from datetime import datetime
@@ -34,11 +36,14 @@ from glob import iglob
 from io import BytesIO
 from mimetypes import guess_type
 from pathlib import Path
-from time import sleep
-from typing import Any, Dict, List, Union
+import tempfile
+from time import perf_counter, sleep
+from typing import Any, Dict, List, Tuple, Union
 
 import cv2
 import numpy as np
+from dataclasses import dataclass
+import pandas as pd
 import streamlit as st
 from PIL import Image
 from stqdm import stqdm
@@ -239,9 +244,196 @@ class NewDataset(BaseDataset):
     def __init__(self, dataset_id) -> None:
         # init BaseDataset -> Temporary dataset ID from random gen
         super().__init__(dataset_id)
-        self.dataset_total_filesize = 0  # in byte-size
+        self.dataset_total_filesize: int = 0  # in byte-size
+        # will be created in `self.validate_labeled_data` if user choose to upload labeled dataset
+        self.annotation_files: List[UploadedFile] = None
 
     # removed deployment type and insert filetype_id select from public.filetype table
+
+    def validate_labeled_data(self,
+                              files: List[UploadedFile],
+                              deployment_type: str,
+                              return_annotations: bool = False
+                              ) -> Union[List[UploadedFile],
+                                         Tuple[List[UploadedFile], List[UploadedFile]]]:
+        """Validate the uploaded labeled dataset, including both images and annotations,
+        then store the uploaded annotations files in `self.annotation_files`.
+
+        Object detection should have one XML file for each uploaded image.
+
+        Image classification should have only images with only one CSV file. 
+        The first row of CSV file should be the filename with extension, while 
+        the second row should be the class label name.
+
+        Image segmentation should have only images with only one COCO JSON file.
+
+        Returns the list of uploaded image files; and if `return_annotations` is True, also returns the
+        list of uploaded annotation files (or a list of single file depending on the deployment type).
+        """
+        error_filenames = []
+        if deployment_type == 'Object Detection with Bounding Boxes':
+            xml_idxs = []
+            xml_names = []
+            img_names = []
+            for i, f in enumerate(files):
+                if f.type.endswith('xml'):
+                    xml_idxs.append(i)
+                    xml_names.append(f.name)
+                elif not f.type.startswith('image'):
+                    error_filenames.append(f.name)
+                else:
+                    # get the image filename replaced with .xml to
+                    # verify that each image has exactly one xml file
+                    img_names.append(os.path.splitext(f.name)[0] + ".xml")
+            if error_filenames:
+                st.error(f"{len(error_filenames)} unwanted files found: ")
+                with st.expander("Unwanted files:"):
+                    st.warning("  \n".join(error_filenames))
+                st.stop()
+            if len(img_names) != len(xml_idxs):
+                st.error(f"""Every image should have its own XML annotation file.
+                But found {len(img_names)} images with {len(xml_idxs)} XML files.""")
+
+            unknown_xml_files = set(xml_names).difference(img_names)
+            unknown_img_files = set(img_names).difference(xml_names)
+            if len(unknown_xml_files) != 0 or len(unknown_img_files) != 0:
+                if len(unknown_xml_files) != 0:
+                    st.error(f"""Every image should have its own XML annotation file.
+                    But found {len(unknown_xml_files)} XML file(s) without XML associated images.""")
+                    with st.expander("List of the XML filenames:"):
+                        st.warning("  \n".join(unknown_xml_files))
+                if len(unknown_img_files) != 0:
+                    fnames = [os.path.splitext(f)[0]
+                              for f in unknown_img_files]
+                    st.error(f"""Every image should have its own XML annotation file.
+                    But found {len(unknown_img_files)} image file(s) without associated XML files.""")
+                    with st.expander("List of images without extension:"):
+                        st.warning("  \n".join(fnames))
+                st.stop()
+
+            xml_files = itemgetter(*xml_idxs)(files)
+            image_idxs = set(range(len(files))).difference(xml_idxs)
+            image_files = itemgetter(*image_idxs)(files)
+
+            self.annotation_files = xml_files
+
+            if return_annotations:
+                return xml_files, image_files
+            return image_files
+        # ***************** Checking Image Classification and Segmentation data *****************
+        elif deployment_type == 'Image Classification':
+            # this is actually CSV format
+            required_filetype = 'vnd.ms-excel'
+        elif deployment_type == 'Semantic Segmentation with Polygons':
+            required_filetype = 'json'
+
+        req_file_idx = []
+        img_names = []
+        for i, f in enumerate(files):
+            if f.type.endswith(required_filetype):
+                req_file_idx.append(i)
+            elif not f.type.startswith('image'):
+                error_filenames.append(f.name)
+            else:
+                img_names.append(f.name)
+        if error_filenames:
+            st.error(f"{len(error_filenames)} unwanted files found: ")
+            with st.expander("Unwanted files:"):
+                st.warning("  \n".join(error_filenames))
+            st.stop()
+
+        if len(req_file_idx) > 1:
+            required_filetype = required_filetype.upper()
+            st.error(f"""{len(req_file_idx)} {required_filetype} files found.
+            You should only upload a single {required_filetype} file.""")
+            st.stop()
+        # get the required CSV or JSON file while removing it from the image files
+        annotation_file = files.pop(req_file_idx[0])
+
+        # ***************** Checking CSV file data *****************
+        if required_filetype == 'vnd.ms-excel':
+            df = pd.read_csv(annotation_file, dtype=str)
+            if len(df) != len(files):
+                st.error(f"The CSV file has {len(df)} rows, which "
+                         f"is not the same as the number of uploaded images: {len(files)}")
+                # st.stop()
+            # the pattern for backslash/frontslash
+            backslash_pattern = '(\/|\\\)'
+            # first row for filename, second row for label name
+            backslash_rows = df[(df.iloc[:, 0].str.contains(
+                backslash_pattern)) | (df.iloc[:, 1].str.contains(backslash_pattern))]
+            if not backslash_rows.empty:
+                # backslash/frontslash is unwanted because we will create the class
+                # directories for our training later, and backslash would cause the
+                # directories to be incorrect
+                st.error("Backslash is found in the following image names or class labels, "
+                         "please remove them as only filename/labelname is required.")
+                st.dataframe(backslash_rows)
+                st.stop()
+
+            # get the image names in the CSV file
+            annot_img_names = df.iloc[:, 0].apply(
+                lambda x: os.path.basename(x)).tolist()
+
+        # ***************** Checking JSON file data *****************
+        elif required_filetype == 'json':
+            coco_json = json.load(annotation_file)
+            annot_img_names = [os.path.basename(d['file_name'])
+                               for d in coco_json['images']]
+            if len(annot_img_names) != len(files):
+                st.error(f"Every image should have its own image ID. "
+                         f"But found {len(annot_img_names)} image data in the COCO JSON "
+                         f"when you have uploaded {len(files)} images.")
+                # st.stop()
+
+        # ************ Checking both CSV and JSON file for unknown image names ************
+        unknown_annot_img = set(annot_img_names).difference(img_names)
+        unknown_img_names = set(img_names).difference(annot_img_names)
+        if len(unknown_annot_img) != 0 or len(unknown_img_names) != 0:
+            if required_filetype == 'vnd.ms-excel':
+                ftype_name = 'CSV'
+            else:
+                ftype_name = 'JSON'
+            if len(unknown_annot_img) != 0:
+                st.error(f"""Every image should have its own annotation.
+                But found {len(unknown_annot_img)} unknown image name(s) in the
+                {ftype_name} file without associated image.""")
+                with st.expander(f"List of the unknown names found in {ftype_name} file:"):
+                    st.warning("  \n".join(unknown_annot_img))
+            if len(unknown_img_names) != 0:
+                st.error(f"""Every image should have its own annotation.
+                But found {len(unknown_img_names)} image file(s) without associated
+                annotation in the {ftype_name} file.""")
+                with st.expander("List of the unknown images:"):
+                    st.warning("  \n".join(unknown_img_names))
+            st.stop()
+
+        # ***************** Finalizing function *****************
+
+        self.annotation_files = [annotation_file]
+        if return_annotations:
+            # return the CSV or JSON file in a List, and also the remaining image files
+            return self.annotation_files, files
+        return files
+
+    def save_annotations(self, deployment_type: str):
+        if deployment_type == 'Object Detection with Bounding Boxes':
+            self.save_bbox_annotations()
+        elif deployment_type == 'Image Classification':
+            self.save_classification_annotations()
+        elif deployment_type == 'Semantic Segmentation with Polygons':
+            self.save_segmentation_annotations()
+
+    def save_bbox_annotations(self, xml_files: List[UploadedFile]):
+        pass
+
+    def save_classification_annotations(self, csv_file: UploadedFile):
+        # only one CSV file after validation is passed
+        csv_file = self.annotations_files[0]
+
+    def save_segmentation_annotations(self, json_file: UploadedFile):
+        # only one COCO JSON file after validation is passed
+        json_file = self.annotations_files[0]
 
     def insert_dataset(self):
         insert_dataset_SQL = """

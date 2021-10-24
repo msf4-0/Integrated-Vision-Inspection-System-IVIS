@@ -33,12 +33,7 @@ from typing import Dict, Union
 from humanize import naturalsize
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
-
-# DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+from streamlit import session_state
 
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -54,16 +49,14 @@ for path in sys.path:
 
 from core.utils.code_generator import get_random_string
 from core.utils.helper import check_filetype
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger
 from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import DatasetPagination, NewDataset
+from data_manager.dataset_management import NewDataset
 from path_desc import chdir_root
-from project.project_management import NewProjectPagination, ProjectPagination
+from project.project_management import NewProject
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
-# initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
 
 # >>>> Variable Declaration >>>>
 # new_dataset = {}  # store
@@ -89,22 +82,36 @@ class DeploymentType(IntEnum):
             raise ValueError()
 
 
-def new_dataset():
+def new_dataset(RELEASE=True):
 
     chdir_root()  # change to root directory
+
+    # ******** DEBUGGING ********
+    if not RELEASE:
+        if "new_project" not in session_state:
+            session_state.new_project = NewProject(get_random_string(length=8))
+            # session_state.new_project.deployment_type = "Object Detection with Bounding Boxes"
+            # session_state.new_project.deployment_type = "Image Classification"
+            session_state.new_project.deployment_type = "Semantic Segmentation with Polygons"
+    # ******** DEBUGGING ********
 
     # ******** SESSION STATE ********
 
     if "new_dataset" not in session_state:
         # set random dataset ID before getting actual from Database
-        log_info("Enter new dataset")
+        logger.info("Enter new dataset")
         session_state.new_dataset = NewDataset(get_random_string(length=8))
         session_state.data_source_radio = "File Upload 📂"
     # ******** SESSION STATE ********
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
-    st.write("# __Add New Dataset__")
+    if session_state.labeled_dataset:
+        st.write(
+            f"# __Deployment Type: {session_state.new_project.deployment_type}__")
+        st.write("## __Upload Labeled Dataset__")
+    else:
+        st.write("# __Add New Dataset__")
     st.markdown("___")
 
     # right-align the dataset ID relative to the page
@@ -127,10 +134,10 @@ def new_dataset():
                 field_placeholder['name'].error(
                     f"Dataset name used. Please enter a new name")
                 sleep(1)
-                log_error(f"Dataset name used. Please enter a new name")
+                logger.error(f"Dataset name used. Please enter a new name")
             else:
                 session_state.new_dataset.name = session_state.name
-                log_error(f"Dataset name fresh and ready to rumble")
+                logger.error(f"Dataset name fresh and ready to rumble")
 
     outercol2.text_input(
         "Dataset Title", key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
@@ -151,12 +158,16 @@ def new_dataset():
     outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
 
     outercol1.write("## __Dataset Upload:__")
-    data_source_options = ["Webcam 📷", "File Upload 📂"]
-    # col1, col2 = st.columns(2)
 
-    data_source = outercol2.radio(
-        "Data Source", options=data_source_options, key="data_source_radio")
-    data_source = data_source_options.index(data_source)
+    if not session_state.labeled_dataset:
+        data_source_options = ["Webcam 📷", "File Upload 📂"]
+        # col1, col2 = st.columns(2)
+
+        data_source = outercol2.radio(
+            "Data Source", options=data_source_options, key="data_source_radio")
+        data_source = data_source_options.index(data_source)
+    else:
+        data_source = 1
 
     outercol1, outercol2, outercol3 = st.columns([1.5, 2, 2])
     dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
@@ -184,22 +195,49 @@ def new_dataset():
 
         # uploaded_files_multi = outercol2.file_uploader(
         #     label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget", on_change=check_filetype_category, args=(place,))
+        # allowed_types = ['jpg', "png", "jpeg", "mp4",
+        #                  "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"]
+        allowed_types = ['jpg', "png", "jpeg", "txt", "csv", "xml", "json"]
         uploaded_files_multi = outercol2.file_uploader(
-            label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget")
+            label="Upload Image", type=allowed_types, accept_multiple_files=True, key="upload_widget")
         # ******** INFO for FILE FORMAT **************************************
         with outercol1.expander("File Format Infomation", expanded=True):
+            # not using these formats for our application
+            # 2. Video: .mp4, .mpeg
+            # 3. Audio: .wav, .mp3, .m4a
+            # 4. Text: .txt, .csv
             file_format_info = """
-            1. Image: .jpg, .png, .jpeg
-            2. Video: .mp4, .mpeg
-            3. Audio: .wav, .mp3, .m4a
-            4. Text: .txt, .csv
+            #### Image Format:
+            Image: .jpg, .png, .jpeg
             """
             st.info(file_format_info)
+            if session_state.labeled_dataset:
+                st.info(
+                    "#### Compatible Annotation Format:  \n"
+                    "- Object detection should have one XML file for each uploaded image.  \n"
+                    "- Image classification should only have images and only one CSV file, "
+                    "the first row of CSV file should be the filename with extension, while "
+                    "the second row should be the class label name.  \n"
+                    "- Image segmentation should only have images and only one COCO JSON file.  \n")
+
         place["upload"] = outercol2.empty()
         if uploaded_files_multi:
-            # outercol2.write(uploaded_files_multi) # TODO Remove
-            check_filetype(
-                uploaded_files_multi, session_state.new_dataset, place)
+            outercol2.write("uploaded_files_multi")  # TODO Remove
+            outercol2.write(uploaded_files_multi)  # TODO Remove
+            if session_state.labeled_dataset:
+                with st.spinner("Checking uploaded dataset and annotations"):
+                    logger.info(
+                        "Checking uploaded dataset and annotations ...")
+                    start = perf_counter()
+                    uploaded_files_multi = session_state.new_dataset.validate_labeled_data(
+                        uploaded_files_multi,
+                        session_state.new_project.deployment_type)
+                    time_elapsed = perf_counter() - start
+                    logger.info(f"Done. [{time_elapsed:.4f} seconds]")
+
+            else:
+                check_filetype(
+                    uploaded_files_multi, session_state.new_dataset, place)
 
             session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
 
@@ -215,6 +253,10 @@ def new_dataset():
         # outercol2.write(uploaded_files_multi[0]) # TODO: Remove
         dataset_size_place.write(dataset_size_string)
         dataset_filesize_place.write(dataset_filesize_string)
+
+        if uploaded_files_multi and session_state.labeled_dataset:
+            outercol3.success(
+                "Annotations are verified to be compatible and in the correct format.")
 
     # Placeholder for WARNING messages of File Upload widget
 
@@ -238,6 +280,7 @@ def new_dataset():
     context = {'name': session_state.new_dataset.name,
                'upload': session_state.new_dataset.dataset}
 
+    st.write("context")
     st.write(context)
     submit_col1, submit_col2 = st.columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
@@ -266,17 +309,28 @@ def new_dataset():
                 st.error(
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
 
+    st.write("vars(session_state.new_dataset)")
     st.write(vars(session_state.new_dataset))
 
 
-def main():
-    new_dataset()
+def main(RELEASE=False):
+    new_dataset(RELEASE)
 
 
 if __name__ == "__main__":
-    if st._is_running_with_streamlit:
+    # DEFINE wide page layout for debugging on this page directly
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-        main()
+    if st._is_running_with_streamlit:
+        # debugging upload dataset
+        session_state.labeled_dataset = True
+
+        # initialise connection to Database
+        conn = init_connection(**st.secrets["postgres"])
+
+        main(RELEASE=False)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

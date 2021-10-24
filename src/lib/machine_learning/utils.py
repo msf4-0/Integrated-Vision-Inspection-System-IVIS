@@ -514,7 +514,7 @@ def generate_tfod_xml_csv(image_paths: List[str],
         ]
 
     xml_df = pd.DataFrame(xml_list, columns=col_names)
-    xml_df.to_csv(csv_path)
+    xml_df.to_csv(csv_path, index=False)
     time_elapsed = time.perf_counter() - start
     logger.info(f"Done. {time_elapsed = :.4f} seconds")
 

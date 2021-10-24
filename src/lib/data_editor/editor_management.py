@@ -520,7 +520,6 @@ class Editor(BaseEditor):
         df = df.fillna(0)
         return df
 
-    @st.cache
     def get_labelstudio_converter(self):
         # initialize a Label Studio Converter to convert to specific output formats
         # the `editor.editor_config` contains the current project's config in XML string format
@@ -530,17 +529,16 @@ class Editor(BaseEditor):
         converter = Converter(config=config_xml)
         return converter
 
-    @st.cache
     def get_supported_format_info(
         self,
         converter: Converter = None
-    ) -> Tuple[pd.DataFrame, Dict[str, Enum]]:
+    ) -> Tuple[pd.DataFrame, Dict[str, str]]:
         """
         Get the supported formats from the converter. Then create a DataFrame from it,
         original column names are: title, description, link, tags. But we rename them to
         these columns: Format, Description, Reference Link, Tags. 
 
-        Returns the DataFrame and also the Dict to convert from Format str to Format Enum,
+        Returns the DataFrame and also the Dict to convert from string to Format Enum,
         which is needed to use the converter.
         """
         if converter is None:
@@ -552,14 +550,14 @@ class Editor(BaseEditor):
         df = df[df.index.isin(supported_formats)]
         # getting the mapping of index: title, i.e. Format Enum: Format str
         enum2str = df['title'].to_dict()
-        str2enum = {v: k for k, v in enum2str.items()}
+        str2enum_str = {v: k for k, v in enum2str.items()}
 
         # drop the index column containing the Format Enum
         df.reset_index(drop=True, inplace=True)
         df.columns = ['Format', 'Description',
                       'Reference Link', 'Tags']
 
-        return df, str2enum
+        return df, str2enum_str
 
 
 @st.cache

@@ -233,7 +233,7 @@ def export_section():
         st.markdown(
             "#### You can export dataset in one of the following formats:")
         converter = session_state.project.editor.get_labelstudio_converter()
-        format_df, str2enum = session_state.project.editor.get_supported_format_info(
+        format_df, str2enum_str = session_state.project.editor.get_supported_format_info(
             converter)
         st.table(format_df)
 
@@ -258,10 +258,10 @@ def export_section():
         with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
             # zipfile_path = session_state.project.download_tasks(
             #     return_target_path=True)
-            format_enum = str2enum[session_state.export_format]
+            format_enum_str = str2enum_str[session_state.export_format]
             zipfile_path = session_state.project.download_tasks(
                 converter=converter,
-                export_format=format_enum,
+                export_format=format_enum_str,
                 return_original_path=True)
             session_state['zipfile_path'] = zipfile_path
             logger.info(f"Zipfile created at: {zipfile_path}")
