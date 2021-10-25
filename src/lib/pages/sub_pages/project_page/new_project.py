@@ -32,11 +32,6 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
-# DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
@@ -62,8 +57,6 @@ from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
-# initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
@@ -76,7 +69,9 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
 chdir_root()  # change to root directory
 
 
-def new_project_entry_page():
+def new_project_entry_page(conn=None):
+    if not conn:
+        conn = init_connection(**st.secrets["postgres"])
 
     # >>>> INIT >>>>
     # ********* QUERY DATASET ********************************************
@@ -98,9 +93,9 @@ def new_project_entry_page():
     else:
         session_state.project_status = ProjectPagination.New
 
-    if 'labeled_dataset' not in session_state:
+    if 'is_labeled' not in session_state:
         # to check whether user choose to upload a labeled dataset
-        session_state.labeled_dataset = False
+        session_state.is_labeled = False
 
     # ******** SESSION STATE *********************************************************
     if session_state.new_project.has_submitted:
@@ -308,17 +303,22 @@ def new_project_entry_page():
         'new_project_dataset_chosen': session_state.new_project.dataset_chosen
     }
 
-    submit_col1, submit_col2 = st.columns([3, 0.5])
+    submit_col1, upload_col, submit_col2 = st.columns([2.5, 0.5, 0.5])
 
-    def new_project_submit(labeled=False):
+    def new_project_submit(dataset_dict, labeled=False):
         # if this is True, we will send to New Dataset page for uploading
-        session_state.labeled_dataset = labeled
+        session_state.is_labeled = labeled
 
+        if labeled:
+            # if uploading labeled dataset, then no need to check the dataset_chosen field
+            del context['new_project_dataset_chosen']
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
             context, field_placeholder=place, name_key='new_project_name')
 
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
+            # NOTE: dataset_dict is None when user choose to upload labeled dataset,
+            #  this is to skip inserting project dataset that has not been chosen
             if session_state.new_project.initialise_project(dataset_dict):
                 # Updated with Actual Project ID from DB
                 session_state.new_editor.project_id = session_state.new_project.id
@@ -330,11 +330,11 @@ def new_project_entry_page():
                         f"Successfully stored **{session_state.new_project.name}** project information in database")
                     sleep(1)
                     success_place.empty()
-
                     if labeled:
                         # send to the NewDataset page to upload labeled dataset
                         session_state.new_project_pagination = NewProjectPagination.NewDataset
                     else:
+                        # if not uploading new labeled dataset then go to Editor
                         session_state.new_project_pagination = NewProjectPagination.EditorConfig
                 else:
                     success_place.error(
@@ -345,15 +345,18 @@ def new_project_entry_page():
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
     # TODO #72 Change to 'Update' when 'has_submitted' == True
     submit_button = submit_col2.button(
-        "Submit", key="submit", on_click=new_project_submit)
+        "Submit", key="submit", on_click=new_project_submit,
+        kwargs={'dataset_dict': dataset_dict, 'labeled': False})
 
-    st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
-              on_click=new_project_submit, kwargs={'labeled': True})
-    with st.expander("NOTES about uploading a labeled dataset"):
-        st.info("""If you choose to upload a labeled dataset, you must make sure to
-        use the Label Studio JSON format exported from the Label Studio labeling
-        application itself. Because currently, this is the only supported format
-        to be uploaded into our application.""")
+    with datasetcol3:
+        with st.expander("NOTES about uploading a labeled dataset"):
+            st.info("""If you choose to upload a labeled dataset, you must first fill
+            up the project title and select a template for the deployment type of the
+            computer vision task.""")
+    with upload_col:
+        st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
+                  on_click=new_project_submit,
+                  kwargs={'dataset_dict': None, 'labeled': True})
 
     # >>>> Removed
     # session_state.new_project.has_submitted = False
@@ -365,7 +368,9 @@ def new_project_entry_page():
     # col2.write(dataset_dict)
 
 
-def index():
+def index(RELEASE=True, conn=None):
+    if not conn:
+        conn = init_connection(**st.secrets["postgres"])
 
     new_project_page = {
         NewProjectPagination.Entry: new_project_entry_page,
@@ -428,13 +433,19 @@ def index():
     else:
         new_project_back_button_place.empty()
 
-    st.write(session_state.new_project_pagination)
+    # st.write(session_state.new_project_pagination)
 
 
 if __name__ == "__main__":
-    if st._is_running_with_streamlit:
+    # DEFINE wide page layout for debugging on this page directly
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-        index()
+    if st._is_running_with_streamlit:
+        # initialise connection to Database
+        conn = init_connection(**st.secrets["postgres"])
+        index(RELEASE=False, conn=conn)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

@@ -45,7 +45,7 @@ place = {}
 
 
 def editor_config(project: Union[NewProject, Project]):
-    logger.info("Entered editor config")
+    logger.debug("Entered editor config")
 
     # project_id: int, deployment_type: str
     chdir_root()  # change to root directory
@@ -128,10 +128,10 @@ def editor_config(project: Union[NewProject, Project]):
                 newChild = project.editor.create_label(
                     'value', session_state.add_label)
 
-                logger.info(f"newChild: {newChild.attributes.items()}")
+                logger.debug(f"newChild: {newChild.attributes.items()}")
 
-                logger.info(f"New label added {project.editor.labels}")
                 project.editor.labels = project.editor.get_labels()
+                logger.info(f"New label added: {project.editor.labels}")
 
             elif session_state.add_label in project.editor.labels:
                 label_exist_msg = f"Label '{session_state.add_label}' already exists in {project.editor.labels}"
@@ -147,7 +147,7 @@ def editor_config(project: Union[NewProject, Project]):
             diff_21 = set(session_state.labels_select).difference(
                 project.editor.labels)  # set 2 - set 1 ADDITION
             if diff_12:
-                logger.info("Removal")
+                logger.debug("Removal")
                 removed_label = list(diff_12).pop()
 
                 # to avoid removing existing labels used for annotating!
@@ -170,7 +170,7 @@ def editor_config(project: Union[NewProject, Project]):
                     # TODO: function to remove DOM
                     removedChild = project.editor.remove_label(
                         'value', removed_label)
-                    logger.info(f"removedChild: {removedChild}")
+                    logger.debug(f"removedChild: {removedChild}")
                     logger.info(f"Label removed {project.editor.labels}")
 
                 except ValueError as e:
@@ -200,7 +200,7 @@ def editor_config(project: Union[NewProject, Project]):
         place["add_label"].info(
             '''Please enter desired labels and choose the labels to be used from the multi-select widget below''')
         # # labels_chosen = ['Hello', 'World', 'Bye']
-        logger.info(f"Before multi {project.editor.labels}")
+        logger.debug(f"Before multi {project.editor.labels}")
         # >>>>>>> REMOVE LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
         st.multiselect('Labels', options=project.editor.labels, default=project.editor.labels,
@@ -257,7 +257,7 @@ def main():
 
     # ****************** TEST ******************************
     if not RELEASE:
-        logger.info("At main")
+        logger.debug("At main")
         # ************************TO REMOVE************************
         with st.sidebar.container():
             st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -275,7 +275,7 @@ def main():
         # project.refresh_project_details()
         # st.write(vars(session_state.project))
         editor_config(session_state.project)
-        logger.info("At main bottom")
+        logger.debug("At main bottom")
 
 
 if __name__ == "__main__":

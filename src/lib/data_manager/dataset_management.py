@@ -36,9 +36,9 @@ from glob import iglob
 from io import BytesIO
 from mimetypes import guess_type
 from pathlib import Path
-import tempfile
 from time import perf_counter, sleep
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, Iterator, List, Tuple, Union
+import xml.etree.ElementTree as ET
 
 import cv2
 import numpy as np
@@ -63,6 +63,7 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+from core.utils.code_generator import get_random_string
 from core.utils.dataset_handler import get_image_size
 from core.utils.file_handler import create_folder_if_not_exist
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
@@ -130,6 +131,73 @@ class FileTypes(IntEnum):
 # <<<< Variable Declaration <<<<
 
 
+def convert_to_ls(x, y, width, height, original_width, original_height):
+    return x / original_width * 100.0, y / original_height * 100.0, \
+        width / original_width * 100.0, height / original_height * 100
+
+
+def convert_xml2_ls(xml_str: str) -> Tuple[str, List[Dict[str, Any]]]:
+    """Converting from XML string (decoded from Streamlit's UploadedFile)
+    to Label Studio JSON result format to be stored in Database.
+    Note that Label Studio generates a List of Dict of results."""
+    # converting for one XML file, i.e. one image
+    root = ET.fromstring(xml_str)
+    # or from decoded string from Streamlit UploadedFile
+    # root = ET.fromstring(xml_str)
+    filename = root.find("filename").text
+    ori_width = int(root.find("size").find("width").text)
+    ori_height = int(root.find("size").find("height").text)
+    result = []
+    for member in root.findall("object"):
+        bndbox = member.find("bndbox")
+        xmin = float(bndbox.find("xmin").text)
+        ymin = float(bndbox.find("ymin").text)
+        xmax = float(bndbox.find("xmax").text)
+        ymax = float(bndbox.find("ymax").text)
+
+        pixel_width = xmax - xmin
+        pixel_height = ymax - ymin
+        x, y, width, height = convert_to_ls(xmin, ymin,
+                                            pixel_width, pixel_height,
+                                            ori_width, ori_height)
+
+        cur_result = {
+            "original_width": ori_width,
+            "original_height": ori_height,
+            "image_rotation": 0,
+            "value": {
+                "x": x,
+                "y": y,
+                "width": width,
+                "height": height,
+                "rotation": 0,
+                "rectanglelabels": [member.find("name").text]
+            },
+            "id": get_random_string(length=6),
+            "from_name": "label",
+            "to_name": "image",
+            "type": "rectanglelabels"
+        }
+        result.append(cur_result)
+    return filename, result
+
+
+def convert_coco2ls_points(segmentation: List[List[float]],
+                           original_width: int,
+                           original_height: int) -> List[List[float]]:
+    """Convert the COCO JSON's segmentation values to Label Studio scaled (x, y) values."""
+    def scale(x, y):
+        x = x * 100 / original_width
+        y = y * 100 / original_height
+        return x, y
+
+    # concatenate into a list, with each of 2 consecutive values as tuple(x, y)
+    result = list(map(scale,
+                      segmentation[0][:-1:2],
+                      segmentation[0][1::2]))
+    return result
+
+
 class BaseDataset:
     def __init__(self, dataset_id) -> None:
         self.dataset_id = dataset_id
@@ -138,7 +206,7 @@ class BaseDataset:
         self.dataset_size: int = None  # Number of files
         self.dataset_path: Path = None
         self.deployment_id: Union[str, int] = None
-        self.filetype: str = None
+        self.filetype: str = "Image"
         self.deployment_type: str = None
         self.dataset = []  # to hold new data from upload
         self.dataset_list = []  # List of existing dataset
@@ -292,7 +360,7 @@ class NewDataset(BaseDataset):
                 st.stop()
             if len(img_names) != len(xml_idxs):
                 st.error(f"""Every image should have its own XML annotation file.
-                But found {len(img_names)} images with {len(xml_idxs)} XML files.""")
+                But found {len(img_names)} image(s) with {len(xml_idxs)} XML file(s).""")
 
             unknown_xml_files = set(xml_names).difference(img_names)
             unknown_img_files = set(img_names).difference(xml_names)
@@ -307,18 +375,18 @@ class NewDataset(BaseDataset):
                               for f in unknown_img_files]
                     st.error(f"""Every image should have its own XML annotation file.
                     But found {len(unknown_img_files)} image file(s) without associated XML files.""")
-                    with st.expander("List of images without extension:"):
+                    with st.expander("List of the images (no file extension):"):
                         st.warning("  \n".join(fnames))
                 st.stop()
 
-            xml_files = itemgetter(*xml_idxs)(files)
+            xml_files = list(itemgetter(*xml_idxs)(files))
             image_idxs = set(range(len(files))).difference(xml_idxs)
-            image_files = itemgetter(*image_idxs)(files)
+            image_files = list(itemgetter(*image_idxs)(files))
 
             self.annotation_files = xml_files
 
             if return_annotations:
-                return xml_files, image_files
+                return self.annotation_files, image_files
             return image_files
         # ***************** Checking Image Classification and Segmentation data *****************
         elif deployment_type == 'Image Classification':
@@ -416,24 +484,104 @@ class NewDataset(BaseDataset):
             return self.annotation_files, files
         return files
 
-    def save_annotations(self, deployment_type: str):
+    def annotation_parser(self, deployment_type: str) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         if deployment_type == 'Object Detection with Bounding Boxes':
-            self.save_bbox_annotations()
+            return self.parse_bbox_annotations()
         elif deployment_type == 'Image Classification':
-            self.save_classification_annotations()
+            return self.parse_classification_annotations()
         elif deployment_type == 'Semantic Segmentation with Polygons':
-            self.save_segmentation_annotations()
+            return self.parse_segmentation_annotations()
 
-    def save_bbox_annotations(self, xml_files: List[UploadedFile]):
-        pass
+    def parse_bbox_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+        """Parse the uploaded XML files and yield the image name and annotation result in
+        Label Studio JSON result format"""
+        xml_files = self.annotation_files
+        for xml_file in xml_files:
+            xml_str = xml_file.getvalue().decode()
+            image_name, annot_result = convert_xml2_ls(xml_str)
+            yield image_name, annot_result
 
-    def save_classification_annotations(self, csv_file: UploadedFile):
+    def parse_classification_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+        """Parse the uploaded CSV and yield the image name and annotation result in
+        Label Studio JSON result format"""
         # only one CSV file after validation is passed
-        csv_file = self.annotations_files[0]
+        csv_file = self.annotation_files[0]
+        df = pd.read_csv(csv_file, dtype=str)
+        for img_name, label in df.values:
+            result = [
+                {
+                    "id": get_random_string(length=10),
+                    "type": "choices",
+                    "value": {"choices": [label]},
+                    "to_name": "image",
+                    "from_name": "label"
+                }
+            ]
+            yield img_name, result
 
-    def save_segmentation_annotations(self, json_file: UploadedFile):
+    def parse_segmentation_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+        """Parse the uploaded JSON file and yield the image name and annotation result in
+        Label Studio JSON result format"""
         # only one COCO JSON file after validation is passed
-        json_file = self.annotations_files[0]
+        json_file = self.annotation_files[0]
+        coco_json = json.load(json_file)
+        # only need to convert back to the result column format to
+        # save in database annotations table
+        # with keys: width, height, file_name
+        image_id2info = {}
+        for image_dict in coco_json['images']:
+            img_id = image_dict.pop("id")
+            image_id2info[img_id] = image_dict
+
+        # with keys: name
+        cat_id2name = {}
+        for category_dict in coco_json['categories']:
+            cat_id = category_dict.pop("id")
+            cat_id2name[cat_id] = category_dict
+
+        prev_img_id = None
+        for annot in coco_json['annotations']:
+            annot_id = annot['id']
+            img_id = annot['image_id']
+            img_info = image_id2info[img_id]
+            filename = img_info['file_name']
+
+            if not prev_img_id:
+                # first image_id
+                prev_img_id = img_id
+                result = []
+            if prev_img_id != img_id:
+                # generate the filename and all the annotation results
+                # for the image of prev_img_id
+                yield filename, result
+                # then reset the result list and update for new image_id
+                result = []
+                prev_img_id = img_id
+
+            original_width = img_info['width']
+            original_height = img_info['height']
+            points = convert_coco2ls_points(
+                annot['segmentation'],
+                original_width,
+                original_height
+            )
+
+            label = cat_id2name[annot['category_id']]
+
+            curr_result = {
+                "original_width": original_width,
+                "original_height": original_height,
+                "image_rotation": 0,
+                "value": {
+                    "points": points,
+                    "polygonlabels": [label]
+                },
+                "id": annot_id,
+                "from_name": "label",
+                "to_name": "image",
+                "type": "polygonlabels"
+            }
+            result.append(curr_result)
 
     def insert_dataset(self):
         insert_dataset_SQL = """
@@ -461,8 +609,7 @@ class NewDataset(BaseDataset):
         """Method to reset all widgets and attributes in the New Dataset Page when changing pages
         """
 
-        new_dataset_attributes = ["new_dataset", "data_source_radio", "name",
-                                  "desc", "upload_widget"]
+        new_dataset_attributes = ["new_dataset", "is_labeled"]
 
         reset_page_attributes(new_dataset_attributes)
 

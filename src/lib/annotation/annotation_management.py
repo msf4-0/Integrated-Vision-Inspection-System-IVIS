@@ -173,7 +173,7 @@ class Task(BaseTask):
             - ID, Name,Dataset_Size,File_Type,Date_Time
         
         """
-        self.task_row = task_row
+        # self.task_row = task_row
         self.dataset_dict = dataset_dict
         self.project_id: int = project_id
         self.annotations: List = annotations
@@ -562,15 +562,14 @@ class BaseAnnotations:
                                 public.task
                             SET
                                 annotation_id = %s,
-                                is_labelled = %s,
+                                is_labelled = True,
                                 skipped = False
                             WHERE
                                 id = %s
                             RETURNING is_labelled;
                         """
 
-        update_task_vars = [self.id,
-                            self.task.is_labelled, self.task.id]
+        update_task_vars = [self.id, self.task.id]
 
         try:
             self.task.is_labelled = db_fetchone(
@@ -578,7 +577,7 @@ class BaseAnnotations:
         except TypeError as e:
             logger.error(f"{e}: Task update for Submit failed")
 
-        sleep(1)
+        # sleep(1)
         return self.result
 
     def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:

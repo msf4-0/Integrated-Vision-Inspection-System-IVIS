@@ -666,9 +666,7 @@ class Project(BaseProject):
         """Method to reset all widgets and attributes in the Project Page when changing pages
         """
 
-        project_attributes = ["all_project_table", "project", "editor", "project_name",
-                              "project_desc", "annotation_type", "project_dataset_page",
-                              "project_dataset", "existing_project_page_navigator_radio",
+        project_attributes = ["all_project_table", "project", "editor", 
                               "labelling_pagination", "existing_project_pagination"]
 
         reset_page_attributes(project_attributes)
@@ -718,25 +716,7 @@ class NewProject(BaseProject):
                     data, self.id, dataset_id)
                 logger.info(f"Loaded task {task_id} into DB for data: {data}")
 
-    def insert_project(self, dataset_dict: Dict):
-        insert_project_SQL = """
-                                INSERT INTO public.project (
-                                    name,
-                                    description,                                                                   
-                                    deployment_id)
-                                VALUES (
-                                    %s,
-                                    %s,
-                                    (SELECT dt.id FROM public.deployment_type dt where dt.name = %s))
-                                RETURNING id;
-                                
-                            """
-        insert_project_vars = [self.name, self.desc, self.deployment_type]
-
-        # Query returns Project ID from table insertion
-        self.id = db_fetchone(
-            insert_project_SQL, conn, insert_project_vars).id
-
+    def insert_project_dataset(self, dataset_dict: Dict[str, namedtuple]):
         insert_project_dataset_SQL = """
                                         INSERT INTO public.project_dataset (
                                             project_id,
@@ -761,9 +741,34 @@ class NewProject(BaseProject):
             # loop data and add task
             self.insert_new_project_task(dataset_name, dataset_id)
 
+    def insert_project(self, dataset_dict: Dict[str, namedtuple] = None):
+        """Insert project into database. If `dataset_dict` is provied,
+        then also insert the project_dataset based on `self.dataset_chosen`."""
+        insert_project_SQL = """
+                                INSERT INTO public.project (
+                                    name,
+                                    description,                                                                   
+                                    deployment_id)
+                                VALUES (
+                                    %s,
+                                    %s,
+                                    (SELECT dt.id FROM public.deployment_type dt where dt.name = %s))
+                                RETURNING id;
+                                
+                            """
+        insert_project_vars = [self.name, self.desc, self.deployment_type]
+
+        # Query returns Project ID from table insertion
+        self.id = db_fetchone(
+            insert_project_SQL, conn, insert_project_vars).id
+
+        if dataset_dict is not None:
+            # only insert project_dataset when it is provided
+            self.insert_project_dataset(dataset_dict)
+
         return self.id
 
-    def initialise_project(self, dataset_dict):
+    def initialise_project(self, dataset_dict: Dict[str, namedtuple] = None):
 
         # directory_name = get_directory_name(self.name)
         # self.project_path = PROJECT_DIR / str(directory_name)

@@ -32,6 +32,7 @@ from time import perf_counter, sleep
 from typing import Dict, Union
 from humanize import naturalsize
 import streamlit as st
+from stqdm import stqdm
 from streamlit import cli as stcli
 from streamlit import session_state
 
@@ -52,9 +53,11 @@ from core.utils.helper import check_filetype
 from core.utils.log import logger
 from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset
+from data_manager.dataset_management import NewDataset, get_dataset_name_list, query_dataset_list
 from path_desc import chdir_root
-from project.project_management import NewProject
+from project.project_management import NewProject, Project, ProjectPagination
+from annotation.annotation_management import NewAnnotations, Task
+from user.user_management import User
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -82,11 +85,15 @@ class DeploymentType(IntEnum):
             raise ValueError()
 
 
-def new_dataset(RELEASE=True):
+def new_dataset(RELEASE=True, conn=None):
+    if not conn:
+        conn = init_connection(**st.secrets["postgres"])
 
     chdir_root()  # change to root directory
 
-    # ******** DEBUGGING ********
+    # ******** DEBUGGING UPLOADER ONLY ********
+    # NOTE: This will not work for the debugging of inserting uploaded annotations because
+    #  it requires an existing Project instead of a NewProject
     if not RELEASE:
         if "new_project" not in session_state:
             session_state.new_project = NewProject(get_random_string(length=8))
@@ -102,11 +109,13 @@ def new_dataset(RELEASE=True):
         logger.info("Enter new dataset")
         session_state.new_dataset = NewDataset(get_random_string(length=8))
         session_state.data_source_radio = "File Upload 📂"
+    if 'user' not in session_state:
+        session_state.user = User(1)
     # ******** SESSION STATE ********
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
-    if session_state.labeled_dataset:
+    if session_state.is_labeled:
         st.write(
             f"# __Deployment Type: {session_state.new_project.deployment_type}__")
         st.write("## __Upload Labeled Dataset__")
@@ -159,7 +168,7 @@ def new_dataset(RELEASE=True):
 
     outercol1.write("## __Dataset Upload:__")
 
-    if not session_state.labeled_dataset:
+    if not session_state.is_labeled:
         data_source_options = ["Webcam 📷", "File Upload 📂"]
         # col1, col2 = st.columns(2)
 
@@ -211,7 +220,7 @@ def new_dataset(RELEASE=True):
             Image: .jpg, .png, .jpeg
             """
             st.info(file_format_info)
-            if session_state.labeled_dataset:
+            if session_state.is_labeled:
                 st.info(
                     "#### Compatible Annotation Format:  \n"
                     "- Object detection should have one XML file for each uploaded image.  \n"
@@ -221,10 +230,10 @@ def new_dataset(RELEASE=True):
                     "- Image segmentation should only have images and only one COCO JSON file.  \n")
 
         place["upload"] = outercol2.empty()
-        if uploaded_files_multi:
-            outercol2.write("uploaded_files_multi")  # TODO Remove
-            outercol2.write(uploaded_files_multi)  # TODO Remove
-            if session_state.labeled_dataset:
+        if len(uploaded_files_multi) > 1:
+            # outercol2.write("uploaded_files_multi")  # TODO Remove
+            # outercol2.write(uploaded_files_multi)  # TODO Remove
+            if session_state.is_labeled:
                 with st.spinner("Checking uploaded dataset and annotations"):
                     logger.info(
                         "Checking uploaded dataset and annotations ...")
@@ -244,7 +253,6 @@ def new_dataset(RELEASE=True):
             session_state.new_dataset.dataset_size = len(
                 uploaded_files_multi)  # length of uploaded files
         else:
-            session_state.new_dataset.filetype = None
             session_state.new_dataset.dataset_size = 0  # length of uploaded files
             session_state.new_dataset.dataset = []
         dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
@@ -254,7 +262,7 @@ def new_dataset(RELEASE=True):
         dataset_size_place.write(dataset_size_string)
         dataset_filesize_place.write(dataset_filesize_string)
 
-        if uploaded_files_multi and session_state.labeled_dataset:
+        if uploaded_files_multi and session_state.is_labeled:
             outercol3.success(
                 "Annotations are verified to be compatible and in the correct format.")
 
@@ -280,8 +288,8 @@ def new_dataset(RELEASE=True):
     context = {'name': session_state.new_dataset.name,
                'upload': session_state.new_dataset.dataset}
 
-    st.write("context")
-    st.write(context)
+    # st.write("context")
+    # st.write(context)
     submit_col1, submit_col2 = st.columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
 
@@ -302,6 +310,128 @@ def new_dataset(RELEASE=True):
                     success_place.success(
                         f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
 
+                    if session_state.is_labeled:
+                        if 'project' not in session_state:
+                            # ***************** COPIED FROM new_project.py *****************
+                            # We need to insert the project_dataset here after the dataset
+                            # has been stored
+                            with st.spinner("Initializing the project with the uploaded labeled dataset ..."):
+                                existing_dataset, _ = query_dataset_list()
+                                dataset_dict = get_dataset_name_list(
+                                    existing_dataset)
+                                # add the uploaded dataset as the dataset_chosen, to
+                                # allow the insert_project_dataset to work
+                                session_state.new_project.dataset_chosen = [
+                                    session_state.new_dataset.name]
+                                session_state.new_project.insert_project_dataset(
+                                    dataset_dict)
+                                # ***************** COPIED FROM new_project.py *****************
+
+                            project_id = session_state.new_project.id
+                            del session_state['new_project']
+                            session_state.project = Project(project_id)
+                            logger.info(f"Project ID {project_id} initialized")
+
+                        with st.spinner("Querying all the labeled images ..."):
+                            all_task, all_task_column_names = Task.query_all_task(
+                                session_state.project.id,
+                                return_dict=True,
+                                # using True to use 'id' instead of 'ID' for the first column name
+                                for_data_table=True)
+                            task_df = Task.create_all_task_dataframe(
+                                all_task, all_task_column_names)
+
+                        total_images = len(task_df)
+                        filetype = session_state.new_dataset.filetype
+                        logger.info("Submitting uploaded annotations ...")
+                        start_t = perf_counter()
+                        with st.spinner("Inserting uploaded annotations into database ..."):
+                            result_generator = session_state.new_dataset.annotation_parser(
+                                session_state.project.deployment_type
+                            )
+                            for img_name, result in stqdm(result_generator,
+                                                          total=total_images,
+                                                          unit=filetype):
+                                start_task = perf_counter()
+                                logger.debug(f"Image name {img_name}")
+                                logger.debug(f"Annotation result {result}")
+
+                                task_row = task_df.loc[
+                                    task_df['Task Name'].str.contains(
+                                        img_name, regex=False)
+                                ].to_dict(orient='records')[0]
+
+                                start = perf_counter()
+                                task = Task(task_row,
+                                            session_state.project.dataset_dict,
+                                            session_state.project.id)
+                                total = perf_counter() - start
+                                logger.debug(
+                                    f"Task instantiated [{total:.4f}s]")
+
+                                start = perf_counter()
+                                annotation = NewAnnotations(
+                                    task, session_state.user)
+                                total = perf_counter() - start
+                                logger.debug(
+                                    f"Annotation instantiated [{total:.4f}s]")
+
+                                # Submit annotations to DB
+                                start = perf_counter()
+                                annotation.submit_annotations(
+                                    result, session_state.user.id, conn)
+                                total = perf_counter() - start
+                                logger.debug(
+                                    f"Annotation ID {annotation.id} submitted [{total:.4f}s]")
+
+                                time_elapsed = perf_counter() - start_task
+                                logger.info(
+                                    f"Annotation submitted successfully [{time_elapsed:.4f}s]")
+
+                        time_elapsed = perf_counter() - start_t
+                        st.success(
+                            "🎉 Successfully stored all the uploaded annotations!")
+                        logger.info("Successfully inserted all annotations for "
+                                    f"{len(task_df)} images into database. "
+                                    f"Took {time_elapsed:.2f} seconds. "
+                                    f"Average {time_elapsed / len(task_df):.4f}s per image")
+
+                        with st.spinner("Updating project labels and editor configuration ..."):
+                            default_labels = session_state.project.editor.get_labels()
+                            project_id = session_state.project.id
+                            # get the unique new labels from all the annotations
+                            new_labels = session_state.project.get_existing_unique_labels(
+                                project_id)
+
+                            # update editor_config with the new labels from the uploaded annotations
+                            for label in new_labels:
+                                newChild = session_state.project.editor.create_label(
+                                    'value', label)
+                                logger.debug(
+                                    f"newChild: {newChild.attributes.items()}")
+                                session_state.project.editor.labels = session_state.project.editor.get_labels()
+                            logger.info(
+                                f"New labels added: {session_state.project.editor.labels}")
+
+                            # remove the default_labels came with the original editor_config
+                            for label in default_labels:
+                                session_state.project.editor.labels.remove(
+                                    label)
+                                removedChild = session_state.project.editor.remove_label(
+                                    'value', label)
+                                logger.debug(f"removedChild: {removedChild}")
+                            session_state.project.editor.labels.sort()
+                            logger.debug(f"After removing default labels: "
+                                         f"{session_state.project.editor.labels}")
+
+                            session_state.project.editor.update_editor_config()
+
+                        # go directly to existing project dashboard
+                        NewProject.reset_new_project_page()
+                        NewDataset.reset_new_dataset_page()
+                        session_state.project_pagination = ProjectPagination.Existing
+                        st.experimental_rerun()
+
                 else:
                     st.error(
                         f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")
@@ -309,12 +439,12 @@ def new_dataset(RELEASE=True):
                 st.error(
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
 
-    st.write("vars(session_state.new_dataset)")
-    st.write(vars(session_state.new_dataset))
+    # st.write("vars(session_state.new_dataset)")
+    # st.write(vars(session_state.new_dataset))
 
 
-def main(RELEASE=False):
-    new_dataset(RELEASE)
+def main(RELEASE=False, conn=None):
+    new_dataset(RELEASE, conn=conn)
 
 
 if __name__ == "__main__":
@@ -325,12 +455,12 @@ if __name__ == "__main__":
 
     if st._is_running_with_streamlit:
         # debugging upload dataset
-        session_state.labeled_dataset = True
+        session_state.is_labeled = True
 
         # initialise connection to Database
         conn = init_connection(**st.secrets["postgres"])
 
-        main(RELEASE=False)
+        main(RELEASE=False, conn=conn)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
