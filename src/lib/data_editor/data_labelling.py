@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import List
 from threading import Thread
-from time import sleep
+from time import perf_counter, sleep
 from copy import deepcopy
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -59,12 +59,13 @@ def editor(data_id: List = []):
     if "new_annotation_flag" not in session_state:
         session_state.new_annotation_flag = 0
     if "data_labelling_table" not in session_state:
-        session_state.data_labelling_table = data_id or [None]
+        session_state.data_labelling_table = data_id
     if "labelling_prev_result" not in session_state:
         session_state.labelling_prev_result = []
     if "show_next_unlabeled" not in session_state:
         # a flag to decide whether to show next unlabeled data
-        session_state.show_next_unlabeled = True
+        # if this is True, `st.dataframe` will be used instead of clickable `data_table`
+        session_state.show_next_unlabeled = False
 
     # ******** SESSION STATE *********************************************************
 
@@ -95,32 +96,12 @@ def editor(data_id: List = []):
                                                           return_dict=True, for_data_table=True)
     task_df = Task.create_all_task_dataframe(
         all_task, all_task_column_names)
-    # st.write(task_df)
-
-    if session_state.show_next_unlabeled:
-        # reset the flag to prevent issues when refreshing
-        session_state.show_next_unlabeled = False
-        # automatically move the labeling interface to the next unlabeled task
-        unlabeled_task_ids = task_df.query(
-            "`Is Labelled` == False and Skipped == False")['id']
-        # only do this if there is still unlabeled task
-        if not unlabeled_task_ids.empty:
-            # must use `int` to change it from `numpy.int` dtypes
-            next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
-            logger.info(
-                f"Proceeding to next task ID: {next_unlabeled_task_id}")
-            # set this to show the next task, must set it to a list as this is how the `data_table` returns
-            session_state.data_labelling_table = [next_unlabeled_task_id]
-        else:
-            logger.info("All tasks labeled successfully for Project ID: "
-                        f"{session_state.project.id}")
-            st.success("🎉 **You have labeled all tasks!**")
-            st.stop()
 
     def load_data(task_df):
         logger.debug(f"Inside load data CALLBACK")
         if session_state.data_labelling_table:
             task_id = session_state.data_labelling_table[0]
+            logger.debug(f"{task_id = }")
             task_row = get_task_row(task_id, task_df)
 
         if "labelling_interface" in session_state:
@@ -177,17 +158,25 @@ def editor(data_id: List = []):
 
 # ************************ NOTES about the feature of auto-next task ****************************
     with note_place.expander("NOTES about the feature of auto move to next unlabeled task"):
-        st.info("""If you want to make use of the this feature, do not click into the
-        table to select a particular image, otherwise this feature will not work properly
-        and you will need to click the "Return to Labelling Dashboard" to fix this problem.
+        st.info("""If you want to make use of the this feature, click the "Start Labelling"
+        button and start labelling, then the image will automatically move to the next
+        one after you submitted. If you experience any problem, click the
+        "Return to Labelling Dashboard" then click the "Start Labelling" button again.
         """)
 
 
 # TODO Fix Data Table is_labelled not updated at re-run
 # ************************** DATA TABLE ********************************************************
     with main_col1:
-        data_table(all_task, task_labelling_columns,
-                   checkbox=False, key='data_labelling_table', on_change=load_data, args=(task_df,))
+        if session_state.show_next_unlabeled:
+            # using st.dataframe instead of data_table because this feature will not
+            #  work properly if after the user has clicked on the data_table
+            task_df.drop(columns=['Created By', 'Date/Time'], inplace=True)
+            st.dataframe(task_df, height=800)
+        else:
+            data_table(all_task, task_labelling_columns,
+                       checkbox=False, key='data_labelling_table',
+                       on_change=load_data, args=(task_df,))
 
         # >>>>> Temp Image Viewer >>>>>
         # st.write(all_task[0])
@@ -264,7 +253,7 @@ def editor(data_id: List = []):
                                 logger.info(
                                     f"New submission for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}")
 
-                                session_state.show_next_unlabeled = True
+                                # session_state.show_next_unlabeled = True
 
                             except Exception as e:
                                 logger.error(f"{e}: New Annotation error")
@@ -316,7 +305,7 @@ def editor(data_id: List = []):
                                 logger.info(
                                     f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")
 
-                                session_state.show_next_unlabeled = True
+                                # session_state.show_next_unlabeled = True
                                 st.experimental_rerun()
 
                             except Exception as e:
@@ -328,7 +317,6 @@ def editor(data_id: List = []):
                     #     st.write(results)
                     #     st.write(flag)
             # ********************************** CRUD CALLBACK for annotation results *********************************************
-
             annotations_dict = session_state.annotation.generate_annotation_dict()
             task = session_state.task.generate_editor_format(
                 annotations_dict=annotations_dict, predictions_dict=None)
@@ -363,33 +351,37 @@ def editor(data_id: List = []):
 # NOTE: This method makes the Label Studio Editor's component sometimes get hidden
 #  within the small `div` container after a submission,
 #  so it does not work properly for now....
+# SOLUTION: Use st.dataframe at the side instead of rendering only the Label Studio Editor
 
 # only show the Label Studio interface for labeling, without data_table
-    # if session_state.show_next_unlabeled:
-    #     st.markdown("___")
-    #     # reset the flag to prevent issues when refreshing
-    #     # session_state.show_next_unlabeled = False
-    #     # automatically move the labeling interface to the next unlabeled task
-    #     unlabeled_task_ids = task_df.query(
-    #         "`Is Labelled` == False and Skipped == False")['id']
-    #     current_id = session_state.data_labelling_table[0]
-    #     # only do this if there is still unlabeled task
-    #     if not unlabeled_task_ids.empty:
-    #         # must use `int` to change it from `numpy.int` dtypes
-    #         next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
-    #         # set this to show the next task, must set it to a list as this is how the `data_table` returns
-    #         session_state.data_labelling_table = [next_unlabeled_task_id]
-    #         if next_unlabeled_task_id != current_id:
-    #             logger.info(
-    #                 f"Proceeding to next task ID: {next_unlabeled_task_id}")
-    #             load_data(task_df)
-    #             logger.debug("REFRESHINGGG")
-    #             st.experimental_rerun()
-    #     else:
-    #         logger.info("All tasks labeled successfully for Project ID: "
-    #                     f"{session_state.project.id}")
-    #         st.success("🎉 **You have labeled all tasks!**")
-    #         st.stop()
+    if session_state.show_next_unlabeled:
+        # automatically move the labeling interface to the next unlabeled task
+        st.markdown("___")
+        if session_state.data_labelling_table:
+            current_id = session_state.data_labelling_table[0]
+        else:
+            current_id = task_df.iloc[0, 0]
+        unlabeled_task_ids = task_df.query(
+            "`Is Labelled` == False and Skipped == False")['id']
+        # only do this if there is still unlabeled task
+        if not unlabeled_task_ids.empty:
+            # must use `int` to change it from `numpy.int` dtypes
+            next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
+            # set this to show the next task, must set it to a list as this is how the `data_table` returns
+            session_state.data_labelling_table = [next_unlabeled_task_id]
+            if next_unlabeled_task_id != current_id:
+                logger.info(
+                    f"Proceeding to next task ID: {next_unlabeled_task_id}")
+                load_data(task_df)
+                logger.debug("REFRESHINGGG")
+                st.experimental_rerun()
+        else:
+            logger.info("All tasks labeled successfully for Project ID: "
+                        f"{session_state.project.id}")
+            st.success("🎉 **You have labeled all tasks!**")
+            # clear the Label Studio Editor
+            main_col2.empty()
+            st.stop()
 # ************************ AUTO NEXT TASK ********************************************************
 
 

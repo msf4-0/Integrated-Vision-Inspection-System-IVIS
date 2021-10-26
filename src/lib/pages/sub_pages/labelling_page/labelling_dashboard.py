@@ -314,8 +314,8 @@ def index(RELEASE=True):
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        # for Anson: 4 for TFOD, 9 for img classif
-        project_id_tmp = 5
+        # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
+        project_id_tmp = 30
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -374,6 +374,7 @@ def index(RELEASE=True):
         reset_editor_page()
         # NOTE: not using this for now because it causes problem of overflowed
         #  LabelStudio Editor...
+        logger.debug(f"Show next unlabeled: {show_next}")
         session_state.show_next_unlabeled = show_next
 
     with all_task_button_col:
@@ -407,10 +408,6 @@ def index(RELEASE=True):
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     logger.debug(f"Navigator: {session_state.labelling_pagination}")
 
-    if session_state.labelling_pagination != LabellingPagination.Export:
-        # reset the archive success message after go to other pages
-        session_state.archive_success = False
-
     if session_state.labelling_pagination == LabellingPagination.Editor:
         labelling_page[session_state.labelling_pagination](
             session_state.data_selection)
@@ -423,8 +420,9 @@ def index(RELEASE=True):
         labelling_page[session_state.labelling_pagination]()
 
     else:
-        all_task, all_task_column_names = Task.query_all_task(project_id,
-                                                              return_dict=True, for_data_table=True)
+        session_state.show_next_unlabeled = False
+        all_task, _ = Task.query_all_task(project_id,
+                                          return_dict=True, for_data_table=True)
         labelled_task_dict = Task.get_labelled_task(all_task, True)
         task_queue_dict = Task.get_labelled_task(all_task, False)
         labelling_page[session_state.labelling_pagination](

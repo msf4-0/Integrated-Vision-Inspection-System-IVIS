@@ -834,10 +834,12 @@ def reset_editor_page():
                          f"{session_state['zipfile_path']}")
             # don't need it anymore
             os.remove(session_state['zipfile_path'])
-    dataset_export_path = session_state.project.get_export_path()
-    if dataset_export_path.exists():
-        logger.debug(f"Removing dataset export path: {dataset_export_path}")
-        shutil.rmtree(dataset_export_path)
+    if 'project' in session_state:
+        dataset_export_path = session_state.project.get_export_path()
+        if dataset_export_path.exists():
+            logger.debug(
+                f"Removing dataset export path: {dataset_export_path}")
+            shutil.rmtree(dataset_export_path)
 
     editor_attributes = ["new_annotation_flag", "task", "show_next_unlabeled"
                          "annotation", "data_labelling_table", "labelling_prev_result"
