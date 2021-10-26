@@ -72,8 +72,13 @@ def editor(data_id: List = []):
 # ************************************** COLUMN PLACEHOLDERS***************************************
     back_to_labelling_dashboard_button_place = st.empty()
     note_place = st.empty()
-    main_col1, main_col2 = st.columns([2.5, 3])
-    main_col1.write("### **Data Labelling**")
+    title_place = st.empty()
+    title_place.write("### **Data Labelling**")
+    if session_state.show_next_unlabeled:
+        main_col2 = st.empty()
+    else:
+        main_col1, main_col2 = st.columns([2.5, 3])
+    # main_col1.write("### **Data Labelling**")
 # ************************************** COLUMN PLACEHOLDERS***************************************
 
 # ************************** BACK TO LABELLING DASHBOARD CALLBACK******************************
@@ -167,13 +172,9 @@ def editor(data_id: List = []):
 
 # TODO Fix Data Table is_labelled not updated at re-run
 # ************************** DATA TABLE ********************************************************
-    with main_col1:
-        if session_state.show_next_unlabeled:
-            # using st.dataframe instead of data_table because this feature will not
-            #  work properly if after the user has clicked on the data_table
-            task_df.drop(columns=['Created By', 'Date/Time'], inplace=True)
-            st.dataframe(task_df, height=800)
-        else:
+    if not session_state.show_next_unlabeled:
+        # only show the data_table when not using the auto-next-task feature
+        with main_col1:
             data_table(all_task, task_labelling_columns,
                        checkbox=False, key='data_labelling_table',
                        on_change=load_data, args=(task_df,))
@@ -322,13 +323,20 @@ def editor(data_id: List = []):
                 annotations_dict=annotations_dict, predictions_dict=None)
 
        # *************************************** LABELLING INTERFACE *******************************************
-            with main_col2:
+            with main_col2.container():
                 logger.debug("Showing LABEL STUDIO EDITOR INTERFACE")
                 st.write(
                     f"### **{session_state.task.filetype.name}: {session_state.task.name}**")
                 labelstudio_editor(
                     session_state.project.editor.editor_config, interfaces, user, task, key="labelling_interface")
-
+                # temporary workaround to make sure labelstudio_editor does not get covered
+                st.markdown("""
+                <style>
+                iframe {
+                    height: calc(200vh + 500px);
+                }
+                </style>
+                """, unsafe_allow_html=True)
         # *************************************** LABELLING INTERFACE *******************************************
 
         # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
@@ -352,6 +360,8 @@ def editor(data_id: List = []):
 #  within the small `div` container after a submission,
 #  so it does not work properly for now....
 # SOLUTION: Use st.dataframe at the side instead of rendering only the Label Studio Editor
+#  - OR use the st.markdown to change the CSS styling for `iframe` tag, which is the tag
+#    of the Label Studio Editor HTML component
 
 # only show the Label Studio interface for labeling, without data_table
     if session_state.show_next_unlabeled:
@@ -378,8 +388,10 @@ def editor(data_id: List = []):
         else:
             logger.info("All tasks labeled successfully for Project ID: "
                         f"{session_state.project.id}")
-            st.success("🎉 **You have labeled all tasks!**")
-            # clear the Label Studio Editor
+            note_place.success("🎉 **You have labeled all tasks!**")
+            st.balloons()
+            # clear the title and Label Studio Editor
+            title_place.empty()
             main_col2.empty()
             st.stop()
 # ************************ AUTO NEXT TASK ********************************************************
