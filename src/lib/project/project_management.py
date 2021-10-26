@@ -342,6 +342,8 @@ class Project(BaseProject):
                     f"Copying images into each class folder in {project_img_path}")
                 for row in df.values:
                     image_path = Path(row[0])   # first row for image_path
+                    # getting the absolute path to the image
+                    image_path = DATASET_DIR / image_path
                     label = str(row[2])         # third row for label name
                     copy_images(image_path, label)
                 logger.info(
@@ -382,15 +384,16 @@ class Project(BaseProject):
         # the col_names can be changed if necessary
         df = pd.DataFrame(all_annots, columns=col_names)
 
-        def get_dataset_path(image_path):
-            full_image_path = str((DATASET_DIR / image_path).resolve())
-            return {"image": full_image_path}
+        def get_image_path(image_path):
+            # not using this for now because wants to use relative path instead
+            # full_image_path = str((DATASET_DIR / image_path).resolve())
+            return {"image": image_path}
 
         def create_annotations(result):
             return [{"result": result}]
 
         # create the format required to use Label Studio converter to export
-        df['data'] = df['image_path'].apply(get_dataset_path)
+        df['data'] = df['image_path'].apply(get_image_path)
         df['annotations'] = df['result'].apply(create_annotations)
         # drop the columns not necessary for converting
         df.drop(columns=['image_path', 'result'], inplace=True)
@@ -452,7 +455,7 @@ class Project(BaseProject):
 
     @staticmethod
     def query_annotations(project_id: int, return_dict: bool = True, for_training_id: int = 0) -> Tuple[List[Dict], List]:
-        """Query annotatinos for this project. If `for_training_id` is provided,
+        """Query annotations for this project. If `for_training_id` is provided,
         then only the annotations associated with the `training_id` is queried."""
         if for_training_id > 0:
             sql_query = """
@@ -666,7 +669,7 @@ class Project(BaseProject):
         """Method to reset all widgets and attributes in the Project Page when changing pages
         """
 
-        project_attributes = ["all_project_table", "project", "editor", 
+        project_attributes = ["all_project_table", "project", "editor",
                               "labelling_pagination", "existing_project_pagination"]
 
         reset_page_attributes(project_attributes)

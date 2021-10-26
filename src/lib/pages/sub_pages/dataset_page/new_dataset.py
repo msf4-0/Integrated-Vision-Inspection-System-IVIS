@@ -312,7 +312,6 @@ def new_dataset(RELEASE=True, conn=None):
 
                     if session_state.is_labeled:
                         if 'project' not in session_state:
-                            # ***************** COPIED FROM new_project.py *****************
                             # We need to insert the project_dataset here after the dataset
                             # has been stored
                             with st.spinner("Initializing the project with the uploaded labeled dataset ..."):
@@ -325,7 +324,6 @@ def new_dataset(RELEASE=True, conn=None):
                                     session_state.new_dataset.name]
                                 session_state.new_project.insert_project_dataset(
                                     dataset_dict)
-                                # ***************** COPIED FROM new_project.py *****************
 
                             project_id = session_state.new_project.id
                             del session_state['new_project']
@@ -340,6 +338,12 @@ def new_dataset(RELEASE=True, conn=None):
                                 for_data_table=True)
                             task_df = Task.create_all_task_dataframe(
                                 all_task, all_task_column_names)
+
+                            # taking only the Path stem to consider the case of Label Studio exported
+                            #  XML filenames without any file extension
+                            if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
+                                task_df.iloc[:, 0] = task_df.iloc[:, 0].apply(
+                                    lambda x: Path(x).stem)
 
                         total_images = len(task_df)
                         filetype = session_state.new_dataset.filetype
@@ -357,8 +361,7 @@ def new_dataset(RELEASE=True, conn=None):
                                 logger.debug(f"Annotation result {result}")
 
                                 task_row = task_df.loc[
-                                    task_df['Task Name'].str.contains(
-                                        img_name, regex=False)
+                                    task_df['Task Name'] == img_name
                                 ].to_dict(orient='records')[0]
 
                                 start = perf_counter()
@@ -397,7 +400,10 @@ def new_dataset(RELEASE=True, conn=None):
                                     f"Average {time_elapsed / len(task_df):.4f}s per image")
 
                         with st.spinner("Updating project labels and editor configuration ..."):
-                            default_labels = session_state.project.editor.get_labels()
+                            default_labels = list(
+                                session_state.project.editor.get_labels())
+                            logger.debug("Default labels found in "
+                                         f"editor config: {default_labels}")
                             project_id = session_state.project.id
                             # get the unique new labels from all the annotations
                             new_labels = session_state.project.get_existing_unique_labels(
@@ -415,6 +421,7 @@ def new_dataset(RELEASE=True, conn=None):
 
                             # remove the default_labels came with the original editor_config
                             for label in default_labels:
+                                logger.debug(f"Removing label: {label}")
                                 session_state.project.editor.labels.remove(
                                     label)
                                 removedChild = session_state.project.editor.remove_label(

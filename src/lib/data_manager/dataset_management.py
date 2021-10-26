@@ -142,8 +142,6 @@ def convert_xml2_ls(xml_str: str) -> Tuple[str, List[Dict[str, Any]]]:
     Note that Label Studio generates a List of Dict of results."""
     # converting for one XML file, i.e. one image
     root = ET.fromstring(xml_str)
-    # or from decoded string from Streamlit UploadedFile
-    # root = ET.fromstring(xml_str)
     filename = root.find("filename").text
     ori_width = int(root.find("size").find("width").text)
     ori_height = int(root.find("size").find("height").text)
@@ -175,7 +173,7 @@ def convert_xml2_ls(xml_str: str) -> Tuple[str, List[Dict[str, Any]]]:
             },
             "id": get_random_string(length=6),
             "from_name": "label",
-            "to_name": "image",
+            "to_name": "img",
             "type": "rectanglelabels"
         }
         result.append(cur_result)
@@ -249,13 +247,20 @@ class BaseDataset:
         if self.dataset:
             for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading data"):
                 img_name = img.name
-                logger.info(img.name)
+                logger.debug(img.name)
                 save_path = Path(self.dataset_path) / str(img_name)
 
                 # st.title(img.name)
                 try:
-                    with Image.open(img) as pil_img:
-                        pil_img.save(save_path)
+                    # with Image.open(img) as pil_img:
+                    #     pil_img.save(save_path)
+
+                    # using OpenCV instead of Pillow for now because Pillow has a problem
+                    #  of reading the image in a rotated shape sometimes,
+                    #  i.e. width and height inverted
+                    cv_img = np.frombuffer(img.getvalue(), dtype=np.uint8)
+                    cv_img = cv2.imdecode(cv_img, cv2.IMREAD_COLOR)
+                    cv2.imwrite(save_path, cv_img)
                 except ValueError as e:
                     logger.error(
                         f"{e}: Could not resolve output format for '{str(img_name)}'")
@@ -265,7 +270,7 @@ class BaseDataset:
                 else:
                     relative_dataset_path = str(
                         Path(self.dataset_path).relative_to(BASE_DATA_DIR))
-                    logger.info(
+                    logger.debug(
                         f"Successfully stored '{str(img_name)}' in \'{relative_dataset_path}\' ")
             return True
 
@@ -499,18 +504,20 @@ class NewDataset(BaseDataset):
         for xml_file in xml_files:
             xml_str = xml_file.getvalue().decode()
             image_name, annot_result = convert_xml2_ls(xml_str)
+            # taking only the Path stem to consider the case of Label Studio exported
+            #  XML filenames without any file extension
+            image_name = Path(image_name).stem
             yield image_name, annot_result
 
     def parse_classification_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded CSV and yield the image name and annotation result in
         Label Studio JSON result format"""
         # only one CSV file after validation is passed
-        csv_file = self.annotation_files[0]
-        df = pd.read_csv(csv_file, dtype=str)
+        df = pd.read_csv(self.annotation_files[0], dtype=str)
         for img_name, label in df.values:
             result = [
                 {
-                    "id": get_random_string(length=10),
+                    "id": get_random_string(length=6),
                     "type": "choices",
                     "value": {"choices": [label]},
                     "to_name": "image",
@@ -523,8 +530,7 @@ class NewDataset(BaseDataset):
         """Parse the uploaded JSON file and yield the image name and annotation result in
         Label Studio JSON result format"""
         # only one COCO JSON file after validation is passed
-        json_file = self.annotation_files[0]
-        coco_json = json.load(json_file)
+        coco_json = json.load(self.annotation_files[0])
         # only need to convert back to the result column format to
         # save in database annotations table
         # with keys: width, height, file_name
@@ -533,26 +539,25 @@ class NewDataset(BaseDataset):
             img_id = image_dict.pop("id")
             image_id2info[img_id] = image_dict
 
-        # with keys: name
         cat_id2name = {}
         for category_dict in coco_json['categories']:
             cat_id = category_dict.pop("id")
-            cat_id2name[cat_id] = category_dict
+            cat_id2name[cat_id] = category_dict['name']
 
-        prev_img_id = None
+        # initial image_id is always 0
+        prev_img_id = 0
+        result = []
         for annot in coco_json['annotations']:
             annot_id = annot['id']
             img_id = annot['image_id']
             img_info = image_id2info[img_id]
-            filename = img_info['file_name']
+            filename = os.path.basename(img_info['file_name'])
 
-            if not prev_img_id:
-                # first image_id
-                prev_img_id = img_id
-                result = []
             if prev_img_id != img_id:
                 # generate the filename and all the annotation results
                 # for the image of prev_img_id
+                logger.debug(f"Reached new image ID {img_id}, "
+                             f"yielding result for previous img_id {prev_img_id}")
                 yield filename, result
                 # then reset the result list and update for new image_id
                 result = []
@@ -582,6 +587,9 @@ class NewDataset(BaseDataset):
                 "type": "polygonlabels"
             }
             result.append(curr_result)
+        # yield the result for the final image
+        logger.debug(f"Yielding result for final image {filename}")
+        yield filename, result
 
     def insert_dataset(self):
         insert_dataset_SQL = """

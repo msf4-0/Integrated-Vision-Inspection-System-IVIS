@@ -72,7 +72,7 @@ from data_manager.database_manager import init_connection
 from project.project_management import Project
 from training.training_management import Training, AugmentationConfig
 from training.labelmap_management import Framework, Labels
-from path_desc import (TFOD_DIR, PRE_TRAINED_MODEL_DIR,
+from path_desc import (DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
 from .utils import (LRTensorBoard, StreamlitOutputCallback, find_tfod_eval_metrics, generate_tfod_xml_csv, get_bbox_label_info, get_transform, run_command, run_command_update_metrics_2,
@@ -222,7 +222,7 @@ class Trainer:
     def train(self, is_resume: bool = False, stdout_output: bool = False):
         logger.debug("Clearing all existing Streamlit cache")
         # clearing all cache in case there is something weird happen with the
-        # st.experimental_memo methods
+        # st.experimental_memo or st.cache methods
         st.legacy_caching.clear_cache()
 
         with st.spinner("Exporting tasks for training ..."):
@@ -261,8 +261,6 @@ class Trainer:
             pass
 
     def export_model(self):
-        # msg_container is generated from st.container to show message under
-        # the Export button
         logger.info(f"Exporting model for Training ID {self.training_id}, "
                     f"Model ID {self.training_model_id}")
         if self.deployment_type == 'Object Detection with Bounding Boxes':
@@ -477,6 +475,7 @@ class Trainer:
                 # Must provide both image_dir and csv_path to skip the `xml_to_df` conversion step
                 run_command(
                     f'python {files["GENERATE_TF_RECORD"]} '
+                    f'-e jpg png '
                     f'-i {paths["IMAGE_PATH"] / "train"} '
                     f'-l {files["LABELMAP"]} '
                     f'-d {train_xml_csv_path} '
@@ -485,6 +484,7 @@ class Trainer:
             else:
                 run_command(
                     f'python {files["GENERATE_TF_RECORD"]} '
+                    f'-e jpg png '
                     f'-x {paths["IMAGE_PATH"] / "train"} '
                     f'-l {files["LABELMAP"]} '
                     f'-o {paths["ANNOTATION_PATH"] / "train.record"}'
@@ -492,6 +492,7 @@ class Trainer:
             # test set images are not augmented
             run_command(
                 f'python {files["GENERATE_TF_RECORD"]} '
+                f'-e jpg png '
                 f'-x {paths["IMAGE_PATH"] / "test"} '
                 f'-l {files["LABELMAP"]} '
                 f'-o {paths["ANNOTATION_PATH"] / "test.record"}'
@@ -1081,16 +1082,20 @@ class Trainer:
             # getting the CSV file exported from the dataset
             # the CSV file generated has these columns:
             # image, id, label, annotator, annotation_id, created_at, updated_at, lead_time.
-            # The first col `image` contains the absolute paths to the images
+            # The first col `image` contains the relative paths to the images
             dataset_df = pd.read_csv(self.dataset_export_path / 'result.csv')
+            # convert the relative paths to absolute paths
+            dataset_df['image'] = dataset_df['image'].apply(
+                lambda x: str(DATASET_DIR / x))
             image_paths = dataset_df['image'].values.astype(str)
-            print(f"\n{os.path.exists(image_paths[0]) = }")
             label_series = dataset_df['label'].astype('category')
             encoded_labels = label_series.cat.codes.values
             # use this to store the classnames with their indices as keys
             encoded_label_dict = dict(enumerate(label_series.cat.categories))
         elif segmentation:
             # TODO: segmentation training
+            # NOTE: the COCO JSON image_path is also relative path to the image
+            #  remember to get the absolute path through DATASET_DIR first
             pass
 
         # ************* Generate train & test images in the folder *************
@@ -1176,7 +1181,7 @@ class Trainer:
         logger.info("Training model...")
         start = time.perf_counter()
         with st.spinner("Training model ..."):
-            history = model.fit(
+            model.fit(
                 train_ds,
                 validation_data=validation_data,
                 initial_epoch=initial_epoch,
@@ -1227,8 +1232,8 @@ class Trainer:
             pred_proba = model.predict(test_ds)
             preds = np.argmax(pred_proba, axis=-1)
             y_true = np.concatenate([y for x, y in test_ds], axis=0)
-            unique_labels = [str(encoded_label_dict[label])
-                             for label in np.unique(y_true)]
+            unique_labels = [str(encoded_label_dict[label_id])
+                             for label_id in np.unique(y_true)]
 
         with st.spinner("Generating classification report ..."):
             classif_report = classification_report(

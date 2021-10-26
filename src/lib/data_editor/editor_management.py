@@ -458,7 +458,7 @@ class Editor(BaseEditor):
 
             else:
                 error_msg = f"Child node does not exist"
-                logger.error(error_msg)
+                logger.debug(error_msg)
 
         if removedChild:
             # NOTE Update when submit button is pressed -> CALLBACK

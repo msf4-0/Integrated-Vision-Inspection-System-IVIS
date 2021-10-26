@@ -258,7 +258,7 @@ class Task(BaseTask):
             logger.error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
-    @st.cache
+    # @st.cache
     def generate_data_url(self):
         """Generate data url from OpenCV numpy array
 
@@ -275,7 +275,7 @@ class Task(BaseTask):
             logger.error(f"{e}: Failed to generate data url for {self.name}")
             return None
 
-    @st.cache
+    # @st.cache
     def load_data(self):
         if self.filetype == FileTypes.Image:
             self.data_object = load_image(self.data_path, opencv_flag=True)
@@ -289,7 +289,7 @@ class Task(BaseTask):
 
         return self.data_object
 
-    @st.cache
+    # @st.cache
     def get_data(self):
 
         # data = self.data_list.get(self.name)
