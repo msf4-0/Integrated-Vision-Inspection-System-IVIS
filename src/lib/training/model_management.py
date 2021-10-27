@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import inspect
 import json
 import sys
 from collections import namedtuple
@@ -903,6 +904,66 @@ class BaseModel:
                 # `model_func` are the functions required for using the `keras_unet_collection` library
                 models_df.drop(columns='model_func', inplace=True)
         return models_df
+
+
+@st.experimental_memo
+def get_segmentation_model_funcs() -> Dict[str, List[str]]:
+    """Get only the model function names that have simpler parameters
+    for our training purpose, with their parameters as Dict values."""
+
+    """Model functions with their parameters:
+
+    `att_unet_2d`
+    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up',
+    'activation', 'atten_activation', 'attention', 'output_activation', 'batch_norm',
+    'pool', 'unpool', 'backbone', 'weights', 'freeze_backbone',
+    'freeze_batch_norm', 'name']
+
+    `r2_unet_2d`
+    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up',
+    'recur_num', 'activation', 'output_activation', 'batch_norm',
+    'pool', 'unpool', 'name']
+    
+    `resunet_a_2d`
+    ['input_size', 'filter_num', 'dilation_num', 'n_labels', 'aspp_num_down',
+    'aspp_num_up', 'activation', 'output_activation', 'batch_norm', 'pool',
+    'unpool', 'name']
+
+    `unet_2d`
+    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up', 
+    'activation', 'output_activation', 'batch_norm', 'pool', 'unpool', 
+    'backbone', 'weights', 'freeze_backbone', 'freeze_batch_norm', 'name']
+
+    `unet_plus_2d`
+    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up', 
+    'activation', 'output_activation', 'batch_norm', 'pool', 'unpool', 'deep_supervision',
+    'backbone', 'weights', 'freeze_backbone', 'freeze_batch_norm', 'name']
+    """
+    from keras_unet_collection import models
+    model_func2params = {}
+    for func_name in dir(models):
+        # not using the Transformer model as it doesn't work for new NumPy version,
+        # according to the library's repo https://github.com/yingkaisha/keras-unet-collection
+        if func_name.endswith('2d') and func_name != 'transunet_2d':
+            signature = inspect.signature(getattr(models, func_name))
+            parameters = list(signature.parameters.keys())
+            # only take the models that have "filter_num" and "stack_num_up" params
+            # for simpler use case; also ResUnet-a as it is quite new and good
+            if set(('filter_num', 'stack_num_up')).issubset(parameters) \
+                    or (func_name == 'resunet_a_2d'):
+                model_func2params[func_name] = parameters
+    return model_func2params
+
+
+@st.experimental_memo
+def get_segmentation_model_name2func() -> Dict[str, str]:
+    """Return a Dict of Model Name -> Model function name to be able to 
+    use it with keras_unet_collection.models"""
+    df = Model.get_pretrained_model_details(
+        "Semantic Segmentation with Polygons")
+    df.set_index('Model Name', inplace=True)
+    model_name2func = df['model_func'].to_dict()
+    return model_name2func
 
 
 class NewModel(BaseModel):

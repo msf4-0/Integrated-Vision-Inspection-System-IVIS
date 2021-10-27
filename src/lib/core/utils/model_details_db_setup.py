@@ -202,7 +202,7 @@ def scrape_setup_model_details(conn):
     model_df['links'] = model_links
     model_df.columns = ["model_func", "Model Name", "Reference", "links"]
     # dropping the last two models built with Transformers as they don't work for new NumPy version,
-    # refer to the repo for more details
+    # refer to the repo for more details https://github.com/yingkaisha/keras-unet-collection
     model_df.drop(model_df.index[-2:], inplace=True)
     model_df.to_csv(SEGMENT_MODELS_TABLE_PATH, index=False)
 

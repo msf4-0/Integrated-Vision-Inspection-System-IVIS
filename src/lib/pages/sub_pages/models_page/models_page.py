@@ -66,7 +66,7 @@ from pages.sub_pages.models_page.models_subpages.user_model_upload import user_m
 from pages.sub_pages.training_page.new_training_subpages import new_training_augmentation_config, new_training_infodataset, new_training_training_config
 from pages.sub_pages.training_page import run_training_page
 from project.project_management import Project
-from training.model_management import Model, ModelsPagination, NewModel
+from training.model_management import Model, ModelsPagination, NewModel, get_segmentation_model_funcs
 from training.training_management import (NewTraining, NewTrainingPagination,
                                           NewTrainingSubmissionHandlers,
                                           Training)
@@ -212,9 +212,14 @@ def existing_models():
     logger.debug(f"""Loading pretrained model details for Project ID:
         {session_state.project.id} with deployment type:
         '{session_state.project.deployment_type}'""")
+    if session_state.project.deployment_type == "Semantic Segmentation with Polygons":
+        # we need the `model_func` column
+        for_display = False
+    else:
+        for_display = True
     models_df = Model.get_pretrained_model_details(
         session_state.project.deployment_type,
-        for_display=True
+        for_display=for_display
     )
 
     if session_state.new_training.attached_model is not None:
@@ -234,6 +239,14 @@ def existing_models():
             models_df = models_df.drop(unwanted_idxs).reset_index(drop=True)
             model_idx = int(models_df.loc[
                 models_df['Model Name'] == "ResNet50"].index[0])
+        else:
+            # get only the models used for our training in this app
+            model_func_names = list(get_segmentation_model_funcs().keys())
+            models_df = models_df[models_df['model_func'].isin(
+                model_func_names)]
+            model_idx = int(models_df.loc[
+                models_df['Model Name'] == 'U-net'].index[0])
+            models_df.drop(columns='model_func', inplace=True)
 
     st.dataframe(models_df, width=1500)
 

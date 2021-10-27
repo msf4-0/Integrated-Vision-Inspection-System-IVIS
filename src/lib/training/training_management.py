@@ -66,7 +66,7 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 from project.project_management import Project
-from training.model_management import BaseModel, Model, NewModel
+from training.model_management import BaseModel, Model, NewModel, get_segmentation_model_funcs, get_segmentation_model_name2func
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -804,7 +804,6 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
-
     @staticmethod
     def reset_new_training_page():
 
@@ -1275,6 +1274,7 @@ class Training(BaseTraining):
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
 
+
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
                                         deployment_type: Union[str, IntEnum],
@@ -1470,6 +1470,26 @@ class Training(BaseTraining):
         # as we allow the user to use it to train a new model
         self.reset_training_progress()
 
+    def get_segmentation_model_params(self, training_param_dict: Dict[str, Any] = None
+                                      ) -> Dict[str, Any]:
+        """Get the appropriate segmentation model parameters that can be directly
+        feed to the `keras_unet_collection` models. These model parameters are extracted
+        from `self.training_param_dict` submitted in the training_config page."""
+        model_func2params = get_segmentation_model_funcs()
+        model_name2func = get_segmentation_model_name2func()
+        model_func = model_name2func[self.attached_model.name]
+        suitable_params = model_func2params[model_func]
+
+        if not training_param_dict:
+            param_dict = self.training_param_dict
+            assert param_dict, ("""This training instance has no 
+            training_param submitted yet""")
+        else:
+            param_dict = training_param_dict
+        model_param_dict = {k: v for k, v in param_dict.items()
+                            if k in suitable_params}
+        return model_param_dict
+
     @staticmethod
     def reset_training_page():
         # remove unwanted files to save space, only files needed
@@ -1488,7 +1508,7 @@ class Training(BaseTraining):
                         shutil.rmtree(p)
 
         training_attributes = ["training", "training_pagination", "labelling_pagination",
-                               "training_param_dict", "new_training", "trainer", "start_idx",
+                               "new_training", "trainer", "start_idx",
                                "augmentation_config"
                                ]
         # this might be required to avoid issues with caching model-related variables
@@ -1498,6 +1518,28 @@ class Training(BaseTraining):
         st.legacy_caching.clear_cache()
 
         reset_page_attributes(training_attributes)
+
+
+def get_training_param_from_session_state(delete: bool = False) -> Dict[str, Any]:
+    """Get training_param from session_state with keys starting with `param_`,
+    then remove the `param_` part from the name and return the training_param `Dict`.
+    Then delete the params from session_state if necessary after submission.
+
+    e.g. `{"param_batch_size": 32} -> {"batch_size": 32}`"""
+    to_delete = []  # delete from session_state
+    training_param = {}
+    for k, v in session_state.items():
+        if k.startswith('param_'):
+            to_delete.append(k)
+            # e.g. param_batch_size -> batch_size
+            new_key = k.replace('param_', '')
+            training_param[new_key] = v
+    if delete:
+        for k in to_delete:
+            # delete the params as they are not needed anymore after submission
+            del session_state[k]
+
+    return training_param
 
 
 def main():
