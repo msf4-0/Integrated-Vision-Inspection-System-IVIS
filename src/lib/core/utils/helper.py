@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+import logging
 import mimetypes
 import sys
 from collections import namedtuple
@@ -39,6 +40,49 @@ from data_manager.database_manager import db_fetchone, init_connection
 from path_desc import chdir_root
 
 conn = init_connection(**st.secrets["postgres"])
+
+
+class TimerError(Exception):
+    """A custom exception used to report errors in use of Timer class"""
+
+
+class Timer:
+    def __init__(self, description: str = '', disable: bool = None):
+        self.description = description
+        self._start_time = None
+        if disable is not None:
+            # optionally enable/disable it
+            self._disabled = disable
+        else:
+            # disable Timer if logger level is not equal to logging.DEBUG
+            self._disabled = True if logger.getEffectiveLevel() != logging.DEBUG else False
+
+    def start(self):
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise TimerError(f"Timer is running. Use .stop() to stop it")
+
+        self._start_time = perf_counter()
+
+    def stop(self):
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise TimerError(f"Timer is not running. Use .start() to start it")
+
+        time_elapsed = perf_counter() - self._start_time
+        self._start_time = None
+        logger.debug(f"{self.description} [{time_elapsed:.4f} seconds]")
+
+    def __enter__(self):
+        """Start a new timer as a context manager"""
+        if not self._disabled:
+            self.start()
+        return self
+
+    def __exit__(self, *exc_info):
+        """Stop the context manager timer"""
+        if not self._disabled:
+            self.stop()
 
 
 class HSV(NamedTuple):

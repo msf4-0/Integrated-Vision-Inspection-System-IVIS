@@ -26,6 +26,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import json
 import os
+import shutil
 import sys
 from operator import itemgetter
 from base64 import b64encode
@@ -73,7 +74,7 @@ from core.utils.log import logger  # logger
 # >>>> User-defined Modules >>>>
 from path_desc import BASE_DATA_DIR, DATASET_DIR, MEDIA_ROOT, chdir_root
 
-from data_manager.database_manager import (db_fetchall, db_fetchone,
+from data_manager.database_manager import (db_fetchall, db_fetchone, db_no_fetch,
                                            init_connection)
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -180,13 +181,33 @@ def convert_xml2_ls(xml_str: str) -> Tuple[str, List[Dict[str, Any]]]:
     return filename, result
 
 
+def check_coco_json_keys(coco_json: Dict[str, Any]):
+    main_key2sub_keys = {
+        "images": ["width", "height", "id", "file_name"],
+        "categories": ["id", "name"],
+        "annotations": ["id", "image_id", "category_id",
+                        "segmentation", "bbox", "iscrowd", "area"]}
+
+    for main_key, sub_keys in main_key2sub_keys.items():
+        if main_key not in coco_json:
+            st.error(f'Not a valid COCO JSON file for segmentation: '
+                     f'"{main_key}" not found in COCO JSON!')
+            st.stop()
+        for sub_key in sub_keys:
+            # check only the first Dict within the main_key
+            if sub_key not in coco_json[main_key][0][0]:
+                st.error(f'Not a valid COCO JSON file for segmentation: "{sub_key}" '
+                         f'not found in COCO JSON\'s "{main_key}" values!')
+                st.stop()
+
+
 def convert_coco2ls_points(segmentation: List[List[float]],
                            original_width: int,
-                           original_height: int) -> List[List[float]]:
+                           original_height: int) -> List[Tuple[float, float]]:
     """Convert the COCO JSON's segmentation values to Label Studio scaled (x, y) values."""
     def scale(x, y):
-        x = x * 100 / original_width
-        y = y * 100 / original_height
+        x = x * 100.0 / original_width
+        y = y * 100.0 / original_height
         return x, y
 
     # concatenate into a list, with each of 2 consecutive values as tuple(x, y)
@@ -199,8 +220,8 @@ def convert_coco2ls_points(segmentation: List[List[float]],
 class BaseDataset:
     def __init__(self, dataset_id) -> None:
         self.dataset_id = dataset_id
-        self.name: str = None
-        self.desc: str = None
+        self.name: str = ''
+        self.desc: str = ''
         self.dataset_size: int = None  # Number of files
         self.dataset_path: Path = None
         self.deployment_id: Union[str, int] = None
@@ -292,7 +313,7 @@ class BaseDataset:
             dataset_name)  # change name to lowercase
         # join directory name with '-' dash
         dataset_path = DATASET_DIR / str(directory_name)
-        logger.info(f"Dataset Path: {dataset_path}")
+        logger.debug(f"Dataset Path: {dataset_path}")
         return dataset_path
 
     def save_dataset(self) -> bool:
@@ -311,6 +332,21 @@ class BaseDataset:
         if self.dataset_PNG_encoding():
             # st.success(f"Successfully created **{self.name}** dataset")
             return self.dataset_path
+
+    def delete_dataset(self):
+        sql_delete = """
+                    DELETE 
+                    FROM public.dataset 
+                    WHERE name = %s
+        """
+        delete_vars = [self.name]
+        db_no_fetch(sql_delete, conn, delete_vars)
+        logger.info(f"Deleted existing dataset of name: {self.name}")
+
+        dataset_path = self.get_dataset_path(self.name)
+        if dataset_path.exists():
+            shutil.rmtree(dataset_path)
+            logger.debug(f"Removed dataset directory at: {dataset_path}")
 
 
 class NewDataset(BaseDataset):
@@ -451,6 +487,9 @@ class NewDataset(BaseDataset):
         # ***************** Checking JSON file data *****************
         elif required_filetype == 'json':
             coco_json = json.load(annotation_file)
+
+            check_coco_json_keys(coco_json)
+
             annot_img_names = [os.path.basename(d['file_name'])
                                for d in coco_json['images']]
             if len(annot_img_names) != len(files):
@@ -489,7 +528,10 @@ class NewDataset(BaseDataset):
             return self.annotation_files, files
         return files
 
-    def annotation_parser(self, deployment_type: str) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    def parse_annotation_files(self, deployment_type: str) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+        """Parse the uploaded annotation files based on the `deployment_type` and
+        yield the image name and annotation result in Label Studio JSON result format
+        to save in database annotations table"""
         if deployment_type == 'Object Detection with Bounding Boxes':
             return self.parse_bbox_annotations()
         elif deployment_type == 'Image Classification':
@@ -500,13 +542,19 @@ class NewDataset(BaseDataset):
     def parse_bbox_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded XML files and yield the image name and annotation result in
         Label Studio JSON result format"""
-        xml_files = self.annotation_files
-        for xml_file in xml_files:
+        for xml_file in self.annotation_files:
             xml_str = xml_file.getvalue().decode()
-            image_name, annot_result = convert_xml2_ls(xml_str)
-            # taking only the Path stem to consider the case of Label Studio exported
-            #  XML filenames without any file extension
-            image_name = Path(image_name).stem
+            try:
+                image_name, annot_result = convert_xml2_ls(xml_str)
+            except Exception as e:
+                st.error(f'Error parsing XML file "{xml_file.name}" : {e}  \n'
+                         'Please try checking your annotation file(s) again before uploading.')
+                # delete the invalid dataset
+                self.delete_dataset()
+                st.stop()
+            # taking only the filename without extension to consider the case of
+            #  Label Studio exported XML filenames without any file extension
+            image_name = os.path.splitext(image_name)[0]
             yield image_name, annot_result
 
     def parse_classification_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
@@ -531,8 +579,7 @@ class NewDataset(BaseDataset):
         Label Studio JSON result format"""
         # only one COCO JSON file after validation is passed
         coco_json = json.load(self.annotation_files[0])
-        # only need to convert back to the result column format to
-        # save in database annotations table
+
         # with keys: width, height, file_name
         image_id2info = {}
         for image_dict in coco_json['images']:
@@ -565,15 +612,24 @@ class NewDataset(BaseDataset):
 
             original_width = img_info['width']
             original_height = img_info['height']
-            points = convert_coco2ls_points(
-                annot['segmentation'],
-                original_width,
-                original_height
-            )
+
+            try:
+                points = convert_coco2ls_points(
+                    annot['segmentation'],
+                    original_width,
+                    original_height
+                )
+            except Exception as e:
+                st.error(f"Error converting COCO segmentation values to Label Studio "
+                         f"scaled values: {e}  \nPlease try checking your "
+                         "COCO JSON file again before uploading.")
+                # delete the invalid dataset
+                self.delete_dataset()
+                st.stop()
 
             label = cat_id2name[annot['category_id']]
 
-            curr_result = {
+            current_annot_result = {
                 "original_width": original_width,
                 "original_height": original_height,
                 "image_rotation": 0,
@@ -586,7 +642,7 @@ class NewDataset(BaseDataset):
                 "to_name": "image",
                 "type": "polygonlabels"
             }
-            result.append(curr_result)
+            result.append(current_annot_result)
         # yield the result for the final image
         logger.debug(f"Yielding result for final image {filename}")
         yield filename, result

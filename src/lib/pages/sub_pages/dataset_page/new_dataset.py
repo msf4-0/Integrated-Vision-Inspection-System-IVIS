@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import os
 import sys
 from copy import deepcopy
 from enum import IntEnum
@@ -49,7 +50,7 @@ for path in sys.path:
         pass
 
 from core.utils.code_generator import get_random_string
-from core.utils.helper import check_filetype
+from core.utils.helper import Timer, check_filetype
 from core.utils.log import logger
 from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
@@ -339,65 +340,55 @@ def new_dataset(RELEASE=True, conn=None):
                             task_df = Task.create_all_task_dataframe(
                                 all_task, all_task_column_names)
 
-                            # taking only the Path stem to consider the case of Label Studio exported
-                            #  XML filenames without any file extension
+                            # taking only the filename without extension to consider the
+                            #  case of Label Studio exported XML filenames without
+                            #  any file extension
                             if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
                                 task_df.iloc[:, 0] = task_df.iloc[:, 0].apply(
-                                    lambda x: Path(x).stem)
+                                    lambda filename: os.path.splitext(filename)[0])
 
                         total_images = len(task_df)
                         filetype = session_state.new_dataset.filetype
                         logger.info("Submitting uploaded annotations ...")
+
                         start_t = perf_counter()
-                        with st.spinner("Inserting uploaded annotations into database ..."):
-                            result_generator = session_state.new_dataset.annotation_parser(
-                                session_state.project.deployment_type
-                            )
-                            for img_name, result in stqdm(result_generator,
-                                                          total=total_images,
-                                                          unit=filetype):
-                                start_task = perf_counter()
-                                logger.debug(f"Image name {img_name}")
-                                logger.debug(f"Annotation result {result}")
+                        result_generator = session_state.new_dataset.parse_annotation_files(
+                            session_state.project.deployment_type
+                        )
+                        message = "Inserting uploaded annotations into database"
+                        for img_name, result in stqdm(result_generator, total=total_images,
+                                                      unit=filetype, desc=message):
+                            start_task = perf_counter()
 
-                                task_row = task_df.loc[
-                                    task_df['Task Name'] == img_name
-                                ].to_dict(orient='records')[0]
+                            task_row = task_df.loc[
+                                task_df['Task Name'] == img_name
+                            ].to_dict(orient='records')[0]
 
-                                start = perf_counter()
+                            with Timer("Task instantiated"):
                                 task = Task(task_row,
                                             session_state.project.dataset_dict,
                                             session_state.project.id)
-                                total = perf_counter() - start
-                                logger.debug(
-                                    f"Task instantiated [{total:.4f}s]")
 
-                                start = perf_counter()
+                            with Timer("Annotation instantiated"):
                                 annotation = NewAnnotations(
                                     task, session_state.user)
-                                total = perf_counter() - start
-                                logger.debug(
-                                    f"Annotation instantiated [{total:.4f}s]")
 
-                                # Submit annotations to DB
-                                start = perf_counter()
+                            # Submit annotations to DB
+                            with Timer(f"Annotation ID {annotation.id} submitted"):
                                 annotation.submit_annotations(
                                     result, session_state.user.id, conn)
-                                total = perf_counter() - start
-                                logger.debug(
-                                    f"Annotation ID {annotation.id} submitted [{total:.4f}s]")
 
-                                time_elapsed = perf_counter() - start_task
-                                logger.info(
-                                    f"Annotation submitted successfully [{time_elapsed:.4f}s]")
+                            time_elapsed = perf_counter() - start_task
+                            logger.info(
+                                f"Annotation submitted successfully [{time_elapsed:.4f}s]")
 
                         time_elapsed = perf_counter() - start_t
                         st.success(
                             "🎉 Successfully stored all the uploaded annotations!")
                         logger.info("Successfully inserted all annotations for "
-                                    f"{len(task_df)} images into database. "
+                                    f"{total_images} images into database. "
                                     f"Took {time_elapsed:.2f} seconds. "
-                                    f"Average {time_elapsed / len(task_df):.4f}s per image")
+                                    f"Average {time_elapsed / total_images:.4f}s per image")
 
                         with st.spinner("Updating project labels and editor configuration ..."):
                             default_labels = list(
