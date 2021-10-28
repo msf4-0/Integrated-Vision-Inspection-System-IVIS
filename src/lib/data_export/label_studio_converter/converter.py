@@ -140,9 +140,10 @@ class Converter(object):
     def all_formats(self):
         return self._FORMAT_INFO
 
-    def __init__(self, config, project_dir=None, output_tags=None, upload_dir=None, download_resources=False):
+    def __init__(self, config, project_dir=None, output_tags=None, upload_dir=None, download_resources=True):
         self.project_dir = project_dir
         self.upload_dir = upload_dir
+        # NOTE: set download_resources to False if don't want to copy images to the output_dir
         self.download_resources = download_resources
         if isinstance(config, dict):
             self._schema = config

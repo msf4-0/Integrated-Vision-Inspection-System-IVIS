@@ -520,13 +520,18 @@ class Editor(BaseEditor):
         df = df.fillna(0)
         return df
 
-    def get_labelstudio_converter(self):
-        # initialize a Label Studio Converter to convert to specific output formats
-        # the `editor.editor_config` contains the current project's config in XML string format
-        #  but need to remove this line of encoding description text to work
+    def get_labelstudio_converter(self, download_resources: bool = True):
+        """Initialize a Label Studio Converter to convert to specific output formats.
+
+        Set `download_resources` to False if do not want the to also copy
+        the images to the output_dir when converting.
+        """
+        # The `editor.editor_config` contains the current project's config in XML string format
+        # but need to remove this line of XML encoding description text to work
         config_xml = self.editor_config.replace(
             r'<?xml version="1.0" encoding="utf-8"?>', '')
-        converter = Converter(config=config_xml)
+        converter = Converter(
+            config=config_xml, download_resources=download_resources)
         return converter
 
     def get_supported_format_info(

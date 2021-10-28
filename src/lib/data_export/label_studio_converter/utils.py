@@ -5,7 +5,6 @@ from lxml import etree
 from collections import defaultdict
 import requests
 import hashlib
-import logging
 import urllib
 import numpy as np
 import wave
@@ -16,8 +15,8 @@ from PIL import Image
 from urllib.parse import urlparse
 from nltk.tokenize import WhitespaceTokenizer
 
-
-logger = logging.getLogger(__name__)
+from path_desc import DATASET_DIR
+from core.utils.log import logger
 
 
 def tokenize(text):
@@ -98,7 +97,7 @@ def _get_upload_dir(project_dir=None, upload_dir=None):
 
 
 def download(url, output_dir, filename=None, project_dir=None, return_relative_path=False, upload_dir=None,
-             download_resources=False):
+             download_resources=True):
     # - All these commented lines are from original `label-studio-converter` repo
     # is_local_file = url.startswith('/data/') and '?d=' in url
     # is_uploaded_file = url.startswith('/data/upload')
@@ -131,16 +130,18 @@ def download(url, output_dir, filename=None, project_dir=None, return_relative_p
     #         hashlib.md5(url.encode()).hexdigest()[:4] + ext
     filename = os.path.basename(url)
     filepath = os.path.join(output_dir, filename)
-    if url.startswith("http"):
-        logger.info('Download {url} to {filepath}'.format(
-            url=url, filepath=filepath))
-        r = requests.get(url)
-        r.raise_for_status()
-        with io.open(filepath, mode='wb') as fout:
-            fout.write(r.content)
-    else:
-        # print(f"COPYING IMAGE from {url} to {filepath}")
-        shutil.copy2(url, filepath)
+    if download_resources:
+        if url.startswith("http"):
+            logger.info('Download {url} to {filepath}'.format(
+                url=url, filepath=filepath))
+            r = requests.get(url)
+            r.raise_for_status()
+            with io.open(filepath, mode='wb') as fout:
+                fout.write(r.content)
+        else:
+            full_image_path = DATASET_DIR / url
+            logger.debug(f"Copying image from {full_image_path} to {filepath}")
+            shutil.copy2(full_image_path, filepath)
     if return_relative_path:
         return os.path.join(os.path.basename(output_dir), filename)
     return filepath

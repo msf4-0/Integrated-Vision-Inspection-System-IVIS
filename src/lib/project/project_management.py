@@ -245,7 +245,7 @@ class Project(BaseProject):
         self.query_all_fields()
         self.project_path = self.get_project_path(self.name)
         # Instantiate Editor class object
-        self.editor: str = Editor(self.id, self.deployment_type)
+        self.editor: Editor = Editor(self.id, self.deployment_type)
 
     def download_tasks(self, *,
                        converter: Converter = None, export_format: str = None,
@@ -281,13 +281,18 @@ class Project(BaseProject):
     def export_tasks(self, converter: Optional[Converter] = None,
                      export_format: Optional[str] = None,
                      for_training_id: Optional[int] = 0,
+                     download_resources: Optional[bool] = True,
                      generate_mask: Optional[bool] = True):
         """
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to the dataset export directory.
 
         `converter` and `export_format` are optionally as they can be inferred.
 
-        If `for_training_id` > 0, this will only export the annotated dataset associated with the `training_id`, to use for training.
+        If `for_training_id` > 0, this will only export the annotated dataset associated
+        with the `training_id`, to use for training.
+
+        `download_resources` is True to also copy the images to the dataset output_dir
+        when exporting/converting in YOLO/VOC/COCO JSON format.
 
         If `generate_mask` is True, will generate mask images for segmentation task.
         """
@@ -298,17 +303,20 @@ class Project(BaseProject):
 
         # - beware here I added removing the entire existing directory before proceeding
         if output_dir.exists():
-            logger.warning(
+            logger.debug(
                 f"Removing existing exported directory: {output_dir}")
             shutil.rmtree(output_dir)
         os.makedirs(output_dir)
 
-        json_path, dataset_names = self.generate_label_json(
+        json_path = self.generate_label_json(
             for_training_id=for_training_id, output_dir=output_dir,
-            return_dataset_names=True)
+            return_dataset_names=False)
 
         if converter is None:
-            converter = self.editor.get_labelstudio_converter()
+            # NOTE: If `download_resources` is True, when in YOLO/VOC/COCO format,
+            #  the converter will also copy the images to the output_dir when converting
+            converter = self.editor.get_labelstudio_converter(
+                download_resources=download_resources)
 
         if export_format:
             export_format = Format.from_string(export_format)
@@ -364,6 +372,7 @@ class Project(BaseProject):
                 # using Pascal VOC XML format for TensorFlow Object Detection API
                 export_format = Format.VOC
 
+            # NOTE: If `download_resources` is True, this will also copy the images to output_dir
             converter.convert(json_path, output_dir,
                               export_format, is_dir=False)
 
@@ -372,6 +381,7 @@ class Project(BaseProject):
                 # using COCO JSON format for segmentation
                 export_format = Format.COCO
 
+            # NOTE: If `download_resources` is True, this will also copy the images to output_dir
             converter.convert(json_path, output_dir,
                               export_format, is_dir=False)
             if export_format == Format.COCO:
@@ -385,18 +395,8 @@ class Project(BaseProject):
                 mask_folder = output_dir / "masks"
                 generate_mask_images(json_path, mask_folder)
 
-            # also copy the images because Label Studio export does not copy them
-            project_img_path = output_dir / "images"
-            dataset_dirs = [DATASET_DIR /
-                            get_directory_name(x) for x in dataset_names]
-            with st.spinner("Copying images from dataset folder to the export folder ..."):
-                for d in dataset_dirs:
-                    logger.debug(
-                        f"Copying images from {d} to {project_img_path}")
-                    shutil.copytree(d, project_img_path, dirs_exist_ok=True)
-
-        logger.debug(f"Exported tasks in format {export_format} for "
-                     f"{self.deployment_type} for Project ID: {self.id}")
+        logger.info(f"Exported tasks in {export_format} format for "
+                    f"{self.deployment_type} for Project ID: {self.id}")
 
     def get_export_path(self) -> Path:
         """Get the path to the exported images and annotations"""
@@ -497,7 +497,11 @@ class Project(BaseProject):
 
     def query_annotations(self, for_training_id: int = 0, return_dict: bool = True) -> Tuple[List[Dict], List]:
         """Query annotations for this project. If `for_training_id` is provided,
-        then only the annotations associated with the `training_id` is queried."""
+        then only the annotations associated with the `training_id` is queried.
+
+        Note that the `image_path` queried from the database is generated in the same way
+        as the `helper.get_directory_name` function.
+        """
         if for_training_id > 0:
             sql_query = """
                 SELECT a.id AS id,

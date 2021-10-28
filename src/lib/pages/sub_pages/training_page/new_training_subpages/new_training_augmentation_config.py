@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 import time
@@ -137,10 +138,17 @@ def augmentation_configuration(RELEASE=True):
 
     # get project exported dataset folder
     exported_dataset_dir = session_state.project.get_export_path()
+    if not RELEASE:
+        # remove the export dir and export again for debugging purpose
+        if exported_dataset_dir.exists():
+            logger.debug("Removing existing export directory: "
+                         f"{exported_dataset_dir}")
+            shutil.rmtree(exported_dataset_dir)
     if not exported_dataset_dir.exists():
         # export the dataset with the correct structure if not done yet
         # mask images will be generated later for a sample amount
-        session_state.project.export_tasks(generate_mask=False)
+        with st.spinner("Exporting tasks for augmentation demo ..."):
+            session_state.project.export_tasks(generate_mask=False)
     if DEPLOYMENT_TYPE == 'Image Classification':
         image_folder = exported_dataset_dir
     elif DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
@@ -289,10 +297,12 @@ def augmentation_configuration(RELEASE=True):
 
             if image_name != "Upload my image":
                 if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
+                    class_colors = create_class_colors(class_names)
                     image = draw_gt_bbox(
-                        image, bboxes, class_names=class_names)
+                        image, bboxes, class_names=class_names, class_colors=class_colors)
                     augmented_image = draw_gt_bbox(augmented_image, data['bboxes'],
-                                                   class_names=data['class_names'])
+                                                   class_names=data['class_names'],
+                                                   class_colors=class_colors)
                 elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
                     class_names = get_coco_classes(
                         coco_json_path, return_coco=False)
