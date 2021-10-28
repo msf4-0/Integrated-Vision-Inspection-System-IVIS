@@ -66,11 +66,12 @@ from pages.sub_pages.models_page.models_subpages.user_model_upload import user_m
 from pages.sub_pages.training_page.new_training_subpages import new_training_augmentation_config, new_training_infodataset, new_training_training_config
 from pages.sub_pages.training_page import run_training_page
 from project.project_management import Project
-from training.model_management import Model, ModelsPagination, NewModel, get_segmentation_model_funcs
+from training.model_management import Model, ModelsPagination, NewModel
 from training.training_management import (NewTraining, NewTrainingPagination,
                                           NewTrainingSubmissionHandlers,
                                           Training)
 from user.user_management import User
+from training.utils import get_pretrained_model_details, get_segmentation_model_func2params
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration <<<<
@@ -217,7 +218,7 @@ def existing_models():
         for_display = False
     else:
         for_display = True
-    models_df = Model.get_pretrained_model_details(
+    models_df = get_pretrained_model_details(
         session_state.project.deployment_type,
         for_display=for_display
     )
@@ -241,7 +242,8 @@ def existing_models():
                 models_df['Model Name'] == "ResNet50"].index[0])
         else:
             # get only the models used for our training in this app
-            model_func_names = list(get_segmentation_model_funcs().keys())
+            model_func_names = list(
+                get_segmentation_model_func2params().keys())
             models_df = models_df[models_df['model_func'].isin(
                 model_func_names)]
             model_idx = int(models_df.loc[

@@ -24,23 +24,18 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
-import inspect
 import json
 import sys
 from collections import namedtuple
 from datetime import datetime
 from enum import IntEnum
 from logging import error
-from os import name
 from pathlib import Path
 from time import sleep
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 import pandas as pd
-import psycopg2
 import streamlit as st
-from PIL import Image
-from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 from streamlit.uploaded_file_manager import UploadedFile
 
@@ -56,7 +51,7 @@ else:
     pass
 
 from core.utils.code_generator import get_random_string
-from core.utils.file_handler import (create_folder_if_not_exist, list_files_in_archived,
+from core.utils.file_handler import (list_files_in_archived,
                                      save_uploaded_extract_files)
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
@@ -66,13 +61,11 @@ from core.utils.helper import (create_dataframe, dataframe2dict,
 from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
-from deployment.deployment_management import (COMPUTER_VISION_LIST, DEPLOYMENT_TYPE, Deployment,
+from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
                                               DeploymentType)
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
-                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root,
-                       TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH,
-                       SEGMENT_MODELS_TABLE_PATH)
+                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR)
 
 from training.labelmap_management import Labels
 
@@ -870,100 +863,6 @@ class BaseModel:
             self.has_submitted = True
 
         return True
-
-    @staticmethod
-    @st.experimental_memo
-    def get_pretrained_model_details(deployment_type: str, for_display: bool = False) -> pd.DataFrame:
-        """Get the model details from the CSV files scraped from their websites,
-        based on the `deployment_type`.
-
-        Args:
-            deployment_type (str): obtained from `Project.deployment_type` attribute
-            for_display (bool, optional): True to drop irrelevant columns for displaying to the users. Defaults to False.
-
-        Returns:
-            pd.DataFrame: DataFrame with pretrained model details such as Model Name.
-        """
-        assert deployment_type in DEPLOYMENT_TYPE, "This should be from `Project.deployment_type`."
-
-        if deployment_type == "Image Classification":
-            # this df has columns: Model Name
-            models_df = pd.read_csv(CLASSIF_MODELS_NAME_PATH)
-        elif deployment_type == "Object Detection with Bounding Boxes":
-            # this df has columns: Model Name, Speed (ms), COCO mAP, Outputs, model_links
-            models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH)
-            if for_display:
-                # `model_links` will be required for downloading the pretrained models for TFOD
-                models_df.drop(columns='model_links', inplace=True)
-        elif deployment_type == "Semantic Segmentation with Polygons":
-            # this df has columns: model_func, Model Name, Reference, links
-            # The `Reference` contains names of the authors
-            # The `links` are just the paper's arXiv links
-            models_df = pd.read_csv(SEGMENT_MODELS_TABLE_PATH)
-            if for_display:
-                # `model_func` are the functions required for using the `keras_unet_collection` library
-                models_df.drop(columns='model_func', inplace=True)
-        return models_df
-
-
-@st.experimental_memo
-def get_segmentation_model_funcs() -> Dict[str, List[str]]:
-    """Get only the model function names that have simpler parameters
-    for our training purpose, with their parameters as Dict values."""
-
-    """Model functions with their parameters:
-
-    `att_unet_2d`
-    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up',
-    'activation', 'atten_activation', 'attention', 'output_activation', 'batch_norm',
-    'pool', 'unpool', 'backbone', 'weights', 'freeze_backbone',
-    'freeze_batch_norm', 'name']
-
-    `r2_unet_2d`
-    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up',
-    'recur_num', 'activation', 'output_activation', 'batch_norm',
-    'pool', 'unpool', 'name']
-    
-    `resunet_a_2d`
-    ['input_size', 'filter_num', 'dilation_num', 'n_labels', 'aspp_num_down',
-    'aspp_num_up', 'activation', 'output_activation', 'batch_norm', 'pool',
-    'unpool', 'name']
-
-    `unet_2d`
-    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up', 
-    'activation', 'output_activation', 'batch_norm', 'pool', 'unpool', 
-    'backbone', 'weights', 'freeze_backbone', 'freeze_batch_norm', 'name']
-
-    `unet_plus_2d`
-    ['input_size', 'filter_num', 'n_labels', 'stack_num_down', 'stack_num_up', 
-    'activation', 'output_activation', 'batch_norm', 'pool', 'unpool', 'deep_supervision',
-    'backbone', 'weights', 'freeze_backbone', 'freeze_batch_norm', 'name']
-    """
-    from keras_unet_collection import models
-    model_func2params = {}
-    for func_name in dir(models):
-        # not using the Transformer model as it doesn't work for new NumPy version,
-        # according to the library's repo https://github.com/yingkaisha/keras-unet-collection
-        if func_name.endswith('2d') and func_name != 'transunet_2d':
-            signature = inspect.signature(getattr(models, func_name))
-            parameters = list(signature.parameters.keys())
-            # only take the models that have "filter_num" and "stack_num_up" params
-            # for simpler use case; also ResUnet-a as it is quite new and good
-            if set(('filter_num', 'stack_num_up')).issubset(parameters) \
-                    or (func_name == 'resunet_a_2d'):
-                model_func2params[func_name] = parameters
-    return model_func2params
-
-
-@st.experimental_memo
-def get_segmentation_model_name2func() -> Dict[str, str]:
-    """Return a Dict of Model Name -> Model function name to be able to 
-    use it with keras_unet_collection.models"""
-    df = Model.get_pretrained_model_details(
-        "Semantic Segmentation with Polygons")
-    df.set_index('Model Name', inplace=True)
-    model_name2func = df['model_func'].to_dict()
-    return model_name2func
 
 
 class NewModel(BaseModel):

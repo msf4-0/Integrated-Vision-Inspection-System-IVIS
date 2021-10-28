@@ -66,7 +66,8 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 from project.project_management import Project
-from training.model_management import BaseModel, Model, NewModel, get_segmentation_model_funcs, get_segmentation_model_name2func
+from training.model_management import BaseModel, Model, NewModel
+from training.utils import get_segmentation_model_func2params, get_segmentation_model_name2func
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -1475,7 +1476,7 @@ class Training(BaseTraining):
         """Get the appropriate segmentation model parameters that can be directly
         feed to the `keras_unet_collection` models. These model parameters are extracted
         from `self.training_param_dict` submitted in the training_config page."""
-        model_func2params = get_segmentation_model_funcs()
+        model_func2params = get_segmentation_model_func2params()
         model_name2func = get_segmentation_model_name2func()
         model_func = model_name2func[self.attached_model.name]
         suitable_params = model_func2params[model_func]
@@ -1518,28 +1519,6 @@ class Training(BaseTraining):
         st.legacy_caching.clear_cache()
 
         reset_page_attributes(training_attributes)
-
-
-def get_training_param_from_session_state(delete: bool = False) -> Dict[str, Any]:
-    """Get training_param from session_state with keys starting with `param_`,
-    then remove the `param_` part from the name and return the training_param `Dict`.
-    Then delete the params from session_state if necessary after submission.
-
-    e.g. `{"param_batch_size": 32} -> {"batch_size": 32}`"""
-    to_delete = []  # delete from session_state
-    training_param = {}
-    for k, v in session_state.items():
-        if k.startswith('param_'):
-            to_delete.append(k)
-            # e.g. param_batch_size -> batch_size
-            new_key = k.replace('param_', '')
-            training_param[new_key] = v
-    if delete:
-        for k in to_delete:
-            # delete the params as they are not needed anymore after submission
-            del session_state[k]
-
-    return training_param
 
 
 def main():

@@ -41,10 +41,10 @@ if str(LIB_PATH) not in sys.path:
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger  # logger
-from training.training_management import NewTrainingPagination, Training, get_training_param_from_session_state
-from training.model_management import get_segmentation_model_name2func
+from training.training_management import NewTrainingPagination, Training
 from project.project_management import Project
 from user.user_management import User
+from training.utils import get_segmentation_model_name2func, get_training_param_from_session_state
 
 
 def training_configuration(RELEASE=True):
@@ -100,22 +100,22 @@ def training_configuration(RELEASE=True):
         model_param_dict = session_state.new_training.get_segmentation_model_params(
             training_param
         )
-        try:
-            with st.spinner("Building model with the selected parameters ..."):
-                getattr(models, model_func)(**model_param_dict)
-            # raise Exception("DUMMY ERROR")
-        except Exception as e:
-            st.error("""Error building the segmentation model with the selected 
-            parameters, please try changing the parameters and try again before 
-            submitting.""")
-            st.warning("**Press 'R' to refresh**")
-            logger.error(
-                f"Error building keras_unet_collection segmentation model: {e}")
-            st.stop()
-        else:
-            train_config_col.success(f"""🎉 **{model_name}** Model was built 
-            successfully with the selected parameters! 
-            You may proceed to submit the training config.""")
+        with train_config_col:
+            try:
+                with st.spinner("Building model with the selected parameters ..."):
+                    getattr(models, model_func)(**model_param_dict)
+                # raise Exception("DUMMY ERROR")
+            except Exception as e:
+                st.error("""Error building the segmentation model with the selected 
+                parameters, please try changing the parameters and try again before 
+                submitting.""")
+                logger.error(
+                    f"Error building keras_unet_collection segmentation model: {e}")
+                st.stop()
+            else:
+                st.success(f"""🎉 **{model_name}** Model was built 
+                successfully with the selected parameters! 
+                You may proceed to submit the training config.""")
 
     with train_config_col:
         def update_training_param():
@@ -226,11 +226,14 @@ def training_configuration(RELEASE=True):
                 st.button("Submit Config", key='btn_training_config_submit',
                           on_click=update_training_param)
         else:
+            # ******************************** TFOD config ********************************
             # only storing `batch_size` and `num_train_steps`
-            if session_state.new_training.training_param_dict:
+            param_dict = session_state.new_training.training_param_dict
+            st.write(param_dict)
+            if param_dict:
                 # taking the stored param from DB
-                batch_size = session_state.new_training.training_param_dict['batch_size']
-                num_train_steps = session_state.new_training.training_param_dict['num_train_steps']
+                batch_size = param_dict['batch_size']
+                num_train_steps = param_dict['num_train_steps']
             else:
                 batch_size = 4
                 num_train_steps = 2000
@@ -258,8 +261,9 @@ def training_configuration(RELEASE=True):
                 st.form_submit_button("Submit Config",
                                       on_click=update_training_param)
 
+        # ****************** Model parameters for keras_unet_collection models ******************
         if deployment_type == "Semantic Segmentation with Polygons":
-            # NOTE: refer to Notion for details about the parameters
+            # NOTE: refer to Notion for details about the model parameters
             # or refer to this Colab Notebook https://colab.research.google.com/drive/1PgI3Adcq_EixOrZm5kFsjabswxIw0c4p?usp=sharing
             param_dict = session_state.new_training.training_param_dict
             if param_dict:
@@ -294,6 +298,9 @@ def training_configuration(RELEASE=True):
                 unpool = True
                 aspp_num_down = 256
                 aspp_num_up = 128
+
+            st.markdown("___")
+            st.subheader("Segmentation model parameters")
 
             inp_choices = (128, 256, 512)
             input_size = st.select_slider(
@@ -406,11 +413,9 @@ def training_configuration(RELEASE=True):
             session_state['param_unpool'] = 'nearest' if unpool == 'Nearest' else unpool
 
             st.button("Test Build Model", key='btn_test_build_model',
-                      on_click=check_segmentation_model,
                       help="""Test building a segmentation model to verify that 
                       the parameters are working""")
-            st.button("Submit Config", key='btn_training_config_submit',
-                      on_click=update_training_param)
+            st.button("Submit Config", key='btn_training_config_submit')
 
     if deployment_type == "Semantic Segmentation with Polygons":
         with details_col:
@@ -420,6 +425,13 @@ def training_configuration(RELEASE=True):
             # show docstring
             st.subheader(f"**{model_name}** Model Docstring:")
             st.text(getattr(models, model_func).__doc__)
+
+            # using this instead of `on_click` callbacks to show the messages
+            # below the other texts
+            if session_state.btn_test_build_model:
+                check_segmentation_model()
+            elif session_state.btn_training_config_submit:
+                update_training_param()
 
     # ******************************BACK BUTTON******************************
 
