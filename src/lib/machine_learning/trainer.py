@@ -76,8 +76,7 @@ from path_desc import (DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
 from .utils import (LRTensorBoard, StreamlitOutputCallback, find_tfod_eval_metrics, generate_tfod_xml_csv, get_bbox_label_info, get_transform, run_command, run_command_update_metrics_2,
-                    find_tfod_metric, load_image_into_numpy_array, load_labelmap, tfod_ckpt_detect_fn,
-                    xml_to_df)
+                    find_tfod_metric, load_image_into_numpy_array, load_labelmap, xml_to_df)
 from .visuals import PrettyMetricPrinter, create_class_colors, draw_gt_bbox, draw_tfod_bboxes, pretty_format_param
 
 
@@ -94,8 +93,7 @@ class Trainer:
         self.training_model_name: str = new_training.training_model.name
         self.project_path: Path = project.get_project_path(project.name)
         self.deployment_type: str = project.deployment_type
-        self.class_names: List[str] = project.get_existing_unique_labels(
-            project.id)
+        self.class_names: List[str] = project.get_existing_unique_labels()
         # with keys: 'train', 'eval', 'test'
         self.partition_ratio: Dict[str, float] = new_training.partition_ratio
         # if user selected both validation and testing partition ratio, we will have validation set

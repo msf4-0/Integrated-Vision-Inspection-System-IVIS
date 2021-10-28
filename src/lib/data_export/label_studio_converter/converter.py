@@ -553,6 +553,7 @@ class Converter(object):
                         {'annotator': item['completed_by'].get('email')})
 
         with io.open(output_file, mode='w', encoding='utf8') as fout:
+            logger.debug(f"Dumping COCO JSON file at: {output_file}")
             json.dump({
                 'images': images,
                 'categories': categories,

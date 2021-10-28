@@ -1,4 +1,5 @@
 import copy
+import json
 import os
 import re
 import subprocess
@@ -15,6 +16,7 @@ import glob
 import pandas as pd
 from PIL import Image
 import albumentations as A
+from pycocotools.coco import COCO
 
 import tensorflow as tf
 from tensorflow.keras.callbacks import Callback, TensorBoard
@@ -50,47 +52,6 @@ def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
     #  from WindowsPath to POSIX format to work in Windows
     st_tensorboard(logdir=logdir.as_posix(),
                    port=port, width=width, scrolling=True)
-
-
-def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]]:
-    """
-    Find the specific metric name in the command output (`cmd_output`)
-    and returns only the digits (i.e. values) of the metric.
-
-    Basically search using regex groups, then take the last match,
-    then take the first group for the metric name, and the second group for the digits.
-    """
-    assert name in ('Step', 'Loss')
-    try:
-        if name == 'Step':
-            value = re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1]
-            return name, int(value)
-        else:
-            loss_name, value = re.findall(
-                f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
-            return loss_name, float(value)
-    except IndexError:
-        logger.debug(f"Value for '{name}' not found from {cmd_output}")
-
-
-def find_tfod_eval_metrics(cmd_output) -> str:
-    """
-    Find the specific evaluation metric names in the command output (`cmd_output`)
-    and returns the concatenated lines of strings to display to the user on Streamlit.
-    """
-    all_lines = []
-    metric_names = ('DetectionBoxes_Precision/',
-                    'DetectionBoxes_Recall/', 'Loss/')
-    try:
-        for name in metric_names:
-            lines = re.findall(f"{name}.+", cmd_output)
-            # remove duplicated lines
-            lines = list(set(lines))
-            all_lines.append('  \n'.join(lines))
-        all_lines_str = '  \n'.join(all_lines)
-        return all_lines_str
-    except IndexError:
-        logger.debug(f"Value for '{name}' not found from {cmd_output}")
 
 
 def run_command(command_line_args: str, st_output: bool = False,
@@ -340,21 +301,71 @@ def load_image_into_numpy_array(path: str):
     return img
 
 
-def load_labelmap(labelmap_path):
+def get_transform():
+    """Get the Albumentations' transform using the existing augmentation config stored in DB."""
+    existing_aug = session_state.new_training.augmentation_config.augmentations
+
+    transform_list = []
+    for transform_name, param_values in existing_aug.items():
+        transform_list.append(getattr(A, transform_name)(**param_values))
+
+    if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
+        min_area = session_state.new_training.augmentation_config.min_area
+        min_visibility = session_state.new_training.augmentation_config.min_visibility
+        transform = A.Compose(
+            transform_list,
+            bbox_params=A.BboxParams(
+                format='pascal_voc',
+                min_area=min_area,
+                min_visibility=min_visibility,
+                label_fields=['class_names']
+            ))
+    else:
+        transform = A.Compose(transform_list)
+    return transform
+
+# ******************************* TFOD funcs *******************************
+
+
+def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]]:
     """
-    Returns:
-    category_index =
-    {
-        1: {'id': 1, 'name': 'category_1'},
-        2: {'id': 2, 'name': 'category_2'},
-        3: {'id': 3, 'name': 'category_3'},
-        ...
-    }
+    Find the specific metric name in the command output (`cmd_output`)
+    and returns only the digits (i.e. values) of the metric.
+
+    Basically search using regex groups, then take the last match,
+    then take the first group for the metric name, and the second group for the digits.
     """
-    category_index = label_map_util.create_category_index_from_labelmap(
-        labelmap_path,
-        use_display_name=True)
-    return category_index
+    assert name in ('Step', 'Loss')
+    try:
+        if name == 'Step':
+            value = re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1]
+            return name, int(value)
+        else:
+            loss_name, value = re.findall(
+                f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
+            return loss_name, float(value)
+    except IndexError:
+        logger.debug(f"Value for '{name}' not found from {cmd_output}")
+
+
+def find_tfod_eval_metrics(cmd_output) -> str:
+    """
+    Find the specific evaluation metric names in the command output (`cmd_output`)
+    and returns the concatenated lines of strings to display to the user on Streamlit.
+    """
+    all_lines = []
+    metric_names = ('DetectionBoxes_Precision/',
+                    'DetectionBoxes_Recall/', 'Loss/')
+    try:
+        for name in metric_names:
+            lines = re.findall(f"{name}.+", cmd_output)
+            # remove duplicated lines
+            lines = list(set(lines))
+            all_lines.append('  \n'.join(lines))
+        all_lines_str = '  \n'.join(all_lines)
+        return all_lines_str
+    except IndexError:
+        logger.debug(f"Value for '{name}' not found from {cmd_output}")
 
 
 @st.experimental_memo
@@ -427,30 +438,6 @@ def get_bbox_label_info(xml_df: pd.DataFrame,
     return class_names, bboxes
 
 
-def get_transform():
-    """Get the Albumentations' transform using the existing augmentation config stored in DB."""
-    existing_aug = session_state.new_training.augmentation_config.augmentations
-
-    transform_list = []
-    for transform_name, param_values in existing_aug.items():
-        transform_list.append(getattr(A, transform_name)(**param_values))
-
-    if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
-        min_area = session_state.new_training.augmentation_config.min_area
-        min_visibility = session_state.new_training.augmentation_config.min_visibility
-        transform = A.Compose(
-            transform_list,
-            bbox_params=A.BboxParams(
-                format='pascal_voc',
-                min_area=min_area,
-                min_visibility=min_visibility,
-                label_fields=['class_names']
-            ))
-    else:
-        transform = A.Compose(transform_list)
-    return transform
-
-
 def generate_tfod_xml_csv(image_paths: List[str],
                           xml_dir: Path,
                           output_img_dir: Path,
@@ -519,15 +506,132 @@ def generate_tfod_xml_csv(image_paths: List[str],
     logger.info(f"Done. {time_elapsed = :.4f} seconds")
 
 
-@tf.function
-def tfod_ckpt_detect_fn(image, detection_model):
-    """Detect objects in image."""
+def load_labelmap(labelmap_path):
+    """
+    Returns:
+    category_index =
+    {
+        1: {'id': 1, 'name': 'category_1'},
+        2: {'id': 2, 'name': 'category_2'},
+        3: {'id': 3, 'name': 'category_3'},
+        ...
+    }
+    """
+    category_index = label_map_util.create_category_index_from_labelmap(
+        labelmap_path,
+        use_display_name=True)
+    return category_index
 
-    image, shapes = detection_model.preprocess(image)
-    prediction_dict = detection_model.predict(image, shapes)
-    detections = detection_model.postprocess(prediction_dict, shapes)
 
-    return detections
+# ******************************* TFOD funcs *******************************
+
+# ************************ Segmentation model funcs ************************
+
+def load_mask_image(ori_image_name: str, mask_dir: Path) -> np.ndarray:
+    """Given the `ori_image_name` (refers to the original non-mask image),
+    parse the mask image filename and find and load it from the `mask_dir` folder."""
+    mask_image_name = os.path.splitext(ori_image_name)[0] + ".png"
+    mask_path = mask_dir / mask_image_name
+    # MUST read in GRAYSCALE format to accurately preserve all the pixel values
+    mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+    return mask
+
+
+@st.experimental_memo
+def get_coco_classes(
+    json_path: Union[str, Path],
+    return_coco: bool = True) -> Union[Tuple[COCO, List[int], List[str]],
+                                       List[str]]:
+    coco = COCO(json_path)
+    catIDs = coco.getCatIds()
+    categories = coco.loadCats(catIDs)
+    logger.debug(f"{categories = }")
+
+    classnames = [cat["name"] for cat in categories]
+    # add a background class at index 0
+    classnames = ["background"] + classnames
+    logger.debug(f"{classnames = }")
+
+    if return_coco:
+        return coco, catIDs, classnames
+
+    return classnames
+
+
+def generate_mask_images(json_path: Union[str, Path] = None,
+                         output_dir: Path = None,
+                         n_masks: int = None,
+                         verbose: bool = False,
+                         st_container=None):
+    """Generate mask images based on a COCO JSON file and save at `output_dir`
+
+    Args:
+        json_path (Union[str, Path], optional): Path to the COCO JSON file.
+            If None, infer from project export path. Defaults to None.
+        output_dir (Path, optional): Path to output mask images.
+            If None, infer from project export path. Defaults to None.
+        n_masks (int, optional): Maximum number of mask images to generate,
+            this is currently only used for the augmentation demo. If None, just 
+            generate all mask images for all images in COCO JSON. Defaults to None.
+        verbose (bool, optional): If True, will log the mask image info to console.
+            Defaults to False.
+        st_container ([type], optional): For `stqdm` progress bar. Can optionally pass
+            in `st.sidebar`. Defaults to None.
+    """
+    data_export_dir = session_state.project.get_export_path()
+    if not json_path:
+        json_path = data_export_dir / "result.json"
+    if not output_dir:
+        output_dir = data_export_dir / "masks"
+    os.makedirs(output_dir, exist_ok=True)
+
+    json_file = json.load(open(json_path))
+    img_dict_list = json_file["images"]
+    if n_masks:
+        # optionally only generate certain number of mask images,
+        # currently using this for the augmentation demo at the config page
+        img_dict_list = img_dict_list[:n_masks]
+    total_masks = len(img_dict_list)
+
+    coco, catIDs, classnames = get_coco_classes(json_path)
+
+    logger.debug(f"Generating {total_masks} mask images in: {output_dir}")
+    for img_dict in stqdm(img_dict_list, total=total_masks,
+                          desc='Generating mask images', st_container=st_container):
+        filename = os.path.basename(img_dict["file_name"])
+
+        annIds = coco.getAnnIds(
+            imgIds=img_dict["id"], catIds=catIDs, iscrowd=None)
+        anns = coco.loadAnns(annIds)
+
+        mask = np.zeros((img_dict["height"], img_dict["width"]))
+        classes_found = []
+        for annot in anns:
+            # considering 'background' class at index 0
+            className = classnames[annot["category_id"] + 1]
+            classes_found.append(className)
+            pixel_value = classnames.index(className)
+            # the final mask contains the pixel values for each class
+            mask = np.maximum(coco.annToMask(annot) * pixel_value, mask)
+
+        # save the mask images in PNG format to preserve the exact pixel values
+        mask_filename = os.path.splitext(filename)[0] + ".png"
+        mask_path = os.path.join(output_dir, mask_filename)
+        success = cv2.imwrite(mask_path, mask)
+        if success:
+            logger.debug(f"Generated mask image for {mask_filename}")
+
+        if verbose:
+            logger.debug(
+                f"{filename} | "
+                f"Unique pixel values = {np.unique(mask)} | "
+                f"Unique classes found = {set(classes_found)} | "
+                f"Number of annotations = {len(classes_found)}"  # or len(anns)
+            )
+
+# ************************ Segmentation model funcs ************************
+
+# *************************** Training Callbacks ***************************
 
 
 class StreamlitOutputCallback(Callback):
@@ -589,3 +693,6 @@ class LRTensorBoard(TensorBoard):
         logs = logs or {}
         logs.update({'learning_rate': K.eval(self.model.optimizer.lr)})
         super().on_epoch_end(epoch, logs)
+
+
+# *********************** Training Callbacks ***********************

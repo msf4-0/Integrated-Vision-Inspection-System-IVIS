@@ -25,10 +25,12 @@ DEBUG = False
 
 def select_image(path_to_images: str, interface_type: str = "Simple", n_images: int = 10):
     """ Show interface to choose the image, and load it
+
     Args:
         path_to_images (dict): path ot folder with images
         interface_type (dict): mode of the interface used
-        n_images (str): maximum number of images to display as options
+        n_images (int): maximum number of images to display as options
+
     Returns:
         (status, image)
         status (int):

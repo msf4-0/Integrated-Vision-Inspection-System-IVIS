@@ -22,6 +22,7 @@ import os
 import sys
 from pathlib import Path
 import time
+import cv2
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
@@ -40,8 +41,8 @@ from core.utils.log import logger
 from training.training_management import AugmentationConfig, NewTrainingPagination, Training
 from project.project_management import Project
 from user.user_management import User
-from machine_learning.utils import get_bbox_label_info, xml_to_df
-from machine_learning.visuals import draw_gt_bbox
+from machine_learning.utils import generate_mask_images, get_bbox_label_info, get_coco_classes, load_mask_image, xml_to_df
+from machine_learning.visuals import create_class_colors, draw_gt_bbox, get_colored_mask_image
 
 # augmentation config from https://github.com/IliaLarchenko/albumentations-demo/blob/master/src/app.py
 from pages.sub_pages.training_page.new_training_subpages.augmentation.utils import (
@@ -72,20 +73,22 @@ def augmentation_configuration(RELEASE=True):
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        # for Anson: 4 for TFOD, 9 for img classif
-        project_id_tmp = 9
-        logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
 
         if "project" not in session_state:
+            # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
+            project_id_tmp = 30
             session_state.project = Project(project_id_tmp)
-            logger.debug("Inside")
+            logger.debug(f"Entering Project {project_id_tmp}")
         if 'user' not in session_state:
             session_state.user = User(1)
         if 'new_training' not in session_state:
-            # for Anson: 2 for TFOD, 17 for img classif
-            session_state.new_training = Training(17, session_state.project)
+            # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
+            train_id_temp = 18
+            session_state.new_training = Training(
+                train_id_temp, session_state.project)
+            logger.debug(f"Entering Training {train_id_temp}")
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -127,20 +130,30 @@ def augmentation_configuration(RELEASE=True):
     It is completely optional, although image augmentation is beneficial in most cases.""")
 
     # ************************ Config column ************************
+    # the number of training set images to allow the user to choose for the augmentation demo
+    #  Using a smaller number to avoid a very long list of selection
+    NUM_IMAGES = 50
+    DEPLOYMENT_TYPE = session_state.new_training.deployment_type
 
     # get project exported dataset folder
     exported_dataset_dir = session_state.project.get_export_path()
     if not exported_dataset_dir.exists():
         # export the dataset with the correct structure if not done yet
-        session_state.project.export_tasks()
-    if session_state.new_training.deployment_type == 'Image Classification':
+        # mask images will be generated later for a sample amount
+        session_state.project.export_tasks(generate_mask=False)
+    if DEPLOYMENT_TYPE == 'Image Classification':
         image_folder = exported_dataset_dir
-    elif session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+    elif DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
         image_folder = exported_dataset_dir / "images"
         bbox_label_folder = exported_dataset_dir / "Annotations"
-    elif session_state.new_training.deployment_type == 'Semantic Segmentation with Polygons':
+    elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
         image_folder = exported_dataset_dir / "images"
         coco_json_path = exported_dataset_dir / "result.json"
+        sample_mask_folder = exported_dataset_dir / "sample_masks"
+        # generate only the mask images required for the sample demo
+        if not sample_mask_folder.exists():
+            generate_mask_images(coco_json_path, sample_mask_folder,
+                                 NUM_IMAGES, verbose=True, st_container=st.sidebar)
 
     if not os.path.isdir(image_folder):
         st.title("There is no directory: " + image_folder)
@@ -151,7 +164,7 @@ def augmentation_configuration(RELEASE=True):
     session_state.augmentation_config.reset()
 
     # select the number of images to generate from the augmentation, ONLY needed for TFOD
-    if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+    if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
         ori_train_size, aug_train_size = show_train_size_selection()
         diff = aug_train_size - ori_train_size
         pct_change = round(diff / ori_train_size * 100, 1)
@@ -166,13 +179,16 @@ def augmentation_configuration(RELEASE=True):
         "Select the interface mode",
         options,
         index=curr_idx,
-        key='aug_interface_type'
+        key='aug_interface_type',
+        help=("""The `Professional` mode allows more than one transformation,
+                and also the option to upload an image of your choice.""")
     )
     # update this to store in DB later
     session_state.augmentation_config.interface_type = interface_type
 
     # select image
-    status, image, image_name = select_image(image_folder, interface_type, 50)
+    status, image, image_name = select_image(
+        image_folder, interface_type, NUM_IMAGES)
     if status == 1:
         st.title("Sorry, Can't load image")
         st.stop()
@@ -191,7 +207,7 @@ def augmentation_configuration(RELEASE=True):
             augmentations, interface_type)
         st.sidebar.markdown("___")
 
-        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+        if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
             min_area, min_visibility = show_bbox_params_selection()
             st.sidebar.markdown("___")
 
@@ -205,7 +221,7 @@ def augmentation_configuration(RELEASE=True):
 
         try:
             if image_name != "Upload my image":
-                if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
                     # apply the transformation to the image with consideration of bboxes
                     data = A.ReplayCompose(
                         transforms,
@@ -216,8 +232,18 @@ def augmentation_configuration(RELEASE=True):
                             label_fields=['class_names']
                         )
                     )(image=image, bboxes=bboxes, class_names=class_names)
-            # TODO for mask augmentation
-            if session_state.new_training.deployment_type == 'Image Classification':
+                elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
+                    try:
+                        mask = load_mask_image(image_name, sample_mask_folder)
+                        logger.info(
+                            f"Transforming mask image for {image_name}")
+                        data = A.ReplayCompose(transforms)(
+                            image=image, mask=mask)
+                    except TypeError as e:
+                        logger.error(
+                            f"Error loading mask image for {image_name}: {e}")
+                        data = A.ReplayCompose(transforms)(image=image)
+            if DEPLOYMENT_TYPE == 'Image Classification':
                 # apply the transformation to the image
                 data = A.ReplayCompose(transforms)(image=image)
             error = 0
@@ -230,7 +256,7 @@ def augmentation_configuration(RELEASE=True):
         except NotImplementedError as e:
             error = 1
             st.error(f"""Transformation of **{str(e).split()[-1]}** is not available for 
-            the current computer vision task: **{session_state.new_training.deployment_type}**.
+            the current computer vision task: **{DEPLOYMENT_TYPE}**.
             Please try another transformation.""")
             st.stop()
 
@@ -243,9 +269,6 @@ def augmentation_configuration(RELEASE=True):
             st.markdown(
                 f"### Step 3: Select augmentation configuration at sidebar "
                 "and see the changes in the transformed image.")
-            st.markdown(
-                """The `Professional` mode allows more than one transformation, 
-                and also the option to upload an image of your choice.""")
             st.info("""
                 ✏️ NOTE: Image augmentation may be very useful to increase the number of 
                 images in our training set, but it could hurt your deep learning algorithm 
@@ -265,12 +288,22 @@ def augmentation_configuration(RELEASE=True):
             # )
 
             if image_name != "Upload my image":
-                if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
                     image = draw_gt_bbox(
                         image, bboxes, class_names=class_names)
                     augmented_image = draw_gt_bbox(augmented_image, data['bboxes'],
                                                    class_names=data['class_names'])
-            # TODO: add for mask augmentation
+                elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
+                    class_names = get_coco_classes(
+                        coco_json_path, return_coco=False)
+                    class_colors = create_class_colors(
+                        class_names, as_array=True)
+                    # colored original image
+                    image = get_colored_mask_image(
+                        image, mask, class_colors)
+                    # colored augmented image
+                    augmented_image = get_colored_mask_image(
+                        augmented_image, data['mask'], class_colors)
 
             true_img_col, aug_img_col = st.columns(2)
             with true_img_col:

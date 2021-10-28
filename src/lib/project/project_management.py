@@ -42,6 +42,7 @@ from streamlit import cli as stcli
 from streamlit import session_state as session_state
 import streamlit.components.v1 as components
 from data_export.label_studio_converter.converter import Converter, Format, FormatNotSupportedError
+from machine_learning.utils import generate_mask_images
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -212,7 +213,7 @@ class BaseProject:
             project_name)  # change name to lowercase
         # join directory name with '-' dash
         project_path = PROJECT_DIR / str(directory_name)
-        logger.info(f"Project Path: {str(project_path)}")
+        logger.debug(f"Project Path: {str(project_path)}")
 
         return project_path
 
@@ -238,8 +239,8 @@ class Project(BaseProject):
         super().__init__(project_id)
         self.project_status = ProjectPagination.Existing  # flag for pagination
         self.datasets, self.column_names = self.query_project_dataset_list()
-        self.dataset_dict = self.get_dataset_name_list()
-        self.data_name_list = self.get_data_name_list()
+        self.dataset_dict: Dict[str, NamedTuple] = self.get_dataset_name_list()
+        self.data_name_list: Dict[str, List[str]] = self.get_data_name_list()
         # `query_all_fields` creates `self.name`, `self.desc`, `self.deployment_type`, `self.deployment_id`
         self.query_all_fields()
         self.project_path = self.get_project_path(self.name)
@@ -279,10 +280,16 @@ class Project(BaseProject):
 
     def export_tasks(self, converter: Optional[Converter] = None,
                      export_format: Optional[str] = None,
-                     for_training_id: Optional[int] = 0):
+                     for_training_id: Optional[int] = 0,
+                     generate_mask: Optional[bool] = True):
         """
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to the dataset export directory.
+
+        `converter` and `export_format` are optionally as they can be inferred.
+
         If `for_training_id` > 0, this will only export the annotated dataset associated with the `training_id`, to use for training.
+
+        If `generate_mask` is True, will generate mask images for segmentation task.
         """
         logger.debug(
             f"Exporting labeled tasks for Project ID: {session_state.project.id}")
@@ -296,8 +303,9 @@ class Project(BaseProject):
             shutil.rmtree(output_dir)
         os.makedirs(output_dir)
 
-        json_path = self.generate_label_json(
-            for_training_id, output_dir=output_dir)
+        json_path, dataset_names = self.generate_label_json(
+            for_training_id=for_training_id, output_dir=output_dir,
+            return_dataset_names=True)
 
         if converter is None:
             converter = self.editor.get_labelstudio_converter()
@@ -306,7 +314,7 @@ class Project(BaseProject):
             export_format = Format.from_string(export_format)
 
         if self.deployment_type == "Image Classification":
-            if for_training_id != 0:
+            if for_training_id != 0 or export_format is None:
                 # using CSV format to get our image_paths for training
                 export_format = Format.CSV
 
@@ -340,7 +348,7 @@ class Project(BaseProject):
 
                 logger.debug(
                     f"Copying images into each class folder in {project_img_path}")
-                for row in df.values:
+                for row in stqdm(df.values, desc='Copying images into class folder'):
                     image_path = Path(row[0])   # first row for image_path
                     # getting the absolute path to the image
                     image_path = DATASET_DIR / image_path
@@ -352,16 +360,40 @@ class Project(BaseProject):
                 return
 
         elif self.deployment_type == "Object Detection with Bounding Boxes":
-            if for_training_id != 0:
+            if for_training_id != 0 or export_format is None:
                 # using Pascal VOC XML format for TensorFlow Object Detection API
                 export_format = Format.VOC
 
+            converter.convert(json_path, output_dir,
+                              export_format, is_dir=False)
+
         elif self.deployment_type == "Semantic Segmentation with Polygons":
-            if for_training_id != 0:
+            if for_training_id != 0 or export_format is None:
                 # using COCO JSON format for segmentation
                 export_format = Format.COCO
 
-        converter.convert(json_path, output_dir, export_format, is_dir=False)
+            converter.convert(json_path, output_dir,
+                              export_format, is_dir=False)
+            if export_format == Format.COCO:
+                if (output_dir / 'result.json').exists():
+                    logger.debug(
+                        f"Generated COCO 'result.json' file at {output_dir}")
+                else:
+                    logger.error('Error generating COCO JSON file')
+
+            if generate_mask:
+                mask_folder = output_dir / "masks"
+                generate_mask_images(json_path, mask_folder)
+
+            # also copy the images because Label Studio export does not copy them
+            project_img_path = output_dir / "images"
+            dataset_dirs = [DATASET_DIR /
+                            get_directory_name(x) for x in dataset_names]
+            with st.spinner("Copying images from dataset folder to the export folder ..."):
+                for d in dataset_dirs:
+                    logger.debug(
+                        f"Copying images from {d} to {project_img_path}")
+                    shutil.copytree(d, project_img_path, dirs_exist_ok=True)
 
         logger.debug(f"Exported tasks in format {export_format} for "
                      f"{self.deployment_type} for Project ID: {self.id}")
@@ -372,15 +404,22 @@ class Project(BaseProject):
         output_dir = project_path / "export"
         return output_dir
 
-    def generate_label_json(self, for_training_id: int = 0, output_dir: Path = None) -> Path:
+    def generate_label_json(
+            self,
+            for_training_id: int = 0,
+            output_dir: Path = None,
+            return_dataset_names: bool = False) -> Union[Path, Tuple[Path, List[str]]]:
         """
         Generate the output JSON with the format following Label Studio and returns the path to the file.
         Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
+
         If `for_training_id` is provided, then the JSON file is based on the annotations
         associated with the dataset used for the `training_id`.
+
+        If `return_dataset_names` is True, also return the unique dataset names for the
+        project or just for the training_id.
         """
-        all_annots, col_names = self.query_annotations(
-            self.id, for_training_id)
+        all_annots, col_names = self.query_annotations(for_training_id)
         # the col_names can be changed if necessary
         df = pd.DataFrame(all_annots, columns=col_names)
 
@@ -409,10 +448,14 @@ class Project(BaseProject):
             parsed = json.loads(result)
             logger.debug(f"DUMPING TASK JSON to {json_path}")
             json.dump(parsed, f, indent=2)
+
+        if return_dataset_names:
+            dataset_names = df['dataset_name'].unique().astype(
+                str).tolist()
+            return json_path, dataset_names
         return json_path
 
-    @staticmethod
-    def get_existing_unique_labels(project_id: int) -> List[str]:
+    def get_existing_unique_labels(self) -> List[str]:
         """
         Extracting the unique label names used in existing annotations.
         Each 'result' value from the 'all_annots' is a list like this:
@@ -430,11 +473,10 @@ class Project(BaseProject):
         ```
         """
         # 'all_annots' is a list of dictionaries for each annotation
-        all_annots, col_names = Project.query_annotations(
-            project_id, return_dict=True)
+        all_annots, col_names = self.query_annotations(return_dict=True)
         if not all_annots:
             # there is no existing annotation
-            logger.error(f"No existing annotations for Project {project_id}")
+            logger.error(f"No existing annotations for Project {self.id}")
             return []
 
         # the 'label_key' is different depending on the 'deployment_type'
@@ -450,17 +492,17 @@ class Project(BaseProject):
         unique_labels = sorted(df['label'].explode().unique())
 
         logger.info(
-            f"Unique labels for Project ID {project_id}: {unique_labels}")
+            f"Unique labels for Project ID {self.id}: {unique_labels}")
         return unique_labels
 
-    @staticmethod
-    def query_annotations(project_id: int, return_dict: bool = True, for_training_id: int = 0) -> Tuple[List[Dict], List]:
+    def query_annotations(self, for_training_id: int = 0, return_dict: bool = True) -> Tuple[List[Dict], List]:
         """Query annotations for this project. If `for_training_id` is provided,
         then only the annotations associated with the `training_id` is queried."""
         if for_training_id > 0:
             sql_query = """
                 SELECT a.id AS id,
                     a.result AS result,
+                    d.name AS dataset_name,
                     -- flag of 'g' to match every pattern instead of only the first
                     CONCAT_WS('/', regexp_replace(trim(both from d.name), '\s+', '-', 'g'), t.name) AS image_path
                 FROM annotations a
@@ -470,14 +512,15 @@ class Project(BaseProject):
                 WHERE td.training_id = %s and a.project_id = %s
                 ORDER BY id;
             """
-            query_vars = [for_training_id, project_id]
-            logger.info(f"""Querying annotations from database for Project ID: {project_id}
+            query_vars = [for_training_id, self.id]
+            logger.info(f"""Querying annotations from database for Project ID: {self.id}
                         and Training ID: {for_training_id}""")
         else:
             sql_query = """
                     SELECT 
                         a.id AS id,
                         a.result AS result,
+                        d.name AS dataset_name,
                         -- flag of 'g' to match every pattern instead of only the first
                         CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
                     FROM annotations a
@@ -486,9 +529,9 @@ class Project(BaseProject):
                     WHERE a.project_id = %s
                     ORDER BY id;
             """
-            query_vars = [project_id]
+            query_vars = [self.id]
             logger.info(
-                f"Querying annotations from database for Project ID: {project_id}")
+                f"Querying annotations from database for Project ID: {self.id}")
 
         try:
             all_annots, column_names = db_fetchall(
@@ -496,7 +539,7 @@ class Project(BaseProject):
             logger.debug(f"Total annotations: {len(all_annots)}")
 
         except Exception as e:
-            logger.error(f"{e}: No annotation found for Project {project_id} ")
+            logger.error(f"{e}: No annotation found for Project {self.id} ")
             all_annots = []
             column_names = []
 
@@ -565,7 +608,7 @@ class Project(BaseProject):
 
         return project_dataset_tmp, column_names
 
-    def get_dataset_name_list(self):
+    def get_dataset_name_list(self) -> Dict[str, NamedTuple]:
         """Generate Dictionary of namedtuple
 
         Args:
@@ -635,7 +678,7 @@ class Project(BaseProject):
             return dataset_list
 
     @st.cache
-    def get_data_name_list(self):
+    def get_data_name_list(self) -> Dict[str, List[str]]:
         """Obtain list of data in the dataset 
             - Iterative glob through the dataset directory
             - Obtain filename using pathlib.Path(<'filepath/*'>).name

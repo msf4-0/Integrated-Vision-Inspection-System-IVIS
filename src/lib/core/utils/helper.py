@@ -180,6 +180,10 @@ def join_string(list_string: List, separator: str = '-') -> str:
 
 
 def get_directory_name(name: str) -> str:
+    """Get the proper directory name especially for datasets
+
+    e.g. ' Dummy dataset 1 ' -> 'dummy-dataset-1'
+    """
     directory_name = join_string(split_string(
         remove_newline_trailing_whitespace(str(name)))).lower()
     return directory_name

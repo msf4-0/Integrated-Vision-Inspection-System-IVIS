@@ -152,8 +152,7 @@ def editor_config(project: Union[NewProject, Project]):
 
                 # to avoid removing existing labels used for annotating!
                 if isinstance(project, Project):
-                    existing_annotations = project.get_existing_unique_labels(
-                        project.id)
+                    existing_annotations = project.get_existing_unique_labels()
                     if removed_label in existing_annotations:
                         place["warning_label_removal"].error(
                             f"WARNING: You are trying to remove a label '{removed_label}' "

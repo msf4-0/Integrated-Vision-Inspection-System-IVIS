@@ -38,7 +38,7 @@ from io import BytesIO
 from mimetypes import guess_type
 from pathlib import Path
 from time import perf_counter, sleep
-from typing import Any, Dict, Iterator, List, Tuple, Union
+from typing import Any, Dict, Iterator, List, NamedTuple, Tuple, Union
 import xml.etree.ElementTree as ET
 
 import cv2
@@ -195,7 +195,7 @@ def check_coco_json_keys(coco_json: Dict[str, Any]):
             st.stop()
         for sub_key in sub_keys:
             # check only the first Dict within the main_key
-            if sub_key not in coco_json[main_key][0][0]:
+            if sub_key not in coco_json[main_key][0]:
                 st.error(f'Not a valid COCO JSON file for segmentation: "{sub_key}" '
                          f'not found in COCO JSON\'s "{main_key}" values!')
                 st.stop()
@@ -1021,14 +1021,14 @@ def query_dataset_list() -> List[namedtuple]:
 # Will throw ValueError for selectbox dataset_sel because of session state (BUG)
 
 
-def get_dataset_name_list(dataset_list: List[namedtuple]):
+def get_dataset_name_list(dataset_list: List[NamedTuple]) -> Dict[str, NamedTuple]:
     """Generate Dictionary of namedtuple
 
     Args:
         dataset_list (List[namedtuple]): Query from database
 
     Returns:
-        Dict: Dictionary of namedtuple
+        Dict: Dictionary of dataset_name -> dataset's NamedTuple
     """
 
     # dataset_name_list = {}  # list of dataset name for selectbox

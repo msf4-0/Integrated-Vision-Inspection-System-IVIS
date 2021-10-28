@@ -397,8 +397,7 @@ def new_dataset(RELEASE=True, conn=None):
                                          f"editor config: {default_labels}")
                             project_id = session_state.project.id
                             # get the unique new labels from all the annotations
-                            new_labels = session_state.project.get_existing_unique_labels(
-                                project_id)
+                            new_labels = session_state.project.get_existing_unique_labels()
 
                             # update editor_config with the new labels from the uploaded annotations
                             for label in new_labels:

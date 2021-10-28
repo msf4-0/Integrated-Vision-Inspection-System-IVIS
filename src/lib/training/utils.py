@@ -1,13 +1,19 @@
 import inspect
-from typing import Any, Dict, List
+import json
+import os
+from typing import Any, Dict, List, Union
+from pathlib import Path
+import matplotlib.pyplot as plt
 
 import pandas as pd
+from pycocotools.coco import COCO
 import streamlit as st
 from streamlit import session_state
 
 # >>>> User-defined Modules >>>>
 from path_desc import (CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH,
                        TFOD_MODELS_TABLE_PATH)
+from core.utils.log import logger
 
 
 @st.experimental_memo
@@ -52,7 +58,8 @@ def get_training_param_from_session_state(delete: bool = False) -> Dict[str, Any
     training_param = {}
     for k, v in session_state.items():
         if k.startswith('param_'):
-            to_delete.append(k)
+            if delete:
+                to_delete.append(k)
             # e.g. param_batch_size -> batch_size
             new_key = k.replace('param_', '')
             training_param[new_key] = v

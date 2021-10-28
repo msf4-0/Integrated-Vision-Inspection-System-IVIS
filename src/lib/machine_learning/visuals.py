@@ -1,7 +1,7 @@
 from itertools import zip_longest
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from pathlib import Path
 import numpy as np
 import cv2
@@ -89,7 +89,7 @@ class PrettyMetricPrinter:
         float_format (str | Dict[str, str], optional): the formatting used for floats.
             Can pass in either a `str` to use the same formatting for all metrics, or pass in a `Dict` for different formatting for each metric.
             Defaults to `.5g` for 5 significant figures.
-        delta_color (str | Dict[str, str]], optional): Similar to `float_format`, can pass in `str` or `Dict`. 
+        delta_color (str | Dict[str, str]], optional): Similar to `float_format`, can pass in `str` or `Dict`.
             Defaults to `inverse` when the metric name contains `loss`, else `normal`.
             Refer to Streamlit docs for the effects on colors.
     """
@@ -141,20 +141,31 @@ class PrettyMetricPrinter:
 
 
 @st.experimental_memo
-def create_class_colors(class_names: List[str]) -> Dict[str, str]:
-    """Randomly assign colors for different classes. `class_names` should be obtained
-    from the `Trainer.class_names` attribute for more efficient computations"""
+def create_class_colors(
+        class_names: List[str],
+        as_array: bool = False) -> Union[Dict[str, Tuple[int, int, int]], np.ndarray]:
+    """Randomly assign colors for different classes. 
+
+    `class_names` should be obtained from the `Trainer.class_names` attribute
+    for more efficient computations.
+
+    `as_array` is required for coloring mask images with `get_colored_mask_image`.
+    """
     np.random.seed(42)
     colors = np.random.randint(0, 255,
                                size=(len(class_names), 3),
                                dtype=np.uint8)
     class_colors = {}
+    if 'background' in class_names:
+        # set background to black color
+        # NOTE: this should be the 0th index for segmentation so this must come first
+        class_colors['background'] = (0, 0, 0)
     for name, color in zip(class_names, colors):
         color = [int(c) for c in color]
         class_colors[name] = tuple(color)
-    if 'background' in class_names:
-        # set background to black color
-        class_colors['background'] = (0, 0, 0)
+
+    if as_array:
+        class_colors = np.array(list(class_colors.values()))
     return class_colors
 
 
@@ -259,3 +270,33 @@ def draw_tfod_bboxes(
         agnostic_mode=False
     )
     return image_np_with_detections
+
+
+def get_colored_mask_image(image: np.ndarray,
+                           mask: np.ndarray,
+                           class_colors: np.ndarray,
+                           image_weight: Optional[float] = 0.4,
+                           mask_weight: Optional[float] = 0.6) -> np.ndarray:
+    """Get a colored mask image based on the given `mask` and `class_colors` array.
+
+    Note that `class_colors` must be a `np.ndarray` for this to work. Can get this from
+    `create_class_colors` with `as_array=True`.
+
+    `mask` has unique pixel values starting from 0 to num_classes; and each pixel value
+    is associated with a specific class and class color. 
+
+    `image_weight` and `mask_weight` is to control
+    their transparency of overlay.
+    """
+    # given the class ID map obtained from the mask, we can map each of
+    # the class IDs to its corresponding color
+    colored_mask = class_colors[mask.astype(np.uint8)]
+    colored_mask = cv2.resize(
+        colored_mask, (image.shape[1], image.shape[0]
+                       ), interpolation=cv2.INTER_NEAREST
+    )
+    # perform a weighted combination of the input image with the colored_mask to
+    # form an output visualization with different colors for each class
+    output = ((image_weight * image) +
+              (mask_weight * colored_mask)).astype("uint8")
+    return output
