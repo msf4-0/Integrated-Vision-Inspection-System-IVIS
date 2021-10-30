@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 import time
 import cv2
+import numpy as np
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
@@ -43,7 +44,8 @@ from training.training_management import AugmentationConfig, NewTrainingPaginati
 from project.project_management import Project
 from user.user_management import User
 from machine_learning.utils import generate_mask_images, get_bbox_label_info, get_coco_classes, load_mask_image, xml_to_df
-from machine_learning.visuals import create_class_colors, draw_gt_bbox, get_colored_mask_image
+from machine_learning.visuals import create_class_colors, create_color_legend, draw_gt_bbox, get_colored_mask_image
+from core.utils.helper import Timer
 
 # augmentation config from https://github.com/IliaLarchenko/albumentations-demo/blob/master/src/app.py
 from pages.sub_pages.training_page.new_training_subpages.augmentation.utils import (
@@ -143,7 +145,7 @@ def augmentation_configuration(RELEASE=True):
         if exported_dataset_dir.exists():
             logger.debug("Removing existing export directory: "
                          f"{exported_dataset_dir}")
-            shutil.rmtree(exported_dataset_dir)
+            # shutil.rmtree(exported_dataset_dir)
     if not exported_dataset_dir.exists():
         # export the dataset with the correct structure if not done yet
         # mask images will be generated later for a sample amount
@@ -263,7 +265,8 @@ def augmentation_configuration(RELEASE=True):
             )
         except NotImplementedError as e:
             error = 1
-            st.error(f"""Transformation of **{str(e).split()[-1]}** is not available for 
+            transform_name = str(e).split()[-1]
+            st.error(f"""Transformation of **{transform_name}** is not available for 
             the current computer vision task: **{DEPLOYMENT_TYPE}**.
             Please try another transformation.""")
             st.stop()
@@ -306,14 +309,22 @@ def augmentation_configuration(RELEASE=True):
                 elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
                     class_names = get_coco_classes(
                         coco_json_path, return_coco=False)
-                    class_colors = create_class_colors(
-                        class_names, as_array=True)
+                    class_colors = create_class_colors(class_names)
+                    st.markdown("___  \n**Legend**")
+                    legend = create_color_legend(class_colors)
+                    st.image(legend)
+                    # convert to array
+                    class_colors = np.array(list(class_colors.values()),
+                                            dtype=np.uint8)
                     # colored original image
-                    image = get_colored_mask_image(
-                        image, mask, class_colors)
+                    with Timer("Obtained colored mask image"):
+                        image = get_colored_mask_image(
+                            image, mask, class_colors, ignore_background=True)
                     # colored augmented image
-                    augmented_image = get_colored_mask_image(
-                        augmented_image, data['mask'], class_colors)
+                    with Timer("Obtained colored augmented mask image"):
+                        augmented_image = get_colored_mask_image(
+                            augmented_image, data['mask'],
+                            class_colors, ignore_background=True)
 
             true_img_col, aug_img_col = st.columns(2)
             with true_img_col:
@@ -362,8 +373,8 @@ def augmentation_configuration(RELEASE=True):
     st.markdown("**Acknowledgement**: Huge thanks to [albumentations](https://github.com/IliaLarchenko/albumentations-demo) "
                 "for the amazing data augmentation library and also the [Streamlit demo](https://albumentations-demo.herokuapp.com/) as reference.")
 
-    st.write("session_state.augmentation_config")
-    st.write(session_state.augmentation_config)
+    # st.write("session_state.augmentation_config")
+    # st.write(session_state.augmentation_config)
 
 
 if __name__ == "__main__":

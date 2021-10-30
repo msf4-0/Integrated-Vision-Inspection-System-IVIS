@@ -22,7 +22,6 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
  """
-import json
 import os
 import shutil
 import sys
@@ -48,7 +47,7 @@ if str(LIB_PATH) not in sys.path:
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 from machine_learning.trainer import Trainer
-from machine_learning.utils import run_tensorboard
+from machine_learning.command_utils import run_tensorboard
 from machine_learning.visuals import pretty_format_param
 from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training

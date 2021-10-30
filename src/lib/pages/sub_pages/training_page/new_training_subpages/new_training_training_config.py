@@ -139,7 +139,8 @@ def training_configuration(RELEASE=True):
                 batch_size = param_dict['batch_size']
                 num_epochs = param_dict['num_epochs']
                 if deployment_type == "Image Classification":
-                    fine_tune_all = param_dict['fine_tune_all']
+                    # NOTE: not using fine_tune_all for now
+                    # fine_tune_all = param_dict['fine_tune_all']
                     image_size = param_dict['image_size']
             else:
                 image_size = 224
@@ -207,21 +208,22 @@ def training_configuration(RELEASE=True):
                 our entire dataset for exactly once. Recommended to start with **10**."""
             )
             if deployment_type == "Image Classification":
-                st.checkbox(
-                    "Fine-tune all layers", value=fine_tune_all,
-                    key="param_fine_tune_all",
-                    help="""In most cases, our custom dataset is much smaller than the original dataset
-                    used to train the pretrained model, therefore, it is preferred to freeze
-                    (their parameters are not affected by training) all the pretrained layers,
-                    and only train the remaining layers which we will append to accommodate our
-                    custom dataset. But in some cases where we want to completely fine-tune the
-                    pretrained parameters to fit our custom dataset, we will run the training
-                    for a second time with all the pretrained model layers unfrozen.
-                    This may or may not improve the performance, depending on how much our
-                    custom dataset differs from the original dataset used for pretraining.
-                    Recommended to **start with the normal way first**, i.e. only fine-tune
-                    the last few layers (leave this unchecked)."""
-                )
+                # NOTE: not using fine_tune_all for now
+                # st.checkbox(
+                #     "Fine-tune all layers", value=fine_tune_all,
+                #     key="param_fine_tune_all",
+                #     help="""In most cases, our custom dataset is much smaller than the original dataset
+                #     used to train the pretrained model, therefore, it is preferred to freeze
+                #     (their parameters are not affected by training) all the pretrained layers,
+                #     and only train the remaining layers which we will append to accommodate our
+                #     custom dataset. But in some cases where we want to completely fine-tune the
+                #     pretrained parameters to fit our custom dataset, we will run the training
+                #     for a second time with all the pretrained model layers unfrozen.
+                #     This may or may not improve the performance, depending on how much our
+                #     custom dataset differs from the original dataset used for pretraining.
+                #     Recommended to **start with the normal way first**, i.e. only fine-tune
+                #     the last few layers (leave this unchecked)."""
+                # )
                 # semantic segmentation submit button will be shown later
                 st.button("Submit Config", key='btn_training_config_submit',
                           on_click=update_training_param)
@@ -270,6 +272,7 @@ def training_configuration(RELEASE=True):
                 # taking the stored params from DB
                 input_size = param_dict['input_size'][0]
                 filter_num = param_dict['filter_num']
+                # note: there is also an `n_labels` parameter initialized directly below
                 filter_size = filter_num[0]
                 depth = len(filter_num)
                 if 'recur_num' in param_dict:
@@ -326,8 +329,9 @@ def training_configuration(RELEASE=True):
             session_state['param_filter_num'] = [
                 filter_size * (2 ** i) for i in range(depth)]
 
+            # +1 for background class
             session_state['param_n_labels'] = len(
-                session_state.project.get_existing_unique_labels())
+                session_state.project.get_existing_unique_labels() + 1)
 
             recur_num_choices = (1, 2, 3)
             if session_state.new_training.attached_model.name == 'R2U-Net':

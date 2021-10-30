@@ -147,7 +147,8 @@ def create_class_colors(
     """Randomly assign colors for different classes. 
 
     `class_names` should be obtained from the `Trainer.class_names` attribute
-    for more efficient computations.
+    for more efficient computations. For COCO segmentation, this should obtain from
+    `get_coco_classes`.
 
     `as_array` is required for coloring mask images with `get_colored_mask_image`.
     """
@@ -156,16 +157,18 @@ def create_class_colors(
                                size=(len(class_names), 3),
                                dtype=np.uint8)
     class_colors = {}
-    if 'background' in class_names:
-        # set background to black color
-        # NOTE: this should be the 0th index for segmentation so this must come first
-        class_colors['background'] = (0, 0, 0)
     for name, color in zip(class_names, colors):
+        # must convert the NumPy dtypes to Python ints
         color = [int(c) for c in color]
         class_colors[name] = tuple(color)
+    if 'background' in class_names:
+        # set background to black color
+        # NOTE: this is always the 0th index based on `get_coco_classes`
+        class_colors['background'] = (0, 0, 0)
 
     if as_array:
-        class_colors = np.array(list(class_colors.values()))
+        class_colors = np.array(list(class_colors.values()), dtype=np.uint8)
+    logger.debug(f"{class_colors = }")
     return class_colors
 
 
@@ -275,8 +278,8 @@ def draw_tfod_bboxes(
 def get_colored_mask_image(image: np.ndarray,
                            mask: np.ndarray,
                            class_colors: np.ndarray,
-                           image_weight: Optional[float] = 0.4,
-                           mask_weight: Optional[float] = 0.6) -> np.ndarray:
+                           alpha: Optional[float] = 0.5,
+                           ignore_background: Optional[bool] = False) -> np.ndarray:
     """Get a colored mask image based on the given `mask` and `class_colors` array.
 
     Note that `class_colors` must be a `np.ndarray` for this to work. Can get this from
@@ -285,18 +288,58 @@ def get_colored_mask_image(image: np.ndarray,
     `mask` has unique pixel values starting from 0 to num_classes; and each pixel value
     is associated with a specific class and class color. 
 
-    `image_weight` and `mask_weight` is to control
-    their transparency of overlay.
+    `alpha` is to control the transparency of overlayed colored mask. Defaults to 0.4.
+
+    `ignore_background` is used to ignore the black background color when overlaying to
+    make the output prettier. Note that this will a considerable amount of FPS.
+    Defaults to False.
     """
     # given the class ID map obtained from the mask, we can map each of
     # the class IDs to its corresponding color
     colored_mask = class_colors[mask.astype(np.uint8)]
-    colored_mask = cv2.resize(
-        colored_mask, (image.shape[1], image.shape[0]
-                       ), interpolation=cv2.INTER_NEAREST
-    )
+    if ignore_background:
+        # note that this will reduce quite some FPS
+        colored_mask = np.where(colored_mask == [0, 0, 0], image, colored_mask)
+
     # perform a weighted combination of the input image with the colored_mask to
     # form an output visualization with different colors for each class
-    output = ((image_weight * image) +
-              (mask_weight * colored_mask)).astype("uint8")
+    # this is same as the equation below but faster
+    output = cv2.addWeighted(colored_mask, alpha, image, 1 - alpha, 0)
+    # output = (((1 - alpha) * image) +
+    #           (alpha * colored_mask)).astype("uint8")
     return output
+
+
+def create_color_legend(class_colors: Dict[str, Tuple[int, int, int]],
+                        ignore_background: bool = True,
+                        show_index: bool = False) -> np.ndarray:
+    # initialize the settings, NOTE: these values are found to have the best results
+    col_height, text_col_width, color_col_width = 30, 150, 300
+    if show_index:
+        text_col_width += 25
+    if ignore_background and 'background' in class_colors:
+        class_colors = class_colors.copy()
+        del class_colors['background']
+    # initialize the legend visualization
+    legend = np.full(((len(class_colors) * col_height) +
+                      col_height, color_col_width, 3), 255, dtype=np.uint8)
+    # loop over the class names + colors
+    for (i, (className, color)) in enumerate(class_colors.items()):
+        if show_index:
+            className = f"{className} ({i})"
+        # draw the class name + color on the legend
+        color = [int(c) for c in color]
+        cv2.putText(
+            legend,
+            className,
+            (5, (i * col_height) + (col_height - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (255, 0, 0),
+            2,
+        )
+        cv2.rectangle(legend, (text_col_width, (i * col_height)),
+                      (color_col_width, (i * col_height) + col_height),
+                      tuple(color), -1)
+    legend = cv2.cvtColor(legend, cv2.COLOR_BGR2RGB)
+    return legend

@@ -805,6 +805,7 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
+
     @staticmethod
     def reset_new_training_page():
 
@@ -1275,7 +1276,6 @@ class Training(BaseTraining):
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
 
-
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
                                         deployment_type: Union[str, IntEnum],
@@ -1471,11 +1471,17 @@ class Training(BaseTraining):
         # as we allow the user to use it to train a new model
         self.reset_training_progress()
 
-    def get_segmentation_model_params(self, training_param_dict: Dict[str, Any] = None
-                                      ) -> Dict[str, Any]:
+    def get_segmentation_model_params(
+        self,
+        training_param_dict: Optional[Dict[str, Any]] = None,
+        return_model_func: Optional[bool] = False
+    ) -> Union[Dict[str, Any], Tuple[Dict[str, Any], str]]:
         """Get the appropriate segmentation model parameters that can be directly
         feed to the `keras_unet_collection` models. These model parameters are extracted
-        from `self.training_param_dict` submitted in the training_config page."""
+        from `self.training_param_dict` submitted in the training_config page.
+
+        If `return_model_func` is True, will return tuple(model param Dict, model function name)
+        """
         model_func2params = get_segmentation_model_func2params()
         model_name2func = get_segmentation_model_name2func()
         model_func = model_name2func[self.attached_model.name]
@@ -1489,6 +1495,8 @@ class Training(BaseTraining):
             param_dict = training_param_dict
         model_param_dict = {k: v for k, v in param_dict.items()
                             if k in suitable_params}
+        if return_model_func:
+            return model_param_dict, model_func
         return model_param_dict
 
     @staticmethod

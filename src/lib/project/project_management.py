@@ -385,7 +385,8 @@ class Project(BaseProject):
             converter.convert(json_path, output_dir,
                               export_format, is_dir=False)
             if export_format == Format.COCO:
-                if (output_dir / 'result.json').exists():
+                coco_json_path = output_dir / 'result.json'
+                if coco_json_path.exists():
                     logger.debug(
                         f"Generated COCO 'result.json' file at {output_dir}")
                 else:
@@ -393,7 +394,7 @@ class Project(BaseProject):
 
             if generate_mask:
                 mask_folder = output_dir / "masks"
-                generate_mask_images(json_path, mask_folder)
+                generate_mask_images(coco_json_path, mask_folder)
 
         logger.info(f"Exported tasks in {export_format} format for "
                     f"{self.deployment_type} for Project ID: {self.id}")
@@ -404,17 +405,24 @@ class Project(BaseProject):
         output_dir = project_path / "export"
         return output_dir
 
+    def get_project_json_path(self) -> Path:
+        export_dir = self.get_export_path()
+        json_path = export_dir / f"project-{self.id}-labelstudio.json"
+        return json_path
+
     def generate_label_json(
             self,
             for_training_id: int = 0,
-            output_dir: Path = None,
-            return_dataset_names: bool = False) -> Union[Path, Tuple[Path, List[str]]]:
+            output_dir: Optional[Path] = None,
+            return_dataset_names: Optional[bool] = False) -> Union[Path, Tuple[Path, List[str]]]:
         """
         Generate the output JSON with the format following Label Studio and returns the path to the file.
         Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
 
         If `for_training_id` is provided, then the JSON file is based on the annotations
         associated with the dataset used for the `training_id`.
+
+        If `output_dir` is not provided, the project export_path will be used.
 
         If `return_dataset_names` is True, also return the unique dataset names for the
         project or just for the training_id.
@@ -440,10 +448,10 @@ class Project(BaseProject):
         # convert to json format to export to the project_path and use for conversion
         result = df.to_json(orient="records")
         if not output_dir:
-            output_dir = self.get_export_path()
+            json_path = self.get_project_json_path()
         else:
             os.makedirs(output_dir, exist_ok=True)
-        json_path = output_dir / f"project-{self.id}.json"
+            json_path = output_dir / f"project-{self.id}-labelstudio.json"
         with open(json_path, "w") as f:
             parsed = json.loads(result)
             logger.debug(f"DUMPING TASK JSON to {json_path}")

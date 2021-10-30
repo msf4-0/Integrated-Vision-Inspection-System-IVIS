@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 
 from functools import partial
 from itertools import cycle
+import json
 import math
 import os
 import sys
@@ -54,6 +55,9 @@ from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
 from object_detection.utils import config_util
 from object_detection.builders import model_builder
+from keras_unet_collection import models
+from keras_unet_collection.losses import focal_tversky, iou_seg
+from keras.losses import categorical_crossentropy
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
@@ -75,9 +79,15 @@ from training.labelmap_management import Framework, Labels
 from path_desc import (DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
-from .utils import (LRTensorBoard, StreamlitOutputCallback, find_tfod_eval_metrics, generate_tfod_xml_csv, get_bbox_label_info, get_transform, run_command, run_command_update_metrics_2,
-                    find_tfod_metric, load_image_into_numpy_array, load_labelmap, xml_to_df)
-from .visuals import PrettyMetricPrinter, create_class_colors, draw_gt_bbox, draw_tfod_bboxes, pretty_format_param
+from .command_utils import (find_tfod_eval_metrics, run_command,
+                            run_command_update_metrics_2, find_tfod_metric)
+from .utils import (generate_tfod_xml_csv, get_bbox_label_info,
+                    get_coco_classes, get_transform,
+                    load_image_into_numpy_array, load_labelmap,
+                    xml_to_df, hybrid_loss)
+from .visuals import (PrettyMetricPrinter, create_class_colors, draw_gt_bbox,
+                      draw_tfod_bboxes, pretty_format_param)
+from .callbacks import LRTensorBoard, StreamlitOutputCallback
 
 
 class Trainer:
@@ -93,16 +103,22 @@ class Trainer:
         self.training_model_name: str = new_training.training_model.name
         self.project_path: Path = project.get_project_path(project.name)
         self.deployment_type: str = project.deployment_type
-        self.class_names: List[str] = project.get_existing_unique_labels()
         # with keys: 'train', 'eval', 'test'
         self.partition_ratio: Dict[str, float] = new_training.partition_ratio
         # if user selected both validation and testing partition ratio, we will have validation set
         self.has_valid_set = True if self.partition_ratio['test'] > 0 else False
         self.dataset_export_path: Path = project.get_export_path()
-        # NOTE: Might need these later
-        # self.attached_model: Model = new_training.attached_model
-        # self.training_model: Model = new_training.training_model
         self.training_param: Dict[str, Any] = new_training.training_param_dict
+        if self.deployment_type == 'Semantic Segmentation with Polygons':
+            coco_json_path = self.dataset_export_path / 'result.json'
+            self.class_names: List[str] = get_coco_classes(coco_json_path,
+                                                           return_coco=False)
+            self.segm_model_param, self.segm_model_func = (
+                new_training.get_segmentation_model_params(
+                    self.training_param, return_model_func=True
+                ))
+        else:
+            self.class_names: List[str] = project.get_existing_unique_labels()
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.training_path
         # created this path to save all the test set related paths and encoded_labels
@@ -889,14 +905,27 @@ class Trainer:
                           y_val: List[str] = None):
         # TODO: create tf_dataset for segmentation
 
-        def read_image(imagePath, label, image_size):
-            raw = tf.io.read_file(imagePath)
-            image = tf.io.decode_image(
-                raw, channels=3, expand_animations=False)
-            image = tf.image.resize(image, (image_size, image_size))
-            image = tf.cast(image / 255.0, tf.float32)
-            label = tf.cast(label, dtype=tf.int32)
-            return image, label
+        if self.deployment_type == 'Image Classification':
+            def read_image(imagePath, label, image_size):
+                raw = tf.io.read_file(imagePath)
+                image = tf.io.decode_image(
+                    raw, channels=3, expand_animations=False)
+                image = tf.image.resize(image, (image_size, image_size))
+                image = tf.cast(image / 255.0, tf.float32)
+                label = tf.cast(label, dtype=tf.int32)
+                return image, label
+        else:
+            def read_image(imagePath, maskPath, image_size):
+                img = cv2.imread(imagePath)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                img = cv2.resize(img, (image_size, image_size))
+                img = img.astype(np.float32) / 255.
+
+                mask = cv2.imread(maskPath, cv2.IMREAD_GRAYSCALE)
+                mask = cv2.resize(mask, (image_size, image_size))
+                # add the last dimension for 1-channel mask
+                mask = tf.expand_dims(mask, axis=-1)
+                return img, mask
 
         image_size = self.training_param['image_size']
         resize_read_image = partial(read_image, image_size=image_size)
@@ -915,6 +944,11 @@ class Trainer:
                 aug_img = tf.numpy_function(
                     func=aug_fn, inp=[image], Tout=tf.float32)
                 return aug_img, label
+
+            def set_shapes(img, label, img_shape=(image_size, image_size, 3)):
+                img.set_shape(img_shape)
+                label.set_shape([])
+                return img, label
         else:
             def aug_fn(image, mask):
                 aug_data = transform(image=image, mask=mask)
@@ -927,10 +961,14 @@ class Trainer:
                     func=aug_fn, inp=[image, mask], Tout=tf.float32)
                 return aug_img, aug_mask
 
-        def set_shapes(img, label, img_shape=(image_size, image_size, 3)):
-            img.set_shape(img_shape)
-            label.set_shape([])
-            return img, label
+            def set_shapes(img, mask, image_size=image_size,
+                           num_classes=len(self.class_names)):
+                # set the shape to let TensorFlow knows about the shape
+                # just like `assert` statements to ensure the shapes are correct
+                # NOTE: this step is required to show metrics during training
+                img.set_shape([image_size, image_size, 3])
+                mask.set_shape([image_size, image_size, num_classes])
+                return img, mask
 
         # only train set is augmented and shuffled
         AUTOTUNE = tf.data.AUTOTUNE
@@ -1005,11 +1043,42 @@ class Trainer:
                                  self.training_param['optimizer'])
         lr = self.training_param['learning_rate']
 
+        metrics = ["accuracy"]
+        # self.metric_names to use for the display purpose during evaluation
+        self.metric_names = ["Categorical Cross-entropy Loss", "Accuracy"]
+
         # using a simple decay for now, can use cosine annealing if wanted
         opt = optimizer_func(learning_rate=lr,
                              decay=lr / self.training_param['num_epochs'])
         model.compile(loss="sparse_categorical_crossentropy",
-                      optimizer=opt, metrics=["accuracy"])
+                      optimizer=opt, metrics=metrics)
+        return model
+
+    def build_segmentation_model(self, use_hybrid_loss: bool = False):
+        model_param_dict = self.segm_model_param
+        model = getattr(models, self.segm_model_func)(**model_param_dict)
+
+        optimizer_func = getattr(tf.keras.optimizers,
+                                 self.training_param['optimizer'])
+        lr = self.training_param['learning_rate']
+
+        # using a simple decay for now, can use cosine annealing if wanted
+        opt = optimizer_func(learning_rate=lr,
+                             decay=lr / self.training_param['num_epochs'])
+
+        metrics = [categorical_crossentropy, iou_seg, focal_tversky]
+        metric_names = ['Hybrid Loss (IoU + Tversky)', 'Categorical Cross-entropy',
+                        'Intersection Over Union (IoU) Loss', 'Focal Tversky Loss']
+
+        # focal_tversky seems to be good default
+        # in the future, perhaps also allow use to choose a loss function
+        loss = hybrid_loss if use_hybrid_loss else focal_tversky
+        # no need to take focal_tversky as a metric since we are using it as loss func
+        metrics = metrics if use_hybrid_loss else metrics[:-1]
+        # self.metric_names to use for the display purpose during evaluation
+        self.metric_names = metric_names if use_hybrid_loss else metric_names[1:-1]
+
+        model.compile(loss=loss, optimizer=opt, metrics=metrics)
         return model
 
     def create_callbacks(self, train_size: int,
@@ -1087,14 +1156,17 @@ class Trainer:
                 lambda x: str(DATASET_DIR / x))
             image_paths = dataset_df['image'].values.astype(str)
             label_series = dataset_df['label'].astype('category')
-            encoded_labels = label_series.cat.codes.values
+            # encoded labels, e.g. ['cat', 'dog'] -> [0, 1]
+            labels = label_series.cat.codes.values
             # use this to store the classnames with their indices as keys
             encoded_label_dict = dict(enumerate(label_series.cat.categories))
         elif segmentation:
-            # TODO: segmentation training
-            # NOTE: the COCO JSON image_path is also relative path to the image
-            #  remember to get the absolute path through DATASET_DIR first
-            pass
+            image_dir = self.dataset_export_path / 'images'
+            mask_dir = self.dataset_export_path / 'masks'
+            image_paths = sorted(list_images(image_dir))
+            labels = sorted(list_images(mask_dir))
+            # coco_json_path = self.dataset_export_path / 'result.json'
+            # json_file = json.load(open(coco_json_path))
 
         # ************* Generate train & test images in the folder *************
         if self.has_valid_set:
@@ -1104,7 +1176,7 @@ class Trainer:
                     image_paths=image_paths,
                     test_size=self.partition_ratio['test'],
                     val_size=self.partition_ratio['eval'],
-                    labels=encoded_labels,
+                    labels=labels,
                     no_validation=False
                 )
 
@@ -1122,7 +1194,7 @@ class Trainer:
                     # - BEWARE that the directories might be different if it's user uploaded
                     image_paths=image_paths,
                     test_size=self.partition_ratio['eval'],
-                    labels=encoded_labels,
+                    labels=labels,
                     no_validation=True,
                     stratify=True,
                 )
@@ -1135,7 +1207,10 @@ class Trainer:
                         f"Total validation images = {len(X_test)}")
 
         with st.spinner("Saving the test set data ..."):
-            images_and_labels = (X_test, y_test, encoded_label_dict)
+            if classification:
+                images_and_labels = (X_test, y_test, encoded_label_dict)
+            else:
+                images_and_labels = (X_test, y_test)
             with open(self.test_set_pkl_path, "wb") as f:
                 pickle.dump(images_and_labels, f)
 
@@ -1151,7 +1226,11 @@ class Trainer:
         # ***************** Build model and callbacks *****************
         if not is_resume:
             with st.spinner("Building the model ..."):
-                model = self.build_classification_model()
+                if classification:
+                    model = self.build_classification_model()
+                else:
+                    use_hybrid_loss = False
+                    model = self.build_segmentation_model(use_hybrid_loss)
             initial_epoch = 0
             num_epochs = self.training_param['num_epochs']
         else:
@@ -1200,69 +1279,79 @@ class Trainer:
 
         with st.spinner("Saving the trained TensorFlow model ..."):
             model.save(self.training_path['keras_model_file'])
+            logger.debug(f"Keras model saved at "
+                         f"{self.training_path['keras_model_file']}")
 
         # ************************ Evaluation ************************
         with st.spinner("Evaluating on validation set and test set if available ..."):
+            # NOTE: the loss function might change depending on which one you chose
+            test_output = model.evaluate(test_ds)
+            test_txt = []
+
             if self.has_valid_set:
-                (val_loss, val_accuracy) = model.evaluate(val_ds)
-                txt_1 = (f"Validation aval_ccuracy: {val_accuracy * 100:.2f}%  \n"
-                         f"Validation loss: {val_loss:.4f}")
-                st.info(txt_1)
-
-                # show the accuracy on the test set
-                (test_loss, test_accuracy) = model.evaluate(test_ds)
-                txt_2 = (f"Testing accuracy: {test_accuracy * 100:.2f}%  \n"
-                         f"Testing loss: {test_loss:.4f}")
-                st.info(txt_2)
-
-                # save the results in a txt file
-                with open(self.test_result_txt_path, "w") as f:
-                    f.write("  \n".join([txt_1, txt_2]))
+                val_output = model.evaluate(val_ds)
+                val_txt = []
+                for name, val_l, test_l in zip(self.metric_names, val_output,
+                                               test_output):
+                    val_txt.append(f"**Validation {name}**: {val_l:.4f}")
+                    test_txt.append(f"**Testing {name}**: {test_l:.4f}")
+                result_txt = "  \n".join(val_txt + test_txt)
             else:
-                (test_loss, test_accuracy) = model.evaluate(test_ds)
-                txt_1 = (f"Validation accuracy: {test_accuracy * 100:.2f}%  \n"
-                         f"Validation loss: {test_loss:.4f}")
-                with open(self.test_result_txt_path, "w") as f:
-                    f.write(txt_1)
+                for name, test_l in zip(self.metric_names, test_output):
+                    test_txt.append(f"**Validation {name}**: {test_l:.4f}")
+                result_txt = "  \n".join(test_txt)
 
-        # show a nicely formatted classification report
-        with st.spinner("Making predictions of the test set ..."):
-            pred_proba = model.predict(test_ds)
-            preds = np.argmax(pred_proba, axis=-1)
-            y_true = np.concatenate([y for x, y in test_ds], axis=0)
-            unique_labels = [str(encoded_label_dict[label_id])
-                             for label_id in np.unique(y_true)]
+            # display the result info
+            st.info(result_txt)
 
-        with st.spinner("Generating classification report ..."):
-            classif_report = classification_report(
-                y_true, preds, target_names=unique_labels
-            )
-            st.subheader("Classification report")
-            st.text(classif_report)
+            # save the results in a txt file to easily show again later
+            with open(self.test_result_txt_path, "w") as f:
+                f.write(result_txt)
+            logger.debug(
+                f"Test set result saved at {self.test_result_txt_path}")
 
-            # append to the test results
-            with open(self.test_result_txt_path, "a") as f:
-                header_txt = "  \nClassification report:"
-                f.write("  \n".join([header_txt, classif_report]))
+        if classification:
+            # show a nicely formatted classification report
+            with st.spinner("Making predictions of the test set ..."):
+                pred_proba = model.predict(test_ds)
+                preds = np.argmax(pred_proba, axis=-1)
+                y_true = np.concatenate([y for x, y in test_ds], axis=0)
+                unique_labels = [str(encoded_label_dict[label_id])
+                                 for label_id in np.unique(y_true)]
 
-        with st.spinner("Creating confusion matrix ..."):
-            cm = confusion_matrix(y_true, preds)
+            with st.spinner("Generating classification report ..."):
+                classif_report = classification_report(
+                    y_true, preds, target_names=unique_labels
+                )
+                st.subheader("Classification report")
+                st.text(classif_report)
 
-            fig = plt.figure()
-            ax = sns.heatmap(
-                cm,
-                cmap="Blues",
-                annot=True,
-                fmt="d",
-                cbar=False,
-            )
-            plt.title("Confusion Matrix", size=12, fontfamily="serif")
-            plt.ylabel('Actual')
-            plt.xlabel('Predicted')
-            # save the figure to reuse later
-            plt.savefig(str(self.confusion_matrix_path),
-                        bbox_inches="tight")
-            st.pyplot(fig)
+                # append to the test results
+                with open(self.test_result_txt_path, "a") as f:
+                    header_txt = "  \nClassification report:"
+                    f.write("  \n".join([header_txt, classif_report]))
+
+            with st.spinner("Creating confusion matrix ..."):
+                cm = confusion_matrix(y_true, preds)
+
+                fig = plt.figure()
+                ax = sns.heatmap(
+                    cm,
+                    cmap="Blues",
+                    annot=True,
+                    fmt="d",
+                    cbar=False,
+                )
+                plt.title("Confusion Matrix", size=12, fontfamily="serif")
+                plt.ylabel('Actual')
+                plt.xlabel('Predicted')
+                # save the figure to reuse later
+                plt.savefig(str(self.confusion_matrix_path),
+                            bbox_inches="tight")
+                st.pyplot(fig)
+        else:
+            # TODO image segmentation
+            pass
 
         # remove the model weights file, which is basically just used for loading
         # the best weights with the lowest val_loss. Decided to just use the
