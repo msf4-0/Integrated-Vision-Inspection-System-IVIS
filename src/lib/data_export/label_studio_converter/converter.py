@@ -460,7 +460,6 @@ class Converter(object):
                     'No annotations found for item #' + str(item_idx))
                 continue
             image_path = item['input'][data_key]
-# TODO: Fix download path
             try:
                 image_path = download(image_path, output_image_dir, project_dir=self.project_dir,
                                       return_relative_path=True, upload_dir=self.upload_dir, download_resources=self.download_resources)
@@ -700,7 +699,6 @@ class Converter(object):
                 # default channels to 3 if cannot get any image
                 channels = 3
 
-# TODO: Fix download path
             try:
                 image_path = download(
                     image_path, output_image_dir, project_dir=self.project_dir, upload_dir=self.upload_dir, return_relative_path=True,

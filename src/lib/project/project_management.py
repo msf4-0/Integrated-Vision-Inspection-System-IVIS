@@ -325,12 +325,18 @@ class Project(BaseProject):
             if for_training_id != 0 or export_format is None:
                 # using CSV format to get our image_paths for training
                 export_format = Format.CSV
+                # training must use CSV file format for our implementation
+                logger.info("Exporting in CSV format for training")
+                converter.convert_to_csv(
+                    json_path,
+                    output_dir=output_dir,
+                    is_dir=False,
+                )
 
             # if it's not for training but using CSV format, then we copy the images
             #  into class folders to let the user download them
             if for_training_id == 0 and export_format == Format.CSV:
-                logger.debug("Exporting in CSV format for the user")
-                # training must use CSV file format for our implementation
+                logger.info("Exporting in CSV format for the user")
                 converter.convert_to_csv(
                     json_path,
                     output_dir=output_dir,
@@ -340,7 +346,7 @@ class Project(BaseProject):
                 # image, id, label, annotator, annotation_id, created_at, updated_at, lead_time.
                 # The first col `image` contains the absolute paths to the images
                 csv_path = output_dir / 'result.csv'
-                df = pd.read_csv(csv_path)
+                df = pd.read_csv(csv_path, dtype=str)
 
                 project_img_path = output_dir / "images"
                 unique_labels = df['label'].unique().astype(str)
@@ -350,18 +356,22 @@ class Project(BaseProject):
                         f"Creating folder for class '{label}' at {class_path}")
                     os.makedirs(class_path)
 
-                def copy_images(image_path: Path, label: str):
-                    class_path = project_img_path / label
-                    shutil.copy2(image_path, class_path)
+                def get_full_image_path(image_path: str) -> str:
+                    # the image_path from CSV file is relative to the DATASET_DIR
+                    return str(DATASET_DIR / image_path)
+
+                def get_class_path(label: str) -> str:
+                    return str(project_img_path / label)
+
+                df['image'] = df['image'].apply(get_full_image_path)
+                df['class_path'] = df['label'].apply(get_class_path)
 
                 logger.debug(
                     f"Copying images into each class folder in {project_img_path}")
                 for row in stqdm(df.values, desc='Copying images into class folder'):
-                    image_path = Path(row[0])   # first row for image_path
-                    # getting the absolute path to the image
-                    image_path = DATASET_DIR / image_path
-                    label = str(row[2])         # third row for label name
-                    copy_images(image_path, label)
+                    image_path = row[0]    # first row for image_path
+                    class_path = row[-1]  # last row for class_path
+                    shutil.copy2(image_path, class_path)
                 logger.info(
                     f"Image folders for each class {unique_labels} created successfully for Project ID {self.id}")
                 # done and directly return back

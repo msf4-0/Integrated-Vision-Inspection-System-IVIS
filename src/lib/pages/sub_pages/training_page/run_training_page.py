@@ -69,8 +69,8 @@ def index(RELEASE=True):
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        # for Anson: 4 for TFOD, 9 for img classif
-        project_id_tmp = 4
+        # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
+        project_id_tmp = 30
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -81,8 +81,8 @@ def index(RELEASE=True):
         if 'user' not in session_state:
             session_state.user = User(1)
         if 'new_training' not in session_state:
-            # for Anson: 2 for TFOD, 17 for img classif
-            session_state.new_training = Training(2, session_state.project)
+            # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
+            session_state.new_training = Training(18, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -188,7 +188,7 @@ def index(RELEASE=True):
     message_place = st.empty()  # for warning messages
     result_place = st.empty()
 
-    def start_training_callback(is_resume=False):
+    def start_training_callback(is_resume=False, train_one_batch=False):
         if not is_resume:
             root = session_state.new_training.training_path['ROOT']
             if root.exists():
@@ -229,18 +229,23 @@ def index(RELEASE=True):
                                  f"before training: {p}")
                     shutil.rmtree(p)
 
-        with st.spinner("Loading TensorBoard ..."):
-            st.markdown("Refresh the Tensorboard by clicking the refresh "
-                        "icon during training to see the progress:")
-            # need to sleep for 3 seconds, otherwise the TensorBoard might accidentally
-            #  load the previous checkpoints
-            time.sleep(3)
-            run_tensorboard(logdir)
+        # with st.spinner("Loading TensorBoard ..."):
+        #     st.markdown("Refresh the Tensorboard by clicking the refresh "
+        #                 "icon during training to see the progress:")
+        #     # need to sleep for 3 seconds, otherwise the TensorBoard might accidentally
+        #     #  load the previous checkpoints
+        #     time.sleep(3)
+        #     run_tensorboard(logdir)
+
+        with st.spinner("Exporting tasks for training ..."):
+            session_state.project.export_tasks(
+                for_training_id=session_state.new_training.id)
 
         initialize_trainer()
         # start training, set `stdout_output` to True to print the logging outputs generated
         #  from the TFOD scripts; set to False to avoid clutterring the console outputs
-        session_state.trainer.train(is_resume, stdout_output=False)
+        session_state.trainer.train(
+            is_resume, stdout_output=False, train_one_batch=train_one_batch)
 
         def refresh_page():
             time.sleep(1)
@@ -252,6 +257,17 @@ def index(RELEASE=True):
 
     if not session_state.new_training.is_started:
         with train_btn_place.container():
+            if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
+                st.button(
+                    "⚡ Test training one batch", key='btn_train_one_batch',
+                    help="""This is just a test run to see whether the model can 
+                    perform well on only one batch of data (more specifically,
+                    whether it's capable enough to overfit one batch of data).
+                    This is also a good way to check whether there is any problem
+                    with the dataset, the model, or the training pipeline.""")
+                if session_state.btn_train_one_batch:
+                    start_training_callback(train_one_batch=True)
+
             st.button("⚡ Start training", key='btn_start_training')
             if not tf.config.list_physical_devices('GPU'):
                 st.warning("""WARNING: You don't have access to GPU. Training will
@@ -262,7 +278,7 @@ def index(RELEASE=True):
                 start_training_callback()
     else:
         with train_btn_place.container():
-            st.markdown("### Training results:")
+            st.header("Training results:")
             st.button("📈 Show TensorBoard", key='btn_show_tensorboard')
             if session_state.btn_show_tensorboard:
                 with st.spinner("Loading Tensorboard ..."):
@@ -334,15 +350,18 @@ def index(RELEASE=True):
                                 st.error("""Some error has occurred when exporting,
                                     please try re-training again""")
                                 logger.error(f"Error exporting model: {e}")
+                                if not RELEASE:
+                                    st.exception(e)
                                 st.stop()
                     if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
                         label = "📁 Export TensorFlow SavedModel"
                     else:
                         label = "📁 Export TensorFlow Keras Model"
-                    st.button(label, key='btn_export_model',
-                              on_click=export_callback)
+                    export = st.button(label, key='btn_export_model')
                     st.warning('✏️ **NOTE**: This may take awhile to export, '
                                'depending on the size of the trained model.')
+                    if export:
+                        export_callback()
 
         with retrain_place.container():
             retrain_col_1, resume_train_col = st.columns([1, 1])
@@ -381,7 +400,7 @@ def index(RELEASE=True):
             if session_state.new_training.training_path['models'].exists():
                 initialize_trainer()
                 st.markdown("___")
-                st.markdown("### Evaluation results:")
+                st.header("Evaluation results:")
                 with st.spinner("Running evaluation ..."):
                     try:
                         session_state.trainer.evaluate()
@@ -404,6 +423,9 @@ def index(RELEASE=True):
             is_resume = False if session_state.btn_retrain else True
             with retrain_place.container():
                 start_training_callback(is_resume)
+
+    # st.write("vars(session_state.new_training)")
+    # st.write(vars(session_state.new_training))
 
 
 if __name__ == "__main__":

@@ -130,21 +130,26 @@ def download(url, output_dir, filename=None, project_dir=None, return_relative_p
     #         hashlib.md5(url.encode()).hexdigest()[:4] + ext
     filename = os.path.basename(url)
     filepath = os.path.join(output_dir, filename)
+    # currently download_resources will only copy images to the destination filepath
+    # NOTE: currently the TFOD pipeline requires the images to be copied
     if download_resources:
-        if url.startswith("http"):
-            logger.info('Download {url} to {filepath}'.format(
-                url=url, filepath=filepath))
-            r = requests.get(url)
-            r.raise_for_status()
-            with io.open(filepath, mode='wb') as fout:
-                fout.write(r.content)
-        else:
-            full_image_path = DATASET_DIR / url
-            logger.debug(f"Copying image from {full_image_path} to {filepath}")
-            shutil.copy2(full_image_path, filepath)
-    if return_relative_path:
-        return os.path.join(os.path.basename(output_dir), filename)
-    return filepath
+        # if url.startswith("http"):
+        #     logger.info('Download {url} to {filepath}'.format(
+        #         url=url, filepath=filepath))
+        #     r = requests.get(url)
+        #     r.raise_for_status()
+        #     with io.open(filepath, mode='wb') as fout:
+        #         fout.write(r.content)
+        # else:
+        # NOTE: url here is currently a relative path to the DATASET_DIR
+        full_image_path = DATASET_DIR / url
+        logger.debug(f"Copying image from {full_image_path} to {filepath}")
+        shutil.copy2(full_image_path, filepath)
+        if return_relative_path:
+            return os.path.join(os.path.basename(output_dir), filename)
+        return filepath
+    # return back original relative_path if not download_resources
+    return url
 
 
 def get_image_size(image_path):

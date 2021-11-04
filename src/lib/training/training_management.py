@@ -573,6 +573,8 @@ class BaseTraining:
         query_vars = [training_param_json, self.id]
         try:
             db_no_fetch(sql_query, conn, query_vars)
+            logger.debug(
+                f"Updated training_param successfully {training_param}")
             return True
         except Exception as e:
             logger.error(f"Update training param failed: {e}")
@@ -804,7 +806,6 @@ class NewTraining(BaseTraining):
     #     return self.id
 
 # TODO #133 Add New Training Reset
-
 
     @staticmethod
     def reset_new_training_page():
@@ -1275,6 +1276,7 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
+
 
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],

@@ -34,17 +34,17 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
         else:
             param_name = k.capitalize()
         if isinstance(v, dict):
-            if not v.values():
+            if v.values() is None:
                 continue
             config_info.append(f"#### {param_name}")
             for nested_name, nested_v in v.items():
-                param_val = str2float(nested_v)
+                param_val = str2float(str(nested_v))
                 current_info = f'**{nested_name}**: {param_val}'
                 config_info.append(current_info)
         else:
-            if not v:
+            if v is None:
                 continue
-            param_val = str2float(v)
+            param_val = str2float(str(v))
             current_info = f'**{param_name}**: {param_val}'
             config_info.append(current_info)
     config_info = '  \n'.join(config_info)
@@ -152,10 +152,9 @@ def create_class_colors(
 
     `as_array` is required for coloring mask images with `get_colored_mask_image`.
     """
-    np.random.seed(42)
-    colors = np.random.randint(0, 255,
-                               size=(len(class_names), 3),
-                               dtype=np.uint8)
+    rng = np.random.default_rng(42)
+    colors = rng.integers(0, 255, size=(len(class_names), 3),
+                          dtype=np.uint8)
     class_colors = {}
     for name, color in zip(class_names, colors):
         # must convert the NumPy dtypes to Python ints
@@ -172,7 +171,7 @@ def create_class_colors(
     return class_colors
 
 
-def draw_gt_bbox(
+def draw_gt_bboxes(
     image_np: np.ndarray,
     box_coordinates: Sequence[Tuple[int, int, int, int]],
     class_names: Union[List[str], str] = None,
@@ -291,7 +290,7 @@ def get_colored_mask_image(image: np.ndarray,
     `alpha` is to control the transparency of overlayed colored mask. Defaults to 0.4.
 
     `ignore_background` is used to ignore the black background color when overlaying to
-    make the output prettier. Note that this will a considerable amount of FPS.
+    make the output prettier. Note that this will cost a considerable amount of FPS.
     Defaults to False.
     """
     # given the class ID map obtained from the mask, we can map each of
@@ -310,6 +309,7 @@ def get_colored_mask_image(image: np.ndarray,
     return output
 
 
+@st.experimental_memo
 def create_color_legend(class_colors: Dict[str, Tuple[int, int, int]],
                         ignore_background: bool = True,
                         show_index: bool = False) -> np.ndarray:

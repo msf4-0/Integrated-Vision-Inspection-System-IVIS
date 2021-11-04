@@ -44,7 +44,7 @@ from training.training_management import AugmentationConfig, NewTrainingPaginati
 from project.project_management import Project
 from user.user_management import User
 from machine_learning.utils import generate_mask_images, get_bbox_label_info, get_coco_classes, load_mask_image, xml_to_df
-from machine_learning.visuals import create_class_colors, create_color_legend, draw_gt_bbox, get_colored_mask_image
+from machine_learning.visuals import create_class_colors, create_color_legend, draw_gt_bboxes, get_colored_mask_image
 from core.utils.helper import Timer
 
 # augmentation config from https://github.com/IliaLarchenko/albumentations-demo/blob/master/src/app.py
@@ -301,11 +301,11 @@ def augmentation_configuration(RELEASE=True):
             if image_name != "Upload my image":
                 if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
                     class_colors = create_class_colors(class_names)
-                    image = draw_gt_bbox(
+                    image = draw_gt_bboxes(
                         image, bboxes, class_names=class_names, class_colors=class_colors)
-                    augmented_image = draw_gt_bbox(augmented_image, data['bboxes'],
-                                                   class_names=data['class_names'],
-                                                   class_colors=class_colors)
+                    augmented_image = draw_gt_bboxes(augmented_image, data['bboxes'],
+                                                     class_names=data['class_names'],
+                                                     class_colors=class_colors)
                 elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
                     class_names = get_coco_classes(
                         coco_json_path, return_coco=False)

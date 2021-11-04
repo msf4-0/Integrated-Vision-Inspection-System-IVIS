@@ -60,11 +60,15 @@ def find_tfod_eval_metrics(cmd_output) -> str:
             lines = re.findall(f"{name}.+", cmd_output)
             # remove duplicated lines
             lines = list(set(lines))
-            all_lines.append('  \n'.join(lines))
+            for line in lines:
+                found_name, val = line.split(":")
+                line = f"**{found_name}**: {val}"
+                all_lines.append(line)
         all_lines_str = '  \n'.join(all_lines)
         return all_lines_str
-    except IndexError:
-        logger.debug(f"Value for '{name}' not found from {cmd_output}")
+    except Exception as e:
+        logger.error(
+            f"Error with '{name}' from command output: {cmd_output}\n{e}")
 
 
 def find_traceback(cmd_output: str) -> str:
@@ -74,14 +78,41 @@ def find_traceback(cmd_output: str) -> str:
     return traceback
 
 
-def check_process_returncode(process: subprocess.Popen, returncode: int):
+# ! DEPRECATED
+def check_process_returncode_old(process: subprocess.Popen,
+                                 returncode: int):
+    """Check returncode from subprocess. `returncode` of 0 means success.
+
+    On Windows: `returncode` is always 1 if process is terminated or error occurred.
+    On POSIX: `returncode` is also 1 but negative when process is terminated due to a signal
+      such as through `process.terminate()`.
+    """
     if returncode > 0:
         logger.debug(f"{returncode = }")
         cmd_output = process.stderr.read()
         traceback = find_traceback(cmd_output)
-        logger.error(f"ERROR occurred when running the command:\n{traceback}")
-        st.error("Error running the command, please try again or contact our admin.")
-        st.stop()
+        if traceback:
+            logger.error("ERROR occurred when running the command, Traceback:\n"
+                         f"{traceback}")
+            st.error(
+                "Error running the command, please try again or contact our admin.")
+            st.stop()
+        else:
+            logger.debug(
+                "No traceback found, the process is probably terminated prematurely.")
+
+
+def check_process_returncode(returncode: int, traceback: List[str]) -> Union[str, None]:
+    """Check returncode from subprocess. `returncode` of 0 means success.
+
+    On Windows: `returncode` is always 1 if process is terminated or error occurred.
+    On POSIX: `returncode` is also 1 but negative when process is terminated due to a signal
+      such as through `process.terminate()`.
+    """
+    if returncode > 0 and traceback:
+        traceback = '\n'.join(traceback)
+        logger.error(f"Error occurred with traceback:\n{traceback}")
+        return traceback
 
 
 def run_command(command_line_args: str, st_output: bool = False,
@@ -107,6 +138,7 @@ def run_command(command_line_args: str, st_output: bool = False,
     if pretty_print:
         command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
+    logger.debug(f"{stdout_output = }")
     # shell=True to work on String instead of list -- not really sure about this...
     # using shell=False for COCO eval to easily stop the process with process.terminate()
     shell = False if is_cocoeval else True
@@ -117,12 +149,19 @@ def run_command(command_line_args: str, st_output: bool = False,
                                text=True)
     if filter_by:
         output_str_list = []
+    traceback_found = False
+    traceback = []
     for line in process.stdout:
         # remove empty trailing spaces, and also string with only spaces
         line = line.strip()
         if line:
             if stdout_output:
                 print(line)
+            if 'Traceback' in line:
+                traceback_found = True
+            if traceback_found:
+                traceback.append(line)
+                continue
             if is_cocoeval and 'Loss/total_loss' in line:
                 # stop the process after see this line in COCO eval script
                 logger.debug("NOTE: TERMINATING COCO EVAL SCRIPT")
@@ -138,7 +177,7 @@ def run_command(command_line_args: str, st_output: bool = False,
 
     # wait for the process to terminate and check for any error
     returncode = process.wait()
-    check_process_returncode(process, returncode)
+    traceback = check_process_returncode(returncode, traceback)
 
     if filter_by and not output_str_list:
         # there is nothing obtained from the filtered stdout
@@ -153,13 +192,13 @@ def run_command(command_line_args: str, st_output: bool = False,
     return process.stdout.read()
 
 
-def run_command_update_metrics(
+def run_command_update_metrics_old(
     command_line_args: str,
     stdout_output: bool = True,
     step_name: str = 'Step',
     metric_names: Tuple[str] = None,
 ) -> str:
-    # ! DEPRECATED, Using run_command_update_metrics_2 function
+    # ! DEPRECATED, Using run_command_update_metrics function
     """
     Running commands or scripts, while getting live stdout
 
@@ -225,7 +264,7 @@ def run_command_update_metrics(
     return process.stdout
 
 
-def run_command_update_metrics_2(
+def run_command_update_metrics(
     command_line_args: str,
     stdout_output: bool = True,
     step_name: str = 'Step',
@@ -258,13 +297,21 @@ def run_command_update_metrics_2(
     current_lines = []
     # flag to track the 'Step' text
     step_name_found = False
+    # to track any traceback
+    traceback_found = False
+    traceback = []
     for line in process.stdout:
         # remove empty trailing spaces, and also string with only spaces
         line = line.strip()
-        if stdout_output and line:
-            # print to console
-            print(line)
         if line:
+            if stdout_output:
+                # print to console
+                print(line)
+            if 'Traceback' in line:
+                traceback_found = True
+            if traceback_found:
+                traceback.append(line)
+                continue
             # keep storing when stored stdout lines are less than 12,
             #  12 is the exact number of lines output by the script
             #  that will contain all the metrics after the line
@@ -296,7 +343,6 @@ def run_command_update_metrics_2(
                 st.markdown(f"**{step_name}**: {step_val}")
 
                 metrics = {}
-                # for name in metric_names:
                 for line in current_lines[2:]:
                     metric = find_tfod_metric('Loss', line)
                     if metric:
@@ -314,5 +360,5 @@ def run_command_update_metrics_2(
                 step_name_found = False
     # wait for the process to terminate and check for any error
     returncode = process.wait()
-    check_process_returncode(process, returncode)
+    traceback = check_process_returncode(returncode, traceback)
     return process.stdout.read()

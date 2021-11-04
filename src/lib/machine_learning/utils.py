@@ -3,14 +3,17 @@ import os
 import sys
 from pathlib import Path
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+import shutil
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import xml.etree.ElementTree as ET
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
 from imutils.paths import list_images
 from keras_unet_collection.losses import focal_tversky, iou_seg
 import numpy as np
 import cv2
-import xml.etree.ElementTree as ET
 import glob
-import pandas as pd
 import albumentations as A
 from pycocotools.coco import COCO
 
@@ -18,7 +21,9 @@ import streamlit as st
 from streamlit import session_state
 from stqdm import stqdm
 
-from object_detection.utils import label_map_util
+import tensorflow as tf
+from object_detection.utils import config_util, label_map_util
+from object_detection.builders import model_builder
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -32,6 +37,125 @@ else:
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
+
+
+def check_unique_label_counts(labels: List[int], encoded_label_dict: Dict[int, str]):
+    """Check whether there is any class that has only 1 image, which will not work
+    when trying to split with train_test_split() with stratification."""
+    unique_values, counts = np.unique(labels, return_counts=True)
+    one_member_idxs = (counts == 1)
+    if one_member_idxs.any():
+        label_idx = int(unique_values[one_member_idxs][0])
+        label_name = encoded_label_dict[label_idx]
+        logger.error(f"""The least populated class in y: '{label_name}' has only 1 image,
+        which is too few. The minimum number of groups for any class cannot be less
+        than 2. This will not work for stratification in `train_test_split()`""")
+        return False
+    return True
+
+
+def custom_train_test_split(image_paths: List[Path],
+                            test_size: float,
+                            *,
+                            no_validation: bool,
+                            labels: Union[List[str], List[Path]],
+                            val_size: Optional[float] = 0.0,
+                            train_size: Optional[float] = 0.0,
+                            stratify: Optional[bool] = False,
+                            random_seed: Optional[int] = None
+                            ) -> Tuple[List[str], ...]:
+    """
+    Splitting the dataset into train set, test set, and optionally validation set
+    if `no_validation` is True. Image classification will pass in label names instead
+    of label_paths for each image.
+
+    Args:
+        image_paths (Path): Directory to the images.
+        test_size (float): Size of test set in percentage
+        no_validation (bool): If True, only split into train and test sets, without validation set.
+        labels (Union[str, Path]): Pass in this parameter to split the labels or label paths.
+        val_size (Optional[float]): Size of validation split, only needed if `no_validation` is False. Defaults to 0.0.
+        train_size (Optional[float]): This is only used for logging, can be inferred, thus not required. Defaults to 0.0.
+        stratify (Optional[bool]): stratification should only be used for image classification. Defaults to False
+        random_seed (Optional[int]): random seed to use for splitting. Defaults to None.
+
+    Returns:
+        Tuples of lists of image paths (str), and optionally annotation paths,
+        optionally split without validation set too.
+    """
+    if no_validation:
+        assert not val_size, "Set `no_validation` to True if want to split into validation set too."
+    else:
+        assert val_size, "Must pass in `val_size` if `no_validation` is False."
+
+    total_images = len(image_paths)
+    assert total_images == len(labels)
+
+    if stratify:
+        logger.info("Using stratification for train_test_split()")
+        depl_type = session_state.new_training.deployment_type
+        assert depl_type == 'Image Classification', (
+            'Only use stratification for image classification labels. '
+            f'Current deployment type: {depl_type}'
+        )
+        stratify = labels
+    else:
+        stratify = None
+
+    logger.info(f"Total images = {total_images}")
+
+    # TODO: maybe can add stratification as an option (only works for img classification)
+    if no_validation:
+        train_size = train_size if train_size else round(1 - test_size, 2)
+        logger.info("Splitting into train:test dataset"
+                    f" with ratio of {train_size:.2f}:{test_size:.2f}")
+        X_train, X_test, y_train, y_test = train_test_split(
+            image_paths, labels,
+            test_size=test_size,
+            stratify=stratify,
+            random_state=random_seed
+        )
+        return X_train, X_test, y_train, y_test
+    else:
+        train_size = train_size if train_size else round(
+            1 - test_size - val_size, 2)
+        logger.info("Splitting into train:valid:test dataset"
+                    " with ratio of "
+                    f"{train_size:.2f}:{val_size:.2f}:{test_size:.2f}")
+        X_train, X_val_test, y_train, y_val_test = train_test_split(
+            image_paths, labels,
+            test_size=(val_size + test_size),
+            stratify=stratify,
+            random_state=random_seed
+        )
+        X_val, X_test, y_val, y_test = train_test_split(
+            X_val_test, y_val_test,
+            test_size=(test_size / (val_size + test_size)),
+            shuffle=False,
+            stratify=stratify,
+            random_state=random_seed,
+        )
+        return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def copy_images(image_paths: Path,
+                dest_dir: Path,
+                label_paths: Optional[Path] = None):
+    if dest_dir.exists():
+        # remove the existing images
+        shutil.rmtree(dest_dir, ignore_errors=False)
+
+    # create new directories
+    os.makedirs(dest_dir)
+
+    if label_paths:
+        for image_path, label_path in stqdm(zip(image_paths, label_paths), total=len(image_paths)):
+            # copy the image file and label file to the new directory
+            shutil.copy2(image_path, dest_dir)
+            shutil.copy2(label_path, dest_dir)
+    else:
+        for image_path in image_paths:
+            shutil.copy2(image_path, dest_dir)
 
 
 def load_image_into_numpy_array(path: str):
@@ -71,6 +195,63 @@ def get_transform():
     else:
         transform = A.Compose(transform_list)
     return transform
+
+
+def preprocess_image(image: np.ndarray, image_size: int) -> np.ndarray:
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.resize(image, (image_size, image_size))
+    image = image.astype(np.float32) / 255.
+    return image
+
+
+def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
+    """Get the custom objects required for loading the Keras segmentation model.
+
+    NOTE: these custom metrics might change depending on how you built the model
+     in `build_segmentation_model()`. Currently should only be these custom metrics:
+
+    metrics = [hybrid_loss, iou_seg, focal_tversky]
+    """
+    use_hybrid_loss: bool = session_state.new_training.training_param_dict['use_hybrid_loss']
+
+    # KIV: For now, the metric names are taken from training_model instance and the metric
+    # functions are dynamically generated using `eval`, so be sure to import the function
+    # names directly on the script that uses this function.
+    # metrics = list(
+    #     session_state.new_training.training_model.metrics.keys())
+    # custom_objects = {}
+    # for m in metrics:
+    #     if m != 'loss' and not m.startswith('val_') and m != 'categorical_crossentropy':
+    #         custom_objects[m] = eval(m)
+    #     elif m == 'loss':
+    #         if use_hybrid_loss:
+    #             custom_objects['hybrid_loss'] = hybrid_loss
+    #         else:
+    #             custom_objects['focal_tversky'] = focal_tversky
+    custom_objects = {"hybrid_loss": hybrid_loss, "focal_tversky": focal_tversky,
+                      "iou_seg": iou_seg}
+    if not use_hybrid_loss:
+        del custom_objects["hybrid_loss"]
+    return custom_objects
+
+
+@st.cache(show_spinner=False)
+# @st.experimental_memo
+def load_keras_model(model_path: Union[str, Path], metrics: List[Callable]):
+    """Load the exported keras model instead of only weights.
+
+    The `custom_objects` is dynamically extracted from `training_model` instance
+    for the segmentation model's custom loss functions or metrics.
+
+    Returns the Keras model instance."""
+    if session_state.project.deployment_type == 'Semantic Segmentation with Polygons':
+        custom_objects = get_segmentation_model_custom_objects()
+    else:
+        custom_objects = None
+    model = tf.keras.models.load_model(model_path, custom_objects)
+    # https://github.com/tensorflow/tensorflow/issues/45903#issuecomment-804973541
+    model.compile(loss=model.loss, optimizer=model.optimizer, metrics=metrics)
+    return model
 
 # ******************************* TFOD funcs *******************************
 
@@ -230,9 +411,150 @@ def load_labelmap(labelmap_path):
     return category_index
 
 
+def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
+    """Find and return the latest TFOD checkpoint path. 
+
+    The `ckpt_dir` should be `training_path['models']`.
+
+    Return None if no ckpt-*.index file found"""
+    ckpt_filepaths = glob.glob(str(ckpt_dir / 'ckpt-*.index'))
+    if not ckpt_filepaths:
+        logger.warning("""There is no checkpoint file found,
+        the TFOD model is not trained yet.""")
+        return None
+
+    def get_ckpt_cnt(path):
+        ckpt = path.split("ckpt-")[-1].split(".")[0]
+        return int(ckpt)
+
+    latest_ckpt = sorted(ckpt_filepaths, key=get_ckpt_cnt, reverse=True)[0]
+    return Path(latest_ckpt)
+
+
+@st.cache(show_spinner=False)
+# @st.experimental_memo
+def load_tfod_checkpoint(
+        ckpt_dir: Path,
+        pipeline_config_path: Path) -> Callable[[tf.Tensor], Dict[str, Any]]:
+    """
+    Loading from checkpoint instead of the exported savedmodel.
+
+    The `ckpt_dir` should be `training_path['models']`.
+
+    `pipeline_config_path` should be training_path['models'] / 'pipeline.config'
+    """
+    ckpt_path = get_tfod_last_ckpt_path(ckpt_dir)
+
+    logger.info(f'Loading TFOD checkpoint from {ckpt_path} ...')
+    start_time = time.perf_counter()
+
+    # Load pipeline config and build a detection model
+    configs = config_util.get_configs_from_pipeline_file(pipeline_config_path)
+    model_config = configs['model']
+    detection_model = model_builder.build(
+        model_config=model_config, is_training=False)
+
+    # Restore checkpoint
+    ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
+    # need to remove the .index extension at the end
+    ckpt.restore(str(ckpt_path).strip('.index')).expect_partial()
+
+    @tf.function
+    def detect_fn(image):
+        """Detect objects in image."""
+
+        image, shapes = detection_model.preprocess(image)
+        prediction_dict = detection_model.predict(image, shapes)
+        detections = detection_model.postprocess(prediction_dict, shapes)
+
+        return detections
+
+    end_time = time.perf_counter()
+    logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
+    return detect_fn
+
+
+@st.cache(show_spinner=False)
+# @st.experimental_memo
+def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, Any]]:
+    """
+    `saved_model_path` should be `training_path['export'] / 'saved_model'`
+
+    NOTE: Caching is used on this method to avoid long loading times.
+    Due to this, this method should not be used outside of training/deployment page.
+    Maybe can improve this by using st.experimental_memo or other methods. Not sure.
+    """
+    logger.info(f'Loading model from {saved_model_path} ...')
+    start_time = time.perf_counter()
+    # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
+    detect_fn = tf.saved_model.load(str(saved_model_path))
+    end_time = time.perf_counter()
+    logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
+    return detect_fn
+
+
+def tfod_detect(detect_fn: Callable[[tf.Tensor], Dict[str, Any]],
+                image_np: np.ndarray,
+                tensor_dtype=tf.uint8) -> Dict[str, Any]:
+    """
+    `detect_fn` is obtained using `load_tfod_model` or `load_tfod_checkpoint` functions. 
+    `tensor_dtype` should be `tf.uint8` for exported model; 
+    and `tf.float32` for checkpoint model to work. 
+    """
+    # Running the infernce on the image specified in the  image path
+    # The input needs to be a tensor, convert it using `tf.convert_to_tensor`.
+    # input_tensor = tf.convert_to_tensor(image_np)
+    # The model expects a batch of images, so add an axis with `tf.newaxis`.
+    # input_tensor = input_tensor[tf.newaxis, ...]
+    # input_tensor = tf.expand_dims(input_tensor, 0)
+
+    input_tensor = tf.convert_to_tensor(
+        np.expand_dims(image_np, 0), dtype=tensor_dtype)
+
+    # running detection using the loaded model: detect_fn
+    detections = detect_fn(input_tensor)
+
+    # All outputs are batches tensors.
+    # Convert to numpy arrays, and take index [0] to remove the batch dimension.
+    # We're only interested in the first num_detections.
+    num_detections = int(detections.pop('num_detections'))
+    detections = {key: value[0, :num_detections].numpy()
+                  for key, value in detections.items()}
+    detections['num_detections'] = num_detections
+
+    # detection_classes should be ints.
+    detections['detection_classes'] = detections['detection_classes'].astype(
+        np.int64)
+    return detections
+
+
 # ******************************* TFOD funcs *******************************
 
+# *********************** Classification model funcs ***********************
+
+def tf_classification_preprocess_input(imagePath, label, image_size):
+    raw = tf.io.read_file(imagePath)
+    image = tf.io.decode_image(
+        raw, channels=3, expand_animations=False)
+    image = tf.image.resize(image, (image_size, image_size))
+    image = tf.cast(image / 255.0, tf.float32)
+    label = tf.cast(label, dtype=tf.int32)
+    return image, label
+
+
+def classification_predict(preprocessed_img: np.ndarray, model: Any,
+                           return_proba: bool = True) -> Union[Tuple[int, float], int]:
+    y_proba = model.predict(np.expand_dims(preprocessed_img, axis=0))
+    y_pred = np.argmax(y_proba, axis=-1)[0]
+
+    if return_proba:
+        return y_pred, y_proba.ravel()[y_pred]
+    return y_pred
+
+# *********************** Classification model funcs ***********************
+
 # ************************ Segmentation model funcs ************************
+
 
 def load_mask_image(ori_image_name: str, mask_dir: Path) -> np.ndarray:
     """Given the `ori_image_name` (refers to the original non-mask image),
@@ -346,5 +668,43 @@ def hybrid_loss(y_true, y_pred):
     loss_iou = iou_seg(y_true, y_pred)
 
     return loss_focal + loss_iou
+
+
+def preprocess_mask(mask: np.ndarray, image_size: int, num_classes: int) -> tf.Tensor:
+    mask = cv2.resize(mask, (image_size, image_size))
+
+    # this is a very important step to one-hot encode the mask
+    # based on the number of classes, and keep in mind that
+    # this `num_classes` will be the same as the number of filters of the
+    # final output Conv2D layer in the model
+    mask = tf.one_hot(mask, depth=num_classes, dtype=tf.int32)
+    return mask
+
+
+def segmentation_read_and_preprocess(
+        imagePath: bytes, maskPath: bytes,
+        image_size: int, num_classes: int) -> Tuple[np.ndarray, tf.Tensor]:
+    # must decode the paths because they are in bytes format in TF operations
+    image = cv2.imread(imagePath.decode())
+    image = preprocess_image(image, image_size)
+
+    mask = cv2.imread(maskPath.decode(), cv2.IMREAD_GRAYSCALE)
+    mask = preprocess_mask(mask, image_size, num_classes)
+    return image, mask
+
+
+def segmentation_predict(model: Any,
+                         preprocessed_img: np.ndarray,
+                         original_width: int,
+                         original_height: int) -> np.ndarray:
+    pred_mask = model.predict(np.expand_dims(preprocessed_img, axis=0))
+    pred_mask = np.argmax(pred_mask, axis=-1)
+    # index 0 to take away the one and only extra batch dimension
+    pred_mask = pred_mask[0].astype(np.uint8)
+    # resize it to original size after making prediction
+    # take note of the order of width and height
+    pred_mask = cv2.resize(pred_mask, (original_width, original_height),
+                           interpolation=cv2.INTER_NEAREST)
+    return pred_mask
 
 # ************************ Segmentation model funcs ************************

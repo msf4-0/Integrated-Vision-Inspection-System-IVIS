@@ -14,12 +14,13 @@ K = keras.backend
 class StreamlitOutputCallback(Callback):
     def __init__(self, pretty_metric_printer: PrettyMetricPrinter,
                  num_epochs, steps_per_epoch, progress_placeholder: Dict[str, Any],
-                 refresh_rate=20):
+                 refresh_rate: int = 20, update_metrics: bool = True):
         self.pretty_metric = pretty_metric_printer
         self.num_epochs = num_epochs
         self.steps_per_epoch = steps_per_epoch
         self.refresh_rate = refresh_rate
         self.progress_placeholder = progress_placeholder
+        self.update_metrics = update_metrics
 
     def on_epoch_begin(self, epoch, logs=None):
         with self.progress_placeholder['epoch'].container():
@@ -53,8 +54,9 @@ class StreamlitOutputCallback(Callback):
         self.pretty_metric.write(logs)
         st.markdown('___')
 
-        session_state.new_training.update_progress({'Epoch': epoch})
-        session_state.new_training.update_metrics(logs)
+        if self.update_metrics:
+            session_state.new_training.update_progress({'Epoch': epoch})
+            session_state.new_training.update_metrics(logs)
 
 
 class LRTensorBoard(TensorBoard):

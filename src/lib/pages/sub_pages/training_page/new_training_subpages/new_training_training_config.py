@@ -126,7 +126,17 @@ def training_configuration(RELEASE=True):
             # update the database and our Training instance
             session_state.new_training.update_training_param(training_param)
             session_state.new_training.has_submitted[NewTrainingPagination.TrainingConfig] = True
-            session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig
+            logger.info(
+                "Successfully submitted the selected training parameters")
+
+            if not session_state.new_training.has_submitted[NewTrainingPagination.AugmentationConfig]:
+                session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig
+            else:
+                # go to Training page if all forms have been submitted
+                session_state.new_training_pagination = NewTrainingPagination.Training
+            logger.debug('New Training Pagination: '
+                         f'{session_state.new_training_pagination}')
+            st.experimental_rerun()
 
         if deployment_type != "Object Detection with Bounding Boxes":
             # NOTE: most of these params will also be used for Semantic Segmentation for Keras training
@@ -287,6 +297,7 @@ def training_configuration(RELEASE=True):
                 if 'aspp_num_down' in param_dict:
                     aspp_num_down = param_dict['aspp_num_down']
                     aspp_num_up = param_dict['aspp_num_up']
+                use_hybrid_loss = param_dict['use_hybrid_loss']
             else:
                 input_size = 256
                 filter_size = 32
@@ -301,6 +312,7 @@ def training_configuration(RELEASE=True):
                 unpool = True
                 aspp_num_down = 256
                 aspp_num_up = 128
+                use_hybrid_loss = False
 
             st.markdown("___")
             st.subheader("Segmentation model parameters")
@@ -309,7 +321,10 @@ def training_configuration(RELEASE=True):
             input_size = st.select_slider(
                 "Input image size", inp_choices, value=input_size, key='input_size'
             )
+            # this is required as the first parameter to the segmentation model
             session_state['param_input_size'] = (input_size, input_size, 3)
+            # this is required for preprocessing
+            session_state['param_image_size'] = input_size
 
             filter_size_choices = (16, 32, 64)
             filter_size = st.select_slider(
@@ -331,7 +346,7 @@ def training_configuration(RELEASE=True):
 
             # +1 for background class
             session_state['param_n_labels'] = len(
-                session_state.project.get_existing_unique_labels() + 1)
+                session_state.project.get_existing_unique_labels()) + 1
 
             recur_num_choices = (1, 2, 3)
             if session_state.new_training.attached_model.name == 'R2U-Net':
@@ -414,6 +429,15 @@ def training_configuration(RELEASE=True):
                 False for Conv2DTranspose + batch norm + activation. """
             )
             session_state['param_unpool'] = 'nearest' if unpool == 'Nearest' else unpool
+
+            loss_choices = ('Hybrid Loss', 'Focal Tversky Loss')
+            loss_func = 'Hybrid Loss' if use_hybrid_loss else 'Focal Tversky Loss'
+            loss_func = st.radio(
+                'Loss function', loss_choices, index=loss_choices.index(loss_func), key='loss_func',
+                help="""Hybrid Loss is a combination of Focal Tversky Loss and Intersection
+                over Union (IoU) Loss. In general, focal Tversky loss is good enough.""")
+            session_state['param_use_hybrid_loss'] = (True if loss_func == 'Hybrid Loss'
+                                                      else False)
 
             st.button("Test Build Model", key='btn_test_build_model',
                       help="""Test building a segmentation model to verify that 
