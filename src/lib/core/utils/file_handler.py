@@ -17,7 +17,7 @@ import tarfile
 import urllib
 from glob import glob, iglob
 from pathlib import Path
-from typing import IO, Dict, List, Union
+from typing import IO, Dict, List, Tuple, Union
 from zipfile import ZipFile
 from copy import deepcopy
 import streamlit as st
@@ -43,6 +43,7 @@ from path_desc import chdir_root, get_temp_dir
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 SUPPORTED_ARCHIVE_EXT = ['.zip', '.gz', '.bz2', '.xz']
+IMAGE_EXTENSIONS = ['.jpg', '.png', '.jpeg']
 
 # ************************** DEPRECATED **************************
 
@@ -409,6 +410,27 @@ def file_unarchiver(filename: Union[str, Path], extract_dir: Union[str, Path]):
     logger.info("Successfully Unarchive")
 
 
+def extract_one_to_bytes(uploaded_archive: UploadedFile, filename: str) -> bytes:
+    """Extract or read a single file from the archive, either from zipfile or tarfile.
+
+    This function should only be used to extract one file, and not multiple files. If
+    extracting multiple files, you should open the zipfile/tarfile and write the for loop
+    within it.
+    """
+    # uploaded_archive = deepcopy(uploaded_archive)
+    # either use deepcopy or seek to allow reading again
+    uploaded_archive.seek(0)
+    if uploaded_archive.name.endswith('.zip'):
+        with ZipFile(file=uploaded_archive, mode='r') as zipObj:
+            file_content = zipObj.read(filename)
+    else:
+        with tarfile.open(fileobj=uploaded_archive) as tar:
+            f = tar.extractfile(filename)
+            file_content = f.read()
+    uploaded_archive.seek(0)
+    return file_content
+
+
 def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_object=None):
     """Extract archive to folder
 
@@ -417,12 +439,14 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
         archived_filepath (Path, optional): Path to archive file. Neglected if file_object passed. Defaults to None.
         file_object (byte-like/file, optional): Byte-stream object / file-like object. Defaults to None.
     """
-
-    # Make sure it is Path() object
-    archived_filepath = Path(archived_filepath)
     dst = Path(dst)
     create_folder_if_not_exist(dst)
 
+    if isinstance(file_object, UploadedFile):
+        archived_filepath = file_object.name
+
+    # Make sure it is Path() object
+    archived_filepath = Path(archived_filepath)
     archive_extension = archived_filepath.suffix
 
     if (archive_extension not in SUPPORTED_ARCHIVE_EXT):
@@ -436,9 +460,8 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
     if archive_extension == '.zip':
         file = file_object if file_object else archived_filepath
         with ZipFile(file=file, mode='r') as zipObj:
+            logger.info(f"Extracting {archived_filepath.name} to {dst}")
             zipObj.extractall(path=dst)
-            logger.info(
-                f"Extracting {str(archived_filepath.name)} to {str(dst)}")
 
     else:
         tar_read_format_list = {
@@ -453,16 +476,20 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
         if file_object:
             fileobj = deepcopy(file_object)
             name = None
+        else:
+            fileobj = None
+            name = archived_filepath
 
         with tarfile.open(name=name,
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:
+            logger.info(f"Extracting {archived_filepath.name} to {dst}")
             tarObj.extractall(path=dst)
-            logger.info(
-                f"Extracting {str(archived_filepath.name)} to {str(dst)}")
 
 
-def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> List[str]:
+def list_files_in_archived(archived_filepath: Path = None, file_object=None,
+                           return_content_size: bool = False,
+                           skip_dir: bool = False) -> Union[List[str], Tuple[List[str], int]]:
     """List files in the zip (.zip) and tar archives.
 
     Supported tar compressions:
@@ -473,13 +500,20 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> 
 
     Args:
         archived_filepath (Path): Filepath to archives or filename(to get extensions). Defaults to None.
-        file_object (Any) : file-like object of archives. Defaults to None.
+        file_object (Any): file-like object of archives. Defaults to None.
+        skip_dir (bool): If True, skip directories. Defaults to False.
 
     Returns:
         List[str]: A list of member files in the archives.
     """
+    # NOTE: deepcopy to avoid clearing the file contents after reading
+    # file_object = deepcopy(file_object)
+    # or use seek
+    file_object.seek(0)
 
-    file_list = []
+    if isinstance(file_object, UploadedFile):
+        archived_filepath = file_object.name
+
     # Make sure it is Path() object
     archived_filepath = Path(archived_filepath)
 
@@ -494,13 +528,25 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> 
         st.error(error_msg)
         return
 
+    content_size = 0
+    filepaths = []
     if archive_extension == '.zip':
-
         file = file_object if file_object else archived_filepath
 
         with ZipFile(file=file, mode='r') as zipObj:
-            file_list = sorted(zipObj.namelist())
-
+            if not skip_dir:
+                filepaths = sorted(zipObj.namelist())
+                if return_content_size:
+                    members = zipObj.infolist()
+                    for m in members:
+                        content_size += m.file_size
+            else:
+                members = zipObj.infolist()
+                for m in members:
+                    if return_content_size:
+                        content_size += m.file_size
+                    if not m.is_dir():
+                        filepaths.append(m.filename)
     else:
         tar_read_format_list = {
             ".gz": "r:gz",
@@ -511,15 +557,47 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None) -> 
         tar_mode = tar_read_format_list.get(archive_extension)
 
         if file_object:
-            fileobj = deepcopy(file_object)
+            fileobj = file_object
             name = None
+        else:
+            fileobj = None
+            name = archived_filepath
 
         with tarfile.open(name=name,
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:
-            file_list = sorted(tarObj.getnames())
-            # file_object.seek(0, 0)
+            if not skip_dir:
+                filepaths = sorted(tarObj.getnames())
+                if return_content_size:
+                    members = tarObj.getmembers()
+                    for m in members:
+                        content_size += m.size
+                # file_object.seek(0, 0)
+            else:
+                members = tarObj.getmembers()
+                for m in members:
+                    if return_content_size:
+                        content_size += m.size
+                    if m.isfile():
+                        filepaths.append(m.name)
+    file_object.seek(0)
+    if return_content_size:
+        return filepaths, content_size
+    return filepaths
 
+
+def check_image_files(file_list: List[str]) -> List[str]:
+    """Check the contents in the tarfile to verify that all of them are images."""
+    for fname in file_list:
+        ext = os.path.splitext(fname)[-1]
+        if ext not in IMAGE_EXTENSIONS:
+            st.error(
+                f"'{ext}' file extension is not a supported image format.")
+            st.stop()
+        if fname.startswith((r'.', r'/')):
+            st.error(f'{fname} is not a valid filepath. '
+                     'Absolute / relative filepath is not accepted.')
+            st.stop()
     return file_list
 
 

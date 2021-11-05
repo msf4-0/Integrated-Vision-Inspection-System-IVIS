@@ -26,11 +26,14 @@ SPDX-License-Identifier: Apache-2.0
 
 import os
 import sys
+import shutil
 from copy import deepcopy
 from enum import IntEnum
 from pathlib import Path
+import tarfile
 from time import perf_counter, sleep
 from typing import Dict, Union
+from zipfile import ZipFile
 from humanize import naturalsize
 import streamlit as st
 from stqdm import stqdm
@@ -51,12 +54,13 @@ for path in sys.path:
 
 from core.utils.code_generator import get_random_string
 from core.utils.helper import Timer, check_filetype
+from core.utils.file_handler import extract_archive, list_files_in_archived, check_image_files
 from core.utils.log import logger
 from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import NewDataset, get_dataset_name_list, query_dataset_list
-from path_desc import chdir_root
-from project.project_management import NewProject, Project, ProjectPagination
+from path_desc import TEMP_DIR, chdir_root
+from project.project_management import NewProject, NewProjectPagination, Project, ProjectPagination
 from annotation.annotation_management import NewAnnotations, Task
 from user.user_management import User
 
@@ -120,6 +124,7 @@ def new_dataset(RELEASE=True, conn=None):
         st.write(
             f"# __Deployment Type: {session_state.new_project.deployment_type}__")
         st.write("## __Upload Labeled Dataset__")
+        logger.info("Upload labeled dataset")
     else:
         st.write("# __Add New Dataset__")
     st.markdown("___")
@@ -147,7 +152,7 @@ def new_dataset(RELEASE=True, conn=None):
                 logger.error(f"Dataset name used. Please enter a new name")
             else:
                 session_state.new_dataset.name = session_state.name
-                logger.error(f"Dataset name fresh and ready to rumble")
+                logger.info(f"Dataset name fresh and ready to rumble")
 
     outercol2.text_input(
         "Dataset Title", key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
@@ -158,8 +163,6 @@ def new_dataset(RELEASE=True, conn=None):
         "Description (Optional)", key="desc", help="Enter the description of the dataset")
     if description:
         session_state.new_dataset.desc = description
-    else:
-        pass
 
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
@@ -180,17 +183,7 @@ def new_dataset(RELEASE=True, conn=None):
         data_source = 1
 
     outercol1, outercol2, outercol3 = st.columns([1.5, 2, 2])
-    dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
-    dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
-    outercol3.markdown(" ____ ")
 
-    dataset_size_place = outercol3.empty()
-    dataset_size_place.write(dataset_size_string)
-
-    dataset_filesize_place = outercol3.empty()
-    dataset_filesize_place.write(dataset_filesize_string)
-
-    outercol3.markdown(" ____ ")
     # TODO: #15 Webcam integration
     # >>>> WEBCAM >>>>
     if data_source == 0:
@@ -207,9 +200,12 @@ def new_dataset(RELEASE=True, conn=None):
         #     label="Upload Image", type=['jpg', "png", "jpeg", "mp4", "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"], accept_multiple_files=True, key="upload_widget", on_change=check_filetype_category, args=(place,))
         # allowed_types = ['jpg', "png", "jpeg", "mp4",
         #                  "mpeg", "wav", "mp3", "m4a", "txt", "csv", "tsv"]
-        allowed_types = ['jpg', "png", "jpeg", "txt", "csv", "xml", "json"]
-        uploaded_files_multi = outercol2.file_uploader(
-            label="Upload Image", type=allowed_types, accept_multiple_files=True, key="upload_widget")
+        # allowed_types = ['jpg', "png", "jpeg", "txt", "csv", "xml", "json"]
+        allowed_types = ['zip', 'tar.gz', 'tar.xz', 'tar.bz2']
+        uploaded_archive = outercol2.file_uploader(
+            label="Upload Image", type=allowed_types, accept_multiple_files=False, key="upload_widget")
+        # outercol2.info("""NOTE: When you are uploading a lot of files at once, the
+        # Streamlit app may look like it's stuck but please wait for it to finish uploading.""")
         # ******** INFO for FILE FORMAT **************************************
         with outercol1.expander("File Format Infomation", expanded=True):
             # not using these formats for our application
@@ -219,6 +215,8 @@ def new_dataset(RELEASE=True, conn=None):
             file_format_info = """
             #### Image Format:
             Image: .jpg, .png, .jpeg
+
+            **NOTE**: Only a single zipfile or tarfile with all the required files inside can be accepted.
             """
             st.info(file_format_info)
             if session_state.is_labeled:
@@ -231,49 +229,52 @@ def new_dataset(RELEASE=True, conn=None):
                     "- Image segmentation should only have images and only one COCO JSON file.  \n")
 
         place["upload"] = outercol2.empty()
-        if len(uploaded_files_multi) > 1:
-            # outercol2.write("uploaded_files_multi")  # TODO Remove
-            # outercol2.write(uploaded_files_multi)  # TODO Remove
-            if session_state.is_labeled:
-                with st.spinner("Checking uploaded dataset and annotations"):
-                    logger.info(
-                        "Checking uploaded dataset and annotations ...")
-                    start = perf_counter()
-                    uploaded_files_multi = session_state.new_dataset.validate_labeled_data(
-                        uploaded_files_multi,
-                        session_state.new_project.deployment_type)
-                    time_elapsed = perf_counter() - start
-                    logger.info(f"Done. [{time_elapsed:.4f} seconds]")
+        if uploaded_archive:
+            # st.write(len(uploaded_archive))
+            # st.write(uploaded_archive)
 
-            else:
-                check_filetype(
-                    uploaded_files_multi, session_state.new_dataset, place)
+            # NOTE: once you closed the Streamlit UploadedFile (archive file in this case),
+            # note that the contents **will be empty** the next time you open it again,
+            # unless you created a deepcopy beforehand. Or you may choose to manually
+            # open and close the archive file without context manager. Alternatively,
+            # you can run `uploaded_archive.seek(0)` every time you want to reopen
+            # the archive file
+            with outercol2:
+                with st.spinner("Getting archive content names and size ..."):
+                    filepaths, content_size = list_files_in_archived(
+                        archived_filepath=uploaded_archive.name,
+                        file_object=uploaded_archive,
+                        return_content_size=True,
+                        skip_dir=True)
+                # check_filetype(
+                #     uploaded_files_multi, session_state.new_dataset, place)
 
-            session_state.new_dataset.dataset = deepcopy(uploaded_files_multi)
+            # session_state.new_dataset.dataset = image_names
 
-            session_state.new_dataset.dataset_size = len(
-                uploaded_files_multi)  # length of uploaded files
+            # length of uploaded files
+            session_state.new_dataset.dataset_size = len(filepaths)
         else:
-            session_state.new_dataset.dataset_size = 0  # length of uploaded files
-            session_state.new_dataset.dataset = []
-        dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
-        dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
+            content_size = 0
+            session_state.new_dataset.dataset_size = 0
+            # session_state.new_dataset.dataset = []
 
-        # outercol2.write(uploaded_files_multi[0]) # TODO: Remove
-        dataset_size_place.write(dataset_size_string)
-        dataset_filesize_place.write(dataset_filesize_string)
-
-        if uploaded_files_multi and session_state.is_labeled:
-            outercol3.success(
-                "Annotations are verified to be compatible and in the correct format.")
+        with outercol3:
+            dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
+            # dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
+            dataset_filesize_string = ("- ### Total size of data: "
+                                       f"**{naturalsize(value=content_size, format='%.2f')}**")
+            st.markdown(" ____ ")
+            st.write(dataset_size_string)
+            st.write(dataset_filesize_string)
+            st.markdown(" ____ ")
 
     # Placeholder for WARNING messages of File Upload widget
 
     # with st.expander("Data Viewer", expanded=False):
     #     imgcol1, imgcol2, imgcol3 = st.columns(3)
     #     imgcol1.checkbox("img1", key="img1")
-    #     for image in uploaded_files_multi:
-    #         imgcol1.image(uploaded_files_multi[1])
+    #     for image in uploaded_archive:
+    #         imgcol1.image(uploaded_archive[1])
 
     # TODO: KIV
 
@@ -286,22 +287,55 @@ def new_dataset(RELEASE=True, conn=None):
     # <<<<<<<< New Dataset Upload <<<<<<<<
     # ******************************** SUBMISSION *************************************************
     success_place = st.empty()
-    context = {'name': session_state.new_dataset.name,
-               'upload': session_state.new_dataset.dataset}
 
     # st.write("context")
     # st.write(context)
     submit_col1, submit_col2 = st.columns([3, 0.5])
     submit_button = submit_col2.button("Submit", key="submit")
 
+    # st.write(session_state)
+
     if submit_button:
-        keys = ["name", "upload"]
+        # keys = ["name", "upload"]
+        context = {'name': session_state.new_dataset.name,
+                   'upload': session_state.upload_widget}
         session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
             context, field_placeholder=place, name_key='name')
 
         if session_state.new_dataset.has_submitted:
+            with outercol2:
+                if session_state.is_labeled:
+                    with st.spinner("Checking uploaded dataset and annotations ..."):
+                        logger.info(
+                            "Checking uploaded dataset and annotations")
+                        start = perf_counter()
+                        image_names = session_state.new_dataset.validate_labeled_data(
+                            uploaded_archive,
+                            filepaths,
+                            session_state.new_project.deployment_type)
+                        time_elapsed = perf_counter() - start
+                        logger.info(
+                            f"Done. [{time_elapsed:.4f} seconds]")
+                        st.success("""🎉 Annotations are verified to be compatible and
+                        in the correct format.""")
+                else:
+                    with st.spinner("Checking uploaded images ..."):
+                        logger.info("Checking uploaded images")
+                        image_names = check_image_files(filepaths)
 
-            if session_state.new_dataset.save_dataset():
+            session_state.new_dataset.dataset = image_names
+
+            # create a temporary directory for extracting the archive contents
+            if TEMP_DIR.exists():
+                shutil.rmtree(TEMP_DIR)
+            os.makedirs(TEMP_DIR)
+            session_state.new_dataset.archive_dir = TEMP_DIR
+
+            with outercol3:
+                with st.spinner("Extracting uploaded archive contents ..."):
+                    extract_archive(TEMP_DIR, file_object=uploaded_archive)
+
+            if session_state.new_dataset.save_dataset(session_state.new_dataset.archive_dir):
 
                 success_place.success(
                     f"Successfully created **{session_state.new_dataset.name}** dataset")
@@ -315,7 +349,9 @@ def new_dataset(RELEASE=True, conn=None):
                         if 'project' not in session_state:
                             # We need to insert the project_dataset here after the dataset
                             # has been stored
+                            project_id = session_state.new_project.id
                             with st.spinner("Initializing the project with the uploaded labeled dataset ..."):
+                                # similar to `new_project.py`
                                 existing_dataset, _ = query_dataset_list()
                                 dataset_dict = get_dataset_name_list(
                                     existing_dataset)
@@ -325,8 +361,9 @@ def new_dataset(RELEASE=True, conn=None):
                                     session_state.new_dataset.name]
                                 session_state.new_project.insert_project_dataset(
                                     dataset_dict)
+                                logger.debug("Inserted roject dataset for Project "
+                                             f"{project_id} into project_dataset table")
 
-                            project_id = session_state.new_project.id
                             del session_state['new_project']
                             session_state.project = Project(project_id)
                             logger.info(f"Project ID {project_id} initialized")
@@ -344,7 +381,8 @@ def new_dataset(RELEASE=True, conn=None):
                             #  case of Label Studio exported XML filenames without
                             #  any file extension
                             if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
-                                task_df.iloc[:, 0] = task_df.iloc[:, 0].apply(
+                                st.write(task_df)
+                                task_df['Task Name'] = task_df['Task Name'].apply(
                                     lambda filename: os.path.splitext(filename)[0])
 
                         total_images = len(task_df)
@@ -352,11 +390,16 @@ def new_dataset(RELEASE=True, conn=None):
                         logger.info("Submitting uploaded annotations ...")
 
                         start_t = perf_counter()
+                        error_imgs = []
+                        # set this to False to check how long each process takes
+                        disable_timer = True
+
                         result_generator = session_state.new_dataset.parse_annotation_files(
                             session_state.project.deployment_type
                         )
                         message = "Inserting uploaded annotations into database"
                         for img_name, result in stqdm(result_generator, total=total_images,
+                                                      st_container=st.sidebar,
                                                       unit=filetype, desc=message):
                             start_task = perf_counter()
 
@@ -364,17 +407,25 @@ def new_dataset(RELEASE=True, conn=None):
                                 task_df['Task Name'] == img_name
                             ].to_dict(orient='records')[0]
 
-                            with Timer("Task instantiated"):
+                            if not task_row:
+                                logger.error(f"""Image '{img_name}' not found. Probably
+                                removed because unable to read the image. Skipping
+                                from submitting to database.""")
+                                # these images were skipped in dataset_PNG_encoding()
+                                error_imgs.append(img_name)
+                                continue
+
+                            with Timer("Task instantiated", disable_timer):
                                 task = Task(task_row,
                                             session_state.project.dataset_dict,
                                             session_state.project.id)
 
-                            with Timer("Annotation instantiated"):
+                            with Timer("Annotation instantiated", disable_timer):
                                 annotation = NewAnnotations(
                                     task, session_state.user)
 
                             # Submit annotations to DB
-                            with Timer(f"Annotation ID {annotation.id} submitted"):
+                            with Timer(f"Annotation ID {annotation.id} submitted", disable_timer):
                                 annotation.submit_annotations(
                                     result, session_state.user.id, conn)
 
@@ -384,7 +435,7 @@ def new_dataset(RELEASE=True, conn=None):
 
                         time_elapsed = perf_counter() - start_t
                         st.success(
-                            "🎉 Successfully stored all the uploaded annotations!")
+                            "🎉 Successfully stored the uploaded annotations!")
                         logger.info("Successfully inserted all annotations for "
                                     f"{total_images} images into database. "
                                     f"Took {time_elapsed:.2f} seconds. "
@@ -423,18 +474,26 @@ def new_dataset(RELEASE=True, conn=None):
 
                             session_state.project.editor.update_editor_config()
 
-                        # go directly to existing project dashboard
-                        NewProject.reset_new_project_page()
-                        NewDataset.reset_new_dataset_page()
-                        session_state.project_pagination = ProjectPagination.Existing
-                        st.experimental_rerun()
-
+                        if error_imgs:
+                            with st.expander("""NOTE: These images were unreadable and
+                                skipped, but others are stored successfully in the
+                                database."""):
+                                st.warning("  \n".join(error_imgs))
+                        else:
+                            st.success("""🎉 All images and annotations are successfully
+                            stored in database""")
                 else:
                     st.error(
                         f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")
             else:
                 st.error(
                     f"Failed to created **{session_state.new_dataset.name}** dataset")
+
+            # remove the unneeded extracted archive dir contents
+            with st.spinner("Removing the unwanted extracted files ..."):
+                shutil.rmtree(session_state.new_dataset.archive_dir)
+                logger.info(
+                    "Removed temporary directory for extracted contents")
 
     # st.write("vars(session_state.new_dataset)")
     # st.write(vars(session_state.new_dataset))

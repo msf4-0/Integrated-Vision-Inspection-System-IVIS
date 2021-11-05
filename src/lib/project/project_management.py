@@ -473,10 +473,21 @@ class Project(BaseProject):
             return json_path, dataset_names
         return json_path
 
-    def get_existing_unique_labels(self) -> List[str]:
+    def get_existing_unique_labels(self,
+                                   return_counts: bool = False) -> Union[List[str],
+                                                                         Dict[str, int]]:
+        """Extracting the unique label names used in existing annotations.
+
+        Args:
+            return_counts (bool, optional): If True, returns Dict with counts as values. 
+                Defaults to False.
+
+        Returns:
+            Union[List[str], Dict[str, int]]: Returns List of unique label names, 
+                or Dict of label name -> count if `return_counts` is True.
         """
-        Extracting the unique label names used in existing annotations.
-        Each 'result' value from the 'all_annots' is a list like this:
+        """
+        Each `result` value from the `all_annots` is a list like this:
         ```
         "result": [
           {
@@ -488,16 +499,19 @@ class Project(BaseProject):
             ...
             "type": "label_key"
           }
+        ]
         ```
         """
-        # 'all_annots' is a list of dictionaries for each annotation
+        # `all_annots` is a list of dictionaries for each annotation
         all_annots, col_names = self.query_annotations(return_dict=True)
         if not all_annots:
             # there is no existing annotation
             logger.error(f"No existing annotations for Project {self.id}")
+            if return_counts:
+                return {}
             return []
 
-        # the 'label_key' is different depending on the 'deployment_type'
+        # the `label_key` is different depending on the `deployment_type`
         label_key = all_annots[0]['result'][0]['type']
 
         def get_label_names(result):
@@ -507,10 +521,20 @@ class Project(BaseProject):
         df['label'] = df["result"].apply(get_label_names)
 
         # need to use `explode` method to turn each list of labels into individual rows
-        unique_labels = sorted(df['label'].explode().unique())
+        # unique_labels = sorted(df['label'].explode().unique())
+        # or faster method with numpy, also auto sorted
+        if not return_counts:
+            unique_labels = np.unique(np.concatenate(df['label'])).tolist()
+        else:
+            unique_labels, counts = np.unique(np.concatenate(df['label']),
+                                              return_counts=True)
+            # convert to Python int instead of numpy int
+            counts = counts.tolist()
+            unique_labels = {k: v for k, v in zip(unique_labels, counts)}
 
         logger.info(
             f"Unique labels for Project ID {self.id}: {unique_labels}")
+
         return unique_labels
 
     def query_annotations(self, for_training_id: int = 0, return_dict: bool = True) -> Tuple[List[Dict], List]:
@@ -699,7 +723,7 @@ class Project(BaseProject):
 
             return dataset_list
 
-    @st.cache
+    @st.cache(show_spinner=False)
     def get_data_name_list(self) -> Dict[str, List[str]]:
         """Obtain list of data in the dataset 
             - Iterative glob through the dataset directory

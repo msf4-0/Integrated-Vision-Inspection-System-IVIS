@@ -191,7 +191,8 @@ class Task(BaseTask):
         self.dataset_path = Dataset.get_dataset_path(self.dataset_name)
 
         self.data_path = self.dataset_path / self.name
-        self.filetype = Dataset.get_filetype_enumerator(self.name)
+        # self.filetype = Dataset.get_filetype_enumerator(self.name)
+        self.filetype = FileTypes.Image
 
         self.data_url = self.get_data()  # Get Data URL
 
@@ -455,8 +456,8 @@ class Task(BaseTask):
         """
 
         all_task_df = Task.create_all_task_dataframe(all_task)
-        labelled_task_df = all_task_df.loc[all_task_df['Is Labelled']
-                                           == is_labelled]
+        labelled_task_df = all_task_df.loc[(all_task_df['Is Labelled'] == is_labelled)
+                                           | (all_task_df['Skipped'] == is_labelled)]
         # labelled_task_df=labelled_task_df[["id","Task Name","Created By","Dataset Name","Date/Time"]]
 
         # labelled_task_dict = list(

@@ -37,13 +37,15 @@ from glob import iglob
 from io import BytesIO
 from mimetypes import guess_type
 from pathlib import Path
+import tarfile
+from tempfile import mkdtemp
 from time import perf_counter, sleep
 from typing import Any, Dict, Iterator, List, NamedTuple, Tuple, Union
 import xml.etree.ElementTree as ET
 
 import cv2
 import numpy as np
-from dataclasses import dataclass
+from imutils.paths import list_images
 import pandas as pd
 import streamlit as st
 from PIL import Image
@@ -66,13 +68,15 @@ else:
 
 from core.utils.code_generator import get_random_string
 from core.utils.dataset_handler import get_image_size
-from core.utils.file_handler import create_folder_if_not_exist
+from core.utils.file_handler import (IMAGE_EXTENSIONS, create_folder_if_not_exist,
+                                     extract_archive, extract_one_to_bytes,
+                                     list_files_in_archived)
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import get_directory_name, get_filetype, get_mime
 from core.utils.log import logger  # logger
 # >>>> User-defined Modules >>>>
-from path_desc import BASE_DATA_DIR, DATASET_DIR, MEDIA_ROOT, chdir_root
+from path_desc import BASE_DATA_DIR, DATASET_DIR, MEDIA_ROOT, TEMP_DIR, chdir_root
 
 from data_manager.database_manager import (db_fetchall, db_fetchone, db_no_fetch,
                                            init_connection)
@@ -137,12 +141,14 @@ def convert_to_ls(x, y, width, height, original_width, original_height):
         width / original_width * 100.0, height / original_height * 100
 
 
-def convert_xml2_ls(xml_str: str) -> Tuple[str, List[Dict[str, Any]]]:
-    """Converting from XML string (decoded from Streamlit's UploadedFile)
+def convert_xml2_ls(xml_filepath: str) -> Tuple[str, List[Dict[str, Any]]]:
+    """Converting from XML file (decoded from Streamlit's UploadedFile)
     to Label Studio JSON result format to be stored in Database.
     Note that Label Studio generates a List of Dict of results."""
     # converting for one XML file, i.e. one image
-    root = ET.fromstring(xml_str)
+    tree = ET.parse(xml_filepath)
+    root = tree.getroot()
+    # root = ET.fromstring(xml_str)
     filename = root.find("filename").text
     ori_width = int(root.find("size").find("width").text)
     ori_height = int(root.find("size").find("height").text)
@@ -227,7 +233,7 @@ class BaseDataset:
         self.deployment_id: Union[str, int] = None
         self.filetype: str = "Image"
         self.deployment_type: str = None
-        self.dataset = []  # to hold new data from upload
+        self.dataset: List[str] = []  # to hold new image names from upload
         self.dataset_list = []  # List of existing dataset
         self.dataset_total_filesize = 0  # in byte-size
         self.has_submitted = False
@@ -264,36 +270,45 @@ class BaseDataset:
 
         return exists_flag
 
-    def dataset_PNG_encoding(self):
-        if self.dataset:
-            for img in stqdm(self.dataset, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading data"):
-                img_name = img.name
-                logger.debug(img.name)
-                save_path = Path(self.dataset_path) / str(img_name)
+    def dataset_PNG_encoding(self, archive_dir: Path, verbose: bool = False):
+        # archive_dir is the directory that contains the extracted tarfile contents
+        image_paths = sorted(list_images(archive_dir))
 
-                # st.title(img.name)
-                try:
-                    # with Image.open(img) as pil_img:
-                    #     pil_img.save(save_path)
+        for img_path in stqdm(image_paths, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading images"):
+            # img_name = img.name
+            img_name = os.path.basename(img_path)
+            # logger.debug(img_name)
+            destination = self.dataset_path
+            # save_path = Path(self.dataset_path) / img_name
 
-                    # using OpenCV instead of Pillow for now because Pillow has a problem
-                    #  of reading the image in a rotated shape sometimes,
-                    #  i.e. width and height inverted
-                    cv_img = np.frombuffer(img.getvalue(), dtype=np.uint8)
-                    cv_img = cv2.imdecode(cv_img, cv2.IMREAD_COLOR)
-                    cv2.imwrite(save_path, cv_img)
-                except ValueError as e:
-                    logger.error(
-                        f"{e}: Could not resolve output format for '{str(img_name)}'")
-                except OSError as e:
-                    logger.error(
-                        f"{e}: Failed to create file '{str(img_name)}'. File may exist or contain partial data")
-                else:
-                    relative_dataset_path = str(
-                        Path(self.dataset_path).relative_to(BASE_DATA_DIR))
+            # st.title(img.name)
+            try:
+                # with Image.open(img) as pil_img:
+                #     pil_img.save(save_path)
+
+                # using OpenCV instead of Pillow for now because Pillow has a problem
+                #  of reading the image in a rotated shape sometimes,
+                #  i.e. width and height inverted
+                # cv_img = np.frombuffer(img.read(), dtype=np.uint8)
+                # cv_img = cv2.imdecode(cv_img, cv2.IMREAD_COLOR)
+                # cv2.imwrite(save_path, cv_img)
+                cv2.imread(img_path)  # test reading image
+                shutil.move(img_path, destination)
+            except ValueError as e:
+                logger.error(
+                    f"{e}: Could not resolve output format for '{img_name}'")
+            except OSError as e:
+                logger.error(
+                    f"{e}: Failed to create file '{img_name}'. File may exist or contain partial data")
+            except Exception as e:
+                logger.error(f"Unknown error occurred with '{img_path}': {e}")
+            else:
+                if verbose:
+                    relative_dataset_path = Path(
+                        self.dataset_path).relative_to(BASE_DATA_DIR)
                     logger.debug(
-                        f"Successfully stored '{str(img_name)}' in \'{relative_dataset_path}\' ")
-            return True
+                        f"Successfully stored '{img_name}' in '{relative_dataset_path}'")
+        return True
 
     def calc_total_filesize(self):
         if self.dataset:
@@ -316,7 +331,8 @@ class BaseDataset:
         logger.debug(f"Dataset Path: {dataset_path}")
         return dataset_path
 
-    def save_dataset(self) -> bool:
+    def save_dataset(self, archive_dir: Path) -> bool:
+        # archive_dir is the directory that contains the extracted tarfile contents
 
         # Get absolute dataset folder path
         self.dataset_path = self.get_dataset_path(self.name)
@@ -329,7 +345,7 @@ class BaseDataset:
         # self.dataset_path = Path(self.dataset_path)
 
         create_folder_if_not_exist(self.dataset_path)
-        if self.dataset_PNG_encoding():
+        if self.dataset_PNG_encoding(archive_dir):
             # st.success(f"Successfully created **{self.name}** dataset")
             return self.dataset_path
 
@@ -354,19 +370,21 @@ class NewDataset(BaseDataset):
         # init BaseDataset -> Temporary dataset ID from random gen
         super().__init__(dataset_id)
         self.dataset_total_filesize: int = 0  # in byte-size
-        # will be created in `self.validate_labeled_data` if user choose to upload labeled dataset
-        self.annotation_files: List[UploadedFile] = None
-
-    # removed deployment type and insert filetype_id select from public.filetype table
+        self.archive_dir: Path = TEMP_DIR
+        # these will be created in `self.validate_labeled_data` if user choose to upload labeled dataset
+        self.image_files: List[str] = None
+        self.annotation_files: List[str] = None
 
     def validate_labeled_data(self,
-                              files: List[UploadedFile],
+                              uploaded_archive: UploadedFile,
+                              filepaths: List[str],
                               deployment_type: str,
                               return_annotations: bool = False
-                              ) -> Union[List[UploadedFile],
-                                         Tuple[List[UploadedFile], List[UploadedFile]]]:
-        """Validate the uploaded labeled dataset, including both images and annotations,
-        then store the uploaded annotations files in `self.annotation_files`.
+                              ) -> Union[List[str],
+                                         Tuple[List[str], List[str]]]:
+        """Validate the uploaded archive contents `filepaths`, including both images
+        and annotations, then store the relative annotation filepaths (relative to
+        root of tarfile) in `self.annotation_files`.
 
         Object detection should have one XML file for each uploaded image.
 
@@ -379,76 +397,110 @@ class NewDataset(BaseDataset):
         Returns the list of uploaded image files; and if `return_annotations` is True, also returns the
         list of uploaded annotation files (or a list of single file depending on the deployment type).
         """
-        error_filenames = []
+        error_filepaths = []
         if deployment_type == 'Object Detection with Bounding Boxes':
             xml_idxs = []
             xml_names = []
-            img_names = []
-            for i, f in enumerate(files):
-                if f.type.endswith('xml'):
-                    xml_idxs.append(i)
-                    xml_names.append(f.name)
-                elif not f.type.startswith('image'):
-                    error_filenames.append(f.name)
-                else:
+            img_names_xml = []
+            for i, f in enumerate(filepaths):
+                if os.path.splitext(f)[-1] in IMAGE_EXTENSIONS:
                     # get the image filename replaced with .xml to
                     # verify that each image has exactly one xml file
-                    img_names.append(os.path.splitext(f.name)[0] + ".xml")
-            if error_filenames:
-                st.error(f"{len(error_filenames)} unwanted files found: ")
-                with st.expander("Unwanted files:"):
-                    st.warning("  \n".join(error_filenames))
+                    replaced_name = os.path.splitext(
+                        os.path.basename(f))[0] + ".xml"
+                    img_names_xml.append(replaced_name)
+                elif f.endswith('.xml'):
+                    xml_idxs.append(i)
+                    xml_names.append(os.path.basename(f))
+                elif f.startswith((r'.', r'/')):
+                    st.error(f'{f} is not a valid filepath. '
+                             'Absolute / relative filepath is not accepted.')
+                else:
+                    error_filepaths.append(f)
+            if error_filepaths:
+                error_filepaths.sort()
+                st.error(f"{len(error_filepaths)} unwanted filepaths found: ")
+                with st.expander("Unwanted filepaths:"):
+                    st.warning("  \n".join(error_filepaths))
                 st.stop()
-            if len(img_names) != len(xml_idxs):
+            if not xml_idxs or not img_names_xml:
+                if not xml_idxs:
+                    st.warning("No XML file uploaded")
+                    logger.info("No XML file uploaded ")
+                if not img_names_xml:
+                    st.warning("No image uploaded")
+                    logger.info("No image uploaded ")
+                st.stop()
+            if len(img_names_xml) != len(xml_idxs):
                 st.error(f"""Every image should have its own XML annotation file.
-                But found {len(img_names)} image(s) with {len(xml_idxs)} XML file(s).""")
+                But found {len(img_names_xml)} image(s) with {len(xml_idxs)} XML file(s).""")
 
-            unknown_xml_files = set(xml_names).difference(img_names)
-            unknown_img_files = set(img_names).difference(xml_names)
+            unknown_xml_files = set(xml_names).difference(img_names_xml)
+            unknown_img_files = set(img_names_xml).difference(xml_names)
             if len(unknown_xml_files) != 0 or len(unknown_img_files) != 0:
                 if len(unknown_xml_files) != 0:
+                    unknown_xml_files = sorted(unknown_xml_files)
                     st.error(f"""Every image should have its own XML annotation file.
                     But found {len(unknown_xml_files)} XML file(s) without XML associated images.""")
-                    with st.expander("List of the XML filenames:"):
+                    with st.expander("List of the XML files:"):
                         st.warning("  \n".join(unknown_xml_files))
                 if len(unknown_img_files) != 0:
+                    unknown_img_files = sorted(unknown_img_files)
                     fnames = [os.path.splitext(f)[0]
                               for f in unknown_img_files]
                     st.error(f"""Every image should have its own XML annotation file.
-                    But found {len(unknown_img_files)} image file(s) without associated XML files.""")
+                    But found {len(unknown_img_files)} image file(s) without associated XML filepaths.""")
                     with st.expander("List of the images (no file extension):"):
                         st.warning("  \n".join(fnames))
                 st.stop()
 
-            xml_files = list(itemgetter(*xml_idxs)(files))
-            image_idxs = set(range(len(files))).difference(xml_idxs)
-            image_files = list(itemgetter(*image_idxs)(files))
+            xml_filepaths = list(itemgetter(*xml_idxs)(filepaths))
+            image_idxs = set(range(len(filepaths))).difference(xml_idxs)
+            img_filepaths = list(itemgetter(*image_idxs)(filepaths))
 
-            self.annotation_files = xml_files
+            self.annotation_files = xml_filepaths
 
             if return_annotations:
-                return self.annotation_files, image_files
-            return image_files
+                return self.annotation_files, img_filepaths
+            return img_filepaths
         # ***************** Checking Image Classification and Segmentation data *****************
         elif deployment_type == 'Image Classification':
             # this is actually CSV format
-            required_filetype = 'vnd.ms-excel'
+            required_filetype = '.csv'
+            filetype_name = 'CSV'
         elif deployment_type == 'Semantic Segmentation with Polygons':
-            required_filetype = 'json'
+            required_filetype = '.json'
+            filetype_name = 'JSON'
 
         req_file_idx = []
         img_names = []
-        for i, f in enumerate(files):
-            if f.type.endswith(required_filetype):
+        img_filepaths = []
+        for i, f in enumerate(filepaths):
+            if os.path.splitext(f)[-1] in IMAGE_EXTENSIONS:
+                img_filepaths.append(f)
+                img_names.append(os.path.basename(f))
+            elif f.endswith(required_filetype):
+                st.success(f"Found a {filetype_name} file: {f}")
                 req_file_idx.append(i)
-            elif not f.type.startswith('image'):
-                error_filenames.append(f.name)
+            elif f.startswith((r'.', r'/')):
+                st.error(f'{f} is not a valid filepath. '
+                         'Absolute / relative filepath is not accepted.')
             else:
-                img_names.append(f.name)
-        if error_filenames:
-            st.error(f"{len(error_filenames)} unwanted files found: ")
+                error_filepaths.append(f)
+        if error_filepaths:
+            error_filepaths.sort()
+            st.error(f"{len(error_filepaths)} unwanted files found: ")
             with st.expander("Unwanted files:"):
-                st.warning("  \n".join(error_filenames))
+                st.warning("  \n".join(error_filepaths))
+            st.stop()
+
+        if not req_file_idx or not img_names:
+            if not req_file_idx:
+                st.warning(f"No {filetype_name} file uploaded")
+                logger.info(f"No {filetype_name} file uploaded")
+            if not img_names:
+                st.warning("No image uploaded")
+                logger.info("No image uploaded ")
             st.stop()
 
         if len(req_file_idx) > 1:
@@ -456,18 +508,20 @@ class NewDataset(BaseDataset):
             st.error(f"""{len(req_file_idx)} {required_filetype} files found.
             You should only upload a single {required_filetype} file.""")
             st.stop()
-        # get the required CSV or JSON file while removing it from the image files
-        annotation_file = files.pop(req_file_idx[0])
+        # get the required CSV or JSON file while removing it from the image filepaths
+        annotation_filepath = filepaths.pop(req_file_idx[0])
+        annotation_filebytes = extract_one_to_bytes(
+            uploaded_archive, annotation_filepath)
 
         # ***************** Checking CSV file data *****************
-        if required_filetype == 'vnd.ms-excel':
-            df = pd.read_csv(annotation_file, dtype=str)
-            if len(df) != len(files):
+        if required_filetype == '.csv':
+            df = pd.read_csv(BytesIO(annotation_filebytes), dtype=str)
+            if len(df) != len(filepaths):
                 st.error(f"The CSV file has {len(df)} rows, which "
-                         f"is not the same as the number of uploaded images: {len(files)}")
+                         f"is not the same as the number of uploaded images: {len(filepaths)}")
                 # st.stop()
             # the pattern for backslash/frontslash
-            backslash_pattern = '(\/|\\\)'
+            backslash_pattern = r"/|\\"
             # first row for filename, second row for label name
             backslash_rows = df[(df.iloc[:, 0].str.contains(
                 backslash_pattern)) | (df.iloc[:, 1].str.contains(backslash_pattern))]
@@ -485,48 +539,45 @@ class NewDataset(BaseDataset):
                 lambda x: os.path.basename(x)).tolist()
 
         # ***************** Checking JSON file data *****************
-        elif required_filetype == 'json':
-            coco_json = json.load(annotation_file)
+        elif required_filetype == '.json':
+            coco_json = json.loads(annotation_filebytes)
 
             check_coco_json_keys(coco_json)
 
             annot_img_names = [os.path.basename(d['file_name'])
                                for d in coco_json['images']]
-            if len(annot_img_names) != len(files):
+            if len(annot_img_names) != len(filepaths):
                 st.error(f"Every image should have its own image ID. "
                          f"But found {len(annot_img_names)} image data in the COCO JSON "
-                         f"when you have uploaded {len(files)} images.")
-                # st.stop()
+                         f"when you have uploaded {len(filepaths)} images.")
 
         # ************ Checking both CSV and JSON file for unknown image names ************
         unknown_annot_img = set(annot_img_names).difference(img_names)
         unknown_img_names = set(img_names).difference(annot_img_names)
         if len(unknown_annot_img) != 0 or len(unknown_img_names) != 0:
-            if required_filetype == 'vnd.ms-excel':
-                ftype_name = 'CSV'
-            else:
-                ftype_name = 'JSON'
             if len(unknown_annot_img) != 0:
+                unknown_annot_img = sorted(unknown_annot_img)
                 st.error(f"""Every image should have its own annotation.
                 But found {len(unknown_annot_img)} unknown image name(s) in the
-                {ftype_name} file without associated image.""")
-                with st.expander(f"List of the unknown names found in {ftype_name} file:"):
+                {filetype_name} file without associated image.""")
+                with st.expander(f"List of the unknown names found in {filetype_name} file:"):
                     st.warning("  \n".join(unknown_annot_img))
             if len(unknown_img_names) != 0:
+                unknown_img_names = sorted(unknown_img_names)
                 st.error(f"""Every image should have its own annotation.
                 But found {len(unknown_img_names)} image file(s) without associated
-                annotation in the {ftype_name} file.""")
+                annotation in the {filetype_name} file.""")
                 with st.expander("List of the unknown images:"):
                     st.warning("  \n".join(unknown_img_names))
             st.stop()
 
         # ***************** Finalizing function *****************
 
-        self.annotation_files = [annotation_file]
+        self.annotation_files = [annotation_filepath]
         if return_annotations:
-            # return the CSV or JSON file in a List, and also the remaining image files
-            return self.annotation_files, files
-        return files
+            # return the CSV or JSON file in a List, and also the remaining image filepaths
+            return self.annotation_files, img_filepaths
+        return img_filepaths
 
     def parse_annotation_files(self, deployment_type: str) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded annotation files based on the `deployment_type` and
@@ -542,18 +593,19 @@ class NewDataset(BaseDataset):
     def parse_bbox_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded XML files and yield the image name and annotation result in
         Label Studio JSON result format"""
-        for xml_file in self.annotation_files:
-            xml_str = xml_file.getvalue().decode()
+        for xml_filepath in self.annotation_files:
+            # xml_str = xml_file.read().decode()
+            full_path = self.archive_dir / xml_filepath
             try:
-                image_name, annot_result = convert_xml2_ls(xml_str)
+                image_name, annot_result = convert_xml2_ls(full_path)
             except Exception as e:
-                st.error(f'Error parsing XML file "{xml_file.name}" : {e}  \n'
+                st.error(f'Error parsing XML file "{xml_filepath}" with error: {e}  \n'
                          'Please try checking your annotation file(s) again before uploading.')
                 # delete the invalid dataset
                 self.delete_dataset()
                 st.stop()
             # taking only the filename without extension to consider the case of
-            #  Label Studio exported XML filenames without any file extension
+            #  Label Studio exported XML files without any file extension
             image_name = os.path.splitext(image_name)[0]
             yield image_name, annot_result
 
@@ -561,7 +613,8 @@ class NewDataset(BaseDataset):
         """Parse the uploaded CSV and yield the image name and annotation result in
         Label Studio JSON result format"""
         # only one CSV file after validation is passed
-        df = pd.read_csv(self.annotation_files[0], dtype=str)
+        csv_path = self.archive_dir / self.annotation_files[0]
+        df = pd.read_csv(csv_path, dtype=str)
         for img_name, label in df.values:
             result = [
                 {
@@ -578,7 +631,9 @@ class NewDataset(BaseDataset):
         """Parse the uploaded JSON file and yield the image name and annotation result in
         Label Studio JSON result format"""
         # only one COCO JSON file after validation is passed
-        coco_json = json.load(self.annotation_files[0])
+        json_path = self.archive_dir / self.annotation_files[0]
+        with open(json_path) as f:
+            coco_json = json.load(f)
 
         # with keys: width, height, file_name
         image_id2info = {}
@@ -621,7 +676,8 @@ class NewDataset(BaseDataset):
                 )
             except Exception as e:
                 st.error(f"Error converting COCO segmentation values to Label Studio "
-                         f"scaled values: {e}  \nPlease try checking your "
+                         f"scaled values for annotation ID {annot_id} with error: {e}"
+                         f"  \nPlease try checking your "
                          "COCO JSON file again before uploading.")
                 # delete the invalid dataset
                 self.delete_dataset()

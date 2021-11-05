@@ -215,6 +215,8 @@ def new_project_entry_page(conn=None):
         st.button("Create New Dataset", key="create_new_dataset_from_new_project",
                   on_click=to_new_dataset_page, help="Create new dataset")
 
+        upload_place = st.empty()
+
         # >>>> DISPLAY CHOSEN DATASET>>>>
         st.write("### Dataset chosen:")
         if len(session_state.new_project.dataset_chosen) > 0:
@@ -348,15 +350,14 @@ def new_project_entry_page(conn=None):
         "Submit", key="submit", on_click=new_project_submit,
         kwargs={'dataset_dict': dataset_dict, 'labeled': False})
 
-    with datasetcol3:
+    with upload_place.container():
+        st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
+                  on_click=new_project_submit,
+                  kwargs={'dataset_dict': None, 'labeled': True})
         with st.expander("NOTES about uploading a labeled dataset"):
             st.info("""If you choose to upload a labeled dataset, you must first fill
             up the project title and select a template for the deployment type of the
             computer vision task.""")
-    with upload_col:
-        st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
-                  on_click=new_project_submit,
-                  kwargs={'dataset_dict': None, 'labeled': True})
 
     # >>>> Removed
     # session_state.new_project.has_submitted = False
@@ -382,7 +383,8 @@ def index(RELEASE=True, conn=None):
 
         session_state.new_project_pagination = NewProjectPagination.Entry
 
-    new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
+    # new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
+    editor_config_submit_place = st.sidebar.empty()
     logger.debug(
         f" New Project Pagination: {session_state.new_project_pagination}")
     # ******************** TOP PAGE NAV *******************************************************************************************************
@@ -409,8 +411,9 @@ def index(RELEASE=True, conn=None):
             session_state.project_pagination = ProjectPagination.Dashboard
             session_state.new_project_pagination = NewProjectPagination.Entry
 
-        new_project_home_col2.button(
-            "Done", key='back_to_project_dashboard', on_click=to_project_dashboard)
+        editor_config_submit_place.button(
+            "Back to Project Dashboard", key='back_to_project_dashboard',
+            on_click=to_project_dashboard)
         logger.debug(
             f"Project ID before editor config: {session_state.new_project.id},{session_state.new_project.editor}")
         new_project_page[session_state.new_project_pagination](
@@ -418,10 +421,14 @@ def index(RELEASE=True, conn=None):
     else:
         new_project_page[session_state.new_project_pagination]()
 
-    new_project_back_button_place = st.empty()
+    new_project_back_button_place = st.sidebar.empty()
 
     # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    if session_state.new_project_pagination != NewProjectPagination.Entry:
+    # NOTE: not showing this "Back" button for uploading labeled dataset because
+    # the project has already been submitted there to associate with the uploaded labeled dataset
+    # and it's not necessary to come back to new_project page here
+    if session_state.new_project_pagination != NewProjectPagination.Entry \
+            and not session_state.is_labeled:
 
         def to_new_project_entry_page():
             NewDataset.reset_new_dataset_page()

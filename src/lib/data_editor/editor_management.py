@@ -302,7 +302,8 @@ class Editor(BaseEditor):
             self.deployment_type)
         self.editor_config = self.load_raw_xml()
         self.xml_doc: minidom.Document = self.load_xml(self.editor_config)
-        self.id, self.name, self.labels = self.query_editor_fields()
+        # query self.id, self.name, self.labels_dict, self.labels from database
+        self.query_editor_fields()
         self.labels_results: List = []  # store results from labels
 
     def editor_notfound_handler(self):
@@ -334,6 +335,8 @@ class Editor(BaseEditor):
             query_editor_fields_SQL, conn, query_editor_fields_vars)
         if editor_fields:
             self.id, self.name, self.labels_dict = editor_fields
+            # index into the List of [[label_name, ...]]
+            self.labels = list(self.labels_dict.values())[0]
         else:
             logger.error(
                 f"Editor for Project with ID: {self.project_id} does not exists in the database!!!")
@@ -488,30 +491,37 @@ class Editor(BaseEditor):
 
         return query_return
 
-    def get_labels_results(self):
-        # Compatible with multiple annotation types
-        try:
-            self.labels_results = []
-            for key, values in self.labels_dict.items():
-                annotation_type = key
-                for value in values:
-                    self.labels_results.append(
-                        Labels(value, annotation_type, None, None))
-            logger.info(f"Getting Label Details (labels_results)")
-        except TypeError as e:
-            logger.error(f"{e}: Labels could not be found in 'labels' column")
-            self.labels_results = []
-            if self.labels:
-                # Compatible with one annotation type
-                # form dict from XML
-                annotation_type = annotation_types[self.deployment_type]
-                for value in self.labels:
-                    self.labels_results.append(
-                        Labels(value, annotation_type, None, None))
-                logger.info(f"Getting Label Details (labels_dict)")
+    def get_labels_results(self, label_count_dict: Dict[str, int]):
+        total_label_counts = sum(label_count_dict.values())
+        self.labels_results = []
 
-    def create_table_of_labels(self) -> pd.DataFrame:
-        self.get_labels_results()
+        logger.info(f"Getting Label Details (labels_results)")
+        # Compatible with multiple annotation types
+        if self.labels_dict:
+            annotation_type = list(self.labels_dict.keys())[0]
+            # index into List of [[name, ...]]
+            label_names = list(self.labels_dict.values())[0]
+        else:
+            logger.error("""Either labels could not be found in 'labels' column in
+            'editor' table, or the project is just newly created.""")
+            annotation_type = annotation_types[self.deployment_type]
+            label_names = self.labels
+        logger.debug(f"{annotation_type = }")
+        logger.debug(f"{label_names = }")
+
+        for name in label_names:
+            label_count = label_count_dict.get(name)
+            if label_count:
+                percentile = label_count / total_label_counts
+            else:
+                label_count = 0
+                percentile = 0
+            self.labels_results.append(
+                Labels(name, annotation_type,
+                       label_count, percentile))
+
+    def create_table_of_labels(self, label_count_dict: Dict[str, int]) -> pd.DataFrame:
+        self.get_labels_results(label_count_dict)
         # Create DataFrame
         column_names = ['Label Name', 'Annotation Type',
                         'Counts', 'Percentile (%)']

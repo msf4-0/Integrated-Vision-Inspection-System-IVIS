@@ -25,16 +25,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import sys
 from pathlib import Path
-from enum import IntEnum
-from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
-
-# DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+from streamlit import session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -47,9 +40,10 @@ else:
     pass
 
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger
 from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
 from core.utils.form_manager import remove_newline_trailing_whitespace
+from user.user_management import User
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
@@ -58,23 +52,42 @@ from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
-# initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
-
-
-# >>>> Variable Declaration >>>>
-new_project = {}  # store
-place = {}
 
 chdir_root()  # change to root directory
 
 
-def dashboard():
+def dashboard(RELEASE=True):
+    # ************************ TEST ************************
+    if not RELEASE:
+        # ************************TO REMOVE************************
+        with st.sidebar.container():
+            st.image("resources/MSF-logo.gif", use_column_width=True)
+            st.title("Integrated Vision Inspection System", anchor='title')
+            st.header(
+                "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+            st.markdown("""___""")
+
+        # ************************TO REMOVE************************
+        # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
+        project_id_tmp = 30
+        logger.debug(f"Entering Project {project_id_tmp}")
+
+        # session_state.append_project_flag = ProjectPermission.ViewOnly
+
+        if "project" not in session_state:
+            session_state.project = Project(project_id_tmp)
+            logger.debug("Inside")
+        if 'user' not in session_state:
+            session_state.user = User(1)
+    # ************************ TEST ************************
+
     st.write(f"## **Overview:**")
     # TODO #79 Add dashboard to show types of labels and number of datasets
     # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    df = session_state.project.editor.create_table_of_labels()
+    label_count_dict = session_state.project.get_existing_unique_labels(
+        return_counts=True)
+    df = session_state.project.editor.create_table_of_labels(label_count_dict)
     df.index.name = 'No.'
     df['Percentile (%)'] = df['Percentile (%)'].map("{:.2f}".format)
     styler = df.style
@@ -108,12 +121,18 @@ def dashboard():
     st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
         [dict(selector='th', props=[('text-align', 'center')])]))    # >>>>>>>>>>PANDAS DATAFRAME for DATASET DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    st.write(vars(session_state.project))
+    # st.write(vars(session_state.project))
+
 
 if __name__ == "__main__":
+    # Set to wide page layout for debugging on this page
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
     if st._is_running_with_streamlit:
-        dashboard()
-
+        # This is set to False for debugging purposes
+        # when running Streamlit directly from this page
+        dashboard(RELEASE=False)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
