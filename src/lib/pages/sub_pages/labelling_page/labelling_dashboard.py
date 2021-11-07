@@ -233,7 +233,7 @@ def export_section():
         st.markdown(
             "#### You can export dataset in one of the following formats:")
         converter = session_state.project.editor.get_labelstudio_converter()
-        format_df, str2enum_str = session_state.project.editor.get_supported_format_info(
+        format_df, name2enum_str = session_state.project.editor.get_supported_format_info(
             converter)
         st.table(format_df)
 
@@ -258,7 +258,7 @@ def export_section():
         with st.spinner("Creating the zipfile, this may take awhile depending on your dataset size..."):
             # zipfile_path = session_state.project.download_tasks(
             #     return_target_path=True)
-            format_enum_str = str2enum_str[session_state.export_format]
+            format_enum_str = name2enum_str[session_state.export_format]
             zipfile_path = session_state.project.download_tasks(
                 converter=converter,
                 export_format=format_enum_str,
@@ -372,8 +372,6 @@ def index(RELEASE=True):
     def to_labelling_section(section_name: IntEnum, show_next: bool = False):
         session_state.labelling_pagination = section_name
         reset_editor_page()
-        # NOTE: not using this for now because it causes problem of overflowed
-        #  LabelStudio Editor...
         logger.debug(f"Show next unlabeled: {show_next}")
         session_state.show_next_unlabeled = show_next
 

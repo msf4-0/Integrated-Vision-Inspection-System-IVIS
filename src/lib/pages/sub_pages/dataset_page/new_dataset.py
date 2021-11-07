@@ -90,39 +90,85 @@ class DeploymentType(IntEnum):
             raise ValueError()
 
 
-def new_dataset(RELEASE=True, conn=None):
+def new_dataset(RELEASE=True, conn=None, is_updating=False):
+    """Function for the page of creating new dataset or adding more images to an existing
+    project dataset.
+
+    `is_updating`: A flag of updating an existing dataset, i.e. to add more data to 
+    an existing project dataset (which was selected in existing_project_dashboard.py).
+
+    `session_state.is_labeled`: A flag to tell whether the user chooses to upload a
+    labeled dataset, then validation will also be required by using
+    `NewDataset.validate_labeled_data()`
+    """
+    # NOTE:
+
     if not conn:
         conn = init_connection(**st.secrets["postgres"])
 
     chdir_root()  # change to root directory
 
-    # ******** DEBUGGING UPLOADER ONLY ********
-    # NOTE: This will not work for the debugging of inserting uploaded annotations because
-    #  it requires an existing Project instead of a NewProject
+    # ******** SESSION STATE ********
+    if "new_dataset" not in session_state:
+        # set random dataset ID before getting actual from Database
+        logger.debug("Enter new dataset")
+        session_state.new_dataset = NewDataset(get_random_string(length=8))
+    if 'user' not in session_state:
+        session_state.user = User(1)
+    if 'is_labeled' not in session_state:
+        session_state.is_labeled = False
+    if session_state.is_labeled and ('project' not in session_state):
+        # initialize project with the inserted project, note that this only works
+        #  after the new_project has been stored in database
+        project_id = session_state.new_project.id
+        del session_state['new_project']
+        session_state.project = Project(project_id)
+        logger.info(f"Project ID {project_id} initialized")
+    # ******** SESSION STATE ********
+
+    # ******** DEBUGGING ********
+    # NOTE: If debugging for inserting uploaded annotations, you need to select
+    #  an existing project_id
     if not RELEASE:
-        if "new_project" not in session_state:
+        if not session_state.is_labeled and ("new_project" not in session_state):
             session_state.new_project = NewProject(get_random_string(length=8))
             # session_state.new_project.deployment_type = "Object Detection with Bounding Boxes"
             # session_state.new_project.deployment_type = "Image Classification"
             session_state.new_project.deployment_type = "Semantic Segmentation with Polygons"
+        if session_state.is_labeled and ('project' not in session_state):
+            project_id = 4
+            logger.debug(f"""Entering Project ID {project_id} for debugging
+            uploading labeled dataset""")
+            session_state.project = Project(project_id)
     # ******** DEBUGGING ********
 
-    # ******** SESSION STATE ********
+    if is_updating:
+        st.title("Adding data to existing project dataset")
+        st.markdown("___")
+        labeled = st.radio(
+            "Select type of dataset to upload", options=('Not Labeled', 'Labeled'),
+            index=0, key='labeled'
+        )
+        st.markdown("___")
+        session_state.is_labeled = True if labeled == 'Labeled' else False
 
-    if "new_dataset" not in session_state:
-        # set random dataset ID before getting actual from Database
-        logger.info("Enter new dataset")
-        session_state.new_dataset = NewDataset(get_random_string(length=8))
-        session_state.data_source_radio = "File Upload 📂"
-    if 'user' not in session_state:
-        session_state.user = User(1)
-    # ******** SESSION STATE ********
+        # session_state.dataset_chosen should be obtained from existing_project_dashboard
+        dataset_info = session_state.project.dataset_dict[session_state.dataset_chosen]
+        # set the info to be equal to new_dataset to make things easier
+        session_state.new_dataset.id = dataset_info.ID
+        session_state.new_dataset.name = dataset_info.Name
+        session_state.new_dataset.desc = dataset_info.Description
+
+    if 'project' in session_state:
+        deployment_type = session_state.project.deployment_type
+    elif 'new_project' in session_state:
+        deployment_type = session_state.new_project.deployment_type
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
+    if session_state.is_labeled or is_updating:
+        st.write(f"# __Deployment Type: {deployment_type}__")
     if session_state.is_labeled:
-        st.write(
-            f"# __Deployment Type: {session_state.new_project.deployment_type}__")
         st.write("## __Upload Labeled Dataset__")
         logger.info("Upload labeled dataset")
     else:
@@ -132,12 +178,9 @@ def new_dataset(RELEASE=True, conn=None):
     # right-align the dataset ID relative to the page
     _, id_right = st.columns([3, 1])
     id_right.write(
-        f"### __Dataset ID:__ {session_state.new_dataset.dataset_id}")
+        f"### __Dataset ID:__ {session_state.new_dataset.id}")
 
     outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
-
-    # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    outercol1.write("## __Dataset Information :__")
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
@@ -154,15 +197,23 @@ def new_dataset(RELEASE=True, conn=None):
                 session_state.new_dataset.name = session_state.name
                 logger.info(f"Dataset name fresh and ready to rumble")
 
-    outercol2.text_input(
-        "Dataset Title", key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
-    place["name"] = outercol2.empty()
+    # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    if not is_updating:
+        outercol1.write("## __Dataset Information :__")
+        outercol2.text_input(
+            "Dataset Title", key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
+        place["name"] = outercol2.empty()
 
-    # **** Dataset Description (Optional) ****
-    description = outercol2.text_area(
-        "Description (Optional)", key="desc", help="Enter the description of the dataset")
-    if description:
-        session_state.new_dataset.desc = description
+        # **** Dataset Description (Optional) ****
+        description = outercol2.text_area(
+            "Description (Optional)", key="desc", help="Enter the description of the dataset")
+        if description:
+            session_state.new_dataset.desc = description
+    else:
+        st.write("## __Current Project Dataset Information :__")
+        st.markdown(f"**Dataset name:** {session_state.new_dataset.name}")
+        st.markdown(
+            f"**Dataset description:** {session_state.new_dataset.desc}")
 
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
@@ -177,7 +228,8 @@ def new_dataset(RELEASE=True, conn=None):
         # col1, col2 = st.columns(2)
 
         data_source = outercol2.radio(
-            "Data Source", options=data_source_options, key="data_source_radio")
+            "Data Source", options=data_source_options, key="data_source_radio",
+            index=1)
         data_source = data_source_options.index(data_source)
     else:
         data_source = 1
@@ -296,23 +348,45 @@ def new_dataset(RELEASE=True, conn=None):
     # st.write(session_state)
 
     if submit_button:
-        # keys = ["name", "upload"]
         context = {'name': session_state.new_dataset.name,
                    'upload': session_state.upload_widget}
+        if is_updating:
+            # don't need to check for dataset name for existing dataset
+            del context['name']
+
         session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
             context, field_placeholder=place, name_key='name')
 
         if session_state.new_dataset.has_submitted:
+            if is_updating:
+                logger.info("Checking for duplicated filenames")
+                with outercol2:
+                    with st.spinner("Checking for duplicated filenames ..."):
+                        uploaded_files = [
+                            os.path.basename(f) for f in filepaths]
+                        existing_images = session_state.project.data_name_list[
+                            session_state.dataset_chosen]
+                        duplicates = set(uploaded_files).intersection(
+                            existing_images)
+                    if duplicates:
+                        logger.error("Duplicated image filenames found")
+                        st.error("Found image filenames in the archive that are identical to "
+                                 "the current project dataset. Please make sure to use "
+                                 "different names to avoid overwriting existing images.")
+                        with st.expander("List of duplicates:"):
+                            st.markdown("  \n".join(duplicates))
+                        st.stop()
+
             with outercol2:
                 if session_state.is_labeled:
                     with st.spinner("Checking uploaded dataset and annotations ..."):
                         logger.info(
                             "Checking uploaded dataset and annotations")
                         start = perf_counter()
-                        image_names = session_state.new_dataset.validate_labeled_data(
+                        image_paths = session_state.new_dataset.validate_labeled_data(
                             uploaded_archive,
                             filepaths,
-                            session_state.new_project.deployment_type)
+                            deployment_type)
                         time_elapsed = perf_counter() - start
                         logger.info(
                             f"Done. [{time_elapsed:.4f} seconds]")
@@ -321,9 +395,9 @@ def new_dataset(RELEASE=True, conn=None):
                 else:
                     with st.spinner("Checking uploaded images ..."):
                         logger.info("Checking uploaded images")
-                        image_names = check_image_files(filepaths)
+                        image_paths = check_image_files(filepaths)
 
-            session_state.new_dataset.dataset = image_names
+            session_state.new_dataset.dataset = image_paths
 
             # create a temporary directory for extracting the archive contents
             if TEMP_DIR.exists():
@@ -340,33 +414,46 @@ def new_dataset(RELEASE=True, conn=None):
                 success_place.success(
                     f"Successfully created **{session_state.new_dataset.name}** dataset")
 
-                if session_state.new_dataset.insert_dataset():
+                if is_updating:
+                    dataset_func = session_state.new_dataset.update_dataset_size
+                else:
+                    dataset_func = session_state.new_dataset.insert_dataset
+
+                if dataset_func():
 
                     success_place.success(
                         f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
 
+                    if is_updating:
+                        # insert the new image info into the `task` table for existing dataset
+                        image_names = [os.path.basename(p)
+                                       for p in image_paths]
+                        session_state.project.insert_new_project_task(
+                            session_state.new_dataset.name,
+                            session_state.new_dataset.id,
+                            image_names=image_names)
+
                     if session_state.is_labeled:
-                        if 'project' not in session_state:
-                            # We need to insert the project_dataset here after the dataset
-                            # has been stored
-                            project_id = session_state.new_project.id
-                            with st.spinner("Initializing the project with the uploaded labeled dataset ..."):
+                        # We need to insert the project_dataset here after the dataset
+                        # has been stored
+                        if not is_updating:
+                            # if not updating, then we insert the new project_dataset
+                            with st.spinner("Inserting the project dataset ..."):
                                 # similar to `new_project.py`
                                 existing_dataset, _ = query_dataset_list()
                                 dataset_dict = get_dataset_name_list(
                                     existing_dataset)
                                 # add the uploaded dataset as the dataset_chosen, to
                                 # allow the insert_project_dataset to work
-                                session_state.new_project.dataset_chosen = [
-                                    session_state.new_dataset.name]
-                                session_state.new_project.insert_project_dataset(
-                                    dataset_dict)
-                                logger.debug("Inserted roject dataset for Project "
-                                             f"{project_id} into project_dataset table")
-
-                            del session_state['new_project']
-                            session_state.project = Project(project_id)
-                            logger.info(f"Project ID {project_id} initialized")
+                                dataset_name = session_state.new_dataset.name
+                                dataset_chosen = [dataset_name]
+                                session_state.project.insert_project_dataset(
+                                    dataset_chosen, dataset_dict)
+                                project_id = session_state.project.id
+                                logger.info(f"Inserted project dataset '{dataset_name}' for "
+                                            f"Project {project_id} into project_dataset table")
+                                # must refresh all the dataset details
+                                session_state.project.refresh_project_details()
 
                         with st.spinner("Querying all the labeled images ..."):
                             all_task, all_task_column_names = Task.query_all_task(
@@ -381,7 +468,6 @@ def new_dataset(RELEASE=True, conn=None):
                             #  case of Label Studio exported XML filenames without
                             #  any file extension
                             if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
-                                st.write(task_df)
                                 task_df['Task Name'] = task_df['Task Name'].apply(
                                     lambda filename: os.path.splitext(filename)[0])
 
@@ -405,9 +491,12 @@ def new_dataset(RELEASE=True, conn=None):
 
                             task_row = task_df.loc[
                                 task_df['Task Name'] == img_name
-                            ].to_dict(orient='records')[0]
+                            ].to_dict(orient='records')
 
-                            if not task_row:
+                            if task_row:
+                                # index into the List of Dict of task
+                                task_row = task_row[0]
+                            else:
                                 logger.error(f"""Image '{img_name}' not found. Probably
                                 removed because unable to read the image. Skipping
                                 from submitting to database.""")
@@ -482,6 +571,8 @@ def new_dataset(RELEASE=True, conn=None):
                         else:
                             st.success("""🎉 All images and annotations are successfully
                             stored in database""")
+
+                        session_state.project.refresh_project_details()
                 else:
                     st.error(
                         f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")
@@ -499,10 +590,6 @@ def new_dataset(RELEASE=True, conn=None):
     # st.write(vars(session_state.new_dataset))
 
 
-def main(RELEASE=False, conn=None):
-    new_dataset(RELEASE, conn=conn)
-
-
 if __name__ == "__main__":
     # DEFINE wide page layout for debugging on this page directly
     layout = 'wide'
@@ -516,7 +603,7 @@ if __name__ == "__main__":
         # initialise connection to Database
         conn = init_connection(**st.secrets["postgres"])
 
-        main(RELEASE=False, conn=conn)
+        new_dataset(RELEASE=False, conn=conn)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

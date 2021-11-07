@@ -138,6 +138,29 @@ class ExistingProjectPagination(IntEnum):
             return ExistingProjectPagination[s]
         except KeyError:
             raise ValueError()
+
+
+class ProjectDashboardPagination(IntEnum):
+    """For existing_project_dashboard.py pagination"""
+    ExistingProjectDashboard = 0
+    # add images to project_dataset
+    AddExistingDataset = 1
+    CreateNewDataset = 2
+    UploadLabeledDataset = 3
+    # add more existing dataset to project_dataset, similar to the dataset_chosen
+    #  in new_project.py
+    AddImageToProjectDataset = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ProjectDashboardPagination[s]
+        except KeyError:
+            raise ValueError()
+
 # <<<< Variable Declaration <<<<
 
 
@@ -152,7 +175,6 @@ class BaseProject:
         self.training_id: int = None
         self.editor: str = None
         self.deployment_type: str = None
-        self.dataset_chosen: List = []
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
         self.dataset_list: Dict = {}
@@ -232,6 +254,75 @@ class BaseProject:
         empty_fields = check_if_field_empty(
             context, field_placeholder, name_key, check_if_exists)
         return empty_fields
+
+    def insert_new_project_task(self, dataset_name: str, dataset_id: int, image_names: List[str] = None):
+        """Create New Task for Project
+            - Insert into 'task' table
+
+        Args:
+            dataset_name (str): Dataset Name
+            dataset_id (int): Dataset ID
+            image_names (Optional[List[str]]): Optionally pass in the filenames of the images. 
+                Especially for updating existing dataset. 
+        """
+        if image_names:
+            # particularly for updating existing project dataset, but can also use this
+            # instead for inserting an entirely new dataset
+            data_name_list = image_names
+        else:
+            data_name_list = get_single_data_name_list(dataset_name)
+
+        if len(data_name_list):
+            logger.info(f"Inserting task into DB........")
+            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
+
+                # >>>> Insert new task from NewTask class method
+                task_id = NewTask.insert_new_task(
+                    data, self.id, dataset_id)
+                # logger.debug(f"Loaded task {task_id} into DB for data: {data}")
+
+    def update_project_task(self, dataset_name: str, dataset_id: int):
+        """Create New Task for Project
+            - Insert into 'task' table
+
+        Args:
+            dataset_name (str): Dataset Name
+            dataset_id (int): Dataset ID
+        """
+        data_name_list = get_single_data_name_list(dataset_name)
+        if len(data_name_list):
+            logger.info(f"Inserting task into DB........")
+            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
+
+                # >>>> Insert new task from NewTask class method
+                task_id = NewTask.insert_new_task(
+                    data, self.id, dataset_id)
+                # logger.debug(f"Loaded task {task_id} into DB for data: {data}")
+
+    def insert_project_dataset(self, dataset_chosen: List[str], dataset_dict: Dict[str, namedtuple]):
+        insert_project_dataset_SQL = """
+                                        INSERT INTO public.project_dataset (
+                                            project_id,
+                                            dataset_id)
+                                        VALUES (
+                                            %s,
+                                            %s);"""
+
+        for dataset in stqdm(dataset_chosen,
+                             unit='dataset',
+                             st_container=st.sidebar,
+                             desc="Attaching dataset to project"):
+            dataset_id = dataset_dict[dataset].ID
+            dataset_name = dataset_dict[dataset].Name
+
+            insert_project_dataset_vars = [self.id, dataset_id]
+            db_no_fetch(insert_project_dataset_SQL, conn,
+                        insert_project_dataset_vars)
+
+            # NEED TO ADD INSERT TASK
+            # get data name list
+            # loop data and add task
+            self.insert_new_project_task(dataset_name, dataset_id)
 
 
 class Project(BaseProject):
@@ -366,7 +457,7 @@ class Project(BaseProject):
                 df['image'] = df['image'].apply(get_full_image_path)
                 df['class_path'] = df['label'].apply(get_class_path)
 
-                logger.debug(
+                logger.info(
                     f"Copying images into each class folder in {project_img_path}")
                 for row in stqdm(df.values, desc='Copying images into class folder'):
                     image_path = row[0]    # first row for image_path
@@ -530,7 +621,7 @@ class Project(BaseProject):
                                               return_counts=True)
             # convert to Python int instead of numpy int
             counts = counts.tolist()
-            unique_labels = {k: v for k, v in zip(unique_labels, counts)}
+            unique_labels = dict(zip(unique_labels, counts))
 
         logger.info(
             f"Unique labels for Project ID {self.id}: {unique_labels}")
@@ -616,12 +707,13 @@ class Project(BaseProject):
                 f"Project with ID: {self.id} does not exists in the database!!!")
         return project_field
 
-    @st.cache(ttl=60)
-    def query_project_dataset_list(self) -> List:
+    # @st.cache(ttl=60)
+    def query_project_dataset_list(self) -> Tuple[List[NamedTuple], List[str]]:
         query_project_dataset_SQL = """
                                 SELECT
                                     d.id AS "ID",
                                     d.name AS "Name",
+                                    d.description AS "Description",
                                     d.dataset_size AS "Dataset Size",
                                     (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
                                     pd.updated_at AS "Date/Time"                                    
@@ -657,11 +749,8 @@ class Project(BaseProject):
     def get_dataset_name_list(self) -> Dict[str, NamedTuple]:
         """Generate Dictionary of namedtuple
 
-        Args:
-            project_dataset_list (List[namedtuple]): Query from database
-
         Returns:
-            Dict: Dictionary of namedtuple
+            Dict[str, NamedTuple]: Dataset name -> NamedTuple of dataset info queried from database
         """
         project_dataset_dict = {}
         # if self.datasets:
@@ -723,14 +812,14 @@ class Project(BaseProject):
 
             return dataset_list
 
-    @st.cache(show_spinner=False)
+    # @st.cache(show_spinner=False)
     def get_data_name_list(self) -> Dict[str, List[str]]:
         """Obtain list of data in the dataset 
             - Iterative glob through the dataset directory
             - Obtain filename using pathlib.Path(<'filepath/*'>).name
 
         Returns:
-            Dict[dict]: Dataset name as key to a List of data in the dataset directory
+            Dict[str, List[str]]: Dataset name -> a List of images in the dataset directory
         """
         if self.datasets:
             data_name_list = {}
@@ -790,52 +879,9 @@ class NewProject(BaseProject):
         else:
             self.deployment_id = None
 
-    def insert_new_project_task(self, dataset_name: str, dataset_id: int):
-        """Create New Task for Project
-            - Insert into 'task' table
-
-        Args:
-            dataset_name (str): Dataset Name
-            dataset_id (int): Dataset ID
-        """
-        data_name_list = get_single_data_name_list(dataset_name)
-        if len(data_name_list):
-            logger.info(f"Inserting task into DB........")
-            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
-
-                # >>>> Insert new task from NewTask class method
-                task_id = NewTask.insert_new_task(
-                    data, self.id, dataset_id)
-                logger.info(f"Loaded task {task_id} into DB for data: {data}")
-
-    def insert_project_dataset(self, dataset_dict: Dict[str, namedtuple]):
-        insert_project_dataset_SQL = """
-                                        INSERT INTO public.project_dataset (
-                                            project_id,
-                                            dataset_id)
-                                        VALUES (
-                                            %s,
-                                            %s);"""
-
-        for dataset in stqdm(self.dataset_chosen,
-                             unit='dataset',
-                             st_container=st.sidebar,
-                             desc="Attaching dataset to project"):
-            dataset_id = dataset_dict[dataset].ID
-            dataset_name = dataset_dict[dataset].Name
-
-            insert_project_dataset_vars = [self.id, dataset_id]
-            db_no_fetch(insert_project_dataset_SQL, conn,
-                        insert_project_dataset_vars)
-
-            # NEED TO ADD INSERT TASK
-            # get data name list
-            # loop data and add task
-            self.insert_new_project_task(dataset_name, dataset_id)
-
-    def insert_project(self, dataset_dict: Dict[str, namedtuple] = None):
+    def insert_project(self, dataset_chosen: List[str] = None, dataset_dict: Dict[str, NamedTuple] = None):
         """Insert project into database. If `dataset_dict` is provied,
-        then also insert the project_dataset based on `self.dataset_chosen`."""
+        then also insert the project_dataset based on `dataset_chosen`."""
         insert_project_SQL = """
                                 INSERT INTO public.project (
                                     name,
@@ -854,13 +900,16 @@ class NewProject(BaseProject):
         self.id = db_fetchone(
             insert_project_SQL, conn, insert_project_vars).id
 
-        if dataset_dict is not None:
+        if all((dataset_chosen, dataset_dict)):
             # only insert project_dataset when it is provided
-            self.insert_project_dataset(dataset_dict)
+            self.insert_project_dataset(dataset_chosen, dataset_dict)
+        else:
+            logger.info(f"""Either `dataset_chosen` or `dataset_dict` is not provided.
+            Thus, not inserting project dataset for Project ID {self.id}""")
 
         return self.id
 
-    def initialise_project(self, dataset_dict: Dict[str, namedtuple] = None):
+    def initialise_project(self, dataset_chosen: List[str] = None, dataset_dict: Dict[str, namedtuple] = None):
 
         # directory_name = get_directory_name(self.name)
         # self.project_path = PROJECT_DIR / str(directory_name)
@@ -872,7 +921,7 @@ class NewProject(BaseProject):
         logger.info(
             f"Successfully created **{self.name}** project at {str(self.project_path)}")
 
-        if self.insert_project(dataset_dict):
+        if self.insert_project(dataset_chosen, dataset_dict):
 
             logger.info(
                 f"Successfully stored **{self.name}** project information in database")

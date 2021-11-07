@@ -489,7 +489,8 @@ def extract_archive(dst: Union[str, Path], archived_filepath: Path = None, file_
 
 def list_files_in_archived(archived_filepath: Path = None, file_object=None,
                            return_content_size: bool = False,
-                           skip_dir: bool = False) -> Union[List[str], Tuple[List[str], int]]:
+                           skip_dir: bool = False,
+                           check_bad_paths: bool = True) -> Union[List[str], Tuple[List[str], int]]:
     """List files in the zip (.zip) and tar archives.
 
     Supported tar compressions:
@@ -502,6 +503,9 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None,
         archived_filepath (Path): Filepath to archives or filename(to get extensions). Defaults to None.
         file_object (Any): file-like object of archives. Defaults to None.
         skip_dir (bool): If True, skip directories. Defaults to False.
+        check_bad_paths (bool): If True, check for paths starting with "." or "/",
+            to avoid absolute or relative paths, if found one, executes st.stop().
+            Defaults to True.
 
     Returns:
         List[str]: A list of member files in the archives.
@@ -509,7 +513,8 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None,
     # NOTE: deepcopy to avoid clearing the file contents after reading
     # file_object = deepcopy(file_object)
     # or use seek
-    file_object.seek(0)
+    if file_object:
+        file_object.seek(0)
 
     if isinstance(file_object, UploadedFile):
         archived_filepath = file_object.name
@@ -580,7 +585,15 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None,
                         content_size += m.size
                     if m.isfile():
                         filepaths.append(m.name)
-    file_object.seek(0)
+    if check_bad_paths:
+        for f in filepaths:
+            if f.startswith(('.', '/')):
+                st.error(f'{f} is not a valid filepath. '
+                         'Absolute or relative filepath is not accepted.')
+                st.stop()
+
+    if file_object:
+        file_object.seek(0)
     if return_content_size:
         return filepaths, content_size
     return filepaths

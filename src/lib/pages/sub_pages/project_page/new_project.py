@@ -202,7 +202,7 @@ def new_project_entry_page(conn=None):
     # ******************************* Right Column to select dataset *******************************
 
     with datasetcol3:
-        session_state.new_project.dataset_chosen = st.multiselect(
+        dataset_chosen = st.multiselect(
             "Dataset List", key="new_project_dataset_chosen",
             options=dataset_dict, help="Assign dataset to the project")
         place["new_project_dataset_chosen"] = st.empty()
@@ -219,11 +219,10 @@ def new_project_entry_page(conn=None):
 
         # >>>> DISPLAY CHOSEN DATASET>>>>
         st.write("### Dataset chosen:")
-        if len(session_state.new_project.dataset_chosen) > 0:
-            for idx, data in enumerate(session_state.new_project.dataset_chosen):
+        if dataset_chosen:
+            for idx, data in enumerate(dataset_chosen):
                 st.write(f"{idx+1}. {data}")
-
-        elif len(session_state.new_project.dataset_chosen) == 0:
+        else:
             st.info("No dataset selected")
 
     # ******************************* Right Column to select dataset *******************************
@@ -302,12 +301,12 @@ def new_project_entry_page(conn=None):
     context = {
         'new_project_name': session_state.new_project.name,
         'new_project_deployment_type': session_state.new_project.deployment_type,
-        'new_project_dataset_chosen': session_state.new_project.dataset_chosen
+        'new_project_dataset_chosen': dataset_chosen
     }
 
-    submit_col1, upload_col, submit_col2 = st.columns([2.5, 0.5, 0.5])
+    submit_col1, _, submit_col2 = st.columns([2.5, 0.5, 0.5])
 
-    def new_project_submit(dataset_dict, labeled=False):
+    def new_project_submit(labeled=False):
         # if this is True, we will send to New Dataset page for uploading
         session_state.is_labeled = labeled
 
@@ -321,7 +320,10 @@ def new_project_entry_page(conn=None):
             # TODO #13 Load Task into DB after creation of project
             # NOTE: dataset_dict is None when user choose to upload labeled dataset,
             #  this is to skip inserting project dataset that has not been chosen
-            if session_state.new_project.initialise_project(dataset_dict):
+            if labeled:
+                dataset_dict = None
+                dataset_chosen = None
+            if session_state.new_project.initialise_project(dataset_chosen, dataset_dict):
                 # Updated with Actual Project ID from DB
                 session_state.new_editor.project_id = session_state.new_project.id
                 # deployment type now IntEnum
@@ -348,12 +350,12 @@ def new_project_entry_page(conn=None):
     # TODO #72 Change to 'Update' when 'has_submitted' == True
     submit_button = submit_col2.button(
         "Submit", key="submit", on_click=new_project_submit,
-        kwargs={'dataset_dict': dataset_dict, 'labeled': False})
+        kwargs={'labeled': False})
 
     with upload_place.container():
         st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
                   on_click=new_project_submit,
-                  kwargs={'dataset_dict': None, 'labeled': True})
+                  kwargs={'labeled': True})
         with st.expander("NOTES about uploading a labeled dataset"):
             st.info("""If you choose to upload a labeled dataset, you must first fill
             up the project title and select a template for the deployment type of the

@@ -49,6 +49,10 @@ from streamlit.report_thread import add_report_ctx
 
 
 def editor(data_id: List = []):
+    """Page for labeling with Label Studio Editor
+
+    `data_id`: the selected task ID from the data_table.
+    """
     logger.debug("Inside Editor function")
     chdir_root()  # change to root directory
 

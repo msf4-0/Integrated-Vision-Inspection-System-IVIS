@@ -141,7 +141,7 @@ def convert_to_ls(x, y, width, height, original_width, original_height):
         width / original_width * 100.0, height / original_height * 100
 
 
-def convert_xml2_ls(xml_filepath: str) -> Tuple[str, List[Dict[str, Any]]]:
+def convert_xml2_ls(xml_filepath: Union[str, Path]) -> Tuple[str, List[Dict[str, Any]]]:
     """Converting from XML file (decoded from Streamlit's UploadedFile)
     to Label Studio JSON result format to be stored in Database.
     Note that Label Studio generates a List of Dict of results."""
@@ -224,8 +224,8 @@ def convert_coco2ls_points(segmentation: List[List[float]],
 
 
 class BaseDataset:
-    def __init__(self, dataset_id) -> None:
-        self.dataset_id = dataset_id
+    def __init__(self, id) -> None:
+        self.id = id
         self.name: str = ''
         self.desc: str = ''
         self.dataset_size: int = None  # Number of files
@@ -364,11 +364,39 @@ class BaseDataset:
             shutil.rmtree(dataset_path)
             logger.debug(f"Removed dataset directory at: {dataset_path}")
 
+    def update_dataset_size(self) -> bool:
+        self.dataset_path = self.get_dataset_path(self.name)
+        # new_dataset_size = len([file for file in Path(
+        #     self.dataset_path).iterdir() if file.is_file()])
+        new_dataset_size = len(list(list_images(self.dataset_path)))
+
+        update_dataset_size_SQL = """
+                                    UPDATE
+                                        public.dataset
+                                    SET
+                                        dataset_size = %s
+                                    WHERE
+                                        id = %s
+                                    RETURNING dataset_size;
+                                    """
+        update_dataset_size_vars = [new_dataset_size, self.id]
+        new_dataset_size_return = db_fetchone(
+            update_dataset_size_SQL, conn, update_dataset_size_vars)
+        self.dataset_size = (
+            int(new_dataset_size_return.dataset_size)
+            if new_dataset_size_return
+            else self.dataset_size)
+        if new_dataset_size_return:
+            logger.info(f"Dataset size updated successfully for ID {self.id}")
+            return True
+        logger.error("Dataset size update failed for ID {self.id}")
+        return False
+
 
 class NewDataset(BaseDataset):
-    def __init__(self, dataset_id) -> None:
+    def __init__(self, id) -> None:
         # init BaseDataset -> Temporary dataset ID from random gen
-        super().__init__(dataset_id)
+        super().__init__(id)
         self.dataset_total_filesize: int = 0  # in byte-size
         self.archive_dir: Path = TEMP_DIR
         # these will be created in `self.validate_labeled_data` if user choose to upload labeled dataset
@@ -412,9 +440,6 @@ class NewDataset(BaseDataset):
                 elif f.endswith('.xml'):
                     xml_idxs.append(i)
                     xml_names.append(os.path.basename(f))
-                elif f.startswith((r'.', r'/')):
-                    st.error(f'{f} is not a valid filepath. '
-                             'Absolute / relative filepath is not accepted.')
                 else:
                     error_filepaths.append(f)
             if error_filepaths:
@@ -482,9 +507,6 @@ class NewDataset(BaseDataset):
             elif f.endswith(required_filetype):
                 st.success(f"Found a {filetype_name} file: {f}")
                 req_file_idx.append(i)
-            elif f.startswith((r'.', r'/')):
-                st.error(f'{f} is not a valid filepath. '
-                         'Absolute / relative filepath is not accepted.')
             else:
                 error_filepaths.append(f)
         if error_filepaths:
@@ -720,16 +742,17 @@ class NewDataset(BaseDataset):
                             """
         insert_dataset_vars = [self.name, self.desc,
                                self.dataset_size, self.filetype]
-        self.dataset_id = db_fetchone(
+        self.id = db_fetchone(
             insert_dataset_SQL, conn, insert_dataset_vars).id
-        return self.dataset_id
+        return self.id
 
     @staticmethod
     def reset_new_dataset_page():
         """Method to reset all widgets and attributes in the New Dataset Page when changing pages
         """
 
-        new_dataset_attributes = ["new_dataset", "is_labeled"]
+        new_dataset_attributes = [
+            "new_dataset", "is_labeled", "dataset_chosen"]
 
         reset_page_attributes(new_dataset_attributes)
 
@@ -818,26 +841,6 @@ class Dataset(BaseDataset):
 
             return data_name_list_full
 
-    def update_dataset_size(self):
-        self.dataset_path = self.get_dataset_path(self.name)
-        new_dataset_size = len([file for file in Path(
-            self.dataset_path).iterdir() if file.is_file()])
-
-        update_dataset_size_SQL = """
-                                    UPDATE
-                                        public.dataset
-                                    SET
-                                        dataset_size = %s
-                                    WHERE
-                                        id = %s
-                                    RETURNING dataset_size;
-        
-                                    """
-        update_dataset_size_vars = [new_dataset_size, self.id]
-        new_dataset_size_return = db_fetchone(
-            update_dataset_size_SQL, conn, update_dataset_size_vars)
-        self.dataset_size = new_dataset_size_return if new_dataset_size_return else self.dataset_size
-
     def update_title_desc(self, new_name: str, new_desc: str):
         update_title_desc_SQL = """
                                     UPDATE
@@ -871,11 +874,11 @@ class Dataset(BaseDataset):
         except Exception as e:
             logger.error(f'{e}: Could not rename file')
 
-    def update_dataset(self):
+    def update_dataset(self, archive_dir: Path):
         """Wrapper function to update existing dataset
         """
         # save added data into file-directory
-        return self.save_dataset()
+        return self.save_dataset(archive_dir)
 
     def update_pipeline(self, success_place) -> int:
         """ Pipeline to update dataset
@@ -1032,11 +1035,11 @@ class Dataset(BaseDataset):
 # **************************** IMPORTANT ****************************
 # ************************ CANNOT CACHE !!!!!*************************
 # Will throw ValueError for selectbox dataset_sel because of session state (BUG)
-def query_dataset_list() -> List[namedtuple]:
+def query_dataset_list() -> List[NamedTuple]:
     """Query list of dataset from DB, Column Names: TRUE
 
     Returns:
-        namedtuple: List of datasets
+        NamedTuple: List of datasets
     """
     query_dataset_SQL = """
         SELECT

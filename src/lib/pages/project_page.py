@@ -254,7 +254,7 @@ def index():
         #     del session_state.project_page_navigator_radio
 
     with navigator.container():
-        st.button("Project", key="to_project_dashboard_sidebar",
+        st.button("Home", key="to_project_dashboard_sidebar",
                   on_click=to_project_dashboard)
     logger.debug(f"Navigator: {session_state.project_pagination}")
     # st.write(session_state.project_pagination)
