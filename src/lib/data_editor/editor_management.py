@@ -102,7 +102,8 @@ class BaseEditor:
         self.deployment_type: Union[int, IntEnum] = None
         self.xml_doc: minidom.Document = None
 
-    def load_xml(self, editor_config: str) -> minidom.Document:
+    @staticmethod
+    def load_xml(editor_config: str) -> minidom.Document:
         """Parse XML string into XML minidom.Document object
 
         Args:
@@ -113,33 +114,49 @@ class BaseEditor:
         """
         if editor_config:
             xml_doc = minidom.parseString(editor_config)
-            self.xml_doc = xml_doc
+            # self.xml_doc = xml_doc
             return xml_doc
         else:
             logger.error(f"Unable to parse string as XML object")
 
-    def get_parents(self, parent_tagName: str, attr: str = None, value: str = None) -> List:
-        if self.xml_doc:
+    def get_parents(self, parent_tagName: str, attr: str = None, value: str = None, xml_doc: minidom.Document = None) -> List:
+        if xml_doc or self.xml_doc:
             if attr and value:
                 pass
             else:
-                parents = self.xml_doc.getElementsByTagName(parent_tagName)
+                if xml_doc:
+                    parents = xml_doc.getElementsByTagName(parent_tagName)
+                else:
+                    parents = self.xml_doc.getElementsByTagName(parent_tagName)
             return parents
 
-    # to get list of labels
-    def get_child(self, parent_tagName: str = None, child_tagName: str = None, attr: str = None, value: str = None) -> List:
+    def get_child(self, parent_tagName: str = None, child_tagName: str = None,
+                  attr: str = None, value: str = None,
+                  xml_doc: minidom.Document = None) -> List:
+        """Used to get list of labels
+
+        Args:
+            parent_tagName (str): Annotation Tagname
+            child_tagName (str): Annotation Child Tagname
+            attr (str, optional): 'value' attribute of tag if specific label to be found . Defaults to None.
+            value (str, optional): Value of 'value'. Defaults to None.
+
+        Returns:
+            elements: childNodes
+        """
 
         if (parent_tagName and child_tagName) is None:
             parent_tagName, child_tagName = self.parent_tagname, self.child_tagname
 
-        parents = self.get_parents(parent_tagName, attr, value)
+        parents = self.get_parents(
+            parent_tagName, attr, value, xml_doc=xml_doc)
         elements = []
         for parent in parents:
             childs = parent.getElementsByTagName(
                 child_tagName)  # list of child elements
             for child in childs:
                 elements.append(child)
-        self.childNodes = elements
+        # self.childNodes = elements
         return elements
 
     @staticmethod
@@ -159,28 +176,20 @@ class BaseEditor:
         # self.labels = labels
         return labels
 
-    def get_labels(self, parent_tagName: str = None, child_tagName: str = None, attr: str = None, value: str = None):
+    def get_labels(self, childNodes: List = None) -> List[str]:
         """Get labels from XML DOM using Parent and Child tags
 
-        Args:
-            parent_tagName (str): Annotation Tagname
-            child_tagName (str): Annotation Child Tagname
-            attr (str, optional): 'value' attribute of tag if specific label to be found . Defaults to None.
-            value (str, optional): Value of 'value'. Defaults to None.
-
         Returns:
-            [type]: [description]
+            labels (List[str]): List of labels from the childNodes
         """
-        if (parent_tagName and child_tagName) is None:
-            parent_tagName, child_tagName = self.parent_tagname, self.child_tagname
+        if not childNodes:
+            if not self.childNodes:
+                self.childNodes = self.get_child()
+            childNodes = self.childNodes
+        labels = self.get_labels_from_childNode(childNodes)
+        return labels
 
-        self.childNodes = self.get_child(
-            parent_tagName=parent_tagName, child_tagName=child_tagName, attr=attr, value=value)
-        self.labels = self.get_labels_from_childNode(self.childNodes)
-
-        return self.labels
-
-    def generate_labels_dict(self, deployment_type: IntEnum) -> dict:
+    def generate_labels_dict(self, deployment_type: IntEnum, attr: str = None, value: str = None) -> dict:
         """  Generate labels dictionary to display on project dashboard
         {'Bounding Box':[List of labels],
             'Classification':[List of labels]
@@ -188,6 +197,8 @@ class BaseEditor:
 
         Args:
             deployment_type ([type]): Type of Deep Learning deployment
+            attr (str, optional): 'value' attribute of tag if specific label to be found . Defaults to None.
+            value (str, optional): Value of 'value'. Defaults to None.
 
         Returns:
             Dict: Dictionary of labels with Annotation Type
@@ -198,8 +209,9 @@ class BaseEditor:
             self.xml_doc: minidom.Document = self.load_xml(self.editor_config)
             self.parent_tagname, self.child_tagname = self.get_annotation_tags(
                 deployment_type)
-            self.labels = self.get_labels(
-                self.parent_tagname, self.child_tagname)
+            self.childNodes = self.get_child(
+                self.parent_tagname, self.child_tagname, attr, value)
+            self.labels = self.get_labels(self.childNodes)
 
         annotation_type = annotation_types[deployment_type]
         labels_dict = {annotation_type: self.labels}
@@ -231,6 +243,23 @@ class BaseEditor:
             deployment_type_id - 1))['config']
 
         return editor_config
+
+    @st.experimental_memo
+    def get_default_template_labels(_self, deployment_type_id: Union[int, IntEnum] = None) -> List[str]:
+        """Get labels from the default templates of XML docs based on the deployment type.
+
+        NOTE: the underscore "self" is to avoid hashing it with st.experimental_memo()
+        """
+        if not deployment_type_id:
+            deployment_type_id = _self.deployment_type
+        editor_config = _self.get_editor_template(deployment_type_id)
+        xml_doc = _self.load_xml(editor_config)
+        parent_tagname, child_tagname = _self.get_annotation_tags(
+            deployment_type_id)
+        childNodes = _self.get_child(
+            parent_tagname, child_tagname, xml_doc=xml_doc)
+        default_labels = _self.get_labels(childNodes)
+        return default_labels
 
     def convert_labels_dict_to_JSON(self):
         """Get labels from editor template XML and generate JSON based on the format:

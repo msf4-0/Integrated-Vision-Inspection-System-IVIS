@@ -33,16 +33,18 @@ from typing import NamedTuple, Optional, Tuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
+from itertools import chain
+
 import cv2
 import numpy as np
 import pandas as pd
 from stqdm import stqdm
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state
 import streamlit.components.v1 as components
 from data_export.label_studio_converter.converter import Converter, Format, FormatNotSupportedError
-from machine_learning.utils import generate_mask_images
+from machine_learning.utils import generate_mask_images, get_coco_classes
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -377,15 +379,16 @@ class Project(BaseProject):
         """
         Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to the dataset export directory.
 
-        `converter` and `export_format` are optionally as they can be inferred.
+        `converter` and `export_format` are optional as they can be inferred.
 
         If `for_training_id` > 0, this will only export the annotated dataset associated
         with the `training_id`, to use for training.
 
         `download_resources` is True to also copy the images to the dataset output_dir
-        when exporting/converting in YOLO/VOC/COCO JSON format.
+            when exporting/converting in YOLO/VOC/COCO JSON format. Defaults to True.
 
-        If `generate_mask` is True, will generate mask images for segmentation task.
+        If `generate_mask` is True, will generate mask images for segmentation task. 
+            Required for training. Defaults to True.
         """
         logger.debug(
             f"Exporting labeled tasks for Project ID: {session_state.project.id}")
@@ -568,6 +571,8 @@ class Project(BaseProject):
                                    return_counts: bool = False) -> Union[List[str],
                                                                          Dict[str, int]]:
         """Extracting the unique label names used in existing annotations.
+        Note that segmentation task will add a 'background' class later when building
+        mask images for training.
 
         Args:
             return_counts (bool, optional): If True, returns Dict with counts as values. 
@@ -585,10 +590,10 @@ class Project(BaseProject):
             ...
             "value": {
               ...
-              "label_key": ["Airplane", "Truck"]
+              <label_key>: ["Airplane", "Truck"]
             },
             ...
-            "type": "label_key"
+            "type": <label_key>
           }
         ]
         ```
@@ -606,18 +611,23 @@ class Project(BaseProject):
         label_key = all_annots[0]['result'][0]['type']
 
         def get_label_names(result):
-            return result[0]['value'][label_key]
+            label_list = [r['value'][label_key] for r in result]
+            # itertools.chain() to chain all the lists together
+            # this is faster than np.concatenate
+            return list(chain(*label_list))
 
         df = pd.DataFrame(all_annots, columns=col_names)
         df['label'] = df["result"].apply(get_label_names)
 
         # need to use `explode` method to turn each list of labels into individual rows
         # unique_labels = sorted(df['label'].explode().unique())
-        # or faster method with numpy, also auto sorted
+        # or fastest method with itertools.chain()
         if not return_counts:
-            unique_labels = np.unique(np.concatenate(df['label'])).tolist()
+            # fastest method to get the sorted unique labels
+            unique_labels = sorted(set(chain(*df['label'])))
         else:
-            unique_labels, counts = np.unique(np.concatenate(df['label']),
+            # np.unique auto sorted by labels
+            unique_labels, counts = np.unique(list(chain(*df['label'])),
                                               return_counts=True)
             # convert to Python int instead of numpy int
             counts = counts.tolist()
@@ -627,6 +637,17 @@ class Project(BaseProject):
             f"Unique labels for Project ID {self.id}: {unique_labels}")
 
         return unique_labels
+
+    def get_num_classes(self) -> int:
+        """This method is required for take into account the potential addition of 
+        `'background'` class for semantic segmentation, as shown in `get_coco_classes()`"""
+        labels = self.get_existing_unique_labels()
+        num_classes = len(labels)
+        if self.deployment_type == 'Semantic Segmentation with Polygons':
+            if 'background' not in labels:
+                # need to +1 for adding the background class later if it's not present
+                num_classes += 1
+        return num_classes
 
     def query_annotations(self, for_training_id: int = 0, return_dict: bool = True) -> Tuple[List[Dict], List]:
         """Query annotations for this project. If `for_training_id` is provided,

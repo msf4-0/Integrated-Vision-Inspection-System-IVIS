@@ -70,7 +70,8 @@ def index(RELEASE=True):
 
         # ************************TO REMOVE************************
         # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
-        project_id_tmp = 30
+        # uploaded pet segmentation: 96
+        project_id_tmp = 96
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -82,7 +83,8 @@ def index(RELEASE=True):
             session_state.user = User(1)
         if 'new_training' not in session_state:
             # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
-            session_state.new_training = Training(18, session_state.project)
+            # uploaded pet segmentation: 20
+            session_state.new_training = Training(20, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 

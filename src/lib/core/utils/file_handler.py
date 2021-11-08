@@ -42,8 +42,10 @@ from path_desc import chdir_root, get_temp_dir
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
-SUPPORTED_ARCHIVE_EXT = ['.zip', '.gz', '.bz2', '.xz']
-IMAGE_EXTENSIONS = ['.jpg', '.png', '.jpeg']
+SUPPORTED_ARCHIVE_EXT = ('.zip', '.gz', '.bz2', '.xz')
+# NOTE: 'tiff' extension is currently not supported for Label Studio yet
+# https://github.com/heartexlabs/label-studio/issues/604
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 # ************************** DEPRECATED **************************
 

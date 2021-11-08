@@ -81,14 +81,16 @@ def augmentation_configuration(RELEASE=True):
 
         if "project" not in session_state:
             # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
-            project_id_tmp = 30
+            # uploaded pet segmentation: 96
+            project_id_tmp = 96
             session_state.project = Project(project_id_tmp)
             logger.debug(f"Entering Project {project_id_tmp}")
         if 'user' not in session_state:
             session_state.user = User(1)
         if 'new_training' not in session_state:
             # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
-            train_id_temp = 18
+            # uploaded pet segmentation: 20
+            train_id_temp = 20
             session_state.new_training = Training(
                 train_id_temp, session_state.project)
             logger.debug(f"Entering Training {train_id_temp}")
@@ -307,24 +309,32 @@ def augmentation_configuration(RELEASE=True):
                                                      class_names=data['class_names'],
                                                      class_colors=class_colors)
                 elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
+                    st.markdown("___")
+                    ignore_background = st.checkbox(
+                        "Ignore background", value=True, key='ignore_background',
+                        help="Ignore background class for visualization purposes")
                     class_names = get_coco_classes(
                         coco_json_path, return_coco=False)
-                    class_colors = create_class_colors(class_names)
-                    st.markdown("___  \n**Legend**")
-                    legend = create_color_legend(class_colors)
+                    class_colors = create_class_colors(
+                        class_names, bgr2rgb=False)
+
+                    st.markdown("**Legend**")
+                    legend = create_color_legend(
+                        class_colors, bgr2rgb=False, ignore_background=ignore_background)
                     st.image(legend)
+
                     # convert to array
                     class_colors = np.array(list(class_colors.values()),
                                             dtype=np.uint8)
                     # colored original image
                     with Timer("Obtained colored mask image"):
                         image = get_colored_mask_image(
-                            image, mask, class_colors, ignore_background=True)
+                            image, mask, class_colors, ignore_background=ignore_background)
                     # colored augmented image
                     with Timer("Obtained colored augmented mask image"):
                         augmented_image = get_colored_mask_image(
                             augmented_image, data['mask'],
-                            class_colors, ignore_background=True)
+                            class_colors, ignore_background=ignore_background)
 
             true_img_col, aug_img_col = st.columns(2)
             with true_img_col:

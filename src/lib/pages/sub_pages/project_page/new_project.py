@@ -103,7 +103,7 @@ def new_project_entry_page(conn=None):
         def to_editor_config():
             session_state.new_project_pagination = NewProjectPagination.EditorConfig
 
-        st.button(
+        st.sidebar.button(
             "Next", key="new_project_to_editor", on_click=to_editor_config)
     # Page title
     st.write("# __Add New Project__")
@@ -306,7 +306,7 @@ def new_project_entry_page(conn=None):
 
     submit_col1, _, submit_col2 = st.columns([2.5, 0.5, 0.5])
 
-    def new_project_submit(labeled=False):
+    def new_project_submit(dataset_chosen=dataset_chosen, dataset_dict=dataset_dict, labeled=False):
         # if this is True, we will send to New Dataset page for uploading
         session_state.is_labeled = labeled
 
@@ -364,10 +364,10 @@ def new_project_entry_page(conn=None):
     # >>>> Removed
     # session_state.new_project.has_submitted = False
 
-    col1, col2 = st.columns(2)
-    col1.write(vars(session_state.new_project))
+    # col1, col2 = st.columns(2)
+    # col1.write(vars(session_state.new_project))
     # col2.write(vars(session_state.new_editor))
-    col2.write(context)
+    # col2.write(context)
     # col2.write(dataset_dict)
 
 
@@ -379,16 +379,15 @@ def index(RELEASE=True, conn=None):
         NewProjectPagination.Entry: new_project_entry_page,
         NewProjectPagination.EditorConfig: editor_config,
         NewProjectPagination.NewDataset: new_dataset
-
     }
-    if 'new_project_pagination' not in session_state:
 
+    if 'new_project_pagination' not in session_state:
         session_state.new_project_pagination = NewProjectPagination.Entry
 
     # new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
     editor_config_submit_place = st.sidebar.empty()
     logger.debug(
-        f" New Project Pagination: {session_state.new_project_pagination}")
+        f"Navigator: {session_state.new_project_pagination = }")
     # ******************** TOP PAGE NAV *******************************************************************************************************
     if (session_state.new_project_pagination == NewProjectPagination.Entry) or (session_state.new_project_pagination == NewProjectPagination.NewDataset):
         color = [current_page, non_current_page]
@@ -429,7 +428,7 @@ def index(RELEASE=True, conn=None):
     # NOTE: not showing this "Back" button for uploading labeled dataset because
     # the project has already been submitted there to associate with the uploaded labeled dataset
     # and it's not necessary to come back to new_project page here
-    if session_state.new_project_pagination != NewProjectPagination.Entry \
+    if session_state.new_project_pagination == NewProjectPagination.NewDataset \
             and not session_state.is_labeled:
 
         def to_new_project_entry_page():

@@ -188,13 +188,13 @@ class Task(BaseTask):
         self.skipped: bool = task_row["Skipped"]
 
         self.dataset_id: int = dataset_dict[self.dataset_name].ID
-        self.dataset_path = Dataset.get_dataset_path(self.dataset_name)
+        self.dataset_path: Path = Dataset.get_dataset_path(self.dataset_name)
 
-        self.data_path = self.dataset_path / self.name
+        self.data_path: Path = self.dataset_path / self.name
         # self.filetype = Dataset.get_filetype_enumerator(self.name)
-        self.filetype = FileTypes.Image
+        self.filetype: FileTypes = FileTypes.Image
 
-        self.data_url = self.get_data()  # Get Data URL
+        self.data_url: str = self.get_data()  # Get Data URL
 
         # self.query_task()
 
@@ -260,7 +260,7 @@ class Task(BaseTask):
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
     # @st.cache
-    def generate_data_url(self):
+    def generate_data_url(self) -> str:
         """Generate data url from OpenCV numpy array
 
         Returns:
@@ -269,7 +269,8 @@ class Task(BaseTask):
 
         try:
             self.data_url = data_url_encoder(
-                self.data_object, self.filetype, self.data_path)
+                # self.data_object, self.filetype, self.data_path)
+                self.filetype, self.data_path)
 
             return self.data_url
         except Exception as e:
@@ -296,7 +297,7 @@ class Task(BaseTask):
         # data = self.data_list.get(self.name)
 
         # if not data:
-        self.data_object = self.load_data()
+        # self.data_object = self.load_data()
         self.data_url = self.generate_data_url()
         # add encoded image into dictionary
         # self.data_list[self.name] = data

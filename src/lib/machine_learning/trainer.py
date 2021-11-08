@@ -25,12 +25,13 @@ SPDX-License-Identifier: Apache-2.0
 
 from functools import partial
 from itertools import cycle
+import json
 import math
 import os
 import sys
 import shutil
 from pathlib import Path
-import time
+from time import perf_counter, sleep
 from typing import Any, Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
@@ -80,7 +81,7 @@ from .utils import (check_unique_label_counts, classification_predict, copy_imag
                     load_tfod_checkpoint, load_tfod_model, preprocess_image,
                     segmentation_predict, segmentation_read_and_preprocess,
                     tf_classification_preprocess_input, tfod_detect, xml_to_df, hybrid_loss)
-from .visuals import (PrettyMetricPrinter, create_class_colors, draw_gt_bboxes,
+from .visuals import (PrettyMetricPrinter, create_class_colors, create_color_legend, draw_gt_bboxes,
                       draw_tfod_bboxes, get_colored_mask_image, pretty_format_param)
 from .callbacks import LRTensorBoard, StreamlitOutputCallback
 
@@ -97,6 +98,7 @@ class Trainer:
         self.attached_model_name: str = new_training.attached_model.name
         self.training_model_name: str = new_training.training_model.name
         self.project_path: Path = project.get_project_path(project.name)
+        self.project_json_path: Path = project.get_project_json_path()
         self.deployment_type: str = project.deployment_type
         # with keys: 'train', 'eval', 'test'
         self.partition_ratio: Dict[str, float] = new_training.partition_ratio
@@ -109,7 +111,8 @@ class Trainer:
             # NOTE: must do it this way instead of using `get_coco_classes()` because
             #  the user might not use all classes when annotating (although rare case)
             #  and it could cause error
-            self.class_names = ['background'] + self.class_names
+            if 'background' not in self.class_names:
+                self.class_names = ['background'] + self.class_names
             self.segm_model_param, self.segm_model_func = (
                 new_training.get_segmentation_model_params(
                     self.training_param, return_model_func=True
@@ -424,7 +427,7 @@ class Trainer:
                 logger.error("Pretrained model config is not found!")
                 st.error(f"Error with pretrained model: {self.attached_model_name}. "
                          "Please try selecting another model and train again.")
-                time.sleep(5)
+                sleep(5)
                 st.experimental_rerun()
 
             pipeline_config.train_config.batch_size = self.training_param['batch_size']
@@ -453,7 +456,7 @@ class Trainer:
         # change the training steps as necessary, recommended start with 300 to test whether it's working, then train for at least 2000 steps
         NUM_TRAIN_STEPS = self.training_param['num_train_steps']
 
-        start = time.perf_counter()
+        start = perf_counter()
         command = (f"python {TRAINING_SCRIPT} "
                    f"--model_dir={paths['MODELS']} "
                    f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
@@ -466,14 +469,14 @@ class Trainer:
             # cmd_output = run_command(command, st_output=True,
             #                          filter_by=['Step', 'Loss/', 'learning_rate'])
             # self.tfod_update_progress_metrics(cmd_output)
-        time_elapsed = time.perf_counter() - start
+        time_elapsed = perf_counter() - start
         m, s = divmod(time_elapsed, 60)
         m, s = int(m), int(s)
         logger.info(f'Finished training! Took {m}m {s}s')
         st.success(f'Model has finished training! Took **{m}m {s}s**')
 
         # ************************ EVALUATION ************************
-        start = time.perf_counter()
+        start = perf_counter()
         with st.spinner("Running object detection evaluation ..."):
             command = (f"python {TRAINING_SCRIPT} "
                        f"--model_dir={paths['MODELS']} "
@@ -483,7 +486,7 @@ class Trainer:
                 command, stdout_output=True, st_output=False,
                 filter_by=['DetectionBoxes_', 'Loss/'], is_cocoeval=True)
         if filtered_outputs:
-            time_elapsed = time.perf_counter() - start
+            time_elapsed = perf_counter() - start
             m, s = divmod(time_elapsed, 60)
             m, s = int(m), int(s)
             logger.info(f'Finished COCO evaluation! Took {m}m {s}s')
@@ -678,10 +681,10 @@ class Trainer:
                 filename = os.path.basename(p)
                 class_names, bboxes = get_bbox_label_info(gt_xml_df, filename)
 
-                start_t = time.perf_counter()
+                start_t = perf_counter()
                 detections = tfod_detect(detect_fn, img,
                                          tensor_dtype=tensor_dtype)
-                time_elapsed = time.perf_counter() - start_t
+                time_elapsed = perf_counter() - start_t
                 logger.info(f"Done inference on {filename}. "
                             f"[{time_elapsed:.2f} secs]")
 
@@ -965,9 +968,14 @@ class Trainer:
             ok = check_unique_label_counts(labels, encoded_label_dict)
             stratify = True if ok else False
         elif segmentation:
-            image_dir = self.dataset_export_path / 'images'
+            labelstudio_json = json.load(open(self.project_json_path))
+            # using these paths instead to allow removing the 'images' folder later
+            # while still retaining the paths to access the original dataset images
+            image_paths = [str(DATASET_DIR / i['data']['image'])
+                           for i in labelstudio_json]
+            # image_dir = self.dataset_export_path / 'images'
+            # image_paths = sorted(list_images(image_dir))
             mask_dir = self.dataset_export_path / 'masks'
-            image_paths = sorted(list_images(image_dir))
             labels = sorted(list_images(mask_dir))
             stratify = False
             # coco_json_path = self.dataset_export_path / 'result.json'
@@ -1083,7 +1091,7 @@ class Trainer:
             validation_data = test_ds
 
         logger.info("Training model...")
-        start = time.perf_counter()
+        start = perf_counter()
         with st.spinner("Training model ..."):
             model.fit(
                 train_ds,
@@ -1094,7 +1102,7 @@ class Trainer:
                 # turn off printing training progress in console
                 verbose=0
             )
-        time_elapsed = time.perf_counter() - start
+        time_elapsed = perf_counter() - start
 
         m, s = divmod(time_elapsed, 60)
         m, s = int(m), int(s)
@@ -1184,6 +1192,12 @@ class Trainer:
         weights_path = self.training_path['model_weights_file']
         logger.debug(f"Removing unused model_weights file: {weights_path}")
         os.remove(weights_path)
+
+        # this only exists for segmentation task for now
+        exported_image_dir = self.dataset_export_path / 'images'
+        if exported_image_dir.exists():
+            logger.info("Removing unused exported training images")
+            shutil.rmtree(self.dataset_export_path / 'images')
 
     def run_keras_eval(self):
         # load back the best model
@@ -1295,12 +1309,17 @@ class Trainer:
             image_cols = cycle((image_col, image_col_2))
             with st.spinner("Running classifications ..."):
                 for p, label, col in zip(current_image_paths, current_labels, image_cols):
+                    logger.debug(f"Image path: {p}")
                     filename = os.path.basename(p)
+                    logger.info(f"Inference on image: {filename}")
 
                     img = cv2.imread(p)
+                    start = perf_counter()
                     preprocessed_img = preprocess_image(img, image_size)
                     y_pred, y_proba = classification_predict(preprocessed_img,
                                                              model, return_proba=True)
+                    time_elapsed = perf_counter() - start
+                    logger.info(f"Took {time_elapsed:.4f}s")
                     pred_classname = encoded_label_dict[y_pred]
                     true_classname = encoded_label_dict[label]
 
@@ -1314,20 +1333,33 @@ class Trainer:
                     with col:
                         st.image(img, caption=caption)
         else:
-            class_colors = create_class_colors(self.class_names, as_array=True)
-
+            with figure_row_place:
+                class_colors = create_class_colors(
+                    self.class_names, bgr2rgb=False)
+                ignore_background = st.checkbox(
+                    "Ignore background", value=True, key='ignore_background',
+                    help="Ignore background class for visualization purposes")
+                legend = create_color_legend(
+                    class_colors, bgr2rgb=False, ignore_background=ignore_background)
+                st.markdown("**Legend**")
+                st.image(legend)
+            # convert to array
+            class_colors = np.array(list(class_colors.values()),
+                                    dtype=np.uint8)
             with st.spinner("Running segmentation ..."):
                 for i, (img_path, mask_path) in enumerate(zip(current_image_paths, current_labels)):
+                    logger.debug(f"Image path: {img_path}")
                     filename = os.path.basename(img_path)
+                    logger.info(f"Inference on image: {filename}")
 
                     image = cv2.imread(img_path)
                     orig_H, orig_W = image.shape[:2]
+                    start = perf_counter()
                     preprocessed_img = preprocess_image(image, image_size)
-
-                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-
                     pred_mask = segmentation_predict(
                         model, preprocessed_img, orig_W, orig_H)
+                    time_elapsed = perf_counter() - start
+                    logger.info(f"Took {time_elapsed:.4f}s")
 
                     # convert to RGB for visualizing with Matplotlib
                     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -1339,11 +1371,12 @@ class Trainer:
                     plt.imshow(image)
                     plt.axis('off')
 
+                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
                     plt.subplot(132)
                     plt.title("Ground Truth")
                     true_output = get_colored_mask_image(
                         image, mask, class_colors,
-                        ignore_background=True)
+                        ignore_background=ignore_background)
                     plt.imshow(true_output)
                     plt.axis('off')
 
@@ -1351,7 +1384,7 @@ class Trainer:
                     plt.title("Predicted")
                     pred_output = get_colored_mask_image(
                         image, pred_mask, class_colors,
-                        ignore_background=True)
+                        ignore_background=ignore_background)
                     plt.imshow(pred_output)
                     plt.axis('off')
 

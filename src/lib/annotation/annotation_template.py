@@ -10,13 +10,15 @@ from pathlib import Path
 from yaml import full_load, load
 import streamlit as st
 #---------------Logger--------------#
-import logging
-FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
-DATEFMT = '%d-%b-%y %H:%M:%S'
-# logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
-logging.basicConfig(format=FORMAT, level=logging.DEBUG,
-                    stream=sys.stdout, datefmt=DATEFMT)
-log = logging.getLogger()
+from core.utils.log import logger as log
+
+# import logging
+# FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
+# DATEFMT = '%d-%b-%y %H:%M:%S'
+# # logging.basicConfig(filename='test.log',filemode='w',format=FORMAT, level=logging.DEBUG)
+# logging.basicConfig(format=FORMAT, level=logging.DEBUG,
+#                     stream=sys.stdout, datefmt=DATEFMT)
+# log = logging.getLogger()
 #----------------------------------#
 
 base_dir = Path(__file__).parent
@@ -39,7 +41,7 @@ def load_annotation_template(template_index, template=None):
     file_path = Path(f'{template}')
     template_dir = Path(base_dir, file_path, Path('config.yml'))
     # log.info(template_dir)
-    log.info(f"Loading template from {template_dir.relative_to(base_dir)}")
+    log.debug(f"Loading template from {template_dir.relative_to(base_dir)}")
     template = load_template_config(template_dir)
 
     return template

@@ -97,21 +97,30 @@ class PrettyMetricPrinter:
     delta_color: Union[str, Dict[str, str]] = None
     prev_metrics: Dict[str, float] = field(default=None, init=False)
 
+    def __post_init__(self):
+        # more loss names to check for inverse delta_color
+        self._extra_lossnames: List[str] = [
+            'categorical_crossentropy', 'iou_seg',
+            'val_categorical_crossentropy', 'val_iou_seg']
+        self._first: bool = True
+
     def write(self, metrics: Dict[str, float]):
         """
         Use this to directly print out the current metrics in a nicely formatted way in columns and st.metric.
         metrics (Dict[str, Any]): The dictionary containing the metrics such as loss or accuracy
         """
-        if not self.delta_color:
-            self.delta_color = {
-                name: 'inverse'
-                if 'loss' in name
-                else 'normal'
-                for name in metrics
-            }
-        if isinstance(self.float_format, str):
-            self.float_format = {name: self.float_format for name in metrics}
-        if not self.prev_metrics:
+        if self._first:
+            self._first = False
+            if not self.delta_color:
+                self.delta_color = {}
+                for name in metrics:
+                    if 'loss' in name or name in self._extra_lossnames:
+                        self.delta_color[name] = 'inverse'
+                    else:
+                        self.delta_color[name] = 'normal'
+            if isinstance(self.float_format, str):
+                self.float_format = {
+                    name: self.float_format for name in metrics}
             self.prev_metrics = metrics.copy()
 
         cols = st.columns(len(metrics))
@@ -143,6 +152,7 @@ class PrettyMetricPrinter:
 @st.experimental_memo
 def create_class_colors(
         class_names: List[str],
+        bgr2rgb: bool = True,
         as_array: bool = False) -> Union[Dict[str, Tuple[int, int, int]], np.ndarray]:
     """Randomly assign colors for different classes. 
 
@@ -152,13 +162,15 @@ def create_class_colors(
 
     `as_array` is required for coloring mask images with `get_colored_mask_image`.
     """
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(21)
     colors = rng.integers(0, 255, size=(len(class_names), 3),
                           dtype=np.uint8)
     class_colors = {}
     for name, color in zip(class_names, colors):
         # must convert the NumPy dtypes to Python ints
         color = [int(c) for c in color]
+        if bgr2rgb:
+            color = color[::-1]
         class_colors[name] = tuple(color)
     if 'background' in class_names:
         # set background to black color
@@ -287,7 +299,7 @@ def get_colored_mask_image(image: np.ndarray,
     `mask` has unique pixel values starting from 0 to num_classes; and each pixel value
     is associated with a specific class and class color. 
 
-    `alpha` is to control the transparency of overlayed colored mask. Defaults to 0.4.
+    `alpha` is to control the transparency of overlayed colored mask. Defaults to 0.5.
 
     `ignore_background` is used to ignore the black background color when overlaying to
     make the output prettier. Note that this will cost a considerable amount of FPS.
@@ -311,6 +323,7 @@ def get_colored_mask_image(image: np.ndarray,
 
 @st.experimental_memo
 def create_color_legend(class_colors: Dict[str, Tuple[int, int, int]],
+                        bgr2rgb: bool = True,
                         ignore_background: bool = True,
                         show_index: bool = False) -> np.ndarray:
     # initialize the settings, NOTE: these values are found to have the best results
@@ -335,11 +348,12 @@ def create_color_legend(class_colors: Dict[str, Tuple[int, int, int]],
             (5, (i * col_height) + (col_height - 8)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
-            (255, 0, 0),
+            (0, 100, 0),
             2,
         )
         cv2.rectangle(legend, (text_col_width, (i * col_height)),
                       (color_col_width, (i * col_height) + col_height),
                       tuple(color), -1)
-    legend = cv2.cvtColor(legend, cv2.COLOR_BGR2RGB)
+    if bgr2rgb:
+        legend = cv2.cvtColor(legend, cv2.COLOR_BGR2RGB)
     return legend

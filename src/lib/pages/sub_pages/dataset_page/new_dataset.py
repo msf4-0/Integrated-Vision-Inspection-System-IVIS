@@ -143,15 +143,6 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
     # ******** DEBUGGING ********
 
     if is_updating:
-        st.title("Adding data to existing project dataset")
-        st.markdown("___")
-        labeled = st.radio(
-            "Select type of dataset to upload", options=('Not Labeled', 'Labeled'),
-            index=0, key='labeled'
-        )
-        st.markdown("___")
-        session_state.is_labeled = True if labeled == 'Labeled' else False
-
         # session_state.dataset_chosen should be obtained from existing_project_dashboard
         dataset_info = session_state.project.dataset_dict[session_state.dataset_chosen]
         # set the info to be equal to new_dataset to make things easier
@@ -168,11 +159,12 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
     # Page title
     if session_state.is_labeled or is_updating:
         st.write(f"# __Deployment Type: {deployment_type}__")
-    if session_state.is_labeled:
-        st.write("## __Upload Labeled Dataset__")
-        logger.info("Upload labeled dataset")
-    else:
-        st.write("# __Add New Dataset__")
+    if not is_updating:
+        if session_state.is_labeled:
+            st.write("## __Upload Labeled Dataset__")
+            logger.info("Upload labeled dataset")
+        else:
+            st.write("# __Add New Dataset__")
     st.markdown("___")
 
     # right-align the dataset ID relative to the page
@@ -214,6 +206,13 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
         st.markdown(f"**Dataset name:** {session_state.new_dataset.name}")
         st.markdown(
             f"**Dataset description:** {session_state.new_dataset.desc}")
+
+        st.markdown("## __Adding data to existing project dataset__")
+        labeled = st.radio(
+            "Select type of dataset to upload", options=('Not Labeled', 'Labeled'),
+            index=0, key='labeled'
+        )
+        session_state.is_labeled = True if labeled == 'Labeled' else False
 
     # <<<<<<<< New Dataset INFO <<<<<<<<
 
@@ -304,14 +303,14 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
             # session_state.new_dataset.dataset = image_names
 
             # length of uploaded files
-            session_state.new_dataset.dataset_size = len(filepaths)
+            num_files = len(filepaths)
         else:
             content_size = 0
-            session_state.new_dataset.dataset_size = 0
+            num_files = 0
             # session_state.new_dataset.dataset = []
 
         with outercol3:
-            dataset_size_string = f"- ### Number of datas: **{session_state.new_dataset.dataset_size}**"
+            dataset_size_string = f"- ### Number of datas: **{num_files}**"
             # dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
             dataset_filesize_string = ("- ### Total size of data: "
                                        f"**{naturalsize(value=content_size, format='%.2f')}**")
@@ -343,7 +342,10 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
     # st.write("context")
     # st.write(context)
     submit_col1, submit_col2 = st.columns([3, 0.5])
-    submit_button = submit_col2.button("Submit", key="submit")
+    with submit_col2:
+        # using a placeholder for button to be able to clear it out later
+        button_place = st.empty()
+        submit_button = button_place.button("Submit", key="submit")
 
     # st.write(session_state)
 
@@ -531,13 +533,34 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
                                     f"Average {time_elapsed / total_images:.4f}s per image")
 
                         with st.spinner("Updating project labels and editor configuration ..."):
-                            default_labels = list(
-                                session_state.project.editor.get_labels())
-                            logger.debug("Default labels found in "
-                                         f"editor config: {default_labels}")
-                            project_id = session_state.project.id
-                            # get the unique new labels from all the annotations
-                            new_labels = session_state.project.get_existing_unique_labels()
+                            if not is_updating:
+                                default_labels = list(
+                                    session_state.project.editor.get_labels())
+                                logger.debug("Default labels found in template's "
+                                             f"editor config: {default_labels}")
+                                project_id = session_state.project.id
+                                # get the unique labels from all the annotations
+                                submitted_labels = session_state.project.get_existing_unique_labels()
+                                # get new_labels to update editor config
+                                new_labels = set(submitted_labels).difference(
+                                    default_labels)
+                                # get unwanted_labels to remove from editor config
+                                unwanted_labels = set(default_labels).difference(
+                                    new_labels)
+                            else:
+                                # get existing labels from editor_config to use to
+                                # compare and update editor_config with new labels
+                                existing_config_labels = list(
+                                    session_state.project.editor.get_labels())
+                                logger.debug("Existing labels found in "
+                                             f"editor config: {existing_config_labels}")
+                                # now the annotations will include new labels from the
+                                # new uploaded annotations
+                                existing_annotated_labels = session_state.project.get_existing_unique_labels()
+                                new_labels = set(existing_annotated_labels).difference(
+                                    existing_config_labels)
+                            logger.info("Adding the new labels to editor config: "
+                                        f"{new_labels}")
 
                             # update editor_config with the new labels from the uploaded annotations
                             for label in new_labels:
@@ -546,33 +569,44 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
                                 logger.debug(
                                     f"newChild: {newChild.attributes.items()}")
                                 session_state.project.editor.labels = session_state.project.editor.get_labels()
-                            logger.info(
-                                f"New labels added: {session_state.project.editor.labels}")
+                            logger.info("All labels after updating: "
+                                        f"{session_state.project.editor.labels}")
 
-                            # remove the default_labels came with the original editor_config
-                            for label in default_labels:
-                                logger.debug(f"Removing label: {label}")
-                                session_state.project.editor.labels.remove(
-                                    label)
-                                removedChild = session_state.project.editor.remove_label(
-                                    'value', label)
-                                logger.debug(f"removedChild: {removedChild}")
-                            session_state.project.editor.labels.sort()
-                            logger.debug(f"After removing default labels: "
-                                         f"{session_state.project.editor.labels}")
+                            # default_labels = session_state.project.editor.get_default_template_labels()
+
+                            # remove the unwanted default_labels came with the original
+                            # editor_config template, but keep the ones from new_labels
+                            if not is_updating and unwanted_labels:
+                                for label in unwanted_labels:
+                                    logger.debug(
+                                        f"Removing label: {label}")
+                                    session_state.project.editor.labels.remove(
+                                        label)
+                                    removedChild = session_state.project.editor.remove_label(
+                                        'value', label)
+                                    logger.debug(
+                                        f"removedChild: {removedChild}")
+                                session_state.project.editor.labels.sort()
+                                logger.debug(f"After removing default labels: "
+                                             f"{session_state.project.editor.labels}")
 
                             session_state.project.editor.update_editor_config()
+
+                            session_state.project.refresh_project_details()
 
                         if error_imgs:
                             with st.expander("""NOTE: These images were unreadable and
                                 skipped, but others are stored successfully in the
-                                database."""):
+                                database. You may now go back to the Home page and 
+                                enter the current project."""):
                                 st.warning("  \n".join(error_imgs))
                         else:
                             st.success("""🎉 All images and annotations are successfully
-                            stored in database""")
+                            stored in database. You may now go back to the Home page or 
+                            enter the current project.""")
 
-                        session_state.project.refresh_project_details()
+                        # clear out the "Submit" button to avoid further interactions
+                        button_place.empty()
                 else:
                     st.error(
                         f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")

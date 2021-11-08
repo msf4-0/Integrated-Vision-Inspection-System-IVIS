@@ -273,12 +273,12 @@ class BaseDataset:
     def dataset_PNG_encoding(self, archive_dir: Path, verbose: bool = False):
         # archive_dir is the directory that contains the extracted tarfile contents
         image_paths = sorted(list_images(archive_dir))
+        destination = self.dataset_path
 
         for img_path in stqdm(image_paths, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading images"):
             # img_name = img.name
             img_name = os.path.basename(img_path)
             # logger.debug(img_name)
-            destination = self.dataset_path
             # save_path = Path(self.dataset_path) / img_name
 
             # st.title(img.name)
@@ -668,24 +668,30 @@ class NewDataset(BaseDataset):
             cat_id = category_dict.pop("id")
             cat_id2name[cat_id] = category_dict['name']
 
-        # initial image_id is always 0
-        prev_img_id = 0
-        result = []
+        first = True
         for annot in coco_json['annotations']:
             annot_id = annot['id']
             img_id = annot['image_id']
             img_info = image_id2info[img_id]
             filename = os.path.basename(img_info['file_name'])
 
+            if first:
+                first = False
+                # initial image_id is always 0
+                prev_img_id = 0
+                result = []
+                prev_filename = filename
+
             if prev_img_id != img_id:
-                # generate the filename and all the annotation results
+                # generate the previous image filename and all the annotation results
                 # for the image of prev_img_id
                 logger.debug(f"Reached new image ID {img_id}, "
                              f"yielding result for previous img_id {prev_img_id}")
-                yield filename, result
+                yield prev_filename, result
                 # then reset the result list and update for new image_id
                 result = []
                 prev_img_id = img_id
+                prev_filename = filename
 
             original_width = img_info['width']
             original_height = img_info['height']
@@ -740,6 +746,7 @@ class NewDataset(BaseDataset):
                                     (SELECT ft.id from public.filetype ft where ft.name = %s))
                                 RETURNING id;
                             """
+        self.dataset_size = len(self.dataset)
         insert_dataset_vars = [self.name, self.desc,
                                self.dataset_size, self.filetype]
         self.id = db_fetchone(
@@ -1123,47 +1130,53 @@ def load_image(image_path: str, opencv_flag: bool = True) -> Union[Image.Image, 
     return image
 
 
-def data_url_encoder(data_object, filetype: IntEnum, data_path: Union[str, Path]) -> str:
+def data_url_encoder(filetype: IntEnum, data_path: Union[str, Path]) -> str:
     """Generate Data URL
 
     Args:
-        data_object ([type]): Object holding raw data
         filetype (IntEnum): FileTypes IntEnum class constants
         data_path (Union[str, Path]): Path to data
 
     Returns:
         str: String of base64 encoded data url
     """
+    # REMOVED: `data_object` args is not needed anymore
     if filetype == FileTypes.Image:
-        if isinstance(data_object, np.ndarray):
-            image_name = Path(data_path).name
+        image_name = os.path.basename(data_path)
 
-            logger.info(f"Encoding image into bytes: {str(image_name)}")
-            extension = Path(image_name).suffix
-            _, buffer = cv2.imencode(extension, data_object)
-            logger.info("Done enconding into bytes")
+        logger.debug("Encoding image with base64 to display with Label Studio")
+        with open(data_path, "rb") as f:
+            b64code = b64encode(f.read()).decode('utf-8')
 
-            logger.info("Start B64 Encoding")
+        # if isinstance(data_object, np.ndarray):
+        #     image_name = Path(data_path).name
 
-            b64code = b64encode(buffer).decode('utf-8')
-            logger.info("Done B64 encoding")
+        #     logger.debug(f"Encoding image into bytes: {str(image_name)}")
+        #     extension = Path(image_name).suffix
+        #     _, buffer = cv2.imencode(extension, data_object)
+        #     logger.debug("Done enconding into bytes")
 
-        elif isinstance(data_object, Image.Image):
-            img_byte = BytesIO()
-            image_name = Path(data_object.filename).name  # use Path().name
-            logger.info(f"Encoding image into bytes: {str(image_name)}")
-            data_object.save(img_byte, format=data_object.format)
-            logger.info("Done enconding into bytes")
+        #     logger.debug("Start B64 Encoding")
 
-            logger.info("Start B64 Encoding")
-            bb = img_byte.getvalue()
-            b64code = b64encode(bb).decode('utf-8')
-            logger.info("Done B64 encoding")
+        #     b64code = b64encode(buffer).decode('utf-8')
+        #     logger.debug("Done B64 encoding")
+
+        # elif isinstance(data_object, Image.Image):
+        #     img_byte = BytesIO()
+        #     image_name = Path(data_object.filename).name  # use Path().name
+        #     logger.debug(f"Encoding image into bytes: {str(image_name)}")
+        #     data_object.save(img_byte, format=data_object.format)
+        #     logger.debug("Done enconding into bytes")
+
+        #     logger.debug("Start B64 Encoding")
+        #     bb = img_byte.getvalue()
+        #     b64code = b64encode(bb).decode('utf-8')
+        #     logger.debug("Done B64 encoding")
 
         mime = guess_type(image_name)[0]
-        logger.info(f"{image_name} ; {mime}")
+        logger.debug(f"{image_name} ; {mime}")
         data_url = f"data:{mime};base64,{b64code}"
-        logger.info("Data url generated")
+        logger.debug("Data url generated")
 
         return data_url
 

@@ -314,10 +314,6 @@ def index():
     else:
         training_page_back_place.empty()
 
-    # ! DEBUGGING PURPOSE, REMOVE LATER
-    st.write("session_state = ")
-    st.write(session_state)
-
     logger.debug(
         f"Entering Training Page:{session_state.training_pagination}")
 

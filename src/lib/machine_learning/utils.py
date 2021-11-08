@@ -566,10 +566,10 @@ def load_mask_image(ori_image_name: str, mask_dir: Path) -> np.ndarray:
     return mask
 
 
-@st.experimental_memo
+@st.cache
 def get_coco_classes(
     json_path: Union[str, Path],
-    return_coco: bool = True) -> Union[Tuple[COCO, List[int], List[str]],
+    return_coco: bool = True) -> Union[Tuple[COCO, List[int], bool, List[str]],
                                        List[str]]:
     """Get COCO classnames from the COCO JSON file.
 
@@ -582,11 +582,17 @@ def get_coco_classes(
 
     classnames = [cat["name"] for cat in categories]
     # add a background class at index 0
-    classnames = ["background"] + classnames
+    if 'background' not in classnames:
+        classnames = ["background"] + classnames
+        # this flag is required for generate_mask_images() to know
+        # whether the original COCO JSON already has a background class
+        added_background = True
+    else:
+        added_background = False
     logger.debug(f"{classnames = }")
 
     if return_coco:
-        return coco, catIDs, classnames
+        return coco, catIDs, added_background, classnames
 
     return classnames
 
@@ -626,7 +632,8 @@ def generate_mask_images(coco_json_path: Union[str, Path] = None,
         img_dict_list = img_dict_list[:n_masks]
     total_masks = len(img_dict_list)
 
-    coco, catIDs, classnames = get_coco_classes(coco_json_path)
+    coco, catIDs, added_background, classnames = get_coco_classes(
+        coco_json_path)
 
     logger.debug(f"Generating {total_masks} mask images in: {output_dir}")
     for img_dict in stqdm(img_dict_list, total=total_masks,
@@ -640,8 +647,12 @@ def generate_mask_images(coco_json_path: Union[str, Path] = None,
         mask = np.zeros((img_dict["height"], img_dict["width"]))
         classes_found = []
         for annot in anns:
-            # considering 'background' class at index 0
-            className = classnames[annot["category_id"] + 1]
+            current_annot_id = annot["category_id"]
+            if added_background:
+                # considering the extra added 'background' class at index 0
+                # that did not exist in the COCO JSON file
+                current_annot_id += 1
+            className = classnames[current_annot_id]
             classes_found.append(className)
             pixel_value = classnames.index(className)
             # the final mask contains the pixel values for each class

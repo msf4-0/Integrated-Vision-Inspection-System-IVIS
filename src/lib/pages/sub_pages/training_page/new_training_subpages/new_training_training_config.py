@@ -344,9 +344,8 @@ def training_configuration(RELEASE=True):
             session_state['param_filter_num'] = [
                 filter_size * (2 ** i) for i in range(depth)]
 
-            # +1 for background class
-            session_state['param_n_labels'] = len(
-                session_state.project.get_existing_unique_labels()) + 1
+            num_classes = session_state.project.get_num_classes()
+            session_state['param_n_labels'] = num_classes
 
             recur_num_choices = (1, 2, 3)
             if session_state.new_training.attached_model.name == 'R2U-Net':

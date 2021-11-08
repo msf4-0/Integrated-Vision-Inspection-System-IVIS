@@ -315,7 +315,7 @@ def index(RELEASE=True):
 
         # ************************TO REMOVE************************
         # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
-        project_id_tmp = 30
+        project_id_tmp = 22
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly

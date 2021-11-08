@@ -78,7 +78,7 @@ with st.sidebar.container():
     st.header(
         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
     st.markdown("""___""")
-    st.radio("", options=PAGE_OPTIONS, key="all_pages")
+    # st.radio("", options=PAGE_OPTIONS, key="all_pages")
 
 navigator = st.sidebar.empty()
 
@@ -242,10 +242,10 @@ def index():
 
         NewProject.reset_new_project_page()
         # TODO #81 Add reset to project page *************************************************************************************
-        Project.reset_project_page()
         reset_editor_page()
         NewTraining.reset_new_training_page()
         Training.reset_training_page()
+        Project.reset_project_page()
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
@@ -256,7 +256,7 @@ def index():
     with navigator.container():
         st.button("Home", key="to_project_dashboard_sidebar",
                   on_click=to_project_dashboard)
-    logger.debug(f"Navigator: {session_state.project_pagination}")
+    logger.debug(f"Navigator: {session_state.project_pagination = }")
     # st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()
 
