@@ -15,7 +15,7 @@ from streamlit import session_state as session_state
 from pages.sub_pages.training_page import training_dashboard
 
 # DEFINE Web APP page configuration
-layout = 'wide'
+# layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
@@ -35,7 +35,7 @@ from data_manager.database_manager import init_connection
 from project.project_management import ExistingProjectPagination, ProjectPermission, Project
 
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
-from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard
+from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard, settings
 from pages.sub_pages.labelling_page import labelling_dashboard
 
 from annotation.annotation_management import reset_editor_page
@@ -57,7 +57,7 @@ chdir_root()  # change to root directory
 
 def index():
     RELEASE = True
-    logger.info("At Exisiting Project Dashboard INDEX")
+    logger.debug("At Exisiting Project Dashboard INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
 
@@ -88,8 +88,8 @@ def index():
         ExistingProjectPagination.Labelling: labelling_dashboard.index,
         ExistingProjectPagination.Training: training_dashboard.index,
         ExistingProjectPagination.Models: None,
-        ExistingProjectPagination.Export: None,
-        ExistingProjectPagination.Settings: None
+        ExistingProjectPagination.Deployment: None,
+        ExistingProjectPagination.Settings: settings.index
     }
 
     # ****************************** HEADER **********************************************
@@ -133,7 +133,7 @@ def index():
         # only show this if project has already selected a dataset
         with st.sidebar.expander(session_state.project.name, expanded=True):
             st.radio("Navigation", options=existing_project_page_options,
-                    index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
+                     index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
     st.sidebar.markdown("___")
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 

@@ -182,8 +182,10 @@ def index(RELEASE=True):
         dataset_dict = get_dataset_name_list(existing_dataset)
         project_dataset_chosen = list(
             session_state.project.dataset_dict.keys())
-        remaining_datasets = set(dataset_dict).difference(
-            project_dataset_chosen)
+        all_datasets = list(dataset_dict.keys())
+        for d in project_dataset_chosen:
+            # avoid showing selected project datasets to the user to add again
+            all_datasets.remove(d)
 
         st.header("All existing datasets")
         df = create_dataframe(existing_dataset,
@@ -210,7 +212,7 @@ def index(RELEASE=True):
 
         datasets_to_add = st.multiselect(
             "Select dataset(s) to add to current project",
-            options=remaining_datasets, key="datasets_to_add",
+            options=all_datasets, key="datasets_to_add",
             help="""Add more dataset to the project. The colored row in the
             table is the project dataset chosen during project creation.""")
 

@@ -102,6 +102,13 @@ class BaseEditor:
         self.deployment_type: Union[int, IntEnum] = None
         self.xml_doc: minidom.Document = None
 
+    def __repr__(self):
+        return "<{klass} {attrs}>".format(
+            klass=self.__class__.__name__,
+            attrs=" ".join("{}={!r}".format(k, v)
+                           for k, v in self.__dict__.items() if v),
+        )
+
     @staticmethod
     def load_xml(editor_config: str) -> minidom.Document:
         """Parse XML string into XML minidom.Document object
@@ -120,15 +127,16 @@ class BaseEditor:
             logger.error(f"Unable to parse string as XML object")
 
     def get_parents(self, parent_tagName: str, attr: str = None, value: str = None, xml_doc: minidom.Document = None) -> List:
-        if xml_doc or self.xml_doc:
-            if attr and value:
-                pass
+        if not xml_doc and not self.xml_doc:
+            self.xml_doc = self.load_xml(self.editor_config)
+        if attr and value:
+            pass
+        else:
+            if xml_doc:
+                parents = xml_doc.getElementsByTagName(parent_tagName)
             else:
-                if xml_doc:
-                    parents = xml_doc.getElementsByTagName(parent_tagName)
-                else:
-                    parents = self.xml_doc.getElementsByTagName(parent_tagName)
-            return parents
+                parents = self.xml_doc.getElementsByTagName(parent_tagName)
+        return parents
 
     def get_child(self, parent_tagName: str = None, child_tagName: str = None,
                   attr: str = None, value: str = None,
@@ -177,15 +185,15 @@ class BaseEditor:
         return labels
 
     def get_labels(self, childNodes: List = None) -> List[str]:
-        """Get labels from XML DOM using Parent and Child tags
+        """Get labels from XML DOM using Parent and Child tags.
+
+        NOTE: This method is the very important for getting new labels.
 
         Returns:
             labels (List[str]): List of labels from the childNodes
         """
         if not childNodes:
-            if not self.childNodes:
-                self.childNodes = self.get_child()
-            childNodes = self.childNodes
+            childNodes = self.get_child()
         labels = self.get_labels_from_childNode(childNodes)
         return labels
 
@@ -323,14 +331,15 @@ class Editor(BaseEditor):
     def __init__(self, project_id, deployment_type) -> None:
         super().__init__()
         self.project_id = project_id
-        self.childNodes: minidom.Node = None
         # store query from 'labels' column
-        self.labels_dict: Dict[List[str]] = {}
+        # self.labels_dict: Dict[List[str]] = {}
         self.deployment_type = Deployment.get_deployment_type(deployment_type)
         self.parent_tagname, self.child_tagname = self.get_annotation_tags(
             self.deployment_type)
         self.editor_config = self.load_raw_xml()
         self.xml_doc: minidom.Document = self.load_xml(self.editor_config)
+        self.childNodes: minidom.Node = self.get_child()
+        # self.childNodes: minidom.Node = None
         # query self.id, self.name, self.labels_dict, self.labels from database
         self.query_editor_fields()
         self.labels_results: List = []  # store results from labels
@@ -363,9 +372,9 @@ class Editor(BaseEditor):
         editor_fields = db_fetchone(
             query_editor_fields_SQL, conn, query_editor_fields_vars)
         if editor_fields:
-            self.id, self.name, self.labels_dict = editor_fields
+            self.id, self.name, labels_dict = editor_fields
             # index into the List of [[label_name, ...]]
-            self.labels = list(self.labels_dict.values())[0]
+            self.labels = list(labels_dict.values())[0]
         else:
             logger.error(
                 f"Editor for Project with ID: {self.project_id} does not exists in the database!!!")
@@ -526,15 +535,15 @@ class Editor(BaseEditor):
 
         logger.info(f"Getting Label Details (labels_results)")
         # Compatible with multiple annotation types
-        if self.labels_dict:
-            annotation_type = list(self.labels_dict.keys())[0]
-            # index into List of [[name, ...]]
-            label_names = list(self.labels_dict.values())[0]
-        else:
-            logger.error("""Either labels could not be found in 'labels' column in
-            'editor' table, or the project is just newly created.""")
-            annotation_type = annotation_types[self.deployment_type]
-            label_names = self.labels
+        # if self.labels_dict:
+        #     annotation_type = list(self.labels_dict.keys())[0]
+        #     # index into List of [[name, ...]]
+        #     label_names = list(self.labels_dict.values())[0]
+        # else:
+        #     logger.error("""Either labels could not be found in 'labels' column in
+        #     'editor' table, or the project is just newly created.""")
+        annotation_type = annotation_types[self.deployment_type]
+        label_names = self.labels
         logger.debug(f"{annotation_type = }")
         logger.debug(f"{label_names = }")
 

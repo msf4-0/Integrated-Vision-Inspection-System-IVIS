@@ -16,7 +16,7 @@ from path_desc import (CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH,
 from core.utils.log import logger
 
 
-@st.experimental_memo
+@st.experimental_memo(show_spinner=False)
 def get_pretrained_model_details(deployment_type: str, for_display: bool = False) -> pd.DataFrame:
     """Get the model details from the CSV files scraped from their websites,
     based on the `deployment_type`.
@@ -36,7 +36,8 @@ def get_pretrained_model_details(deployment_type: str, for_display: bool = False
         models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH)
         if for_display:
             # `model_links` will be required for downloading the pretrained models for TFOD
-            models_df.drop(columns='model_links', inplace=True)
+            models_df = models_df.drop(
+                columns='model_links').reset_index(drop=True)
     elif deployment_type == "Semantic Segmentation with Polygons":
         # this df has columns: model_func, Model Name, Reference, links
         # The `Reference` contains names of the authors
@@ -44,7 +45,8 @@ def get_pretrained_model_details(deployment_type: str, for_display: bool = False
         models_df = pd.read_csv(SEGMENT_MODELS_TABLE_PATH)
         if for_display:
             # `model_func` are the functions required for using the `keras_unet_collection` library
-            models_df.drop(columns='model_func', inplace=True)
+            models_df = models_df.drop(
+                columns='model_func').reset_index(drop=True)
     return models_df
 
 
@@ -71,7 +73,7 @@ def get_training_param_from_session_state(delete: bool = False) -> Dict[str, Any
     return training_param
 
 
-@st.experimental_memo
+@st.experimental_memo(show_spinner=False)
 def get_segmentation_model_func2params() -> Dict[str, List[str]]:
     """Get only the model function names that have simpler parameters
     for our training purpose, with their parameters as Dict values.
@@ -121,7 +123,7 @@ def get_segmentation_model_func2params() -> Dict[str, List[str]]:
     return model_func2params
 
 
-@st.experimental_memo
+@st.experimental_memo(show_spinner=False)
 def get_segmentation_model_name2func() -> Dict[str, str]:
     """Return a Dict of Model Name -> Model function name to be able to 
     use it with keras_unet_collection.models"""

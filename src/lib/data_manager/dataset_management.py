@@ -349,17 +349,18 @@ class BaseDataset:
             # st.success(f"Successfully created **{self.name}** dataset")
             return self.dataset_path
 
-    def delete_dataset(self):
+    @staticmethod
+    def delete_dataset(name: str):
         sql_delete = """
                     DELETE 
                     FROM public.dataset 
                     WHERE name = %s
         """
-        delete_vars = [self.name]
+        delete_vars = [name]
         db_no_fetch(sql_delete, conn, delete_vars)
-        logger.info(f"Deleted existing dataset of name: {self.name}")
+        logger.info(f"Deleted existing dataset of name: {name}")
 
-        dataset_path = self.get_dataset_path(self.name)
+        dataset_path = Dataset.get_dataset_path(name)
         if dataset_path.exists():
             shutil.rmtree(dataset_path)
             logger.debug(f"Removed dataset directory at: {dataset_path}")
@@ -624,7 +625,7 @@ class NewDataset(BaseDataset):
                 st.error(f'Error parsing XML file "{xml_filepath}" with error: {e}  \n'
                          'Please try checking your annotation file(s) again before uploading.')
                 # delete the invalid dataset
-                self.delete_dataset()
+                self.delete_dataset(self.name)
                 st.stop()
             # taking only the filename without extension to consider the case of
             #  Label Studio exported XML files without any file extension
@@ -708,7 +709,7 @@ class NewDataset(BaseDataset):
                          f"  \nPlease try checking your "
                          "COCO JSON file again before uploading.")
                 # delete the invalid dataset
-                self.delete_dataset()
+                self.delete_dataset(self.name)
                 st.stop()
 
             label = cat_id2name[annot['category_id']]
@@ -1087,14 +1088,14 @@ def query_dataset_list() -> List[NamedTuple]:
 # Will throw ValueError for selectbox dataset_sel because of session state (BUG)
 
 
-def get_dataset_name_list(dataset_list: List[NamedTuple]) -> Dict[str, NamedTuple]:
+def get_dataset_name_list(dataset_list: List[NamedTuple]) -> Dict[str, List[NamedTuple]]:
     """Generate Dictionary of namedtuple
 
     Args:
         dataset_list (List[namedtuple]): Query from database
 
     Returns:
-        Dict: Dictionary of dataset_name -> dataset's NamedTuple
+        Dict: Dictionary of dataset_name -> dataset's List[NamedTuple]
     """
 
     # dataset_name_list = {}  # list of dataset name for selectbox

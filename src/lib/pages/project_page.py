@@ -136,7 +136,6 @@ def dashboard():
             'align': "center",
             'flex': 130,
             'hideSortIcons': True,
-
         },
         {
             'field': "Description",
@@ -163,7 +162,6 @@ def dashboard():
             'hideSortIcons': True,
             'type': 'date',
         },
-
     ]
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
@@ -240,8 +238,8 @@ def index():
 
     def to_project_dashboard():
 
-        NewProject.reset_new_project_page()
         # TODO #81 Add reset to project page *************************************************************************************
+        NewProject.reset_new_project_page()
         reset_editor_page()
         NewTraining.reset_new_training_page()
         Training.reset_training_page()

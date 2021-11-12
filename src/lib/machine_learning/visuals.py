@@ -152,7 +152,6 @@ class PrettyMetricPrinter:
 @st.experimental_memo
 def create_class_colors(
         class_names: List[str],
-        bgr2rgb: bool = True,
         as_array: bool = False) -> Union[Dict[str, Tuple[int, int, int]], np.ndarray]:
     """Randomly assign colors for different classes. 
 
@@ -169,8 +168,6 @@ def create_class_colors(
     for name, color in zip(class_names, colors):
         # must convert the NumPy dtypes to Python ints
         color = [int(c) for c in color]
-        if bgr2rgb:
-            color = color[::-1]
         class_colors[name] = tuple(color)
     if 'background' in class_names:
         # set background to black color

@@ -66,7 +66,7 @@ def data_table(
     on_change: Optional[Callable] = None,
     args: Optional[Tuple] = None,
     kwargs: Optional[Dict] = None
-) -> List:
+) -> List[int]:
     """Generate Data Table using Material UI Data Grid MIT
 
     Args:
@@ -79,7 +79,7 @@ def data_table(
         kwargs (Optional[Dict], optional): Callback function **kwargs. Defaults to None.
 
     Returns:
-        List: List of selections
+        List[int]: List of selected IDs
     """
 
     component_value = _component_func(

@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 
+from re import T
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -35,38 +36,28 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
-
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
-layout = 'wide'
+# layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 
 # >>>> User-defined Modules >>>>
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import logger  # logger
-
-
 from path_desc import chdir_root
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from data_manager.database_manager import init_connection
 from pages.sub_pages.models_page.models_subpages.user_model_upload import user_model_upload_page
-from pages.sub_pages.training_page.new_training_subpages import new_training_augmentation_config, new_training_infodataset, new_training_training_config
-from pages.sub_pages.training_page import run_training_page
 from project.project_management import Project
-from training.model_management import Model, ModelsPagination, NewModel
+from training.model_management import Model, ModelType, ModelsPagination, NewModel, get_trained_models_df
 from training.training_management import (NewTraining, NewTrainingPagination,
                                           NewTrainingSubmissionHandlers,
                                           Training)
@@ -81,7 +72,7 @@ conn = init_connection(**st.secrets["postgres"])
 
 
 def existing_models():
-    logger.debug("[NAVIGATOR] At `models_page.py` `existing_models` function")
+    DEPLOYMENT_TYPE = session_state.project.deployment_type
 
     if isinstance(session_state.new_training, NewTraining):
         # done creating the info in database, thus converting it
@@ -93,42 +84,31 @@ def existing_models():
     existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
         for_data_table=True,
         return_dict=True,
-        deployment_type=session_state.new_training.deployment_type))
+        deployment_type=DEPLOYMENT_TYPE))
 
     # st.write(vars(session_state.training))
 
     # ************************* SESSION STATE ************************************************
     # if "existing_models_table" not in session_state:
-    #     session_state.existing_models_table = None
+    #     session_state.existing_models_table = ''
 
     # ************************* SESSION STATE ************************************************
 
     # ************************ COLUMN PLACEHOLDER ********************************************
     st.write(f"**Step 1: Select a pretrained Deep Learning model "
              "from the table to be used for training, "
-             "or you may also choose to upload a model:**")
+             "or you may also choose to upload a model**")
     to_model_upload_page_button_place = st.empty()
 
-    if session_state.project.deployment_type == "Image Classification":
-        st.markdown("This table is obtained from Keras available pretrained models for image classification"
-                    "[here](https://www.tensorflow.org/api_docs/python/tf/keras/applications).")
-    elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
-        st.markdown("This table is obtained from TensorFlow Object Detection Model Zoo "
-                    "[here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md). "
-                    "The speed here actually means latency (ms), thus the lower the better; while higher COCO mAP score is better.")
-    elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
-        st.markdown("This table is obtained from `keras-unet-collection`'s GitHub repository "
-                    "[here](https://github.com/yingkaisha/keras-unet-collection).")
-
     # - Removed the columns arrangement
-    main_col1, main_col2 = st.columns([3, 1])
+    # main_col1, main_col2 = st.columns([3, 1])
     # ************************ COLUMN PLACEHOLDER ********************************************
 
     def to_model_upload_page():
         session_state.models_pagination = ModelsPagination.ModelUpload
 
-        if "existing_models_table" in session_state:
-            del session_state.existing_models_table
+        # if "existing_models_table" in session_state:
+        #     del session_state.existing_models_table
 
     to_model_upload_page_button_place.button(label="Upload Deep Learning Model",
                                              key="upload_new_model",
@@ -191,175 +171,357 @@ def existing_models():
 
     # CALLBACK >>>> Returns model_id -> store inside model class
 
-    def instantiate_model():
-        model_df_row = Model.filtered_models_dataframe(models=existing_models,
-                                                       # care the name of the column is capitalized
-                                                       dataframe_col="Name",
-                                                       #    filter_value=session_state.existing_models_table[0],
-                                                       filter_value=session_state.existing_models_table,
-                                                       column_names=existing_models_column_names)
+    # def instantiate_model():
+    #     model_df_row = Model.filtered_models_dataframe(models=existing_models,
+    #                                                    # care the name of the column is capitalized
+    #                                                    dataframe_col="Name",
+    #                                                    #    filter_value=session_state.existing_models_table[0],
+    #                                                    filter_value=session_state.existing_models_table,
+    #                                                    column_names=existing_models_column_names)
 
-        # Instantiate Attached Model in `new_training` object
-        session_state.new_training.attached_model = Model(
-            model_row=model_df_row[0])
+    #     # Instantiate Attached Model in `new_training` object
+    #     session_state.new_training.attached_model = Model(
+    #         model_row=model_df_row[0])
 
     # with main_col1.container():
-        # not using `data_table` to avoid unnecessary complexity
-        # data_table(rows=existing_models,
-        #            columns=existing_models_columns,
-        #            checkbox=False,
-        #            key='existing_models_table', on_change=instantiate_model)
+    # not using `data_table` to avoid unnecessary complexity
+    # data_table(rows=existing_models,
+    #            columns=existing_models_columns,
+    #            checkbox=False,
+    #            key='existing_models_table', on_change=instantiate_model)
 
-    logger.debug(f"""Loading pretrained model details for Project ID:
-        {session_state.project.id} with deployment type:
-        '{session_state.project.deployment_type}'""")
-    if session_state.project.deployment_type == "Semantic Segmentation with Polygons":
-        # we need the `model_func` column
-        for_display = False
-    else:
-        for_display = True
-    models_df = get_pretrained_model_details(
-        session_state.project.deployment_type,
-        for_display=for_display
-    )
+    # header
+    st.markdown(f"### Models Selection")
+
+    if session_state.new_training.has_submitted[NewTrainingPagination.Model]:
+        if session_state.new_training.attached_model.is_not_pretrained:
+            model_type_constant = session_state.new_training.attached_model.model_type_constant
+            if model_type_constant == ModelType.UserUpload:
+                model_label = 'Selected Uploaded Model'
+            else:
+                model_label = 'Selected Project Model'
+        else:
+            model_label = 'Selected Pre-trained Model'
+        selected_model_name = session_state.new_training.attached_model.name
+        current_name = session_state.new_training.training_model.name
+        current_desc = session_state.new_training.training_model.desc
+        st.info(f"""
+        ### Previously submitted model information:
+        **{model_label}**: {selected_model_name}  \n
+        **Training Model Name**: {current_name}  \n
+        **Training Description**: {current_desc}  \n
+        """)
 
     if session_state.new_training.attached_model is not None:
-        # then this has already selected a model before
-        model_name = session_state.new_training.attached_model.name
-        model_idx = int(models_df.query(
-            '`Model Name` == @model_name').index[0]
+        model_type_constant = session_state.new_training.attached_model.model_type_constant
+        if model_type_constant == ModelType.PreTrained:
+            model_type_idx = 0
+        elif model_type_constant == ModelType.ProjectTrained:
+            model_type_idx = 1
+        else:
+            model_type_idx = 2
+    else:
+        model_type_idx = 0
+
+    options = ('Pre-trained Model', 'Project Model', 'User-Uploaded Model')
+    selected_model_type = st.radio(
+        'Select the type of model', options,
+        index=model_type_idx,
+        key='selected_model_type',
+        help=('Project Model is a model trained in our application. '
+              'Recommended to start with a Pre-trained Model.'))
+
+    if selected_model_type != 'Pre-trained Model':
+        if selected_model_type == 'User-Uploaded Model':
+            model_type_constant = ModelType.UserUpload
+        else:
+            model_type_constant = ModelType.ProjectTrained
+        trained_models_df = get_trained_models_df(
+            existing_models, existing_models_column_names, model_type_constant)
+        if trained_models_df.empty:
+            st.warning(f"There is currently no {selected_model_type} for the current "
+                       "deployment type yet. Please choose an existing pre-trained models "
+                       "(recommended), or upload your own model.")
+            st.stop()
+
+        current_training_model_name = session_state.new_training.training_model.name
+        if current_training_model_name and \
+                model_type_constant == ModelType.ProjectTrained:
+            # remove the training model from the DataFrame if it's the current
+            # training_model used for training, otherwise it makes no sense
+            current_model_idx = int(
+                trained_models_df.loc[
+                    trained_models_df['Name'] == current_training_model_name
+                ].index[0]
+            )
+            trained_models_df = trained_models_df.drop(
+                current_model_idx).reset_index(drop=True)
+
+        st.markdown(f"**List of {selected_model_type}s:**")
+        st.dataframe(trained_models_df, width=1500)
+
+        # get the index of submitted model or just set to 0
+        if session_state.new_training.attached_model is not None \
+                and session_state.new_training.attached_model.model_type_constant == model_type_constant:
+            trained_model_name = session_state.new_training.attached_model.name
+            trained_model_idx = int(trained_models_df.query(
+                'Name == @trained_model_name').index[0]
+            )
+        else:
+            trained_model_idx = 0
+        logger.debug(f"{trained_model_idx = }")
+
+        # NOTE: this selectbox must not use the same key with the pretrained model selectbox
+        # or weird errors will occur
+        selected_model_name = st.selectbox(
+            f"Please select a {selected_model_type}",
+            options=trained_models_df['Name'],
+            index=trained_model_idx,
+            key=f"selected_{model_type_constant.name}",
         )
     else:
-        if session_state.project.deployment_type == "Object Detection with Bounding Boxes":
-            # default to a good default SSD model to show to the user
-            model_idx = 22
-        elif session_state.project.deployment_type == "Image Classification":
+        logger.debug(f"Loading pretrained model details for Project ID: "
+                     f"{session_state.project.id} with deployment type: "
+                     f"'{DEPLOYMENT_TYPE}'")
+        if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
+            # we need the `model_func` column
+            for_display = False
+        else:
+            for_display = True
+        models_df = get_pretrained_model_details(
+            DEPLOYMENT_TYPE,
+            for_display=for_display
+        )
+
+        # show description about the pretrained models, and also modify the df
+        # to show only relevant models
+        if DEPLOYMENT_TYPE == "Object Detection with Bounding Boxes":
+            st.markdown(
+                "This table is obtained from TensorFlow Object Detection Model Zoo "
+                "[here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md). "
+                "The speed here actually means latency (ms), thus the lower the better; while higher COCO mAP score is better.")
             unwanted_idxs = models_df.loc[models_df['Model Name'].str.contains(
-                "(deprecated|Mask R-CNN)")].index
+                "deprecated|Mask R-CNN|ExtremeNet")].index
             # drop deprecated models and Mask R-CNN model
             models_df = models_df.drop(unwanted_idxs).reset_index(drop=True)
-            model_idx = int(models_df.loc[
-                models_df['Model Name'] == "ResNet50"].index[0])
+        elif DEPLOYMENT_TYPE == "Image Classification":
+            st.markdown(
+                "This table is obtained from Keras available pretrained models for image classification "
+                "[here](https://www.tensorflow.org/api_docs/python/tf/keras/applications).")
         else:
             # get only the models used for our training in this app
             model_func_names = list(
                 get_segmentation_model_func2params().keys())
             models_df = models_df[models_df['model_func'].isin(
                 model_func_names)]
-            model_idx = int(models_df.loc[
-                models_df['Model Name'] == 'U-net'].index[0])
-            models_df.drop(columns='model_func', inplace=True)
+            models_df = models_df.drop(
+                columns='model_func').reset_index(drop=True)
+            st.markdown(
+                "This table is obtained from `keras-unet-collection`'s GitHub repository "
+                "[here](https://github.com/yingkaisha/keras-unet-collection).")
 
-    st.dataframe(models_df, width=1500)
+        # get the index of the model in the table, either from previously submitted info,
+        #  or from recommended model
+        if session_state.new_training.attached_model is not None \
+                and not session_state.new_training.attached_model.is_not_pretrained:
+            # then this has already selected a model before
+            model_name = session_state.new_training.attached_model.name
+            model_idx = int(models_df.query(
+                '`Model Name` == @model_name').index[0])
+        else:
+            if DEPLOYMENT_TYPE == "Object Detection with Bounding Boxes":
+                # default to a good default SSD model to show to the user
+                model_idx = 22
+            elif DEPLOYMENT_TYPE == "Image Classification":
+                model_idx = int(models_df.loc[
+                    models_df['Model Name'] == "ResNet50"].index[0])
+            else:
+                model_idx = int(models_df.loc[
+                    models_df['Model Name'] == 'U-net'].index[0])
 
-    model_selected = st.selectbox(
-        "Please select a Pre-trained model",
-        options=models_df['Model Name'],
-        index=model_idx,
-        key="existing_models_table",
-    )
+        st.dataframe(models_df, width=1500)
 
-    # must do it this way instead of using callback on selectbox,
-    # to be able to show the model info form on the first render
-    if model_selected:
-        instantiate_model()
+        logger.debug(f"{model_idx = }")
+        selected_model_name = st.selectbox(
+            "Please select a Pre-trained model",
+            options=models_df['Model Name'],
+            index=model_idx, key="selected_pretrained_model",
+        )
+
+    # Instantiate an attached model in the page
+    model_df_row = Model.filtered_models_dataframe(
+        models=existing_models,
+        dataframe_col="Name",
+        # filter_value=session_state.existing_models_table[0],
+        # filter_value=session_state.existing_models_table,
+        filter_value=selected_model_name,
+        column_names=existing_models_column_names)
+    selected_model = Model(model_row=model_df_row[0])
 
     # ******************************* DATA TABLE *******************************
 
     # >>>> MAIN_COL2
 
-    if session_state.new_training.attached_model:
-        # with main_col2.container():
+    # if session_state.new_training.attached_model:
+    # with main_col2.container():
 
-        if session_state.new_training.has_submitted[NewTrainingPagination.Model]:
-            current_name = session_state.new_training.training_model.name
-            current_desc = session_state.new_training.training_model.desc
-            st.info(f"""
-            **Current Model Name**: {current_name}  \n
-            **Current Description**: {current_desc}  \n
-            """)
-
-        # >>>> GET PERF METRICS of SELECTED MODEL
-        y = session_state.new_training.attached_model.get_perf_metrics()
-
+    # - can consider adding the bottom line after done creating self.model_input_size
+    # Model Input Size: {session_state.new_training.attached_model.model_input_size}
+    model_information = f"""
+    ## Selected Model Information:
+    ### Name:
+    {selected_model.name}
+    """
+    # Framework:
+    # {selected_model.framework}
+    st.info(model_information)
+    # >>>> GET PERF METRICS of SELECTED MODEL
+    y = selected_model.get_perf_metrics()
+    if y:
         df_metrics = Model.create_perf_metrics_table(y)
+        st.write(f"#### Metrics:")
+        st.table(df_metrics)
+    session_state.new_training_place["attached_model_selection"] = st.empty(
+    )
 
-        # - can consider adding the bottom line after done creating self.model_input_size
-        # Model Input Size: {session_state.new_training.attached_model.model_input_size}
-        model_information = f"""
-        ## Model Information:
-        ### Name: 
-        {session_state.new_training.attached_model.name}
-        ### Framework: 
-        {session_state.new_training.attached_model.framework}
-        """
-        st.info(model_information)
-        if not df_metrics.empty:
-            st.write(f"#### Metrics:")
-            st.table(df_metrics)
-        session_state.new_training_place["attached_model_selection"] = st.empty(
-        )
-        # with main_col1.container():
-        # CALLBACK: CHECK IF MODEL NAME EXISTS
+    # CALLBACK: CHECK IF MODEL NAME EXISTS
+    def check_if_name_exist(field_placeholder, conn):
+        context = {'column_name': 'name',
+                   'value': session_state.training_model_name}
 
-        def check_if_name_exist(field_placeholder, conn):
-            context = {'column_name': 'name',
-                       'value': session_state.training_model_name}
-
+        with field_placeholder['training_model_name'].container():
             if session_state.training_model_name:
                 if session_state.new_training.training_model.check_if_exists(context, conn):
-                    session_state.new_training.training_model.name = ''
-                    field_placeholder['training_model_name'].error(
-                        f"Model name used. Please enter a new name")
-                    sleep(0.7)
-                    field_placeholder['training_model_name'].empty()
+                    # session_state.new_training.training_model.name = ''
+                    st.error("Model name used. Please enter a new name")
+                    # sleep(0.7)
+                    # field_placeholder['training_model_name'].empty()
                     logger.error(
                         f"Training Model name used. Please enter a new name")
+                    st.stop()
                 else:
-                    session_state.new_training.training_model.name = session_state.training_model_name
-                    logger.info(
-                        f"Training Model name fresh and ready to rumble {session_state.new_training.training_model.name}")
+                    # session_state.new_training.training_model.name = session_state.training_model_name
+                    logger.info("Training Model name fresh and ready to rumble: "
+                                f"'{session_state.training_model_name}'")
             else:
-                pass
+                st.error("Please enter a model name!")
+                st.stop()
 
-        # ******************************** MODEL TITLE ********************************
-        st.write(
-            f"**Step 2: Enter the name of your model:** ")
+    # ***************************** Training model name *****************************
+    st.write(f"**Step 2: Enter the name for your new training model** ")
 
-        st.text_input('Model Name', key="training_model_name",
-                      value=session_state.new_training.training_model.name,
-                      help="Enter the name of the model to be exported after training",
-                      on_change=check_if_name_exist,
-                      args=(session_state.new_training_place, conn,))
-        session_state.new_training_place['training_model_name'] = st.empty(
+    st.text_input('Model Name', key="training_model_name",
+                  value=session_state.new_training.training_model.name,
+                  help="Enter the name of the model to be exported after training",
+                  #   on_change=check_if_name_exist,
+                  #   args=(session_state.new_training_place, conn,)
+                  )
+    session_state.new_training_place['training_model_name'] = st.empty(
+    )
+    # st.write(session_state.training_model_name)
+
+    # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
+    description = st.text_area(
+        "Description (Optional)", key="training_model_desc",
+        value=session_state.new_training.training_model.desc,
+        help="Enter the description of the model")
+
+    if description:
+        session_state.new_training.training_model.desc = remove_newline_trailing_whitespace(
+            description)
+
+    # ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
+    # Placeholder for Back and Next button for page navigation
+    # new_training_section_back_button_place, _, \
+    #     new_training_section_next_button_place = st.columns([0.5, 3, 0.5])
+    new_training_section_next_button_place = st.empty()
+
+    # typing.NamedTuple type
+
+    # *************************************CALLBACK: NEXT BUTTON *************************************
+    def to_training_configuration_page():
+        check_if_name_exist(session_state.new_training_place, conn)
+
+        # update the training_model_name if the name is good to go
+        session_state.new_training.training_model.name = session_state.training_model_name
+
+        new_training_model_submission_dict = NewTrainingSubmissionHandlers(
+            insert=session_state.new_training.training_model.create_new_project_model_pipeline,
+            update=session_state.new_training.training_model.update_new_project_model_pipeline,
+            context={
+                'training_model_name': session_state.training_model_name,
+                # 'attached_model_selection': session_state.existing_models_table
+            },
+            name_key='training_model_name'
         )
-        st.write(session_state.training_model_name)
 
-        # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
-        description = st.text_area(
-            "Description (Optional)", key="training_model_desc",
-            value=session_state.new_training.training_model.desc,
-            help="Enter the description of the model")
+        # run submission according to current page
+        # NEXT page if all constraints met
 
-        if description:
-            session_state.new_training.training_model.desc = remove_newline_trailing_whitespace(
-                description)
+        # >>>> IF IT IS A NEW SUBMISSION
+        if not session_state.new_training.has_submitted[NewTrainingPagination.Model]:
+            submission_func = new_training_model_submission_dict.insert
         else:
-            pass
+            submission_func = new_training_model_submission_dict.update
+
+        if session_state.new_training.training_model.check_if_field_empty(
+                context=new_training_model_submission_dict.context,
+                field_placeholder=session_state.new_training_place,
+                name_key=new_training_model_submission_dict.name_key
+        ):
+
+            # run create/update project (attached) model pipeline
+            if submission_func(
+                    attached_model=selected_model,
+                    project_name=session_state.project.name,
+                    training_name=session_state.new_training.name,
+                    training_id=session_state.new_training.id,
+                    new_model_name=session_state.training_model_name
+            ):
+                # NOTE: UPDATE THESE ONLY AFTER user has clicked submit button
+                # set the model selected in the page to be our attached_model
+                session_state.new_training.attached_model = selected_model
+
+                # run update training attached model
+                if session_state.new_training.update_training_attached_model(
+                        attached_model_id=session_state.new_training.attached_model.id,
+                        training_model_id=session_state.new_training.training_model.id):
+                    # set has_submitted =True
+                    session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
+                    logger.info(
+                        f"Successfully created new training model {session_state.new_training.training_model.id}")
+
+                    # session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+                    for page, submitted in session_state.new_training.has_submitted.items():
+                        if not submitted:
+                            session_state.new_training_pagination = page
+                            break
+                    else:
+                        # go to Training page if all forms have been submitted
+                        session_state.new_training_pagination = NewTrainingPagination.Training
+                    logger.debug('New Training Pagination: '
+                                 f'{session_state.new_training_pagination = }')
+        else:
+            logger.error("Error with submission form. Either field is not complete, "
+                         "or info already exists in database.")
+            st.error("Error with submission form. Either field is not complete, "
+                     "or info already exists in database.")
+
+    # ***************** NEXT BUTTON **************************
+    with new_training_section_next_button_place:
+        if st.button("Submit Model Info", key="models_page_next_button"):
+            to_training_configuration_page()
+            st.experimental_rerun()
 
 
-def index():
-
-    chdir_root()  # change to root directory
-    RELEASE = True
-
+def index(RELEASE=True):
     # ****************** TEST ******************************
     # For testing:
     # Instantiate Project Class and pass name as argument
     # Instiate New Training Class and set name and ID
 
     if not RELEASE:
-        logger.debug("At Models INDEX")
+        logger.debug("Navigator: At Models INDEX")
 
         # ************************TO REMOVE************************
         with st.sidebar.container():
@@ -370,8 +532,12 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 4
-        training_id_tmp = 2
+        # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
+        # uploaded pet segmentation: 96
+        project_id_tmp = 9
+        # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
+        # uploaded pet segmentation: 20
+        training_id_tmp = 17
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -402,6 +568,7 @@ def index():
         new_training_progress_bar.progress(2 / 4)
         # ****************************** HEADER **********************************************
         st.write(f"## **Training Section:**")
+    # ****************** TEST END ******************************
 
     # ************************ MODEL PAGINATION *************************
     models_page = {
@@ -422,113 +589,6 @@ def index():
     if "new_training_place" not in session_state:
         session_state.new_training_place = {}
 
-    # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    existing_models_back_button_place = st.empty()
-
-    if session_state.models_pagination != ModelsPagination.ExistingModels:
-
-        def to_existing_model_page():
-
-            session_state.models_pagination = ModelsPagination.ExistingModels
-            # Reset all widget attributes in User Model Upload page
-            NewModel.reset_model_upload_page()
-
-        existing_models_back_button_place.button("Back to Existing Models Dashboard",
-                                                 key="back_to_existing_models_page",
-                                                 on_click=to_existing_model_page)
-
-    else:
-        existing_models_back_button_place.empty()
-
-    logger.debug(
-        f"Entering Models Page: {session_state.models_pagination}")
-
-    if session_state.models_pagination == ModelsPagination.ExistingModels:
-        st.write(f"### Models Selection")
-    # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    models_page[session_state.models_pagination]()
-    # ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
-    # Placeholder for Back and Next button for page navigation
-    # new_training_section_back_button_place, _, \
-    #     new_training_section_next_button_place = st.columns([0.5, 3, 0.5])
-    new_training_section_next_button_place = st.empty()
-
-    # typing.NamedTuple type
-
-    new_training_model_submission_dict = NewTrainingSubmissionHandlers(
-        insert=session_state.new_training.training_model.create_new_project_model_pipeline,
-        update=session_state.new_training.training_model.update_new_project_model_pipeline,
-        context={
-            'training_model_name': session_state.new_training.training_model.name,
-            'attached_model_selection': session_state.existing_models_table
-        },
-        name_key='training_model_name'
-    )
-
-    # *************************************CALLBACK: NEXT BUTTON *************************************
-    def to_training_configuration_page():
-
-        # run submission according to current page
-        # NEXT page if all constraints met
-
-        # >>>> IF IT IS A NEW SUBMISSION
-        if not session_state.new_training.has_submitted[NewTrainingPagination.Model]:
-
-            if session_state.new_training.training_model.check_if_field_empty(
-                    context=new_training_model_submission_dict.context,
-                    field_placeholder=session_state.new_training_place,
-                    name_key=new_training_model_submission_dict.name_key):
-                # run create new project model pipeline
-                if new_training_model_submission_dict.insert(
-                        attached_model=session_state.new_training.attached_model,
-                        project_name=session_state.project.name,
-                        training_name=session_state.new_training.name,
-                        training_id=session_state.new_training.id):
-
-                    # run update training attached model
-                    if session_state.new_training.update_training_attached_model(
-                            attached_model_id=session_state.new_training.attached_model.id,
-                            training_model_id=session_state.new_training.training_model.id):
-                        # set has_submitted =True
-                        session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
-                        logger.info(
-                            f"Successfully created new training model {session_state.new_training.training_model.id}")
-
-                        session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
-
-        elif session_state.new_training.has_submitted[NewTrainingPagination.Model]:
-            if session_state.new_training.training_model.name:
-                # UPDATE Database
-                # Training Name,Desc, Dataset chosen, Partition Size
-                if new_training_model_submission_dict.update(
-                        attached_model=session_state.new_training.attached_model,
-                        project_name=session_state.project.name,
-                        training_name=session_state.new_training.name):
-                    # run update training attached model
-                    if session_state.new_training.update_training_attached_model(
-                            attached_model_id=session_state.new_training.attached_model.id,
-                            training_model_id=session_state.new_training.training_model.id):
-                        logger.info(
-                            f"Successfully updated new training model {session_state.new_training.training_model.id}")
-                        # session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
-                        for page, submitted in session_state.new_training.has_submitted.items():
-                            if not submitted:
-                                session_state.new_training_pagination = page
-                                break
-                        else:
-                            # go to Training page if all forms have been submitted
-                            session_state.new_training_pagination = NewTrainingPagination.Training
-                        logger.debug('New Training Pagination: '
-                                     f'{session_state.new_training_pagination}')
-            else:
-                session_state.new_training_place['training_model_name'].error(
-                    'Training Model Name already exists, please enter a new name')
-
-    # ***************** NEXT BUTTON **************************
-    with new_training_section_next_button_place:
-        st.button("Submit Model Info", key="models_page_next_button",
-                  on_click=to_training_configuration_page)
-
     # ***************** BACK BUTTON **************************
     def to_training_infodataset_page():
         # session_state.models_pagination = ModelsPagination.TrainingInfoDataset
@@ -539,17 +599,39 @@ def index():
     st.sidebar.button("Back to Modify Training Info", key="models_page_back_button",
                       on_click=to_training_infodataset_page)
 
-    st.write("vars(session_state.new_training)")
-    st.write(vars(session_state.new_training))
-    st.write("vars(session_state.new_training.training_model)")
-    st.write(vars(session_state.new_training.training_model))
-    st.write("vars(session_state.new_training.attached_model)")
-    st.write(vars(session_state.new_training.attached_model))
+    # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    existing_models_back_button_place = st.sidebar.empty()
+
+    if session_state.models_pagination != ModelsPagination.ExistingModels:
+        def to_existing_model_page():
+            session_state.models_pagination = ModelsPagination.ExistingModels
+            # Reset all widget attributes in User Model Upload page
+            NewModel.reset_model_upload_page()
+
+        existing_models_back_button_place.button("Back to Existing Models Dashboard",
+                                                 key="back_to_existing_models_page",
+                                                 on_click=to_existing_model_page)
+    else:
+        existing_models_back_button_place.empty()
+
+    logger.debug(
+        f"Entering Models Page: {session_state.models_pagination}")
+    # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    models_page[session_state.models_pagination]()
+
+    # st.write("vars(session_state.new_training)")
+    # st.write(vars(session_state.new_training))
+    # st.write("vars(session_state.new_training.training_model)")
+    # st.write(vars(session_state.new_training.training_model))
+    # st.write("vars(session_state.new_training.attached_model)")
+    # st.write(vars(session_state.new_training.attached_model))
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        index()
+        chdir_root()  # change to root directory
+        # False for debugging
+        index(RELEASE=False)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

@@ -127,8 +127,9 @@ class ExistingProjectPagination(IntEnum):
     Dashboard = 0
     Labelling = 1
     Training = 2
+    # show all trained project models with latest result metrics
     Models = 3
-    Export = 4
+    Deployment = 4
     Settings = 5
 
     def __str__(self):
@@ -160,6 +161,24 @@ class ProjectDashboardPagination(IntEnum):
     def from_string(cls, s):
         try:
             return ProjectDashboardPagination[s]
+        except KeyError:
+            raise ValueError()
+
+
+class SettingsPagination(IntEnum):
+    """Mostly to check existing info to allow deletion"""
+    Project = 0
+    Dataset = 1
+    Training = 2
+    Models = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return SettingsPagination[s]
         except KeyError:
             raise ValueError()
 
@@ -767,11 +786,11 @@ class Project(BaseProject):
 
         return project_dataset_tmp, column_names
 
-    def get_dataset_name_list(self) -> Dict[str, NamedTuple]:
+    def get_dataset_name_list(self) -> Dict[str, List[NamedTuple]]:
         """Generate Dictionary of namedtuple
 
         Returns:
-            Dict[str, NamedTuple]: Dataset name -> NamedTuple of dataset info queried from database
+            Dict[str, List[NamedTuple]]: Dataset name -> List[NamedTuple] of dataset info queried from database
         """
         project_dataset_dict = {}
         # if self.datasets:
@@ -860,6 +879,22 @@ class Project(BaseProject):
 
             return data_name_list
 
+    @staticmethod
+    def delete_project(id: int, name: str):
+        sql_query = """
+            DELETE
+            FROM public.project
+            WHERE id = %s;
+        """
+        query_vars = [id]
+        db_no_fetch(sql_query, conn, query_vars)
+        logger.info(f"Removed Project ID {id} from database")
+
+        project_path = Project.get_project_path(name)
+        if project_path.exists():
+            logger.info("Removing existing project directories")
+            shutil.rmtree(project_path)
+
     # *************************************************************************************************************************
     # TODO #81 Add reset to project page *************************************************************************************
 
@@ -869,7 +904,8 @@ class Project(BaseProject):
         """
 
         project_attributes = ["all_project_table", "project", "editor",
-                              "labelling_pagination", "existing_project_pagination"]
+                              "labelling_pagination", "existing_project_pagination",
+                              "project_dashboard_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
@@ -1019,7 +1055,52 @@ def query_all_projects(return_dict: bool = False, for_data_table: bool = False) 
     return project_tmp, column_names
 
 
+def query_project_datasets(dataset_ids: List[int]):
+    """Get all projects associated with the dataset_ids"""
+    sql_query = """
+        SELECT  d.id   AS "Dataset ID",
+                p.id   AS "Project ID",
+                d.name AS "Dataset Name",
+                p.name AS "Project Name"
+        FROM public.project_dataset pd
+                LEFT JOIN public.dataset d ON d.id = pd.dataset_id
+                LEFT JOIN public.project p ON p.id = pd.project_id
+        WHERE pd.dataset_id in %s
+        ORDER BY d.id;
+    """
+    dataset_ids = tuple(dataset_ids)
+    query_project_dataset_vars = [dataset_ids]
+    logger.debug(
+        "Querying list of projects attached to the dataset from database......")
+    project_datasets, column_names = db_fetchall(
+        sql_query, conn, query_project_dataset_vars,
+        fetch_col_name=True, return_dict=True)
+
+    return project_datasets, column_names
+
+
+def remove_project_dataset(project_id: int, dataset_id: int):
+    """Remove the project dataset from the project ID, and also remove the 
+    associated annotations."""
+    sql_query = """
+        DELETE
+        FROM project_dataset
+        WHERE project_id = %s
+        AND dataset_id = %s;
+
+        DELETE
+        FROM task
+        WHERE project_id = %s
+        AND dataset_id = %s;
+    """
+    query_vars = (project_id, dataset_id, project_id, dataset_id)
+    db_no_fetch(sql_query, conn, query_vars)
+    logger.info(f"Removed project dataset ID {dataset_id} "
+                f"from Project ID {project_id}")
+
 # *********************NEW PROJECT PAGE NAVIGATOR ********************************************
+
+
 def new_project_nav(color, textColor):
     textColor = textColor
     html_string = f'''

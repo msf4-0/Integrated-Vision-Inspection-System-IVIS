@@ -86,9 +86,9 @@ def training_configuration(RELEASE=True):
 
     st.markdown(f"### Step 2: Select training configuration at sidebar.")
 
-    deployment_type = session_state.project.deployment_type
+    DEPLOYMENT_TYPE = session_state.project.deployment_type
 
-    if deployment_type == "Semantic Segmentation with Polygons":
+    if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
         train_config_col = st.sidebar.container()
         details_col = st.container()
     else:
@@ -120,7 +120,7 @@ def training_configuration(RELEASE=True):
     with train_config_col:
         def update_training_param():
             training_param = get_training_param_from_session_state(delete=True)
-            if deployment_type == "Semantic Segmentation with Polygons":
+            if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
                 # continue only if the model is built successfully
                 check_segmentation_model(training_param)
             # update the database and our Training instance
@@ -138,7 +138,7 @@ def training_configuration(RELEASE=True):
                          f'{session_state.new_training_pagination}')
             st.experimental_rerun()
 
-        if deployment_type != "Object Detection with Bounding Boxes":
+        if DEPLOYMENT_TYPE != "Object Detection with Bounding Boxes":
             # NOTE: most of these params will also be used for Semantic Segmentation for Keras training
             param_dict = session_state.new_training.training_param_dict
             if param_dict:
@@ -148,33 +148,37 @@ def training_configuration(RELEASE=True):
                 optimizer = param_dict['optimizer']
                 batch_size = param_dict['batch_size']
                 num_epochs = param_dict['num_epochs']
-                if deployment_type == "Image Classification":
-                    # NOTE: not using fine_tune_all for now
-                    # fine_tune_all = param_dict['fine_tune_all']
-                    image_size = param_dict['image_size']
+                # NOTE: not using fine_tune_all for now
+                # fine_tune_all = param_dict['fine_tune_all']
+                image_size = param_dict['image_size']
             else:
                 image_size = 224
                 learning_rate = 1e-4
                 optimizer = "Adam"
                 batch_size = 32
                 num_epochs = 10
-                fine_tune_all = False
+                # fine_tune_all = False
 
             # NOTE: store them in key names starting exactly with `param_`
             #  to be able to extract them and send them over to the Trainer for training
             # e.g. param_batch_size -> batch_size at the Trainer later
-            if deployment_type == "Image Classification":
-                # semantic segmentation will use "input_size" in the widget later
-                st.number_input(
-                    "Image size", min_value=32, max_value=512,
-                    value=image_size, step=1,
-                    key="param_image_size",
-                    help="""Image size to resize our image width and height into, e.g. 224 will
-                    resize our image into size of 224 x 224. Larger image size could result in
-                    better performance but most of the time it will just make the training
-                    unnecessarily longer without significant improvement. Recommended to just
-                    go with **224**, which is the most common input image size."""
-                )
+            if DEPLOYMENT_TYPE == "Image Classification":
+                inp_choices = (32, 64, 128, 224, 256, 512)
+            else:
+                inp_choices = (128, 224, 256, 512)
+            image_size = st.select_slider(
+                "Input image size", inp_choices,
+                value=image_size, key="param_image_size",
+                help="""Image size to resize our image width and height into, e.g. 224 will
+                resize our image into size of 224 x 224. Larger image size could result in
+                better performance but most of the time it will just make the training
+                unnecessarily longer without significant improvement. Recommended to just
+                go with **224**, which is the most common input image size."""
+            )
+            if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
+                # this is required as the first parameter to the keras_unet_collection model
+                session_state['param_input_size'] = (image_size, image_size, 3)
+
             lr_choices = (1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.1)
             st.select_slider(
                 "Learning rate", lr_choices,
@@ -217,7 +221,7 @@ def training_configuration(RELEASE=True):
                 help="""Number of epochs to train your model. One epoch will go through
                 our entire dataset for exactly once. Recommended to start with **10**."""
             )
-            if deployment_type == "Image Classification":
+            if DEPLOYMENT_TYPE == "Image Classification":
                 # NOTE: not using fine_tune_all for now
                 # st.checkbox(
                 #     "Fine-tune all layers", value=fine_tune_all,
@@ -241,7 +245,6 @@ def training_configuration(RELEASE=True):
             # ******************************** TFOD config ********************************
             # only storing `batch_size` and `num_train_steps`
             param_dict = session_state.new_training.training_param_dict
-            st.write(param_dict)
             if param_dict:
                 # taking the stored param from DB
                 batch_size = param_dict['batch_size']
@@ -274,13 +277,15 @@ def training_configuration(RELEASE=True):
                                       on_click=update_training_param)
 
         # ****************** Model parameters for keras_unet_collection models ******************
-        if deployment_type == "Semantic Segmentation with Polygons":
+        # no need these params if the attached_model is not pretrained (i.e. is uploaded
+        #  or is a trained project model)
+        if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons" \
+                and not session_state.new_training.attached_model.is_not_pretrained:
             # NOTE: refer to Notion for details about the model parameters
             # or refer to this Colab Notebook https://colab.research.google.com/drive/1PgI3Adcq_EixOrZm5kFsjabswxIw0c4p?usp=sharing
             param_dict = session_state.new_training.training_param_dict
             if param_dict:
                 # taking the stored params from DB
-                input_size = param_dict['input_size'][0]
                 filter_num = param_dict['filter_num']
                 # note: there is also an `n_labels` parameter initialized directly below
                 filter_size = filter_num[0]
@@ -299,7 +304,6 @@ def training_configuration(RELEASE=True):
                     aspp_num_up = param_dict['aspp_num_up']
                 use_hybrid_loss = param_dict['use_hybrid_loss']
             else:
-                input_size = 256
                 filter_size = 32
                 depth = 4
                 recur_num = 2
@@ -316,15 +320,6 @@ def training_configuration(RELEASE=True):
 
             st.markdown("___")
             st.subheader("Segmentation model parameters")
-
-            inp_choices = (128, 256, 512)
-            input_size = st.select_slider(
-                "Input image size", inp_choices, value=input_size, key='input_size'
-            )
-            # this is required as the first parameter to the segmentation model
-            session_state['param_input_size'] = (input_size, input_size, 3)
-            # this is required for preprocessing
-            session_state['param_image_size'] = input_size
 
             filter_size_choices = (16, 32, 64)
             filter_size = st.select_slider(
@@ -385,6 +380,8 @@ def training_configuration(RELEASE=True):
                     help="""Number of convolutional layers per downsampling level/block"""
                 )
 
+            # NOTE: 'GELU' and 'Snake' are custom objects, they can be loaded from
+            # get_segmentation_model_custom_objects() later
             activation_choices = ('ReLU', 'LeakyReLU',
                                   'PReLU', 'ELU', 'GELU', 'Snake')
             st.selectbox(
@@ -393,6 +390,7 @@ def training_configuration(RELEASE=True):
                 key='param_activation'
             )
 
+            # NOTE: 'Snake' is a custom object
             output_act_choices = ('Sigmoid', 'Softmax', 'Linear', 'Snake')
             # convert back from model param to the format to display to user
             output_activation = 'Linear' if output_activation is None else output_activation
@@ -443,7 +441,7 @@ def training_configuration(RELEASE=True):
                       the parameters are working""")
             st.button("Submit Config", key='btn_training_config_submit')
 
-    if deployment_type == "Semantic Segmentation with Polygons":
+    if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
         with details_col:
             model_name2_func = get_segmentation_model_name2func()
             model_name = session_state.new_training.attached_model.name

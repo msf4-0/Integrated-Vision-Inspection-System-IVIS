@@ -233,7 +233,7 @@ def dashboard():
 
 def index():
     RELEASE = True
-    logger.debug("[NAVIGATOR] At training_dashboard.py INDEX")
+    logger.debug("Navigator: At training_dashboard.py INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
 
@@ -263,7 +263,9 @@ def index():
         st.write(f"{project_description}")
 
         st.markdown("""___""")
-        # ****************************** HEADER **********************************************
+    # ****************** TEST ******************************
+
+    # ****************************** HEADER **********************************************
     st.write(f"## **Training Section:**")
     # ************************ TRAINING PAGINATION *************************
     training_page = {
@@ -315,7 +317,7 @@ def index():
         training_page_back_place.empty()
 
     logger.debug(
-        f"Entering Training Page:{session_state.training_pagination}")
+        f"Entering Training Page: {session_state.training_pagination = }")
 
     # TODO #132 Add reset to training session state
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

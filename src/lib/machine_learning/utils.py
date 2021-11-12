@@ -6,14 +6,12 @@ import time
 import shutil
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
-import pandas as pd
+import glob
 
 from sklearn.model_selection import train_test_split
-from imutils.paths import list_images
-from keras_unet_collection.losses import focal_tversky, iou_seg
+import pandas as pd
 import numpy as np
 import cv2
-import glob
 import albumentations as A
 from pycocotools.coco import COCO
 
@@ -24,6 +22,8 @@ from stqdm import stqdm
 import tensorflow as tf
 from object_detection.utils import config_util, label_map_util
 from object_detection.builders import model_builder
+from keras_unet_collection.losses import focal_tversky, iou_seg
+from keras_unet_collection.activations import Snake, GELU
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -204,6 +204,13 @@ def preprocess_image(image: np.ndarray, image_size: int) -> np.ndarray:
     return image
 
 
+def get_all_keras_custom_objects() -> Dict[str, Callable]:
+    """Get all the Keras model's custom_objects currently used in our application."""
+    custom_objects = {"hybrid_loss": hybrid_loss, "focal_tversky": focal_tversky,
+                      "iou_seg": iou_seg, 'Snake': Snake, 'GELU': GELU}
+    return custom_objects
+
+
 def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
     """Get the custom objects required for loading the Keras segmentation model.
 
@@ -213,6 +220,9 @@ def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
     metrics = [hybrid_loss, iou_seg, focal_tversky]
     """
     use_hybrid_loss: bool = session_state.new_training.training_param_dict['use_hybrid_loss']
+    activation: str = session_state.new_training.training_param_dict['activation']
+    output_activation: str = session_state.new_training.training_param_dict[
+        'output_activation']
 
     # KIV: For now, the metric names are taken from training_model instance and the metric
     # functions are dynamically generated using `eval`, so be sure to import the function
@@ -228,20 +238,28 @@ def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
     #             custom_objects['hybrid_loss'] = hybrid_loss
     #         else:
     #             custom_objects['focal_tversky'] = focal_tversky
+
+    # NOTE: putting hybrid_loss as the first one just in case
     custom_objects = {"hybrid_loss": hybrid_loss, "focal_tversky": focal_tversky,
                       "iou_seg": iou_seg}
     if not use_hybrid_loss:
         del custom_objects["hybrid_loss"]
+    if activation == 'GELU':
+        custom_objects['GELU'] = GELU
+    if activation == 'Snake' or output_activation == 'Snake':
+        custom_objects['Snake'] = Snake
     return custom_objects
 
 
 @st.cache(show_spinner=False)
 # @st.experimental_memo
 def load_keras_model(model_path: Union[str, Path], metrics: List[Callable]):
-    """Load the exported keras model instead of only weights.
+    """Load the exported keras h5 model instead of only weights.
 
     The `custom_objects` is dynamically extracted from `training_model` instance
     for the segmentation model's custom loss functions or metrics.
+
+    `metrics` should be obtained from Training.get_training_metrics()
 
     Returns the Keras model instance."""
     if session_state.project.deployment_type == 'Semantic Segmentation with Polygons':
@@ -252,6 +270,66 @@ def load_keras_model(model_path: Union[str, Path], metrics: List[Callable]):
     # https://github.com/tensorflow/tensorflow/issues/45903#issuecomment-804973541
     model.compile(loss=model.loss, optimizer=model.optimizer, metrics=metrics)
     return model
+
+
+def load_trained_keras_model(path: str):
+    """To load user-uploaded model or trained project model"""
+    tf.keras.backend.clear_session()
+    all_custom_objects = get_all_keras_custom_objects()
+    # load with all the custom objects used in our app
+    # will raise ValueError if unknown custom_object is found in the model
+    model = tf.keras.models.load_model(path, all_custom_objects)
+    return model
+
+
+def modify_trained_model_layers(model: tf.keras.Model, deployment_type: str,
+                                input_shape: Tuple[int, int, int], num_classes: int,
+                                compile: bool = False,
+                                metrics: List[Callable] = None):
+    """Modify the layers of the uploaded Keras model to have different input shape 
+    and output shape. Input shape depends on the image_size or input_size of the 
+    training_param, while the output shape depends on the number of classes (`num_classes`).
+    """
+    # NOTE: do not clear_session() when modifying the model midway here
+    # https://newbedev.com/keras-replacing-input-layer
+    model_config = model.get_config()
+    # change the input shape
+    model_config['layers'][0]['config']['batch_input_shape'] = (
+        None, *(input_shape))
+
+    all_custom_objects = get_all_keras_custom_objects()
+    # if the model requires any unknown custom_objects, a ValueError will be raised
+    new_model = model.__class__.from_config(model_config,
+                                            custom_objects=all_custom_objects)
+
+    # iterate over all the layers that we want to get weights from
+    weights = [layer.get_weights() for layer in model.layers]
+    for layer, weight in zip(new_model.layers, weights):
+        layer.set_weights(weight)
+
+    # ** Change the output layer
+    # last layer's name is reused to replace the final layer to ensure unique names
+    final_layer_name = new_model.layers[-1].name
+    if deployment_type == "Image Classification":
+        # use softmax for our training pipeline
+        new_final_layer = tf.keras.layers.Dense(
+            num_classes, activation='softmax',
+            name=final_layer_name)
+    elif deployment_type == "Semantic Segmentation with Polygons":
+        # must use 'same' padding and 'softmax' activation
+        new_final_layer = tf.keras.layers.Conv2D(
+            num_classes, 1, padding='same',
+            activation='softmax',
+            name=final_layer_name)
+    new_output = new_final_layer(new_model.layers[-2].output)
+    final_model = tf.keras.Model(
+        inputs=new_model.input, outputs=new_output)
+
+    if compile or metrics:
+        final_model.compile(loss=model.loss,
+                            optimizer=model.optimizer,
+                            metrics=metrics)
+    return final_model
 
 # ******************************* TFOD funcs *******************************
 

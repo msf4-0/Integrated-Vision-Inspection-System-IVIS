@@ -131,12 +131,9 @@ def infodataset():
                 field_placeholder['new_training_name'].empty()
                 logger.error(f"Training name used. Please enter a new name")
 
-            else:
-                session_state.new_training.name = session_state.new_training_name
-                logger.info(f"Training name fresh and ready to rumble")
-
-        else:
-            pass
+            # else:
+            #     session_state.new_training.name = session_state.new_training_name
+            #     logger.info(f"Training name fresh and ready to rumble")
 
     with infocol2.container():
 
@@ -155,10 +152,7 @@ def infodataset():
             help="Enter the description of the training")
 
         if description:
-            session_state.new_training.desc = remove_newline_trailing_whitespace(
-                description)
-        else:
-            pass
+            description = remove_newline_trailing_whitespace(description)
 
     # <<<<<<<< New Training INFO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -339,7 +333,9 @@ def infodataset():
                 # INSERT Database
                 # Training Name,Desc, Dataset chosen, Partition Size
                 session_state.new_training.dataset_chosen = session_state.new_training_dataset_chosen
-                if new_training_infodataset_submission_dict.insert():
+                if new_training_infodataset_submission_dict.insert(
+                        session_state.new_training_name,
+                        description):
                     session_state.new_training_pagination = NewTrainingPagination.Model
                     # must set this to tell the models_page.py to move to stay in its page
                     session_state.models_pagination = ModelsPagination.ExistingModels
@@ -353,8 +349,11 @@ def infodataset():
 
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
-                if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
-                                                                   session_state.project.dataset_dict):
+                if new_training_infodataset_submission_dict.update(
+                        session_state.new_training_dataset_chosen,
+                        session_state.project.dataset_dict,
+                        name=session_state.new_training_name,
+                        desc=description):
                     # session_state.new_training_pagination = NewTrainingPagination.Model
                     # # must set this to tell the models_page.py to move to stay in its page
                     # session_state.models_pagination = ModelsPagination.ExistingModels

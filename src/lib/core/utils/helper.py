@@ -180,7 +180,7 @@ def join_string(list_string: List, separator: str = '-') -> str:
 
 
 def get_directory_name(name: str) -> str:
-    """Get the proper directory name especially for datasets
+    """Get the proper directory name for dataset/model/training
 
     e.g. ' Dummy dataset 1 ' -> 'dummy-dataset-1'
     """
@@ -194,9 +194,13 @@ def is_empty(iterable: Union[List, Dict, set]) -> bool:
 
 
 # @st.cache
-def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort: bool = False, sort_by: Optional[str] = None, asc: bool = True, date_time_format: bool = False) -> pd.DataFrame:
+def create_dataframe(data: Union[List, Dict, pd.Series],
+                     column_names: List = None,
+                     sort: bool = False,
+                     sort_by: Optional[str] = None,
+                     asc: bool = True,
+                     date_time_format: bool = False) -> pd.DataFrame:
     if data:
-
         df = pd.DataFrame(data, columns=column_names)
         df.index.name = 'No.'
         if date_time_format:
@@ -206,7 +210,6 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
             # df.sort_values(by=['Date/Time'], inplace=True,
             #                ascending=False, ignore_index=True)
         if sort:
-
             df.sort_values(by=[sort_by], inplace=True,
                            ascending=asc, ignore_index=True)
 
@@ -217,7 +220,7 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
         return df
 
 
-def dataframe2dict(orient='index'):
+def dataframe2dict(orient='index') -> List[Dict[str, Any]]:
 
     def inner(func):
         @wraps(func)
@@ -298,18 +301,16 @@ def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
                                string: bool = False):
 
     if string:
-
         # Get String form if is type IntEnum class
         if isinstance(identifier, enumerator_class):
             identifier = [
                 k for k, v in identifier_dictionary.items() if v == identifier][0]
-
     else:
         # Get IntEnum class constant if is string
         if isinstance(identifier, str):
             identifier = identifier_dictionary[identifier]
 
-    logger.info(f"Type is :{identifier}")
+    logger.debug(f"Type is: {identifier!r}")
 
     return identifier
 

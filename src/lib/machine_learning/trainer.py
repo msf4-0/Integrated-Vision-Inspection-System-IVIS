@@ -32,11 +32,12 @@ import sys
 import shutil
 from pathlib import Path
 from time import perf_counter, sleep
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 import pickle
 import glob
+import tarfile
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -44,11 +45,10 @@ import pandas as pd
 import wget
 import streamlit as st
 from streamlit import session_state
-from stqdm import stqdm
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras.layers import AveragePooling2D, Flatten, Dense, Dropout, Dense
 from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
@@ -58,6 +58,7 @@ from keras.losses import categorical_crossentropy
 
 from sklearn.metrics import classification_report, confusion_matrix
 from imutils.paths import list_images
+from core.utils.file_handler import create_tarfile
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -78,7 +79,7 @@ from .command_utils import (find_tfod_eval_metrics, run_command,
 from .utils import (check_unique_label_counts, classification_predict, copy_images, custom_train_test_split, generate_tfod_xml_csv, get_bbox_label_info,
                     get_coco_classes, get_tfod_last_ckpt_path, get_transform,
                     load_image_into_numpy_array, load_keras_model, load_labelmap,
-                    load_tfod_checkpoint, load_tfod_model, preprocess_image,
+                    load_tfod_checkpoint, load_tfod_model, load_trained_keras_model, modify_trained_model_layers, preprocess_image,
                     segmentation_predict, segmentation_read_and_preprocess,
                     tf_classification_preprocess_input, tfod_detect, xml_to_df, hybrid_loss)
 from .visuals import (PrettyMetricPrinter, create_class_colors, create_color_legend, draw_gt_bboxes,
@@ -96,6 +97,7 @@ class Trainer:
         self.training_id: int = new_training.id
         self.training_model_id: int = new_training.training_model.id
         self.attached_model_name: str = new_training.attached_model.name
+        self.is_not_pretrained: bool = new_training.attached_model.is_not_pretrained
         self.training_model_name: str = new_training.training_model.name
         self.project_path: Path = project.get_project_path(project.name)
         self.project_json_path: Path = project.get_project_json_path()
@@ -117,12 +119,7 @@ class Trainer:
                 new_training.get_segmentation_model_params(
                     self.training_param, return_model_func=True
                 ))
-            metrics = [focal_tversky, categorical_crossentropy, iou_seg]
-            use_hybrid_loss = self.training_param['use_hybrid_loss']
-            # no need to take focal_tversky as a metric since we are using it as loss func
-            self.metrics = metrics if use_hybrid_loss else metrics[1:]
-        else:
-            self.metrics = ['accuracy']
+        self.metrics, self.metric_names = new_training.get_training_metrics()
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.training_path
         # created this path to save all the test set related paths and encoded_labels
@@ -173,6 +170,8 @@ class Trainer:
                                     classification=classification,
                                     segmentation=segmentation,
                                     train_one_batch=train_one_batch)
+        # clear models cache
+        st.legacy_caching.clear_cache()
 
     def evaluate(self):
         logger.info(f"Start evaluation for Training {self.training_id}")
@@ -236,7 +235,7 @@ class Trainer:
         if self.deployment_type == 'Object Detection with Bounding Boxes':
             ckpt_path = get_tfod_last_ckpt_path(self.training_path['models'])
         else:
-            ckpt_path = self.training_path['keras_model_file']
+            ckpt_path = self.training_path['output_keras_model_file']
 
         if ckpt_path and ckpt_path.exists():
             ckpt_found = True
@@ -258,16 +257,29 @@ class Trainer:
 
         # this name is used for the output model paths, see self.training_path
         CUSTOM_MODEL_NAME = self.training_model_name
-        # this df has columns: Model Name, Speed (ms), COCO mAP, Outputs, model_links
-        models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH, usecols=[
-                                'Model Name', 'model_links'])
-        PRETRAINED_MODEL_URL = models_df.loc[
-            models_df['Model Name'] == self.attached_model_name,
-            'model_links'].squeeze()
-        # this PRETRAINED_MODEL_DIRNAME is different from self.attached_model_name,
-        #  PRETRAINED_MODEL_DIRNAME is the the first folder's name in the downloaded tarfile
-        PRETRAINED_MODEL_DIRNAME = PRETRAINED_MODEL_URL.split(
-            "/")[-1].split(".tar.gz")[0]
+        if self.is_not_pretrained:
+            logger.info(f"Using user-uploaded model for TFOD with name: "
+                        f"{self.attached_model_name}")
+            uploaded_path = self.training_path['trained_model']
+            logger.debug(f"User-uploaded model path: {uploaded_path}")
+            # NOTE: these directories are structured so that the user-uploaded model
+            #  files are within (pt_model_dir / PRETRAINED_MODEL_DIRNAME)
+            pt_model_dir = uploaded_path.parent
+            PRETRAINED_MODEL_DIRNAME = uploaded_path.name
+        else:
+            logger.info(f"Using pretrained model from TFOD with name: "
+                        f"{self.attached_model_name}")
+            # this df has columns: Model Name, Speed (ms), COCO mAP, Outputs, model_links
+            models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH, usecols=[
+                                    'Model Name', 'model_links'])
+            PRETRAINED_MODEL_URL = models_df.loc[
+                models_df['Model Name'] == self.attached_model_name,
+                'model_links'].squeeze()
+            # this PRETRAINED_MODEL_DIRNAME is different from self.attached_model_name,
+            #  PRETRAINED_MODEL_DIRNAME is the the first folder's name in the downloaded tarfile
+            PRETRAINED_MODEL_DIRNAME = PRETRAINED_MODEL_URL.split(
+                "/")[-1].split(".tar.gz")[0]
+            pt_model_dir = PRE_TRAINED_MODEL_DIR
 
         # can check out initialise_training_folder function too
         paths = {
@@ -275,13 +287,13 @@ class Trainer:
             'APIMODEL_PATH': TFOD_DIR,
             'ANNOTATION_PATH': self.training_path['annotations'],
             'IMAGE_PATH': self.training_path['images'],
-            'PRETRAINED_MODEL_PATH': PRE_TRAINED_MODEL_DIR,
+            'PRETRAINED_MODEL_PATH': pt_model_dir,
             'MODELS': self.training_path['models'],
             'EXPORT': self.training_path['export'],
         }
 
         files = {
-            'PIPELINE_CONFIG': paths['MODELS'] / 'pipeline.config',
+            'PIPELINE_CONFIG': self.training_path['config_file'],
             # this generate_tfrecord.py script is modified from https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html
             # to convert our PascalVOC XML annotation files into TFRecords which will be used by the TFOD API
             'GENERATE_TF_RECORD': LIB_PATH / "machine_learning" / "module" / "generate_tfrecord_st.py",
@@ -296,6 +308,7 @@ class Trainer:
 
         # ************* Generate train & test images in the folder *************
         with st.spinner('Generating train test splits ...'):
+            logger.info('Generating train test splits')
             image_paths = sorted(list_images(
                 self.dataset_export_path / "images"))
             labels = sorted(glob.glob(
@@ -325,6 +338,7 @@ class Trainer:
         # initialize to check whether these paths exist for generating TF Records
         train_xml_csv_path = None
         with st.spinner('Copying images to folder, this may take awhile ...'):
+            logger.info('Copying images to train test folder')
             if self.augmentation_config.exists():
                 with st.spinner("Generating augmented training images ..."):
                     # these csv files are temporarily generated to use for generating TF Records, should be removed later
@@ -348,20 +362,21 @@ class Trainer:
             logger.info("Dataset files copied successfully.")
 
         # ************* get the pretrained model if not exists *************
-        if not (paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME).exists():
+        if not self.is_not_pretrained and \
+                not (paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME).exists():
             with st.spinner('Downloading pretrained model ...'):
+                logger.info('Downloading pretrained model')
                 wget.download(PRETRAINED_MODEL_URL)
                 pretrained_tarfile = PRETRAINED_MODEL_DIRNAME + '.tar.gz'
-                # this command will extract the files at the cwd
-                run_command(f"tar -zxvf {pretrained_tarfile}")
-                shutil.move(PRETRAINED_MODEL_DIRNAME,
-                            paths['PRETRAINED_MODEL_PATH'])
+                with tarfile.open(pretrained_tarfile) as tar:
+                    tar.extractall(paths['PRETRAINED_MODEL_PATH'])
                 os.remove(pretrained_tarfile)
                 logger.info(
                     f'{PRETRAINED_MODEL_DIRNAME} downloaded successfully')
 
         # ******************** Create label_map.pbtxt *****************
         with st.spinner('Creating labelmap file ...'):
+            logger.info('Creating labelmap file')
             CLASS_NAMES = self.class_names
             labelmap_string = Labels.generate_labelmap_string(
                 CLASS_NAMES,
@@ -374,12 +389,14 @@ class Trainer:
 
         # ******************** Generate TFRecords ********************
         with st.spinner('Generating TFRecords ...'):
+            logger.info('Generating TFRecords')
+            image_extensions = 'jpeg jpg png'
             if train_xml_csv_path is not None:
                 # using the CSV file generated during the augmentation process above
                 # Must provide both image_dir and csv_path to skip the `xml_to_df` conversion step
                 run_command(
                     f'python {files["GENERATE_TF_RECORD"]} '
-                    f'-e jpg png '
+                    f'-e {image_extensions} '
                     f'-i {paths["IMAGE_PATH"] / "train"} '
                     f'-l {files["LABELMAP"]} '
                     f'-d {train_xml_csv_path} '
@@ -388,7 +405,7 @@ class Trainer:
             else:
                 run_command(
                     f'python {files["GENERATE_TF_RECORD"]} '
-                    f'-e jpg png '
+                    f'-e {image_extensions} '
                     f'-x {paths["IMAGE_PATH"] / "train"} '
                     f'-l {files["LABELMAP"]} '
                     f'-o {paths["ANNOTATION_PATH"] / "train.record"}'
@@ -396,7 +413,7 @@ class Trainer:
             # test set images are not augmented
             run_command(
                 f'python {files["GENERATE_TF_RECORD"]} '
-                f'-e jpg png '
+                f'-e {image_extensions} '
                 f'-x {paths["IMAGE_PATH"] / "test"} '
                 f'-l {files["LABELMAP"]} '
                 f'-o {paths["ANNOTATION_PATH"] / "test.record"}'
@@ -404,31 +421,20 @@ class Trainer:
 
         # ********************* pipeline.config *********************
         with st.spinner('Generating pipeline config file ...'):
+            logger.info('Generating pipeline config file')
             original_config_path = paths['PRETRAINED_MODEL_PATH'] / \
                 PRETRAINED_MODEL_DIRNAME / 'pipeline.config'
             # copy over the pipeline.config file before modifying it
             shutil.copy2(original_config_path, paths['MODELS'])
 
-            # making pipeline.config file editable programatically
+            # making pipeline.config file editable programmatically
             pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
             with tf.io.gfile.GFile(files['PIPELINE_CONFIG'], "r") as f:
                 proto_str = f.read()
                 text_format.Merge(proto_str, pipeline_config)
 
-            # changing model config
-            if 'centernet' in PRETRAINED_MODEL_URL:
-                pipeline_config.model.center_net.num_classes = len(CLASS_NAMES)
-            elif 'ssd' in PRETRAINED_MODEL_URL or 'efficientdet' in PRETRAINED_MODEL_URL:
-                pipeline_config.model.ssd.num_classes = len(CLASS_NAMES)
-            elif 'faster_rcnn' in PRETRAINED_MODEL_URL or 'mask_rcnn' in PRETRAINED_MODEL_URL:
-                pipeline_config.model.faster_rcnn.num_classes = len(
-                    CLASS_NAMES)
-            else:
-                logger.error("Pretrained model config is not found!")
-                st.error(f"Error with pretrained model: {self.attached_model_name}. "
-                         "Please try selecting another model and train again.")
-                sleep(5)
-                st.experimental_rerun()
+            pipeline_config = Labels.set_num_classes(len(CLASS_NAMES),
+                                                     pipeline_config=pipeline_config)
 
             pipeline_config.train_config.batch_size = self.training_param['batch_size']
             pipeline_config.train_config.fine_tune_checkpoint = str(
@@ -463,12 +469,10 @@ class Trainer:
                    f"--num_train_steps={NUM_TRAIN_STEPS}")
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
+            logger.info('Start training')
             run_command_update_metrics(
                 command, stdout_output=stdout_output,
                 step_name='Step')
-            # cmd_output = run_command(command, st_output=True,
-            #                          filter_by=['Step', 'Loss/', 'learning_rate'])
-            # self.tfod_update_progress_metrics(cmd_output)
         time_elapsed = perf_counter() - start
         m, s = divmod(time_elapsed, 60)
         m, s = int(m), int(s)
@@ -478,12 +482,13 @@ class Trainer:
         # ************************ EVALUATION ************************
         start = perf_counter()
         with st.spinner("Running object detection evaluation ..."):
+            logger.info('Running object detection evaluation')
             command = (f"python {TRAINING_SCRIPT} "
                        f"--model_dir={paths['MODELS']} "
                        f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
                        f"--checkpoint_dir={paths['MODELS']}")
             filtered_outputs = run_command(
-                command, stdout_output=True, st_output=False,
+                command, stdout_output=stdout_output, st_output=False,
                 filter_by=['DetectionBoxes_', 'Loss/'], is_cocoeval=True)
         if filtered_outputs:
             time_elapsed = perf_counter() - start
@@ -521,7 +526,7 @@ class Trainer:
             shutil.rmtree(paths['export'])
 
         with st.spinner("Exporting model ... This may take awhile ..."):
-            pipeline_conf_path = paths['models'] / 'pipeline.config'
+            pipeline_conf_path = paths['config_file']
             FREEZE_SCRIPT = TFOD_DIR / 'research' / \
                 'object_detection' / 'exporter_main_v2.py '
             command = (f"python {FREEZE_SCRIPT} "
@@ -537,27 +542,15 @@ class Trainer:
         # to store it for exporting
         shutil.copy2(paths['labelmap_file'], paths['export'])
 
-        # tar the exported model to be used anywhere
-        # NOTE: be careful with the second argument of tar -czf command,
-        #  if you pass a chain of directories, the directories
-        #  will also be included in the tarfile.
-        # That's why we `chdir` first and pass only the file/folder names
         with st.spinner("Creating tarfile to download ..."):
-            os.chdir(paths['export'].parent)
-            run_command(
-                f"tar -czf {paths['model_tarfile'].name} "
-                f"{paths['export'].name}")
-            # and then change back to root dir
-            chdir_root()
+            create_tarfile(paths['model_tarfile'].name,
+                           target_path=paths['export'],
+                           dest_dir=paths['model_tarfile'])
 
-        logger.info(
-            f"Congrats! Successfully created {paths['model_tarfile']}")
+        logger.info("Congrats! Successfully created archived file at: "
+                    f"{paths['model_tarfile']}")
 
     def run_tfod_evaluation(self):
-        """Due to some ongoing issues with using COCO API for evaluation on Windows
-        (refer https://github.com/google/automl/issues/487),
-        I decided not to use the evaluation script for TFOD. Thus, the manual
-        evaluation here only shows some output images with bounding boxes"""
         # get the required paths
         paths = self.training_path
         exist_dict = self.check_model_exists()
@@ -571,7 +564,7 @@ class Trainer:
             else:
                 detect_fn = load_tfod_checkpoint(
                     ckpt_dir=self.training_path['models'],
-                    pipeline_config_path=self.training_path['models'] / 'pipeline.config')
+                    pipeline_config_path=self.training_path['config_file'])
                 tensor_dtype = tf.float32
         category_index = load_labelmap(paths['labelmap_file'])
 
@@ -638,16 +631,17 @@ class Trainer:
 
             st.info(f"**Total test set images**: {len(image_paths)}")
             if not exist_dict['model_tarfile']:
-                st.warning("""You are using the model loaded from a
-                checkpoint, the inference time will be slightly slower
-                than an exported model.  You may use this to check the
-                performance of the model on real images before deciding
-                to export the model. Or you may choose to export the
-                model by clicking the "Export Model" button above first
-                before checking the evaluation results. Note that the
-                inference time for the first image will take significantly
-                longer than others. In production, we will also export the
-                model before using it for inference.""")
+                with st.expander("NOTES about inference with non-exported model:"):
+                    st.markdown("""You are using the model loaded from a
+                    checkpoint, the inference time will be slightly slower
+                    than an exported model.  You may use this to check the
+                    performance of the model on real images before deciding
+                    to export the model. Or you may choose to export the
+                    model by clicking the "Export Model" button above first
+                    before checking the evaluation results. Note that the
+                    inference time for the first image will take significantly
+                    longer than others. In production, we will also export the
+                    model before using it for inference.""")
 
         n_samples = session_state['n_samples']
         start_idx = session_state['start_idx']
@@ -813,6 +807,9 @@ class Trainer:
         return train_ds, test_ds
 
     def build_classification_model(self):
+        # run this only if you plan to completely rebuild the model
+        # do not run this in the middle of building the model
+        keras.backend.clear_session()
         # e.g. ResNet50
         pretrained_model_func = getattr(tf.keras.applications,
                                         self.attached_model_name)
@@ -827,13 +824,13 @@ class Trainer:
         # the base model
         headModel = baseModel.output
         # then add extra layers to suit our choice
-        headModel = layers.AveragePooling2D(pool_size=(7, 7))(headModel)
-        headModel = layers.Flatten(name="flatten")(headModel)
-        headModel = layers.Dense(256, activation="relu")(headModel)
-        headModel = layers.Dropout(0.5)(headModel)
+        headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
+        headModel = Flatten(name="flatten")(headModel)
+        headModel = Dense(256, activation="relu")(headModel)
+        headModel = Dropout(0.5)(headModel)
         # the last layer is the most important to ensure the model outputs
         #  the result that we want
-        headModel = layers.Dense(
+        headModel = Dense(
             len(self.class_names), activation="softmax")(headModel)
 
         # place the head FC model on top of the base model (this will become
@@ -847,9 +844,6 @@ class Trainer:
                                  self.training_param['optimizer'])
         lr = self.training_param['learning_rate']
 
-        # self.metric_names to use for the display purpose during evaluation
-        self.metric_names = ("Categorical Cross-entropy Loss", "Accuracy")
-
         # using a simple decay for now, can use cosine annealing if wanted
         opt = optimizer_func(learning_rate=lr,
                              decay=lr / self.training_param['num_epochs'])
@@ -858,6 +852,8 @@ class Trainer:
         return model
 
     def build_segmentation_model(self):
+        keras.backend.clear_session()
+
         model_param_dict = self.segm_model_param
         model = getattr(models, self.segm_model_func)(**model_param_dict)
 
@@ -868,20 +864,30 @@ class Trainer:
         # using a simple decay for now, can use cosine annealing if wanted
         opt = optimizer_func(learning_rate=lr,
                              decay=lr / self.training_param['num_epochs'])
-
-        # take note of the order of the metrics, the loss function used for the
-        #  training must be the first one in the metric_names
-        metric_names = ['Hybrid Loss (IoU + Tversky)', 'Focal Tversky Loss',
-                        'Categorical Cross-entropy', 'Intersection Over Union (IoU) Loss']
-
         use_hybrid_loss = self.training_param['use_hybrid_loss']
         # focal_tversky seems to be good default
         # in the future, perhaps also allow use to choose a loss function
         loss = hybrid_loss if use_hybrid_loss else focal_tversky
-        # self.metric_names to use for the display purpose during evaluation
-        self.metric_names = metric_names if use_hybrid_loss else metric_names[1:]
 
         model.compile(loss=loss, optimizer=opt, metrics=self.metrics)
+        return model
+
+    def load_and_modify_trained_model(self):
+        assert self.is_not_pretrained
+        logger.info("Loading the trained keras model")
+        model = load_trained_keras_model(
+            str(self.training_path['trained_keras_model_file']))
+
+        image_size = self.training_param['image_size']
+        input_shape = (image_size, image_size, 3)
+
+        model = modify_trained_model_layers(
+            model, self.deployment_type,
+            input_shape=input_shape,
+            num_classes=len(self.class_names),
+            # must compile
+            compile=True,
+            metrics=self.metrics)
         return model
 
     def create_callbacks(self, train_size: int,
@@ -918,7 +924,7 @@ class Trainer:
 
         return [ckpt_cb, tensorboard_cb, st_output_cb]
 
-    def load_model_weights(self, build_model: bool = False, model: keras.Model = None):
+    def load_model_weights(self, model: keras.Model = None, build_model: bool = False):
         """Load the model weights for evaluation or inference. 
         If `build_model` is `True`, the model will be rebuilt and load back the weights.
         Or just send in a built model to directly use it to load the weights"""
@@ -1056,11 +1062,14 @@ class Trainer:
         # ***************** Build model and callbacks *****************
         if not is_resume:
             with st.spinner("Building the model ..."):
-                logger.debug("Building the model")
-                if classification:
-                    model = self.build_classification_model()
+                if self.is_not_pretrained:
+                    model = self.load_and_modify_trained_model()
                 else:
-                    model = self.build_segmentation_model()
+                    logger.info("Building the model")
+                    if classification:
+                        model = self.build_classification_model()
+                    else:
+                        model = self.build_segmentation_model()
             initial_epoch = 0
             num_epochs = self.training_param['num_epochs']
         else:
@@ -1071,7 +1080,7 @@ class Trainer:
                 logger.info(
                     f"Loading trained Keras model for {self.deployment_type}")
                 model = load_keras_model(
-                    self.training_path['keras_model_file'], self.metrics)
+                    self.training_path['output_keras_model_file'], self.metrics)
             initial_epoch = session_state.new_training.progress['Epoch']
             num_epochs = initial_epoch + self.training_param['num_epochs']
 
@@ -1114,10 +1123,10 @@ class Trainer:
 
         if not train_one_batch:
             with st.spinner("Saving the trained TensorFlow model ..."):
-                model.save(self.training_path['keras_model_file'],
+                model.save(self.training_path['output_keras_model_file'],
                            save_traces=True)
                 logger.debug(f"Keras model saved at "
-                             f"{self.training_path['keras_model_file']}")
+                             f"{self.training_path['output_keras_model_file']}")
 
         # ************************ Evaluation ************************
         with st.spinner("Evaluating on validation set and test set if available ..."):
@@ -1202,7 +1211,7 @@ class Trainer:
     def run_keras_eval(self):
         # load back the best model
         logger.info(f"Loading trained Keras model for {self.deployment_type}")
-        model = load_keras_model(self.training_path['keras_model_file'],
+        model = load_keras_model(self.training_path['output_keras_model_file'],
                                  self.metrics)
 
         if self.test_result_txt_path.exists():
@@ -1311,7 +1320,6 @@ class Trainer:
                 for p, label, col in zip(current_image_paths, current_labels, image_cols):
                     logger.debug(f"Image path: {p}")
                     filename = os.path.basename(p)
-                    logger.info(f"Inference on image: {filename}")
 
                     img = cv2.imread(p)
                     start = perf_counter()
@@ -1319,7 +1327,9 @@ class Trainer:
                     y_pred, y_proba = classification_predict(preprocessed_img,
                                                              model, return_proba=True)
                     time_elapsed = perf_counter() - start
-                    logger.info(f"Took {time_elapsed:.4f}s")
+                    logger.info(f"Inference on image: {filename} "
+                                f"[{time_elapsed:.4f}s]")
+
                     pred_classname = encoded_label_dict[y_pred]
                     true_classname = encoded_label_dict[label]
 
@@ -1334,8 +1344,7 @@ class Trainer:
                         st.image(img, caption=caption)
         else:
             with figure_row_place:
-                class_colors = create_class_colors(
-                    self.class_names, bgr2rgb=False)
+                class_colors = create_class_colors(self.class_names)
                 ignore_background = st.checkbox(
                     "Ignore background", value=True, key='ignore_background',
                     help="Ignore background class for visualization purposes")
@@ -1403,23 +1412,13 @@ class Trainer:
     def export_keras_model(self):
         paths = self.training_path
 
-        os.makedirs(paths['export'], exist_ok=True)
+        # os.makedirs(paths['export'], exist_ok=True)
 
-        # copy first before tarring the export folder
-        dest_path = paths['export'] / paths['keras_model_file'].name
-        if not dest_path.exists():
-            shutil.copy2(paths['keras_model_file'], dest_path)
-
-        # just create a tarfile for the user to download
+        # just create a tarfile of the H5 model file for the user to download
+        tarfile_path = paths['model_tarfile']
         with st.spinner("Creating model tarfile to download ..."):
-            os.chdir(paths['export'].parent)
-            export_foldername = paths['export'].name
-            model_tarfile_name = paths['model_tarfile'].name
-            # tarring the "export" folder within its parent folder using `tar` command
-            run_command(
-                f"tar -czf {model_tarfile_name} "
-                f"{export_foldername}")
-        # and then change back to root dir
-        chdir_root()
+            create_tarfile(tarfile_path.name,
+                           target_path=paths['output_keras_model_file'],
+                           dest_dir=tarfile_path)
         logger.debug("Keras model tarfile created at: "
-                     f"{paths['model_tarfile']}")
+                     f"{tarfile_path}")

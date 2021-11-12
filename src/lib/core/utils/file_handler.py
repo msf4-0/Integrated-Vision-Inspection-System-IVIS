@@ -184,18 +184,17 @@ def move_file(src: Union[str, Path], dst: Union[str, Path]) -> bool:
     """
 
     # For assertation of number of contents moved
-    initial_foldersize = len([x for x in src.rglob('*')])
+    initial_foldersize = len(list(src.rglob('*')))
 
     # Iterate to all contents in `dst`
-    for file in src.iterdir():
-        dest_path = dst / file.relative_to(src)  # get destination file path
+    for file in Path(src).iterdir():
+        dest_path = dst / os.path.basename(file)  # get destination file path
 
         # returns file path to destination for each file moved
-        dst_return = shutil.move(src=str(file),
-                                 dst=str(dest_path))
-        logger.info(f"Moved {file.name} to {dst_return}")
+        dst_return = shutil.move(str(file), str(dest_path))
+        logger.debug(f"Moved {file.name} to {dst_return}")
 
-    assert len([x for x in Path(dst).rglob('*')]
+    assert len(list(Path(dst).rglob('*'))
                ) == initial_foldersize, "Failed to moved all files"
 
     return True
@@ -231,14 +230,15 @@ def save_uploaded_extract_files(dst: Union[str, Path], filename: Union[str, Path
     Returns:
         bool: True if successful. False otherwise.
     """
-    filename = Path(filename).name
+    filename = os.path.basename(filename)
     dst = Path(dst)
     create_folder_if_not_exist(dst)
     with get_temp_dir() as tmp_dir:
 
         tmp_dir = Path(tmp_dir)
-        folder_name = remove_suffix(filename)
-        src = tmp_dir / folder_name
+        # folder_name = remove_suffix(filename)
+        # src = tmp_dir / folder_name
+        src = tmp_dir
         extract_archive(tmp_dir, filename, file_object=fileObj)
         move_file(src=src, dst=dst)
 
@@ -840,7 +840,107 @@ def file_archive_handler(archive_filename: Path, target_filename: Path, archive_
     chdir_root()
 
 
+def create_tarfile(tarfile_name: str, target_path: Path, dest_dir: Path = None):
+    """If `target_path` is a directory, create a tarfile for the files in the `target_path`, 
+    excluding the folder of the `target_path`. If `target_path` is an existing file, 
+    then just create a tarfile with only this file. Then move the tarfile into the
+    `dest_dir` using `shutil.move()`. 
+    Note that you are responsible to create the folder of the `target_path` first.
+
+    e.g. `target_path` is a directory containing a file `'file1'` and a folder `'folder1'`.
+    A tarfile with `'file1'` and `'folder1'` would be generated, without the `target_path`
+    folder in the root of the tarfile, which is unlike normal cases.
+
+    `dest_dir` can be a directory or a file path. If `dest_dir` is not provided,
+    will be moved to the current working directory.
+
+    This is currently used for exporting trained model files.
+    """
+
+
+def create_tarfile(tarfile_name: str, target_path: Path, dest_dir: Path = None):
+    """If `target_path` is a directory, create a tarfile for the files in the `target_path`, 
+    excluding the folder of the `target_path`. If `target_path` is an existing file, 
+    then just create a tarfile with only this file. Then move the tarfile into the
+    `dest_dir` using `shutil.move()`. 
+    Note that you are responsible to create the folder of the `target_path` first.
+
+    e.g. `target_path` is a directory containing a file `'file1'` and a folder `'folder1'`.
+    A tarfile with `'file1'` and `'folder1'` would be generated, without the `target_path`
+    folder in the root of the tarfile, which is unlike normal cases.
+
+    `dest_dir` can be a directory or a file path. If `dest_dir` is not provided,
+    will be moved to the current working directory.
+
+    This is currently used for exporting trained model files.
+    """
+    assert tarfile_name.endswith('.tar.gz')
+
+    chdir_root()
+
+    if not dest_dir:
+        dest_dir = Path.cwd()
+
+    # need to chdir first then only pass the file/folder paths to make sure to take
+    # the file/folder directly without long paths
+    if target_path.is_dir():
+        os.chdir(target_path)
+    else:
+        os.chdir(target_path.parent)
+
+    logger.debug(f"{Path.cwd() = }")
+
+    if os.path.exists(tarfile_name):
+        # remove the tarfile if exists there
+        logger.debug("Removing existing tarfile")
+        os.remove(tarfile_name)
+
+    try:
+        with tarfile.open(tarfile_name, 'w:gz') as tar:
+            if target_path.is_dir():
+                logger.debug("`target_path` is a directory")
+                for p in os.listdir(target_path):
+                    tar.add(p)
+            else:
+                logger.debug("`target_path` is a file path")
+                tar.add(target_path.name)
+
+        # no need to move the tarfile if it is created at the same path as the dest_dir
+        created_tarfile_path = target_path / tarfile_name
+        if dest_dir.is_dir():
+            dest_filepath = dest_dir / tarfile_name
+            if dest_filepath == created_tarfile_path:
+                # the file is created at the same destination, no need to move it again
+                need_move = False
+            else:
+                if (dest_dir / tarfile_name).exists():
+                    logger.debug("Removing existing tarfile at `dest_dir`")
+                    os.remove((dest_dir / tarfile_name))
+                need_move = True
+        elif dest_dir.is_file() and dest_dir == created_tarfile_path:
+            # the file is created at the same path, no need to move it again
+            need_move = False
+        else:
+            # the file does not exist yet, need to move it there
+            # NOTE: if dest_dir is a filepath, even if the file exists there,
+            #  the file will be overwritten without error
+            need_move = True
+
+        if need_move:
+            shutil.move(tarfile_name, dest_dir)
+    except Exception as e:
+        logger.error("Error occurs while creating tarfile at: "
+                     f"{target_path}; with error: {e}")
+        # st.error("Error occurs while creating tarfile")
+    else:
+        logger.debug(f"Successfully created tarfile at {dest_dir}")
+    finally:
+        # and then change back to root dir
+        chdir_root()
+
+
 def st_download_button(zip_filepath: Path, download_filename: str, btn_name: str):
+    # ! DEPRECATED, use st.download_button instead
     with open(zip_filepath, 'rb') as f:
         bytes = f.read()
         b64 = base64.b64encode(bytes).decode()

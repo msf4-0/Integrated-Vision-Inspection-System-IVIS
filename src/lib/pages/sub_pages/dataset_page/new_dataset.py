@@ -534,8 +534,7 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
 
                         with st.spinner("Updating project labels and editor configuration ..."):
                             if not is_updating:
-                                default_labels = list(
-                                    session_state.project.editor.get_labels())
+                                default_labels = session_state.project.editor.get_default_template_labels()
                                 logger.debug("Default labels found in template's "
                                              f"editor config: {default_labels}")
                                 project_id = session_state.project.id
@@ -568,9 +567,7 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
                                     'value', label)
                                 logger.debug(
                                     f"newChild: {newChild.attributes.items()}")
-                                session_state.project.editor.labels = session_state.project.editor.get_labels()
-                            logger.info("All labels after updating: "
-                                        f"{session_state.project.editor.labels}")
+                            session_state.project.editor.labels = session_state.project.editor.get_labels()
 
                             # default_labels = session_state.project.editor.get_default_template_labels()
 
@@ -589,9 +586,10 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
                                 session_state.project.editor.labels.sort()
                                 logger.debug(f"After removing default labels: "
                                              f"{session_state.project.editor.labels}")
+                            logger.info("All labels after updating: "
+                                        f"{session_state.project.editor.labels}")
 
                             session_state.project.editor.update_editor_config()
-
                             session_state.project.refresh_project_details()
 
                         if error_imgs:

@@ -16,7 +16,7 @@ Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
-limitations under the License. 
+limitations under the License.
 
 Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
@@ -66,7 +66,7 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 from project.project_management import Project
-from training.model_management import BaseModel, Model, NewModel
+from training.model_management import BaseModel, Model, ModelType, NewModel
 from training.utils import get_segmentation_model_func2params, get_segmentation_model_name2func
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -208,7 +208,6 @@ class BaseTraining:
         self.project_model: Model = None
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: str = project.deployment_type
-        self.model_path: str = ''
         self.framework: str = ''
         self.partition_ratio: Dict = {
             'train': 0.8,
@@ -312,7 +311,7 @@ class BaseTraining:
                 self.partition_size['train']
 
     def update_dataset_chosen(self, submitted_dataset_chosen: List, dataset_dict: Dict):
-        """ Update the training_dataset table in the Database 
+        """ Update the training_dataset table in the Database
 
         Args:
             submitted_dataset_chosen (List): List of updated Dataset chosen for Training
@@ -401,12 +400,29 @@ class BaseTraining:
 
             logger.info(f"Inserted Training Dataset {dataset}")
 
-    def update_training_info(self) -> bool:
-        """Update Training Name, Description, and Partition Size into the database
+    def update_training_info(self, name: Optional[str] = None,
+                             desc: Optional[str] = None) -> bool:
+        """Update Training Name, Description, and Partition Ratio in the database
 
         Returns:
             bool: True is successful, otherwise False
         """
+        if name is not None:
+            current_training_path = self.get_training_path(
+                self.project_path, self.name)
+            if current_training_path.exists():
+                # rename the existing training directory if it already exists
+                new_path = self.get_training_path(
+                    self.project_path, name)
+
+                logger.info("Renaming existing training path to new path:"
+                            f"{current_training_path} -> {self.project_path}")
+                os.rename(current_training_path, new_path)
+            self.name = name
+
+        if desc is not None:
+            self.desc = desc
+
         update_training_info_SQL = """
             UPDATE
                 public.training
@@ -418,9 +434,8 @@ class BaseTraining:
                 id = %s
             RETURNING
                 id;
-        
-                                """
-        partition_ratio_json = json.dumps(self.partition_ratio, indent=4)
+        """
+        partition_ratio_json = json.dumps(self.partition_ratio)
         update_training_info_vars = [self.name,
                                      self.desc, partition_ratio_json, self.id]
 
@@ -439,12 +454,14 @@ class BaseTraining:
                 f"{e}: Failed to update New Training Name, Desc and Partition Size for {self.id}")
             return False
 
-    def insert_training_info(self) -> bool:
+    def insert_training_info(self, name: str, desc: str) -> bool:
         """Insert Training Name, Description and Partition Size into Training table
 
         Returns:
             bool: True if successfully inserted into the database
         """
+        self.name = name
+        self.desc = desc
 
         insert_training_info_SQL = """
                 INSERT INTO public.training (
@@ -464,9 +481,8 @@ class BaseTraining:
                         , partition_ratio = %s::JSONB
                     RETURNING
                         id;
-                                    """
-
-        partition_ratio_json = json.dumps(self.partition_ratio, indent=4)
+        """
+        partition_ratio_json = json.dumps(self.partition_ratio)
         insert_training_info_vars = [self.name, self.desc, partition_ratio_json,
                                      self.project_id, self.desc, partition_ratio_json]
 
@@ -494,16 +510,19 @@ class BaseTraining:
                 , %s)
             ON CONFLICT ON CONSTRAINT project_training_pkey
                 DO NOTHING;
-        
+
             """
         insert_project_training_vars = [self.project_id, self.id]
         db_no_fetch(insert_project_training_SQL, conn,
                     insert_project_training_vars)
 
-    def update_training_info_dataset(self,
-                                     submitted_dataset_chosen: List,
-                                     dataset_dict: Dict) -> bool:
-        """Update Training Info and Dataset 
+    def update_training_info_dataset(
+            self,
+            submitted_dataset_chosen: List,
+            dataset_dict: Dict,
+            name: Optional[str] = None,
+            desc: Optional[str] = None) -> bool:
+        """Update Training Info and Dataset
 
         Args:
             submitted_dataset_chosen (List): Modified List of Dataset Chosen
@@ -517,7 +536,7 @@ class BaseTraining:
 
             assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
 
-            self.update_training_info()
+            self.update_training_info(name, desc)
 
             self.update_dataset_chosen(submitted_dataset_chosen=submitted_dataset_chosen,
                                        dataset_dict=dataset_dict)
@@ -636,12 +655,12 @@ class NewTraining(BaseTraining):
                              field_placeholder: Dict,
                              name_key: str
                              ) -> bool:
-        """Check if Compulsory fields are filled and Unique information not 
+        """Check if Compulsory fields are filled and Unique information not
         duplicated in the database
 
         Args:
             context (Dict): Dictionary with widget name as key and widget value as value
-            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value. 
+            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value.
             *Key has same name as its respective widget
 
             name_key (str): Key of Database row name. Used to obtain value from 'context' Dictionary.
@@ -657,7 +676,7 @@ class NewTraining(BaseTraining):
         # True if not empty, False otherwise
         return empty_fields
 
-    def insert_training_info_dataset(self) -> bool:
+    def insert_training_info_dataset(self, name: str, desc: str) -> bool:
         """Create New Training submission
 
         Returns:
@@ -669,7 +688,7 @@ class NewTraining(BaseTraining):
             assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
 
             # insert Name, Desc, Partition Size
-            self.insert_training_info()
+            self.insert_training_info(name, desc)
             assert isinstance(
                 self.id, int), f"Training ID should be type Int but obtained {type(self.id)} ({self.id})"
 
@@ -807,6 +826,7 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
+
     @staticmethod
     def reset_new_training_page():
 
@@ -866,6 +886,12 @@ class Training(BaseTraining):
 
     @property
     def training_path(self) -> Dict[str, Path]:
+        """Using property decorator to make sure these paths are dynamically generated
+        based on latest info of the training session or the model.
+
+        Optionally can also change this to a function to avoid computing all the paths
+        every time you try to access this property attribute.
+        """
         # modified from get_all_training_path
         # >>>> TRAINING PATH
         paths = {}
@@ -878,7 +904,14 @@ class Training(BaseTraining):
         else:
             # MUST use this to get a nicely formatted directory name
             model_dirname = get_directory_name(self.training_model.name)
+        # same with BaseModel.query_project_model_path()
         paths['models'] = root / 'models' / model_dirname
+
+        if self.deployment_type == 'Object Detection with Bounding Boxes' \
+                and self.attached_model.is_not_pretrained:
+            # otherwise if is pretrained, we will create the path during TFOD training
+            paths['trained_model'] = self.attached_model.get_path()
+
         # the tensorboard logdir is the same with models path but just to be explicit
         # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
         #  folders and store the logs inside this folder, so don't accidentally
@@ -897,14 +930,21 @@ class Training(BaseTraining):
         # NOTE: need to exclude file paths from the `initialise_training_folder` method.
         # currently setting every filepath's key to end with "file" to easily skip them
 
-        # this filename is based on the `generate_labelmap_file` function
-        # this file is probably only needed for TF object detection
-        paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
-        # model weights only available for image classification and segmentation tasks
-        # when using Keras
-        paths['model_weights_file'] = paths['models'] / \
-            f"{model_dirname}-weights.h5"
-        paths['keras_model_file'] = paths['models'] / f"{model_dirname}.h5"
+        if self.deployment_type == 'Object Detection with Bounding Boxes':
+            # this filename is based on the `generate_labelmap_file` function
+            # this file is probably only needed for TF object detection
+            paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
+            paths['config_file'] = paths['models'] / 'pipeline.config'
+        else:
+            if self.attached_model.is_not_pretrained:
+                paths['trained_keras_model_file'] = self.attached_model.get_path(
+                    return_keras_filepath=True)
+            # model weights only available for image classification and segmentation tasks
+            # when using Keras
+            paths['model_weights_file'] = paths['models'] / \
+                f"keras-model-weights.h5"
+            paths['output_keras_model_file'] = paths['models'] / \
+                f"{model_dirname}.h5"
         # model_tarfile should be in the same folder with 'export' folder,
         # because we are tarring the 'export' folder
         paths['model_tarfile'] = paths['models'] / \
@@ -913,7 +953,7 @@ class Training(BaseTraining):
         return paths
 
     @staticmethod
-    def query_progress(training_id: int) -> Union[bool, None]:
+    def query_progress(training_id: int) -> bool:
         # NOTE: this method is not being used for now
         sql_query = """
                 SELECT
@@ -932,7 +972,7 @@ class Training(BaseTraining):
         else:
             logger.error(
                 f"Training with ID {training_id} does not exists in the Database!!!")
-            return None
+            return False
 
     def update_progress(self,
                         progress: Dict[str, int],
@@ -1155,13 +1195,15 @@ class Training(BaseTraining):
         training_dir
         |
         |-annotations/
+        | |-<CSV files>
+        | |-<JSON files>
         | |-labelmap
         | |-TFRecords*
         |
-        |-exported_models/
-        |-dataset
+        |-images
         | |-train/
-        | |-evaluation/
+        | |-validation/
+        | |-test/
         |
         |-models/
 
@@ -1373,7 +1415,7 @@ class Training(BaseTraining):
         Clone the current training session to allow users to have faster access to training,
         while retaining all the configuration selected for the current training session.
         After this, the user should be moved to the training info page for modification.
-        Also, do not forget to reset all the `has_submmitted` values to False to allow 
+        Also, do not forget to reset all the `has_submmitted` values to True to allow 
         the user to seamlessly navigate through the training & model selection forms.
         """
         # creating a temporary training session's name
@@ -1500,6 +1542,28 @@ class Training(BaseTraining):
         if return_model_func:
             return model_param_dict, model_func
         return model_param_dict
+
+    def get_training_metrics(self) -> Tuple[List[Callable], List[str]]:
+        if self.deployment_type == 'Semantic Segmentation with Polygons':
+            from keras_unet_collection.losses import focal_tversky, iou_seg
+            from keras.losses import categorical_crossentropy
+
+            metrics = [focal_tversky, categorical_crossentropy, iou_seg]
+            use_hybrid_loss = self.training_param_dict.get('use_hybrid_loss')
+            # no need to take focal_tversky as a metric since we are using it as loss func
+            metrics = metrics if use_hybrid_loss else metrics[1:]
+
+            # take note of the order of the metrics, the loss function used for the
+            #  training must be the first one in the metric_names
+            metric_names = ['Hybrid Loss (IoU + Tversky)', 'Focal Tversky Loss',
+                            'Categorical Cross-entropy', 'Intersection Over Union (IoU) Loss']
+            # metric_names to use for the display purpose during evaluation
+            metric_names = metric_names if use_hybrid_loss else metric_names[1:]
+        else:
+            metrics = ['accuracy']
+            # metric_names to use for the display purpose during evaluation
+            metric_names = ["Categorical Cross-entropy Loss", "Accuracy"]
+        return metrics, metric_names
 
     @staticmethod
     def reset_training_page():

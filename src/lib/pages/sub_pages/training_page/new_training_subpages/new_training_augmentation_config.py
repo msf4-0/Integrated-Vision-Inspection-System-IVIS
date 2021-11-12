@@ -315,8 +315,7 @@ def augmentation_configuration(RELEASE=True):
                         help="Ignore background class for visualization purposes")
                     class_names = get_coco_classes(
                         coco_json_path, return_coco=False)
-                    class_colors = create_class_colors(
-                        class_names, bgr2rgb=False)
+                    class_colors = create_class_colors(class_names)
 
                     st.markdown("**Legend**")
                     legend = create_color_legend(

@@ -53,7 +53,7 @@ def get_data_dir():
 
 
 @contextmanager
-def get_temp_dir():
+def get_temp_dir() -> str:
     dirpath = mkdtemp()
     yield dirpath
     shutil.rmtree(dirpath)

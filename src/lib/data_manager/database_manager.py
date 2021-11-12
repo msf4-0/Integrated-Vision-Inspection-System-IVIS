@@ -35,7 +35,7 @@ import traceback
 from enum import IntEnum
 from core.utils.model_details_db_setup import connect_db
 from passlib.hash import argon2
-from typing import List
+from typing import Any, Dict, List, NamedTuple, Tuple, Union
 import streamlit as st
 
 # from config import config
@@ -185,27 +185,27 @@ def db_no_fetch(sql_message: str, conn, vars: List = None) -> None:
                 logger.error(e)
 
 
-def db_fetchone(sql_message: str, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> namedtuple:
-
+def db_fetchone(sql_message: str, conn, vars: List = None,
+                fetch_col_name: bool = False,
+                return_dict: bool = False
+                ) -> Union[Union[NamedTuple, Dict[str, Any]],
+                           Tuple[Union[NamedTuple, Dict[str, Any]],
+                                 List[str]]]:
     with conn:
         cursor_factory = DictCursor if return_dict else NamedTupleCursor
 
         with conn.cursor(cursor_factory=cursor_factory) as cur:
-
             try:
-
                 if vars:
                     cur.execute(sql_message, vars)
-
                 else:
                     cur.execute(sql_message)
-
                 conn.commit()
                 return_one = cur.fetchone()  # return tuple
-                # Obtain Column names from query
-                column_names = [desc[0] for desc in cur.description]
 
                 if fetch_col_name:
+                    # Obtain Column names from query
+                    column_names = [desc[0] for desc in cur.description]
                     if return_dict:
                         # Convert results to pure Python dictionary
                         return_one = convert_to_dict(return_one)
@@ -220,9 +220,15 @@ def db_fetchone(sql_message: str, conn, vars: List = None, fetch_col_name: bool 
                 logger.error(e)
 
 
-def db_fetchall(sql_message: str, conn, vars: List = None, fetch_col_name: bool = False, return_dict: bool = False) -> namedtuple:
+def db_fetchall(sql_message: str, conn, vars: List = None,
+                fetch_col_name: bool = False,
+                return_dict: bool = False
+                ) -> Union[Union[List[NamedTuple], List[Dict[str, Any]]],
+                           Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
+                                 List[str]]]:
     with conn:
         cursor_factory = DictCursor if return_dict else NamedTupleCursor
+
         with conn.cursor(cursor_factory=cursor_factory) as cur:
             try:
                 if vars:
@@ -230,9 +236,10 @@ def db_fetchall(sql_message: str, conn, vars: List = None, fetch_col_name: bool 
                 else:
                     cur.execute(sql_message)
                 conn.commit()
+
                 return_all = cur.fetchall()  # return array of tuple
-                column_names = [desc[0] for desc in cur.description]
                 if fetch_col_name:
+                    column_names = [desc[0] for desc in cur.description]
                     if return_dict:
                         # Convert results to pure Python dictionary
                         return_all = convert_to_dict(return_all)
@@ -240,13 +247,12 @@ def db_fetchall(sql_message: str, conn, vars: List = None, fetch_col_name: bool 
                 else:
                     if return_dict:
                         return_all = convert_to_dict(return_all)
-                    column_names = None
                     return return_all
             except psycopg2.Error as e:
                 logger.error(e)
 
 
-def convert_to_dict(query: List):
+def convert_to_dict(query: List) -> Dict[str, Any]:
     query_dict = [dict(row) for row in query]
     return query_dict
 
@@ -534,7 +540,7 @@ def create_relation_database(conn):
         , (
             'Project Models')
         , (
-            'User Custom Deep Learning Model Upload');
+            'User Deep Learning Model Upload');
 
         -- MODELS table --------------------------------------------------
         CREATE TABLE IF NOT EXISTS public.models (

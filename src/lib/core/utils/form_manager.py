@@ -63,24 +63,18 @@ def check_if_field_empty(context: Dict, field_placeholder, name_key: str = 'name
                         f" name used. Please enter a new name")
                     empty_fields.append(k)
                 else:
-                    logger.error('escaped check')
-
-            else:
-
-                pass
+                    logger.debug('escaped check')
         else:
-
             field_placeholder[k].error(
                 f"Please do not leave field blank")
             empty_fields.append(k)
-    logger.info(empty_fields)
+    logger.debug(f"{empty_fields = }")
     # if empty_fields not empty -> return True, else -> return False (Negative Logic)
     return not empty_fields  # Negative logic
 
 
 def remove_newline_trailing_whitespace(text: str) -> str:
-    fixed_text = " ".join([x for x in text.split()])
-
+    fixed_text = " ".join(text.split())
     return fixed_text
 
 

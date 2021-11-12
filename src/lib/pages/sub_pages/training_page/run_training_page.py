@@ -21,13 +21,12 @@ limitations under the License.
 Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
- """
+"""
 import os
 import shutil
 import sys
 from pathlib import Path
 import time
-from typing import Any, Dict
 
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -92,6 +91,7 @@ def index(RELEASE=True):
         st.write(f"{project_description}")
 
         st.markdown("""___""")
+    # ****************** TEST END ******************************
 
     def initialize_trainer():
         if 'trainer' not in session_state:
@@ -119,7 +119,7 @@ def index(RELEASE=True):
     **Dataset List**: {dataset_chosen_str}  \n
     **Partition Ratio**: training : validation : test -> 
     {partition_ratio['train']} : {partition_ratio['eval']} : {partition_ratio['test']}  \n
-    **Pretrained Model Name**: {session_state.new_training.attached_model.name}  \n
+    **Selected Model Name**: {session_state.new_training.attached_model.name}  \n
     **Model Name**: {session_state.new_training.training_model.name}  \n
     **Model Description**: {session_state.new_training.training_model.desc}
     """)
@@ -142,8 +142,8 @@ def index(RELEASE=True):
 
     if session_state.new_training.is_started:
         st.warning("✏️ **NOTE**: Only edit the model selection"
-                   " if you haven't started training your model! Otherwise the information"
-                   " stored in database would not be correct.")
+                   " if you want to re-train your model! Otherwise the information"
+                   " stored in database would not be correct for the current trained model.")
 
     # ******************************** CONFIG INFO ********************************
     train_config_col, aug_config_col = st.columns([1, 1])
@@ -313,16 +313,19 @@ def index(RELEASE=True):
 
                 if exist_dict['model_tarfile']:
                     def show_download_msg():
-                        message_place.warning("Downloading Model ...")
+                        place = st.empty()
+                        place.warning("Downloading Model ...")
                         time.sleep(2)
-                        message_place.empty()
+                        place.empty()
                         # remove exported directory after downloaded
-                        shutil.rmtree(
-                            session_state.trainer.training_path['export'])
+                        export_dir = session_state.trainer.training_path['export']
+                        if export_dir.exists():
+                            shutil.rmtree(export_dir)
                         # remove the tarfile after downloaded
-                        os.remove(model_tarfile_path)
+                        if model_tarfile_path.exists():
+                            os.remove(model_tarfile_path)
 
-                    model_tarfile_path = session_state.new_training.training_path['model_tarfile']
+                    model_tarfile_path = session_state.trainer.training_path['model_tarfile']
                     with st.spinner("Preparing model to be downloaded ..."):
                         with model_tarfile_path.open(mode="rb") as fp:
                             st.download_button(
@@ -333,8 +336,9 @@ def index(RELEASE=True):
                                 key="btn_download_model",
                                 on_click=show_download_msg,
                             )
-                        st.warning('✏️ **NOTE**: This may take awhile to download, '
-                                   'depending on the file size of the trained model.')
+                        st.success('✏️ Model is successfully archived! This may take awhile'
+                                   ' to download, depending on the file size of the trained '
+                                   'model.')
                         if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
                             st.warning("""The exported object detection model will also be
                             removed after you have downloaded it. You can try checking the
@@ -344,17 +348,17 @@ def index(RELEASE=True):
                 # only show Export button if model checkpoint/weights file is found
                 elif exist_dict['ckpt']:
                     def export_callback():
-                        with message_place.container():
-                            try:
-                                session_state.trainer.export_model()
-                                st.experimental_rerun()
-                            except Exception as e:
-                                st.error("""Some error has occurred when exporting,
-                                    please try re-training again""")
-                                logger.error(f"Error exporting model: {e}")
-                                if not RELEASE:
-                                    st.exception(e)
-                                st.stop()
+                        # with message_place.container():
+                        try:
+                            session_state.trainer.export_model()
+                            st.experimental_rerun()
+                        except Exception as e:
+                            st.error("""Some error has occurred when exporting,
+                                please try re-training again""")
+                            logger.error(f"Error exporting model: {e}")
+                            if not RELEASE:
+                                st.exception(e)
+                            st.stop()
                     if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
                         label = "📁 Export TensorFlow SavedModel"
                     else:
