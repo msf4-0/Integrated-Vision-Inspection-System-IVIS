@@ -13,20 +13,22 @@ from object_detection.utils import visualization_utils as viz_utils
 from core.utils.log import logger
 
 
-def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -> str:
+def str2float(val: str, float_format: str = '.5g'):
+    try:
+        param_val = f"{float(val):{float_format}}"
+    except Exception as e:
+        logger.debug(f"Skip converting `{val}``: {e}")
+        param_val = val
+    return param_val
+
+
+def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g',
+                        st_newlines: bool = True, bold_name: bool = True) -> str:
     """
     Format param_dict to become a nice output to show on Streamlit.
     `float_format` is used for formatting floats.
     The formatting for significant digits `.5g` is based on [StackOverflow](https://stackoverflow.com/questions/25780022/how-to-make-python-format-floats-with-certain-amount-of-significant-digits).
     """
-    def str2float(val: str):
-        try:
-            param_val = f"{float(val):{float_format}}"
-        except Exception as e:
-            logger.debug(f"Skip converting `{val}``: {e}")
-            param_val = val
-        return param_val
-
     config_info = []
     for k, v in param_dict.items():
         if "_" in k:
@@ -38,16 +40,27 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g') -
                 continue
             config_info.append(f"#### {param_name}")
             for nested_name, nested_v in v.items():
-                param_val = str2float(str(nested_v))
-                current_info = f'**{nested_name}**: {param_val}'
+                param_val = str2float(str(nested_v), float_format)
+                if bold_name:
+                    current_info = f'**{nested_name}**: {param_val}'
+                else:
+                    current_info = f'{nested_name}: {param_val}'
                 config_info.append(current_info)
         else:
             if v is None:
                 continue
-            param_val = str2float(str(v))
-            current_info = f'**{param_name}**: {param_val}'
+            param_val = str2float(str(v), float_format)
+            if bold_name:
+                current_info = f'**{param_name}**: {param_val}'
+            else:
+                current_info = f'{param_name}: {param_val}'
             config_info.append(current_info)
-    config_info = '  \n'.join(config_info)
+    if st_newlines:
+        # this is the newline string to work for Streamlit (need double space)
+        separator = '  \n'
+    else:
+        separator = '; '
+    config_info = separator.join(config_info)
     return config_info
 
 

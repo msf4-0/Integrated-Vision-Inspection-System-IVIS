@@ -166,9 +166,9 @@ def index():
     st.write(vars(session_state.new_training))
     # st.write("vars(session_state.new_training.attached_model)")
     # st.write(vars(session_state.new_training.attached_model))
-    st.write("session_state.new_training.attached_model.get_path()")
-    st.write(session_state.new_training.attached_model.get_path())
-    st.write("Exists:", session_state.new_training.attached_model.get_path().exists())
+    # st.write("session_state.new_training.attached_model.get_path()")
+    # st.write(session_state.new_training.attached_model.get_path())
+    # st.write("Exists:", session_state.new_training.attached_model.get_path().exists())
 
 
 if __name__ == "__main__":

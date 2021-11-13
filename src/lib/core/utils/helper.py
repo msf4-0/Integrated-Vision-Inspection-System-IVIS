@@ -239,7 +239,7 @@ def dataframe2dict(orient='index') -> List[Dict[str, Any]]:
     return inner
 
 
-def datetime_formatter(data_list: Union[List[namedtuple], List[Dict]], return_dict: bool = False) -> List:
+def datetime_formatter(data_list: Union[List[NamedTuple], List[Dict]], return_dict: bool = False) -> List:
     """Convert datetime format to %Y-%m-%d %H:%M:%S for Dict and namedtuple from DB query
 
     Args:

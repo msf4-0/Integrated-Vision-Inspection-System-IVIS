@@ -115,6 +115,7 @@ def dashboard():
         st.warning("""Not enough annotations found for this project yet. Please go to the
         **Labelling** page and label for at least 10 images first before entering here.
         But note that 10 is only the minimum number of data to be used for a test run 😆""")
+        st.stop()
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
 

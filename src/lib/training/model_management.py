@@ -26,6 +26,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import json
 import os
+import shutil
 import sys
 from collections import namedtuple
 from datetime import datetime
@@ -1322,6 +1323,83 @@ class Model(BaseModel):
 
         return df_metrics
 
+    @staticmethod
+    def reset_training_model_info(training_id: int):
+        """Reset training_model (aka project model) info in database"""
+        sql_update = """
+            UPDATE
+                public.training
+            SET
+                training_model_id = NULL,
+                attached_model_id = NULL,
+                training_param = NULL,
+                augmentation = NULL,
+                is_started = False,
+                progress = NULL
+            WHERE
+                id = %s;
+        """
+        update_vars = [training_id]
+        try:
+            db_no_fetch(sql_update, conn, update_vars)
+            return True
+        except Exception as e:
+            logger.error(f"At update training_attached: {e}")
+            return False
+
+    @staticmethod
+    def delete_model(model_id: int = None, training_id: int = None):
+        """Delete model directories, delete model row from 'models' table, and
+        reset the training_model's info at 'training' table"""
+        # """Can provide either training_id or model_id because each training session
+        # only has one associated model"""
+        # assert (training_id, model_id) != (
+        #     None, None), "Must provide either training_id or model_id"
+        # if training_id is not None:
+        #     # this will also return model id
+        #     sql_delete = """
+        #         DELETE
+        #         FROM public.models
+        #         WHERE training_id = %s
+        #         RETURNING id, name;
+        #     """
+        #     delete_vars = [training_id]
+        #     label = f"Model with Training ID {training_id}"
+        # else:
+
+        # need model_id to get the project_model path from DB to delete the directories
+        # first before deleting its info from DB
+        logger.info("Checking if model directory exists")
+        model_path = Model.query_project_model_path(model_id)
+        if model_path and model_path.exists():
+            shutil.rmtree(model_path)
+            logger.info("Deleted existing model directories")
+        else:
+            logger.info("Model directory does not exist")
+
+        sql_delete = """
+            DELETE
+            FROM public.models
+            WHERE id = %s
+            RETURNING training_id, name;
+        """
+        delete_vars = [model_id]
+        label = f"Model with ID {model_id}"
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.error(f"Error occurred when deleting model, "
+                         f"cannot find {label}")
+            return
+        model_name = record.name
+        # if training_id is not None:
+        #     model_id = record.id
+        # else:
+        training_id = record.training_id
+        logger.info(f"Deleted Model of ID {model_id} and name '{model_name}' "
+                    f"associated with Training ID {training_id}")
+
+        Model.reset_training_model_info(training_id)
+
 
 # ********************************** DEPRECATED ********************************
 
@@ -1513,6 +1591,41 @@ def query_model_by_deployment_type(
     return models_tmp, column_names
 
 
+def query_current_project_models(
+    project_id: int,
+    for_data_table: bool = False,
+    return_dict: bool = False) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
+                                        List[str]]:
+    """Query rows of project models filtered by current project_id from 'models' table"""
+    ID_string = "id" if for_data_table else "ID"
+
+    sql_query = f"""
+        SELECT  m.id          AS \"{ID_string}\",
+                m.name        AS "Name",
+                f.name        AS "Framework",
+                t.name        AS "Training Name",
+                m.description AS "Description",
+                m.metrics     AS "Metrics",
+                m.updated_at  AS "Date/Time"
+        FROM public.models m
+                LEFT JOIN public.training t ON m.training_id = t.id
+                LEFT JOIN public.framework f ON f.id = m.framework_id
+        WHERE m.model_type_id = 2
+            AND t.project_id = %s
+        ORDER BY m.id;
+    """
+    query_vars = [project_id]
+    models, column_names = db_fetchall(
+        sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
+    logger.info(f"Queried current project's models from database")
+
+    models_tmp = []
+    if models:
+        models_tmp = datetime_formatter(models, return_dict)
+
+    return models_tmp, column_names
+
+
 def get_trained_models_df(models: List[NamedTuple],
                           column_names: List[str],
                           model_type: Union[str, ModelType],) -> pd.DataFrame:
@@ -1525,5 +1638,6 @@ def get_trained_models_df(models: List[NamedTuple],
     df = df[df['Model Type'] == model_type_str]
 
     id_col_name = df.columns[0]
-    df = df[[id_col_name, 'Name', 'Date/Time']].reset_index(drop=True)
+    df = df[[id_col_name, 'Name', 'Metrics',
+             'Description', 'Date/Time']].reset_index(drop=True)
     return df

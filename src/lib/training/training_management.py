@@ -624,6 +624,53 @@ class BaseTraining:
         """Check if any augmentations have been chosen and submitted for this instance."""
         return self.augmentation_config.exists()
 
+    @staticmethod
+    def delete_training(id: int):
+        """This will delete both training and the project model associated with the training.
+
+        Currently will also delete the model because the model files are situated within
+        the training directory with the training name. So without the training name,
+        it's impossible to access to the project model files to reuse them anyway."""
+        sql_delete = """
+            DELETE
+            FROM public.models
+            WHERE training_id = %s
+            RETURNING name;
+        """
+        delete_vars = [id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.info(f"No model is deleted because there is no model associated "
+                        f"with the Training ID: {id}")
+        else:
+            model_name = record.name
+            logger.info(f"Deleted model of ID {id} "
+                        f"of name: {model_name}")
+
+        sql_delete = """
+            DELETE
+            FROM public.training
+            WHERE id = %s
+            RETURNING name;
+        """
+        delete_vars = [id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.error(f"Error occurred when deleting training session, "
+                         f"cannot find Training ID: {id}")
+            return
+        training_name = record.name
+        logger.info(f"Deleted training session of ID {id} "
+                    f"of name: {training_name}")
+
+        project_name = session_state.project.name
+        project_path = session_state.project.get_project_path(project_name)
+        training_path = Training.get_training_path(project_path,
+                                                   training_name)
+        if training_path.exists():
+            shutil.rmtree(training_path)
+            logger.info("Deleted existing training directories")
+
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
@@ -825,7 +872,6 @@ class NewTraining(BaseTraining):
     #     return self.id
 
 # TODO #133 Add New Training Reset
-
 
     @staticmethod
     def reset_new_training_page():
@@ -1108,7 +1154,7 @@ class Training(BaseTraining):
                                    return_dict: bool = False,
                                    for_data_table: bool = False,
                                    progress_preprocessing: bool = False
-                                   ) -> Union[List[namedtuple], List[dict]]:
+                                   ) -> Union[List[NamedTuple], List[Dict]]:
         """Query All Trainings bounded to current Project ID
 
         Args:
@@ -1127,6 +1173,7 @@ class Training(BaseTraining):
                     SELECT
                         t.id AS \"{ID_string}\",
                         t.name AS "Training Name",
+                        t.training_model_id AS "Model ID",
                         (
                             SELECT
                                 CASE
@@ -1318,7 +1365,6 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
-
 
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],

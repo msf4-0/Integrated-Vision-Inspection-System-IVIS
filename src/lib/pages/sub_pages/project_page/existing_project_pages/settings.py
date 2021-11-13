@@ -22,9 +22,11 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
+from copy import deepcopy
 import sys
 from pathlib import Path
 from time import sleep
+from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli
@@ -33,6 +35,7 @@ from core.utils.helper import create_dataframe
 from data_manager.data_table_component.data_table import data_table
 from data_manager.dataset_management import Dataset
 from pages.sub_pages.training_page import training_dashboard
+from training.model_management import Model, ModelType, get_trained_models_df, query_current_project_models
 
 # DEFINE Web APP page configuration
 # layout = 'wide'
@@ -60,8 +63,17 @@ from annotation.annotation_management import reset_editor_page
 from training.training_management import NewTraining, Training
 
 
-def show_selection(df: pd.DataFrame, name_col: str = 'Name'):
-    names = df.loc[df['id'].isin(session_state.data_table_selection),
+def danger_zone_header():
+    st.markdown("""
+    <h3 style='color: darkred; 
+    text-decoration: underline'>
+    Danger Zone
+    </h3>
+    """, unsafe_allow_html=True)
+
+
+def show_selection(df: pd.DataFrame, selected_ids: List[int], name_col: str = 'Name'):
+    names = df.loc[df['id'].isin(selected_ids),
                    name_col].tolist()
     st.markdown("**Selected:**")
     for i, n in enumerate(names, start=1):
@@ -74,173 +86,361 @@ def project():
         st.markdown(f"{session_state.project.desc}")
         st.markdown("""___""")
 
-    st.markdown("<h3 style='color: darkred;'>Danger Zone</h3>",
-                unsafe_allow_html=True)
-
-    if st.checkbox("❗ Delete project ", key='btn_delete',
-                   help="Confirmation will be asked."):
-        if st.button("Confirm deletion?", key='btn_confirm'):
+    danger_zone_header()
+    st.markdown("""**WARNING**: This will delete all the information associated with 
+        this project. Confirmation will be asked.""")
+    if st.checkbox("❗ Delete project ", key='cbox_delete_project'):
+        if st.button("Confirm deletion?", key='btn_confirm_delete_project'):
             logger.info("Deleting project")
             project_id = session_state.project.id
-            project_name = session_state.project.name
-            Project.delete_project(project_id, project_name)
+            Project.delete_project(project_id)
 
-            for k in session_state:
-                del session_state[k]
+            # reset all session_states
+            session_state.clear()
 
             session_state.project_pagination = ProjectPagination.Dashboard
             st.experimental_rerun()
 
 
 def dataset():
+    # no need to check whether there is any project_dataset, because currently only allow
+    #  user to access this page if there is already project_dataset selected
+    # (check existing_project_dashboard)
+
     # similar code to the table in existing_project_dashboard
-    if session_state.project.datasets:
-        data_table_cols = [
-            {
-                'field': "id",
-                'headerName': "ID",
-                'headerAlign': "center",
-                'align': "center",
-                'flex': 1,
-                'hideSortIcons': True,
-            },
-            {
-                'field': "Name",
-                'headerName': "Name",
-                'headerAlign': "center",
-                'align': "center",
-                'flex': 5,
-                'hideSortIcons': True,
-            },
-            {
-                'field': "Description",
-                'headerName': "Description",
-                'headerAlign': "center",
-                'align': "center",
-                'flex': 5,
-                'hideSortIcons': True,
-            },
-            {
-                'field': "Dataset Size",
-                'headerName': "Dataset Size",
-                'headerAlign': "center",
-                'align': "center",
-                'flex': 3,
-                'hideSortIcons': True,
-            },
-            {
-                'field': "Date/Time",
-                'headerName': "Date/Time",
-                'headerAlign': "center",
-                'align': "center",
-                'flex': 3,
-                'hideSortIcons': True,
-            },
-        ]
-        df = create_dataframe(session_state.project.datasets,
-                              column_names=session_state.project.column_names,
-                              sort=True, sort_by='ID', date_time_format=True)
-        df.drop(columns='File Type', inplace=True)
-        df.rename(columns={'ID': 'id'}, inplace=True)
-        df['Date/Time'] = df['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        # df.fillna('-', inplace=True)
-        st.write(df)
+    DATA_TABLE_COLS = [
+        {
+            'field': "id",
+            'headerName': "ID",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 1,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Name",
+            'headerName': "Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 5,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Description",
+            'headerName': "Description",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 5,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Dataset Size",
+            'headerName': "Dataset Size",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 3,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Date/Time",
+            'headerName': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 3,
+            'hideSortIcons': True,
+        },
+    ]
+    df = create_dataframe(session_state.project.datasets,
+                          column_names=session_state.project.column_names,
+                          sort=True, sort_by='ID', date_time_format=True)
+    df.drop(columns='File Type', inplace=True)
+    df.rename(columns={'ID': 'id'}, inplace=True)
+    df['Date/Time'] = df['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-        # >>>> Dataset table placeholders
-        dataset_table_col1, dataset_table_col2 = st.columns([3, 0.5])
+    # >>>> Dataset table placeholders
+    dataset_table_col1, dataset_table_col2 = st.columns([3, 0.5])
 
-        dataset_table_col1.write("## Current Project's Datasets")
-        dataset_table_col2.write(
-            f"### Total datasets: {len(session_state.project.datasets)}")
-        st.markdown("""Select from the following datasets to either remove from our 
-            project dataset selection, or delete the datasets and 
-            associated projects (danger).""")
+    dataset_table_col1.write("## Current Project's Datasets")
+    dataset_table_col2.write(
+        f"### Total datasets: {len(session_state.project.datasets)}")
+    st.markdown("""Select from the following datasets to either remove from the current
+        project's dataset selection, or delete the datasets and annotations of associated
+        projects (danger).""")
 
-        records = df.to_dict(orient='records')
-        # NOTE: data_table must have an 'id' column, not 'ID'
-        selected_ids = data_table(records, data_table_cols, checkbox=True,
-                                  key='data_table_selection')
-        st.write(f"{selected_ids = }")
+    records = df.to_dict(orient='records')
+    selected_ids = data_table(records, DATA_TABLE_COLS, checkbox=True,
+                              key='data_table_dataset')
+    # st.write(f"{selected_ids = }")
 
-        # Get all projects associated with the project datasets of the current project
-        dataset_ids = df['id'].tolist()
-        project_datasets, column_names = query_project_datasets(dataset_ids)
-        projects_df = pd.DataFrame(project_datasets, columns=column_names)
+    # Get all projects associated with the project datasets of the current project
+    dataset_ids = df['id'].tolist()
+    project_datasets, column_names = query_project_datasets(dataset_ids)
+    projects_df = pd.DataFrame(project_datasets, columns=column_names)
 
-        # ***** Project dataset removal
-        st.markdown("___")
-        st.markdown("**Remove from project dataset selection**")
-        st.markdown(
-            "NOTE: This will also remove the associated annotations in the current project.")
-        if st.checkbox("Remove project datasets", key='btn_remove_project_ds',
-                       help="""This will remove the datasets from the current project, 
-                        and also remove the associated annotations at the same time."""):
-            if not selected_ids:
-                st.warning("Please select at least a dataset first")
-                st.stop()
-            else:
-                show_selection(df)
-            if st.button("Confirm removal from project dataset?", key='btn_confirm'):
-                for dataset_id in selected_ids:
-                    remove_project_dataset(
-                        session_state.project.id, dataset_id)
-                session_state.project.refresh_project_details()
-                session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
-                st.experimental_rerun()
+    # ***** Project dataset removal
+    st.markdown("___")
+    st.markdown("**Remove from project dataset selection**")
+    st.markdown("""**NOTE**: This will not permanently delete the datasets. This will
+        only remove the dataset from the **current project** and also the **associated
+        annotations** in the current project.""")
+    if st.checkbox("Remove selected project datasets", key='cbox_remove_project_ds',
+                   help="""This will remove the datasets from the current project, 
+                    and also remove the associated annotations at the same time."""):
+        if not selected_ids:
+            st.warning("Please select at least a dataset first")
+            st.stop()
+        else:
+            show_selection(df, selected_ids)
+        if st.button("Confirm removal from project dataset?",
+                     key='btn_confirm_remove_project_ds'):
+            for dataset_id in selected_ids:
+                remove_project_dataset(
+                    session_state.project.id, dataset_id)
+            session_state.project.refresh_project_details()
+            session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
+            st.experimental_rerun()
 
-        # ***** Dataset deletion
-        st.markdown("___")
-        st.markdown("""
-        <h3 style='color: darkred; 
-        text-decoration: underline'>
-        Danger Zone
-        </h3>
-        """, unsafe_allow_html=True)
-        st.markdown("## Datasets with associated projects")
-        st.warning("""The following project datasets also have its associated projects,
-            if you decided to remove any of these datasets, the associated projects will 
-            also be removed to avoid complications.""")
-        st.dataframe(projects_df)
+    # ***** Dataset deletion
+    st.markdown("___")
+    danger_zone_header()
+    st.markdown("## Datasets with associated projects")
+    st.dataframe(projects_df)
 
-        if st.checkbox("❗ Delete datasets", key='btn_delete_ds',
-                       help="""WARNING: This will also delete all the associated projects!
-                        Confirmation will be asked."""):
-            if not selected_ids:
-                st.warning("Please select at least a dataset first")
-                st.stop()
-            else:
-                show_selection(df)
-            if st.button("Confirm deletion of selected datasets and associated projects?", key='btn_confirm'):
-                dataset_names = df.loc[df['id'].isin(
-                    selected_ids), 'Name'].values.astype(str)
-                for name in dataset_names:
-                    logger.info(f"Deleting dataset of name: {name}")
-                    Dataset.delete_dataset(name)
+    if st.checkbox("❗ Delete selected datasets", key='cbox_delete_ds',
+                   help="""WARNING: This will also delete all the annotations of 
+                    the associated projects! Confirmation will be asked."""):
+        if not selected_ids:
+            st.warning("Please select at least a dataset first")
+            st.stop()
+        st.warning("""**WARNING**: The following project datasets also have its 
+            associated projects (including the current project), if you decided to 
+            delete any of these datasets, the labeled annotations of the associated 
+            projects will also be deleted.""")
+        show_selection(df, selected_ids)
+        if st.button("Confirm deletion of selected datasets and associated annotations?",
+                     key='btn_confirm_delete_ds'):
+            for id in selected_ids:
+                logger.info(f"Deleting dataset of ID: {id}")
+                Dataset.delete_dataset(id)
 
-                project_ids_and_names = projects_df.loc[
-                    projects_df['Dataset ID'].isin(
-                        selected_ids), ['Project ID', 'Project Name']
-                ].values.astype(str)
-                for id, name in project_ids_and_names:
-                    logger.info(f"Deleting project ID {id} of name: {name}")
-                    Project.delete_project(id, name)
-
-                for k in session_state:
-                    del session_state[k]
-
-                session_state.project_pagination = ProjectPagination.Dashboard
-                st.experimental_rerun()
-    else:
-        st.warning("No dataset selected for this project yet! "
-                   "Please add one by selecting from the options below.")
+            session_state.project.refresh_project_details()
+            session_state.project_pagination = ProjectPagination.Existing
+            st.experimental_rerun()
 
 
 def training():
-    pass
+    DEPLOYMENT_TYPE = session_state.project.deployment_type
+    PROGRESS_COLUMN_HEADER = {
+        "Image Classification": 'Steps',
+        "Object Detection with Bounding Boxes": 'Checkpoint / Steps',
+        "Semantic Segmentation with Polygons": 'Checkpoint / Steps'
+    }
+    DATA_TABLE_COLS = [
+        {
+            'field': "id",
+            'headerName': "ID",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 40,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Training Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': False,
+        },
+        {
+            'field': "Model Name",
+            'headerName': "Project Model Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Base Model Name",
+            'headerName': "Pre-trained Model",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 170,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Is Started",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 80,
+            'hideSortIcons': True,
+            'type': 'boolean',
+        },
+        {
+            'field': "Progress",
+            'headerName': f"{PROGRESS_COLUMN_HEADER[DEPLOYMENT_TYPE]}",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 100,
+            'hideSortIcons': True,
+            'type': 'date',
+        },
+    ]
+
+    # namedtuple of query from DB
+    all_project_training, project_training_column_names = \
+        Training.query_all_project_training(session_state.project.id,
+                                            deployment_type=DEPLOYMENT_TYPE,
+                                            return_dict=True,
+                                            for_data_table=True,
+                                            progress_preprocessing=True)
+    if not all_project_training:
+        st.info("""No training sessions created for this project yet.""")
+        st.stop()
+
+    st.markdown("## All Training Sessions for Current Project")
+    selected_ids = data_table(all_project_training, DATA_TABLE_COLS,
+                              checkbox=True, key='data_table_training')
+
+    st.markdown("___")
+    danger_zone_header()
+    st.markdown("## Select training sessions from the table above to delete")
+    if st.checkbox("Delete selected training sessions", key='cbox_delete_training',
+                   help="""This will delete both the selected training sessions
+                   **and also the associated models**"""):
+        if not selected_ids:
+            st.warning("Please select at least a training session first")
+            st.stop()
+        st.warning("""**WARNING**: This will **also delete** the models associated 
+            with the training sessions.""")
+        # use set for faster membership filtering
+        selected_ids = set(selected_ids)
+        selected_records = filter(lambda x: x['id'] in selected_ids,
+                                  all_project_training)
+        st.markdown("**Selected training sessions:**")
+        for i, rec in enumerate(selected_records, start=1):
+            training_name = rec['Training Name']
+            st.markdown(f"{i}. {training_name}")
+
+        if st.button("Confirm deletion of selected training sessions and associated models?",
+                     key='btn_confirm_delete_training'):
+            for t_id in selected_ids:
+                Training.delete_training(t_id)
+            st.experimental_rerun()
+
+    st.markdown("___")
+    st.markdown("### Or just delete the selected models")
+    st.markdown("""**NOTE**: This will delete the project models together with
+        all the associated information.""")
+    if st.checkbox("Delete selected models", key='cbox_delete_model',
+                   help="""This will delete the selected models"""):
+        if not selected_ids:
+            st.warning("Please select at least a model first")
+            st.stop()
+        selected_ids = set(selected_ids)
+        selected_records = filter(lambda x: x['id'] in selected_ids,
+                                  all_project_training)
+        st.markdown("**Selected models:**")
+        model_ids = []
+        for i, rec in enumerate(selected_records, start=1):
+            model_ids.append(rec['Model ID'])
+            model_name = rec['Model Name']
+            st.markdown(f"{i}. {model_name}")
+
+        if st.button("Confirm deletion of selected models?",
+                     key='btn_confirm_delete_model'):
+            for model_id in model_ids:
+                Model.delete_model(model_id)
+            st.experimental_rerun()
 
 
 def models():
-    pass
+    st.markdown("NOT USING THIS FOR NOW")
+    st.stop()
+    DATA_TABLE_COLS = [
+        {
+            'field': "id",
+            'headerName': "ID",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 50,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Framework",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 120,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Training Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 150,
+            'hideSortIcons': False,
+        },
+        {
+            'field': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 100,
+            'hideSortIcons': True,
+            'type': 'date',
+        },
+    ]
+    project_models, _ = query_current_project_models(
+        project_id=session_state.project.id,
+        for_data_table=True,
+        return_dict=True)
+
+    if not project_models:
+        st.info("""No model has been created for this project yet.""")
+        st.stop()
+
+    st.write(pd.DataFrame(project_models, columns=_))
+    st.write(project_models)
+
+    st.markdown("## All Project Models of the Current Project")
+    selected_ids = data_table(project_models, DATA_TABLE_COLS,
+                              checkbox=True, key='data_table_training')
+
+    danger_zone_header()
+    st.markdown("""NOTE: This will also remove the associations between the project 
+        models and the training sessions.""")
+    if st.checkbox("Delete selected models", key='cbox_delete_training',
+                   help="""This will delete the selected models"""):
+        if not selected_ids:
+            st.warning("Please select at least a model first")
+            st.stop()
+        else:
+            # use set for faster membership filtering
+            selected_ids = set(selected_ids)
+            selected_records = filter(lambda x: x['id'] in selected_ids,
+                                      project_models)
+            st.markdown("**Selected:**")
+            for i, rec in enumerate(selected_records, start=1):
+                training_name = rec['Training Name']
+                st.markdown(f"{i}. {training_name}")
+
+        if st.button("Confirm deletion of selected models?",
+                     key='btn_confirm_delete_training'):
+            for t_id in selected_ids:
+                Training.delete_training(t_id)
+            st.experimental_rerun()
 
 
 def index(RELEASE=True):
@@ -266,13 +466,14 @@ def index(RELEASE=True):
 
     # ************************ Settings PAGINATION *************************
     settings_page2func = {
-        SettingsPagination.Project: project,
+        SettingsPagination.TrainingAndModel: training,
         SettingsPagination.Dataset: dataset,
-        SettingsPagination.Training: training,
-        SettingsPagination.Models: models
+        SettingsPagination.Project: project,
+        # not using this for now
+        # SettingsPagination.Models: models
     }
     if 'settings_pagination' not in session_state:
-        session_state.settings_pagination = SettingsPagination.Project
+        session_state.settings_pagination = SettingsPagination.TrainingAndModel
 
     logger.debug(
         f"Entering settings page: {session_state.settings_pagination}")
@@ -280,7 +481,8 @@ def index(RELEASE=True):
     session_state.append_project_flag = ProjectPermission.ViewOnly
 
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    settings_page_options = [p.name for p in SettingsPagination]
+    settings_page_options = (
+        'Training/Model Deletion', 'Dataset Deletion', 'Project Deletion')
 
     # >>>> CALLBACK for RADIO >>>>
     def settings_page_navigator():

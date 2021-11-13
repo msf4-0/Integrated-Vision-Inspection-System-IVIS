@@ -327,7 +327,7 @@ class BaseDataset:
         directory_name = get_directory_name(
             dataset_name)  # change name to lowercase
         # join directory name with '-' dash
-        dataset_path = DATASET_DIR / str(directory_name)
+        dataset_path = DATASET_DIR / directory_name
         logger.debug(f"Dataset Path: {dataset_path}")
         return dataset_path
 
@@ -350,20 +350,37 @@ class BaseDataset:
             return self.dataset_path
 
     @staticmethod
-    def delete_dataset(name: str):
+    def delete_dataset(id: int):
+        """Delete the dataset from database. This will also delete all the tasks and 
+        annotations associated with the dataset (of all associated projects), and remove
+        from project_dataset table. Then finally, delete the dataset directory from the 
+        system.
+
+        Only takes a `name` parameter instead of `id` because this could be used to 
+        delete a new uploaded labeled dataset that does not get an ID from database yet,
+        in case any error occurs while storing the uploaded annotations.
+        """
         sql_delete = """
                     DELETE 
                     FROM public.dataset 
-                    WHERE name = %s
+                    WHERE id = %s
+                    RETURNING name;
         """
-        delete_vars = [name]
-        db_no_fetch(sql_delete, conn, delete_vars)
-        logger.info(f"Deleted existing dataset of name: {name}")
+        delete_vars = [id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.error(f"Error occurred when deleting dataset, "
+                         f"cannot find dataset ID: {id}")
+            return
+        else:
+            dataset_name = record.name
+        logger.info(f"Deleted existing dataset of ID {id} "
+                    f"of name: {dataset_name}")
 
-        dataset_path = Dataset.get_dataset_path(name)
+        dataset_path = Dataset.get_dataset_path(dataset_name)
         if dataset_path.exists():
             shutil.rmtree(dataset_path)
-            logger.debug(f"Removed dataset directory at: {dataset_path}")
+            logger.info(f"Deleted dataset directory at: {dataset_path}")
 
     def update_dataset_size(self) -> bool:
         self.dataset_path = self.get_dataset_path(self.name)
@@ -625,7 +642,7 @@ class NewDataset(BaseDataset):
                 st.error(f'Error parsing XML file "{xml_filepath}" with error: {e}  \n'
                          'Please try checking your annotation file(s) again before uploading.')
                 # delete the invalid dataset
-                self.delete_dataset(self.name)
+                self.delete_dataset(self.id)
                 st.stop()
             # taking only the filename without extension to consider the case of
             #  Label Studio exported XML files without any file extension
@@ -709,7 +726,7 @@ class NewDataset(BaseDataset):
                          f"  \nPlease try checking your "
                          "COCO JSON file again before uploading.")
                 # delete the invalid dataset
-                self.delete_dataset(self.name)
+                self.delete_dataset(self.id)
                 st.stop()
 
             label = cat_id2name[annot['category_id']]

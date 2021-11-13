@@ -167,10 +167,10 @@ class ProjectDashboardPagination(IntEnum):
 
 class SettingsPagination(IntEnum):
     """Mostly to check existing info to allow deletion"""
-    Project = 0
+    TrainingAndModel = 0
     Dataset = 1
-    Training = 2
-    Models = 3
+    Project = 2
+    # Models = 3
 
     def __str__(self):
         return self.name
@@ -880,20 +880,27 @@ class Project(BaseProject):
             return data_name_list
 
     @staticmethod
-    def delete_project(id: int, name: str):
-        sql_query = """
+    def delete_project(id: int):
+        sql_delete = """
             DELETE
             FROM public.project
-            WHERE id = %s;
+            WHERE id = %s
+            RETURNING name;
         """
-        query_vars = [id]
-        db_no_fetch(sql_query, conn, query_vars)
-        logger.info(f"Removed Project ID {id} from database")
+        delete_vars = [id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.error(f"Error occurred when deleting project, "
+                         f"cannot find project ID: {id}")
+            return
+        else:
+            project_name = record.name
+        logger.info(f"Deleted Project ID {id} of name: {project_name}")
 
-        project_path = Project.get_project_path(name)
+        project_path = Project.get_project_path(project_name)
         if project_path.exists():
-            logger.info("Removing existing project directories")
             shutil.rmtree(project_path)
+            logger.info("Deleted existing project directories")
 
     # *************************************************************************************************************************
     # TODO #81 Add reset to project page *************************************************************************************
@@ -910,6 +917,12 @@ class Project(BaseProject):
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
     # *************************************************************************************************************************
+
+    @staticmethod
+    def reset_settings_page():
+        project_attributes = ["settings_pagination"]
+
+        reset_page_attributes(project_attributes)
 
 
 class NewProject(BaseProject):
@@ -1061,7 +1074,7 @@ def query_project_datasets(dataset_ids: List[int]):
         SELECT  d.id   AS "Dataset ID",
                 p.id   AS "Project ID",
                 d.name AS "Dataset Name",
-                p.name AS "Project Name"
+                p.name AS "Associated Project Name"
         FROM public.project_dataset pd
                 LEFT JOIN public.dataset d ON d.id = pd.dataset_id
                 LEFT JOIN public.project p ON p.id = pd.project_id

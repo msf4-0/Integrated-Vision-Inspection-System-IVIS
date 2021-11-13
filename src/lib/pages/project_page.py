@@ -244,6 +244,7 @@ def index():
         NewTraining.reset_new_training_page()
         Training.reset_training_page()
         Project.reset_project_page()
+        Project.reset_settings_page()
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry

@@ -36,6 +36,8 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
+from machine_learning.visuals import pretty_format_param
+
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
 # layout = 'wide'
@@ -124,8 +126,6 @@ def existing_models():
             'hideSortIcons': True,
 
         },
-
-
         {
             'field': "Name",
             'headerAlign': "center",
@@ -147,8 +147,6 @@ def existing_models():
             'flex': 120,
             'hideSortIcons': True,
         },
-
-
         {
             'field': "Training Name",
             'headerAlign': "center",
@@ -164,8 +162,6 @@ def existing_models():
             'hideSortIcons': True,
             'type': 'date',
         },
-
-
     ]
     # ******************************* DATA TABLE *******************************
 
@@ -244,21 +240,26 @@ def existing_models():
                        "(recommended), or upload your own model.")
             st.stop()
 
-        current_training_model_name = session_state.new_training.training_model.name
-        if current_training_model_name and \
+        trained_models_df['Metrics'] = trained_models_df['Metrics'].apply(
+            pretty_format_param, st_newlines=False, bold_name=False)
+
+        current_training_model_id = session_state.new_training.training_model.id
+        # need to check with int because it could be a randomly initialized ID for NewModel
+        if isinstance(current_training_model_id, int) and \
                 model_type_constant == ModelType.ProjectTrained:
+            logger.debug(f"{current_training_model_id = }")
             # remove the training model from the DataFrame if it's the current
             # training_model used for training, otherwise it makes no sense
             current_model_idx = int(
                 trained_models_df.loc[
-                    trained_models_df['Name'] == current_training_model_name
+                    trained_models_df['id'] == current_training_model_id
                 ].index[0]
             )
             trained_models_df = trained_models_df.drop(
                 current_model_idx).reset_index(drop=True)
 
         st.markdown(f"**List of {selected_model_type}s:**")
-        st.dataframe(trained_models_df, width=1500)
+        st.dataframe(trained_models_df, width=1920)
 
         # get the index of submitted model or just set to 0
         if session_state.new_training.attached_model is not None \

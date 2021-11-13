@@ -69,6 +69,9 @@ def data_table(
 ) -> List[int]:
     """Generate Data Table using Material UI Data Grid MIT
 
+    NOTE: data_table must have an 'id' column, not 'ID'. And this ID will be returned when
+    any row of the data_table is clicked on. Multiple rows can be selected if checkbox=True.
+
     Args:
         rows (List[Dict]): Row data
         columns (List[Dict]): Table column configuration

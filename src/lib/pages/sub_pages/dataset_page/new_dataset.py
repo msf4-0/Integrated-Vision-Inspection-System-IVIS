@@ -90,9 +90,12 @@ class DeploymentType(IntEnum):
             raise ValueError()
 
 
-def new_dataset(RELEASE=True, conn=None, is_updating=False):
+def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updating: bool = False):
     """Function for the page of creating new dataset or adding more images to an existing
     project dataset.
+
+    `is_new_project`: A flag of creating new dataset for a new project, to ensure we
+    can get the default editor_config template labels to remove properly.
 
     `is_updating`: A flag of updating an existing dataset, i.e. to add more data to 
     an existing project dataset (which was selected in existing_project_dashboard.py).
@@ -101,8 +104,6 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
     labeled dataset, then validation will also be required by using
     `NewDataset.validate_labeled_data()`
     """
-    # NOTE:
-
     if not conn:
         conn = init_connection(**st.secrets["postgres"])
 
@@ -533,33 +534,27 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
                                     f"Average {time_elapsed / total_images:.4f}s per image")
 
                         with st.spinner("Updating project labels and editor configuration ..."):
-                            if not is_updating:
-                                default_labels = session_state.project.editor.get_default_template_labels()
-                                logger.debug("Default labels found in template's "
-                                             f"editor config: {default_labels}")
-                                project_id = session_state.project.id
-                                # get the unique labels from all the annotations
-                                submitted_labels = session_state.project.get_existing_unique_labels()
-                                # get new_labels to update editor config
-                                new_labels = set(submitted_labels).difference(
-                                    default_labels)
-                                # get unwanted_labels to remove from editor config
-                                unwanted_labels = set(default_labels).difference(
-                                    new_labels)
-                            else:
-                                # get existing labels from editor_config to use to
-                                # compare and update editor_config with new labels
-                                existing_config_labels = list(
-                                    session_state.project.editor.get_labels())
-                                logger.debug("Existing labels found in "
-                                             f"editor config: {existing_config_labels}")
-                                # now the annotations will include new labels from the
-                                # new uploaded annotations
-                                existing_annotated_labels = session_state.project.get_existing_unique_labels()
-                                new_labels = set(existing_annotated_labels).difference(
-                                    existing_config_labels)
-                            logger.info("Adding the new labels to editor config: "
+                            # get existing labels from editor_config to use to
+                            # compare and update editor_config with new labels
+                            existing_config_labels = list(
+                                session_state.project.editor.get_labels())
+                            logger.debug("Existing labels found in "
+                                         f"editor config: {existing_config_labels}")
+                            # now the annotations will include new labels from the
+                            # new uploaded annotations
+                            existing_annotated_labels = session_state.project.get_existing_unique_labels()
+                            new_labels = set(existing_annotated_labels).difference(
+                                existing_config_labels)
+                            logger.info("After adding the new labels to editor config: "
                                         f"{new_labels}")
+
+                            if is_new_project:
+                                # the existing_config_labels only contains the default
+                                #  editor_config template labels, so we get the unwanted
+                                #  default_labels came with the defaults,
+                                #  but keep the ones from new_labels
+                                unwanted_labels = set(existing_config_labels).difference(
+                                    new_labels)
 
                             # update editor_config with the new labels from the uploaded annotations
                             for label in new_labels:
@@ -571,9 +566,7 @@ def new_dataset(RELEASE=True, conn=None, is_updating=False):
 
                             # default_labels = session_state.project.editor.get_default_template_labels()
 
-                            # remove the unwanted default_labels came with the original
-                            # editor_config template, but keep the ones from new_labels
-                            if not is_updating and unwanted_labels:
+                            if is_new_project and unwanted_labels:
                                 for label in unwanted_labels:
                                     logger.debug(
                                         f"Removing label: {label}")

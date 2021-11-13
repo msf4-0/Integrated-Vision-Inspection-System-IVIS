@@ -194,6 +194,7 @@ class BaseEditor:
         """
         if not childNodes:
             childNodes = self.get_child()
+            self.childNodes = childNodes
         labels = self.get_labels_from_childNode(childNodes)
         return labels
 

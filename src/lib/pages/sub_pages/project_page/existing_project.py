@@ -104,13 +104,13 @@ def index():
     if 'existing_project_pagination' not in session_state:
         session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
 
-    logger.info(
-        f"Entering Project {session_state.project.id}: {session_state.existing_project_pagination}")
+    logger.debug(f"Entering Project {session_state.project.id}: "
+                 f"{session_state.existing_project_pagination = }")
 
     session_state.append_project_flag = ProjectPermission.ViewOnly
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     existing_project_page_options = (
-        "Overview", "Labelling", "Training", "Models", "Export", "Settings")
+        "Overview", "Labelling", "Training", "Models", "Deployment", "Settings")
 
     # >>>> CALLBACK for RADIO >>>>
     def existing_project_page_navigator():
@@ -127,6 +127,8 @@ def index():
         elif navigation_selected == "Training":
             NewTraining.reset_new_training_page()
             Training.reset_training_page()
+        elif navigation_selected == "Settings":
+            Project.reset_settings_page()
         # TODO: Add reset on other selections
 
     if session_state.project.datasets:
