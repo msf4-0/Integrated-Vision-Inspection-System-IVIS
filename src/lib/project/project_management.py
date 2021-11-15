@@ -911,12 +911,17 @@ class Project(BaseProject):
         """
 
         project_attributes = ["all_project_table", "project", "editor",
-                              "labelling_pagination", "existing_project_pagination",
-                              "project_dashboard_pagination"]
+                              "labelling_pagination", "existing_project_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
     # *************************************************************************************************************************
+
+    @staticmethod
+    def reset_dashboard_page():
+        project_attributes = ["project_dashboard_pagination", "is_labeled"]
+
+        reset_page_attributes(project_attributes)
 
     @staticmethod
     def reset_settings_page():

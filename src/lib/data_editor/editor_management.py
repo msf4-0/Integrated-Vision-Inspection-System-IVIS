@@ -421,7 +421,13 @@ class Editor(BaseEditor):
         Returns:
             str: XML string 
         """
-        return '\n'.join([line for line in xml_doc.toprettyxml(indent='\t', encoding=encoding).decode('utf-8').split('\n') if line.strip()])
+        return '\n'.join([
+            line for line in xml_doc
+            .toprettyxml(indent='\t', encoding=encoding)
+            .decode('utf-8')
+            .split('\n')
+            if line.strip()
+        ])
 
     def to_xml_string(self, pretty=False, encoding: str = 'utf-8', encoding_flag: bool = False) -> str:
         if pretty:

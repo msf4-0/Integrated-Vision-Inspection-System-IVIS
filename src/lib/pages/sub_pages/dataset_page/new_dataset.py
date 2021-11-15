@@ -69,35 +69,16 @@ from user.user_management import User
 # >>>> Variable Declaration >>>>
 # new_dataset = {}  # store
 place = {}
-DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-                   "Semantic Segmentation with Polygons")
 
 
-class DeploymentType(IntEnum):
-    Image_Classification = 1
-    OD = 2
-    Instance = 3
-    Semantic = 4
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def from_string(cls, s):
-        try:
-            return DeploymentType[s]
-        except KeyError:
-            raise ValueError()
-
-
-def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updating: bool = False):
+def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existing_dataset: bool = False):
     """Function for the page of creating new dataset or adding more images to an existing
     project dataset.
 
     `is_new_project`: A flag of creating new dataset for a new project, to ensure we
     can get the default editor_config template labels to remove properly.
 
-    `is_updating`: A flag of updating an existing dataset, i.e. to add more data to 
+    `is_existing_dataset`: A flag of updating an existing dataset, i.e. to add more data to 
     an existing project dataset (which was selected in existing_project_dashboard.py).
 
     `session_state.is_labeled`: A flag to tell whether the user chooses to upload a
@@ -143,7 +124,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
             session_state.project = Project(project_id)
     # ******** DEBUGGING ********
 
-    if is_updating:
+    if is_existing_dataset:
         # session_state.dataset_chosen should be obtained from existing_project_dashboard
         dataset_info = session_state.project.dataset_dict[session_state.dataset_chosen]
         # set the info to be equal to new_dataset to make things easier
@@ -158,9 +139,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
-    if session_state.is_labeled or is_updating:
+    if session_state.is_labeled or is_existing_dataset:
         st.write(f"# __Deployment Type: {deployment_type}__")
-    if not is_updating:
+    if not is_existing_dataset:
         if session_state.is_labeled:
             st.write("## __Upload Labeled Dataset__")
             logger.info("Upload labeled dataset")
@@ -191,7 +172,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
                 logger.info(f"Dataset name fresh and ready to rumble")
 
     # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    if not is_updating:
+    if not is_existing_dataset:
         outercol1.write("## __Dataset Information :__")
         outercol2.text_input(
             "Dataset Title", key="name", help="Enter the name of the dataset", on_change=check_if_name_exist, args=(place, conn,))
@@ -353,7 +334,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
     if submit_button:
         context = {'name': session_state.new_dataset.name,
                    'upload': session_state.upload_widget}
-        if is_updating:
+        if is_existing_dataset:
             # don't need to check for dataset name for existing dataset
             del context['name']
 
@@ -361,7 +342,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
             context, field_placeholder=place, name_key='name')
 
         if session_state.new_dataset.has_submitted:
-            if is_updating:
+            if is_existing_dataset:
                 logger.info("Checking for duplicated filenames")
                 with outercol2:
                     with st.spinner("Checking for duplicated filenames ..."):
@@ -417,7 +398,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
                 success_place.success(
                     f"Successfully created **{session_state.new_dataset.name}** dataset")
 
-                if is_updating:
+                if is_existing_dataset:
                     dataset_func = session_state.new_dataset.update_dataset_size
                 else:
                     dataset_func = session_state.new_dataset.insert_dataset
@@ -427,7 +408,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
                     success_place.success(
                         f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
 
-                    if is_updating:
+                    if is_existing_dataset:
                         # insert the new image info into the `task` table for existing dataset
                         image_names = [os.path.basename(p)
                                        for p in image_paths]
@@ -439,7 +420,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_updatin
                     if session_state.is_labeled:
                         # We need to insert the project_dataset here after the dataset
                         # has been stored
-                        if not is_updating:
+                        if not is_existing_dataset:
                             # if not updating, then we insert the new project_dataset
                             with st.spinner("Inserting the project dataset ..."):
                                 # similar to `new_project.py`

@@ -51,16 +51,11 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
-from path_desc import chdir_root
 from core.utils.log import logger  # logger
-from data_manager.database_manager import init_connection
-from project.project_management import ExistingProjectPagination, NewProject, ProjectPagination, SettingsPagination, ProjectPermission, Project, query_project_datasets, remove_project_dataset
-
-from pages.sub_pages.dataset_page.new_dataset import new_dataset
-from pages.sub_pages.labelling_page import labelling_dashboard
-
-from annotation.annotation_management import reset_editor_page
-from training.training_management import NewTraining, Training
+from project.project_management import (ExistingProjectPagination, SettingsPagination,
+                                        ProjectPermission, Project,
+                                        query_project_datasets, remove_project_dataset)
+from training.training_management import Training
 
 
 def danger_zone_header():
@@ -98,14 +93,16 @@ def project():
             # reset all session_states
             session_state.clear()
 
-            session_state.project_pagination = ProjectPagination.Dashboard
+            session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
             st.experimental_rerun()
 
 
 def dataset():
-    # no need to check whether there is any project_dataset, because currently only allow
-    #  user to access this page if there is already project_dataset selected
-    # (check existing_project_dashboard)
+    if not session_state.project.datasets:
+        # to handle situation without any dataset uploaded yet
+        st.warning("No dataset has been selected for this project yet. "
+                   "Please go back to relevant pages to create a new dataset first.")
+        st.stop()
 
     # similar code to the table in existing_project_dashboard
     DATA_TABLE_COLS = [
@@ -197,7 +194,8 @@ def dataset():
                 remove_project_dataset(
                     session_state.project.id, dataset_id)
             session_state.project.refresh_project_details()
-            session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
+            if not session_state.project.datasets:
+                session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
             st.experimental_rerun()
 
     # ***** Dataset deletion
@@ -224,7 +222,8 @@ def dataset():
                 Dataset.delete_dataset(id)
 
             session_state.project.refresh_project_details()
-            session_state.project_pagination = ProjectPagination.Existing
+            if not session_state.project.datasets:
+                session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
             st.experimental_rerun()
 
 

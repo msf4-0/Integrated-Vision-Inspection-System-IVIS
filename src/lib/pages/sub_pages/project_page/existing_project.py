@@ -122,6 +122,8 @@ def index():
             navigation_selected)
         session_state.existing_project_pagination = navigation_selected_idx
 
+        if navigation_selected == "Overview":
+            Project.reset_dashboard_page()
         if navigation_selected == "Labelling":
             reset_editor_page()
         elif navigation_selected == "Training":

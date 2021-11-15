@@ -265,17 +265,17 @@ def index(RELEASE=True):
     logger.debug(f"Enter page: {pagination = }")
     is_new_project = False  # this is for an existing project
     if pagination == ProjectDashboardPagination.AddImageToProjectDataset:
-        # is_updating is required to add image to existing project_dataset,
+        # is_existing_dataset is required to add image to existing project_dataset,
         #  and the user can choose whether the dataset is labeled or not in the page
-        is_updating = True
+        is_existing_dataset = True
     elif pagination == ProjectDashboardPagination.UploadLabeledDataset:
-        is_updating = False
+        is_existing_dataset = False
         session_state.is_labeled = True
     else:
-        is_updating = False
+        is_existing_dataset = False
         session_state.is_labeled = False
     dashboard_pagination2func[pagination](is_new_project=is_new_project,
-                                          is_updating=is_updating)
+                                          is_existing_dataset=is_existing_dataset)
 
     # st.write(vars(session_state.project))
 
