@@ -64,10 +64,10 @@ def labelstudio_editor(
         config=config, interfaces=interfaces, user=user, task=task, key=key, default=[])
     if component_value:
         if component_value[0]:
-            logger.info(f"From LS Component: Flag {component_value[1]}")
+            logger.debug(f"From LS Component: Flag {component_value[1]}")
 
         if on_change:
-            logger.info(f"Inside LS Editor Callback")
+            logger.debug(f"Inside LS Editor Callback")
             wildcard = args if args else kwargs
             if args or kwargs:
                 check_args_kwargs(wildcards=wildcard, func=on_change)
@@ -77,7 +77,7 @@ def labelstudio_editor(
                 on_change(**kwargs)
             else:
                 on_change()
-    # logger.info(f"Label result: {component_value}")
+    # logger.debug(f"Label result: {component_value}")
     return component_value
 
 

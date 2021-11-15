@@ -202,19 +202,16 @@ def db_fetchone(sql_message: str, conn, vars: List = None,
                     cur.execute(sql_message)
                 conn.commit()
                 return_one = cur.fetchone()  # return tuple
+                if return_dict:
+                    # Convert results to pure Python dictionary IF exists
+                    if return_one:
+                        return_one = dict(return_one)
 
                 if fetch_col_name:
                     # Obtain Column names from query
                     column_names = [desc[0] for desc in cur.description]
-                    if return_dict:
-                        # Convert results to pure Python dictionary
-                        return_one = convert_to_dict(return_one)
                     return return_one, column_names
                 else:
-                    if return_dict:
-                        # Convert results to pure Python dictionary
-                        return_one = convert_to_dict(return_one)
-                    column_names = None
                     return return_one
             except psycopg2.Error as e:
                 logger.error(e)
@@ -238,15 +235,14 @@ def db_fetchall(sql_message: str, conn, vars: List = None,
                 conn.commit()
 
                 return_all = cur.fetchall()  # return array of tuple
+                if return_dict:
+                    # Convert results to pure Python dictionary
+                    return_all = convert_to_dict(return_all)
+
                 if fetch_col_name:
                     column_names = [desc[0] for desc in cur.description]
-                    if return_dict:
-                        # Convert results to pure Python dictionary
-                        return_all = convert_to_dict(return_all)
                     return return_all, column_names
                 else:
-                    if return_dict:
-                        return_all = convert_to_dict(return_all)
                     return return_all
             except psycopg2.Error as e:
                 logger.error(e)

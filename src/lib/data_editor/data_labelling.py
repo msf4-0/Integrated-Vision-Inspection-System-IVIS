@@ -7,26 +7,24 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 import copy
 import sys
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 from threading import Thread
 from time import perf_counter, sleep
 from copy import deepcopy
+import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
-# DEFINE Web APP page configuration
-layout = 'wide'
+
+# DEFINE Web APP page configuration for debugging
+# layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
@@ -48,7 +46,7 @@ conn = init_connection(**st.secrets["postgres"])
 from streamlit.report_thread import add_report_ctx
 
 
-def editor(data_id: List = []):
+def editor(data_id: List[int] = None):
     """Page for labeling with Label Studio Editor
 
     `data_id`: the selected task ID from the data_table.
@@ -63,6 +61,8 @@ def editor(data_id: List = []):
     if "new_annotation_flag" not in session_state:
         session_state.new_annotation_flag = 0
     if "data_labelling_table" not in session_state:
+        if not data_id:
+            data_id = []
         session_state.data_labelling_table = data_id
     if "labelling_prev_result" not in session_state:
         session_state.labelling_prev_result = []
@@ -77,7 +77,6 @@ def editor(data_id: List = []):
     back_to_labelling_dashboard_button_place = st.empty()
     note_place = st.empty()
     title_place = st.empty()
-    title_place.write("### **Data Labelling**")
     if session_state.show_next_unlabeled:
         main_col2 = st.empty()
     else:
@@ -99,16 +98,18 @@ def editor(data_id: List = []):
 
 # ************************** BACK TO LABELLING DASHBOARD CALLBACK******************************
 
-# ************************** DATA TABLE ***********************************************
+# ************************** DATA TABLE PREPARATION ***********************************************
+    if not session_state.show_next_unlabeled:
+        all_task, all_task_column_names = Task.query_all_task(session_state.project.id,
+                                                              return_dict=True,
+                                                              for_data_table=True)
+        task_df = Task.create_all_task_dataframe(
+            all_task, all_task_column_names)
 
-    all_task, all_task_column_names = Task.query_all_task(session_state.project.id,
-                                                          return_dict=True, for_data_table=True)
-    task_df = Task.create_all_task_dataframe(
-        all_task, all_task_column_names)
-
-    def load_data(task_df):
+    def load_data(task_df: pd.DataFrame = None, task_row: Dict[str, Any] = None):
         logger.debug(f"Inside load data CALLBACK")
-        if session_state.data_labelling_table:
+        if not task_row:
+            # get task row from task_df
             task_id = session_state.data_labelling_table[0]
             logger.debug(f"{task_id = }")
             task_row = get_task_row(task_id, task_df)
@@ -152,20 +153,47 @@ def editor(data_id: List = []):
 
     # st.write(session_state.new_annotation_flag)
 
-# ************************ FIRST RENDER: ********************************************************
-    if session_state.new_annotation_flag == 0:
-
-        if session_state.data_labelling_table:  # if task id passed as argument
-            load_data(task_df)
-
-        elif session_state.data_labelling_table == []:  # if task id NOT passed as argument
+    # ************************ FIRST RENDER: *********************************************
+    if session_state.new_annotation_flag == 0 and not session_state.show_next_unlabeled:
+        if session_state.data_labelling_table == []:  # if task id NOT passed as argument
             session_state.data_labelling_table = [
                 all_task[0]['id']]  # set value as first ID
-            load_data(task_df)
-# ************************ FIRST RENDER: ********************************************************
+        load_data(task_df)
+    # ************************ FIRST RENDER: *********************************************
 
+    # ************************ Feature of auto-next task ****************************
+    # getting EditorFlag from Label Studio Editor interface
+    if session_state.get('labelling_interface'):
+        # session_state.labelling_interface is a tuple of (result, flag)
+        submission_flag = session_state.labelling_interface[1]
+    else:
+        # 0 for not submitting new annotation, i.e. EditorFlag.START
+        submission_flag = 0
+    logger.debug(f"{submission_flag = }")
 
-# ************************ NOTES about the feature of auto-next task ****************************
+    # automatically move the labeling interface to the next unlabeled task
+    # flag must be 0 to avoid loading next task when new result is being submitted
+    if submission_flag == 0 and session_state.show_next_unlabeled:
+        task_row = Task.query_next_task(session_state.project.id,
+                                        return_dict=True, for_data_table=True)
+        if task_row:
+            next_task_id = int(task_row['id'])
+            logger.info(f"Proceeding to next unlabeled task ID {next_task_id} "
+                        f"of name '{task_row['Task Name']}'")
+            # set this to show the next task, must set it to a list as this is
+            # how the `data_table` returns
+            session_state.data_labelling_table = [next_task_id]
+            # directly pass in task_row obtained from Task.query_next_task()
+            #  to bypass using task_df, which is an unnecessary step
+            #  when show_next_unlabeled=True. This VASTLY speeds up the process
+            load_data(task_row=task_row)
+        else:
+            logger.info("All tasks labeled successfully for Project ID: "
+                        f"{session_state.project.id}")
+            note_place.success("🎉 **You have labeled all tasks!**")
+            st.balloons()
+            st.stop()
+
     with note_place.expander("NOTES about the feature of auto move to next unlabeled task"):
         st.info("""If you want to make use of the this feature, click the "Start Labelling"
         button and start labelling, then the image will automatically move to the next
@@ -173,27 +201,28 @@ def editor(data_id: List = []):
         "Return to Labelling Dashboard" then click the "Start Labelling" button again.
         """)
 
+    # ************************ END Feature of auto-next task ****************************
 
-# TODO Fix Data Table is_labelled not updated at re-run
-# ************************** DATA TABLE ********************************************************
+    title_place.write("### **Data Labelling**")
+
+    # ************************** DATA TABLE ********************************************************
     if not session_state.show_next_unlabeled:
         # only show the data_table when not using the auto-next-task feature
         with main_col1:
             data_table(all_task, task_labelling_columns,
                        checkbox=False, key='data_labelling_table',
-                       on_change=load_data, args=(task_df,))
+                       on_change=load_data, args=(task_df, None))
 
         # >>>>> Temp Image Viewer >>>>>
         # st.write(all_task[0])
         # st.write(session_state.data_labelling_table)
         # st.write(vars(session_state.project))
 
+    # ************************** END DATA TABLE ********************************************************
 
-# ************************** DATA TABLE ********************************************************
+    # *************************EDITOR**********************************************
 
-# *************************EDITOR**********************************************
-
-# ***************INTERFACE CONFIG**********************************************
+    # ***************INTERFACE CONFIG**********************************************
     interfaces = [
         "panel",
         "update",
@@ -206,7 +235,7 @@ def editor(data_id: List = []):
         "predictions:menu",
         "skip"
     ]
-# ***************INTERFACE CONFIG**********************************************
+    # ***************END INTERFACE CONFIG**********************************************
 
     # >>>> User Informations >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     user = {
@@ -326,7 +355,7 @@ def editor(data_id: List = []):
             task = session_state.task.generate_editor_format(
                 annotations_dict=annotations_dict, predictions_dict=None)
 
-       # *************************************** LABELLING INTERFACE *******************************************
+            # *************************************** LABELLING INTERFACE *******************************************
             with main_col2.container():
                 logger.debug("Showing LABEL STUDIO EDITOR INTERFACE")
                 st.write(
@@ -341,7 +370,7 @@ def editor(data_id: List = []):
                 }
                 </style>
                 """, unsafe_allow_html=True)
-        # *************************************** LABELLING INTERFACE *******************************************
+            # *************************************** LABELLING INTERFACE *******************************************
 
         # Load empty if no data selected TODO: if remove Confirm button -> faster UI but when rerun immediately -> doesn't require loading of buffer editor
     except Exception as e:
@@ -368,36 +397,36 @@ def editor(data_id: List = []):
 #    of the Label Studio Editor HTML component
 
 # only show the Label Studio interface for labeling, without data_table
-    if session_state.show_next_unlabeled:
-        # automatically move the labeling interface to the next unlabeled task
-        st.markdown("___")
-        if session_state.data_labelling_table:
-            current_id = session_state.data_labelling_table[0]
-        else:
-            current_id = task_df.iloc[0, 0]
-        unlabeled_task_ids = task_df.query(
-            "`Is Labelled` == False and Skipped == False")['id']
-        # only do this if there is still unlabeled task
-        if not unlabeled_task_ids.empty:
-            # must use `int` to change it from `numpy.int` dtypes
-            next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
-            # set this to show the next task, must set it to a list as this is how the `data_table` returns
-            session_state.data_labelling_table = [next_unlabeled_task_id]
-            if next_unlabeled_task_id != current_id:
-                logger.info(
-                    f"Proceeding to next task ID: {next_unlabeled_task_id}")
-                load_data(task_df)
-                logger.debug("REFRESHINGGG")
-                st.experimental_rerun()
-        else:
-            logger.info("All tasks labeled successfully for Project ID: "
-                        f"{session_state.project.id}")
-            note_place.success("🎉 **You have labeled all tasks!**")
-            st.balloons()
-            # clear the title and Label Studio Editor
-            title_place.empty()
-            main_col2.empty()
-            st.stop()
+    # if session_state.show_next_unlabeled:
+    #     # automatically move the labeling interface to the next unlabeled task
+    #     st.markdown("___")
+    #     if session_state.data_labelling_table:
+    #         current_id = session_state.data_labelling_table[0]
+    #     else:
+    #         current_id = task_df.iloc[0, 0]
+    #     unlabeled_task_ids = task_df.query(
+    #         "`Is Labelled` == False and Skipped == False")['id']
+    #     # only do this if there is still unlabeled task
+    #     if not unlabeled_task_ids.empty:
+    #         # must use `int` to change it from `numpy.int` dtypes
+    #         next_unlabeled_task_id = int(unlabeled_task_ids.values[0])
+    #         # set this to show the next task, must set it to a list as this is how the `data_table` returns
+    #         session_state.data_labelling_table = [next_unlabeled_task_id]
+    #         if next_unlabeled_task_id != current_id:
+    #             logger.info(
+    #                 f"Proceeding to next task ID: {next_unlabeled_task_id}")
+    #             load_data(task_df)
+    #             logger.debug("REFRESHINGGG")
+    #             st.experimental_rerun()
+    #     else:
+    #         logger.info("All tasks labeled successfully for Project ID: "
+    #                     f"{session_state.project.id}")
+    #         note_place.success("🎉 **You have labeled all tasks!**")
+    #         st.balloons()
+    #         # clear the title and Label Studio Editor
+    #         title_place.empty()
+    #         main_col2.empty()
+    #         st.stop()
 # ************************ AUTO NEXT TASK ********************************************************
 
 

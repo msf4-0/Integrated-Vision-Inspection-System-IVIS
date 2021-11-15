@@ -34,7 +34,7 @@ from enum import IntEnum
 from io import BytesIO
 from pathlib import Path
 from time import sleep
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -465,6 +465,53 @@ class Task(BaseTask):
         #     (labelled_task_df.to_dict(orient='index')).values())
 
         return labelled_task_df
+
+    @staticmethod
+    def query_next_task(project_id: int, return_dict: bool = True,
+                        for_data_table: bool = True
+                        ) -> Union[Dict[str, Any], NamedTuple]:
+        """
+        Get the next unlabeled task row (not labeled and not skipped) for the `project_id`
+        to help the user to proceed to next task automatically, and MUCH more faster.
+
+        Returns `None` if there is no more unlabeled task.
+        """
+        # this query must follow the data from self.query_all_task
+        ID_string = "id" if for_data_table else "ID"
+        sql_query = f"""
+            SELECT
+                t.id AS \"{ID_string}\",
+                t.name AS "Task Name",
+                CASE WHEN a.users_id IS NULL THEN
+                    '-'
+                ELSE
+                    u.first_name || ' ' || u.last_name
+                END AS "Created By",
+                (
+                    SELECT
+                        d.name AS "Dataset Name"
+                    FROM
+                        public.dataset d
+                    WHERE
+                        d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+            FROM
+                public.task t
+                LEFT JOIN public.annotations a ON a.id = t.annotation_id
+                LEFT JOIN public.users u ON u.id = a.users_id
+            WHERE
+                t.project_id = %s
+                and (is_labelled = False and skipped = False)
+            ORDER BY
+                t.id
+            LIMIT 1;
+        """
+        query_vars = [project_id]
+        record = db_fetchone(sql_query, conn, query_vars,
+                             return_dict=return_dict)  # return tuple
+        if not record:
+            logger.debug(f"No more unlabeled task for project ID "
+                         f"{project_id} :)")
+        return record
 
 
 class Result:

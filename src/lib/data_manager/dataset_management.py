@@ -612,7 +612,6 @@ class NewDataset(BaseDataset):
             st.stop()
 
         # ***************** Finalizing function *****************
-
         self.annotation_files = [annotation_filepath]
         if return_annotations:
             # return the CSV or JSON file in a List, and also the remaining image filepaths

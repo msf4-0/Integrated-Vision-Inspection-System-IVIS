@@ -40,11 +40,9 @@ from streamlit import session_state
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
+
 
 from annotation.annotation_management import (LabellingPagination,
                                               reset_editor_page)
@@ -315,7 +313,7 @@ def index(RELEASE=True):
 
         # ************************TO REMOVE************************
         # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
-        project_id_tmp = 22
+        project_id_tmp = 109
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
