@@ -40,4 +40,7 @@ build/static/media/config.*.xml
 *.tar.xz
 *.zip
 
+# TFOD API folder
+TFOD
+
 *.lock

@@ -58,6 +58,7 @@ from pages.sub_pages.training_page.new_training_subpages import (new_training_in
                                                                  new_training_training_config,
                                                                  new_training_augmentation_config)
 from pages.sub_pages.models_page import models_page
+from pages.sub_pages.training_page import run_training_page
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 
 # initialise connection to Database
@@ -123,7 +124,10 @@ def index():
     # ******** SESSION STATE *********************************************************
 
     # >>>> Page title
-    st.write("## __Add New Training__")
+    if session_state.new_training_pagination == NewTrainingPagination.InfoDataset:
+        st.write("## __Add New Training__")
+    else:
+        st.write(f"## Training Session: {session_state.new_training.name}")
 
     # ************COLUMN PLACEHOLDERS *****************************************************
 
@@ -148,10 +152,13 @@ def index():
         NewTrainingPagination.Model: models_page.index,
 
         NewTrainingPagination.TrainingConfig: new_training_training_config.training_configuration,
-        NewTrainingPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration
+        NewTrainingPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration,
+        NewTrainingPagination.Training: run_training_page.index
     }
     session_state.new_training_progress_bar.progress(
-        (session_state.new_training_pagination + 1) / 4)
+        (session_state.new_training_pagination + 1) / len(new_training_page))
+    logger.debug("New Training Pagination:"
+                 f" {NewTrainingPagination(session_state.new_training_pagination)}")
     new_training_page[session_state.new_training_pagination]()
 
 # TODO REMOVE
@@ -235,9 +242,6 @@ def index():
     #     with new_training_section_next_button_place:
     #         st.button("next", key="new_training_next_button",
     #                   on_click=to_new_training_next_page)
-    logger.debug(
-        f" New Training Pagination: {NewTrainingPagination(session_state.new_training_pagination)}")
-
     # ! DEBUGGING PURPOSE, REMOVE LATER
     st.write("vars(session_state.new_training) = ")
     st.write(vars(session_state.new_training))

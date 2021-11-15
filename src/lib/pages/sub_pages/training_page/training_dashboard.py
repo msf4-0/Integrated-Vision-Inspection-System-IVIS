@@ -33,6 +33,8 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
+from training.model_management import ModelsPagination
+
 
 # DEFINE Web APP page configuration
 # layout = 'wide'
@@ -185,32 +187,35 @@ def dashboard():
             training_id_tmp, project=session_state.project)
         logger.debug("Training instance created successfully")
 
-        is_started = Training.query_progress(training_id_tmp)
-        if is_started:
-            # TODO: implement this for trained data
-            # session_state.training_pagination = TrainingPagination.Deployment
-            pass
-        else:
-            pass
-
-        # must set this to True to tell the `new_training_infodataset.py` that we might
-        # want to update the info stored in database, instead of submitting a new one
+        # this is True because the user must have already submitted the info page to
+        # have already had the data in the database
         session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] = True
         # moving to next page
         session_state.training_pagination = TrainingPagination.Existing
         logger.debug(
             f"Setting `training_pagination` to {session_state.training_pagination}")
 
-        if not session_state.new_training.attached_model_id:
-            # set this to directly move to the `models_page`, this `new_training_pagination` is defined
-            # in the new_training.py script
+        # set this to directly move to the `models_page`, this `new_training_pagination` is defined
+        # in the new_training.py script
+        if not session_state.new_training.attached_model:
             session_state.new_training_pagination = NewTrainingPagination.Model
-        else:
+
+        elif session_state.new_training.attached_model \
+                and not session_state.new_training.training_param_dict:
             # model information form has already been submitted and stored in DB before
             session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
             # set to this move directly to training_config page
+            # session_state.models_pagination = ModelsPagination.TrainingConfig
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
-        # TODO: add pagination to go to model training page if training_config has already been submitted before
+        else:
+            for k in session_state.new_training.has_submitted.keys():
+                # all forms have already been submitted before
+                session_state.new_training.has_submitted[k] = True
+            # set to this move directly to training page
+            session_state.new_training_pagination = NewTrainingPagination.Training
+
+        logger.debug("Setting `new_training_pagination` to "
+                     f"{session_state.new_training_pagination}")
 
         st.experimental_rerun()
 
@@ -260,9 +265,8 @@ def index():
         TrainingPagination.Dashboard: dashboard,
         TrainingPagination.New: new_training.index,
 
-        # TODO: Implement these pages
         # although same with TrainingPagination.New, but the new_training script will directly
-        # link to models_page by setting the `NewTrainingPagination` in this script before moving
+        # link to next page by setting the `NewTrainingPagination` in this script before moving
         TrainingPagination.Existing: new_training.index,
         TrainingPagination.NewModel: None
     }
@@ -277,7 +281,8 @@ def index():
     if session_state.training_pagination != TrainingPagination.Dashboard:
 
         def to_training_dashboard_page():
-            # TODO #133 Add New Training Reset
+            NewTraining.reset_new_training_page()
+            Training.reset_training_page()
             session_state.training_pagination = TrainingPagination.Dashboard
 
         training_dashboard_back_button_place.button("Back to Training Dashboard",
@@ -286,6 +291,23 @@ def index():
 
     else:
         training_dashboard_back_button_place.empty()
+
+    # >>>> RETURN TO TRAINING PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    training_page_back_place = st.empty()
+
+    # show btn if all forms are submitted and currently not in training page
+    if 'new_training' in session_state and \
+        all(session_state.new_training.has_submitted.values()) and \
+            session_state.new_training_pagination != NewTrainingPagination.Training:
+        def to_training_page():
+            session_state.training_pagination = TrainingPagination.Existing
+            session_state.new_training_pagination = NewTrainingPagination.Training
+
+        training_page_back_place.button("Back to Start Training Page",
+                                        key="back_to_training_page",
+                                        on_click=to_training_page)
+    else:
+        training_page_back_place.empty()
 
     # ! DEBUGGING PURPOSE, REMOVE LATER
     st.write("session_state = ")

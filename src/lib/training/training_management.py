@@ -33,6 +33,7 @@ from math import ceil, floor
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from dataclasses import dataclass
 
 import pandas as pd
 import project
@@ -57,12 +58,13 @@ from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import (NetChange, datetime_formatter, find_net_change,
                                get_directory_name, join_string)
+from core.utils.code_generator import get_random_string
 from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 from project.project_management import Project
-from training.model_management import Model, NewModel
+from training.model_management import BaseModel, Model, NewModel
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -96,6 +98,7 @@ class NewTrainingPagination(IntEnum):
     Model = 1
     TrainingConfig = 2
     AugmentationConfig = 3
+    Training = 4
 
     def __str__(self):
         return self.name
@@ -130,6 +133,7 @@ class DatasetPath(NamedTuple):
     test: Path
     # <<<< Variable Declaration <<<<
 
+
     # >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
@@ -146,7 +150,7 @@ class TrainingParam:
         self.warmup_learning_rate = 0.00001
         self.shuffle_buffer_size = 2048
         self.activation_function: str = 'RELU_6'
-        self.optimizer: str = None
+        self.optimizer: str = ''
         self.classification_loss: str = 'weighted_sigmoid_focal'
         self.training_param_optional: List = []
 
@@ -162,9 +166,10 @@ class Augmentation:
 class BaseTraining:
     def __init__(self, training_id, project: Project) -> None:
         self.id: Union[str, int] = training_id
-        self.name: str = None
-        self.desc: str = None
-        self.training_param: Optional[TrainingParam] = TrainingParam()
+        self.name: str = ''
+        self.desc: str = ''
+        # NOTE: Might use this, depends
+        # self.training_param: Optional[TrainingParam] = TrainingParam()
         self.augmentation: Optional[Augmentation] = Augmentation()  # TODO
         self.project_id: int = project.id
         self.project_path = project.project_path
@@ -173,8 +178,8 @@ class BaseTraining:
         self.project_model: Model = None
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: str = project.deployment_type
-        self.model_path: str = None
-        self.framework: str = None
+        self.model_path: str = ''
+        self.framework: str = ''
         self.partition_ratio: Dict = {
             'train': 0.8,
             'eval': 0.2,
@@ -185,18 +190,23 @@ class BaseTraining:
             'eval': 0,
             'test': 0
         }
-        self.dataset_chosen: List = []
+        # self.dataset_chosen: List = []
+        # automatically get the list of dataset names from project
+        self.dataset_chosen: List[str] = list(project.dataset_dict.keys())
         self.training_param_dict: Dict = {}
         self.augmentation_dict: Dict = {}
         self.is_started: bool = False
         self.progress: Dict = {}
-        self.training_path: Dict = {
-            'ROOT': None,
-            'annotations': None,
-            'dataset': None,
-            'exported_models': None,
-            'models': None
-        }
+        # self.training_path: Dict[str, Path] = {
+        #     'ROOT': None,
+        #     'annotations': None,
+        #     'images': None,
+        #     'export': None,
+        #     'models': None,
+        #     'model_tarfile': None,
+        #     'labelmap': None,
+        #     'tensorboard_logdir': None
+        # }
         # this tells whether the data has already been stored in dataset,
         # to be able to tell the submission forms whether we are inserting or updating the DB
         self.has_submitted: Dict = {
@@ -228,22 +238,6 @@ class BaseTraining:
         logger.info(f"Training Path: {str(training_path)}")
 
         return training_path
-
-    def get_all_training_path(self) -> Dict:
-        # >>>> TRAINING PATH
-        self.training_path['ROOT'] = self.get_training_path(
-            self.project_path, self.name)
-        # >>>> MODEL PATH
-        self.training_path['models'] = self.training_path['ROOT'] / 'models'
-        # PARTITIONED DATASET PATH
-        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
-        # EXPORTED MODEL PATH
-        self.training_path['exported_models'] = self.training_path['ROOT'] / \
-            'exported_models'
-        # ANNOTATIONS PATH
-        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
-
-        return self.training_path
 
     def calc_total_dataset_size(self, dataset_chosen: List, dataset_dict: Dict) -> int:
         """Calculate the total dataset size for the current training configuration
@@ -504,6 +498,58 @@ class BaseTraining:
 
             return False
 
+    def update_training_attached_model(self, attached_model_id: int, training_model_id: int) -> bool:
+        # update training table with attached model id and training model id
+
+        insert_training_attached_SQL = """
+
+            UPDATE
+                public.training
+            SET
+                training_model_id = %s
+                , attached_model_id = %s
+            WHERE
+                id = %s;
+                    """
+
+        insert_training_attached_vars = [
+            training_model_id, attached_model_id, self.id]
+
+        try:
+            db_no_fetch(insert_training_attached_SQL, conn,
+                        insert_training_attached_vars)
+            return True
+
+        except Exception as e:
+            logger.error(f"At update training_attached: {e}")
+            return False
+
+    def update_training_param(self, training_param: Dict[str, Any]) -> bool:
+        # Maybe can try using the TrainingParam class, but seems like not necessary
+        self.training_param_dict = training_param
+
+        # required for storing JSONB format
+        training_param_json = json.dumps(training_param)
+        sql_query = """
+        UPDATE
+            public.training
+        SET
+            training_param = %s::JSONB
+        WHERE
+            id = %s
+        """
+        query_vars = [training_param_json, self.id]
+        try:
+            db_no_fetch(sql_query, conn, query_vars)
+            return True
+        except Exception as e:
+            logger.error(f"Update training param failed: {e}")
+            return False
+
+    def update_augment_config(self):
+        # TODO: update augmentation config
+        pass
+
 
 class NewTraining(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
@@ -519,8 +565,9 @@ class NewTraining(BaseTraining):
         return (f"NewTraining(training_id={self.id}, project_id={self.project_id}, "
                 f"attached_model={self.attached_model}, training_model={self.training_model})")
 
+    @staticmethod
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_exists(self, context: Dict, conn) -> bool:
+    def check_if_exists(context: Dict[str, Any], conn) -> bool:
         table = 'public.training'
 
         exists_flag = check_if_exists(
@@ -555,63 +602,6 @@ class NewTraining(BaseTraining):
         # True if not empty, False otherwise
         return empty_fields
 
-    def initialise_training_folder(self):
-        """Create Training Folder
-        """
-        '''
-        training_dir
-        |
-        |-annotations/
-        | |-labelmap
-        | |-TFRecords*
-        |
-        |-exported_models/
-        |-dataset
-        | |-train/
-        | |-evaluation/
-        |
-        |-models/
-
-        '''
-        # *************** GENERATE TRAINING PATHS ***************
-
-        # >>>> TRAINING PATH
-        self.training_path['ROOT'] = self.get_training_path(
-            self.project_path, self.name)
-        # >>>> MODEL PATH
-        self.training_path['models'] = self.training_path['ROOT'] / 'models'
-        # PARTITIONED DATASET PATH
-        self.training_path['dataset'] = self.training_path['ROOT'] / 'dataset'
-        # EXPORTED MODEL PATH
-        self.training_path['exported_models'] = self.training_path['ROOT'] / \
-            'exported_models'
-        # ANNOTATIONS PATH
-        self.training_path['annotations'] = self.training_path['ROOT'] / 'annotations'
-
-        # >>>> CREATE Training directory recursively
-        for path in self.training_path.values():
-            create_folder_if_not_exist(path)
-            logger.info(
-                f"Successfully created **{str(path)}**")
-
-        # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
-        try:
-            assert (len([x for x in self.training_path['ROOT'].iterdir() if x.is_dir()]) == (
-                len(self.training_path) - 1)), f"Failed to create all folders"
-            logger.info(
-                f"Successfully created **{self.name}** training at {str(self.training_path['ROOT'])}")
-
-        except AssertionError as e:
-
-            # Create a list of sub-folders excluding Training Root
-            directory_structure = [
-                x for x in self.training_path.values() if x != self.training_path['ROOT']]
-
-            missing_folders = [x for x in self.training_path['ROOT'].iterdir(
-            ) if x.is_dir() and (x not in directory_structure)]
-
-            logger.error(f"{e}: Missing {missing_folders}")
-
     def insert_training_info_dataset(self) -> bool:
         """Create New Training submission
 
@@ -644,32 +634,6 @@ class NewTraining(BaseTraining):
             logger.error(f'{e}')
             traceback.print_exc()
             st.error(f'{e}')
-            return False
-
-    def update_training_attached_model(self, attached_model_id: int, training_model_id: int) -> bool:
-        # update training table with attached model id and training model id
-
-        insert_training_attached_SQL = """
-
-            UPDATE
-                public.training
-            SET
-                training_model_id = %s
-                , attached_model_id = %s
-            WHERE
-                id = %s;
-                    """
-
-        insert_training_attached_vars = [
-            training_model_id, attached_model_id, self.id]
-
-        try:
-            db_no_fetch(insert_training_attached_SQL, conn,
-                        insert_training_attached_vars)
-            return True
-
-        except Exception as e:
-            logger.error(f"At update training_attached: {e}")
             return False
 
 
@@ -788,12 +752,11 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
-
     @staticmethod
     def reset_new_training_page():
 
         new_training_attributes = ["new_training", "new_training_name", "new_training_pagination",
-                                   "new_training_desc", "new_training_model_page", "new_training_model_chosen"]
+                                   "new_training_desc"]
 
         reset_page_attributes(new_training_attributes)
 
@@ -807,14 +770,10 @@ class Training(BaseTraining):
         # self.augmentation_dict, self.progress, self.partition_ratio
         # self.training_model_id, self.attached_model_id, self.is_started
         self.query_all_fields()
-        self.training_path = self.get_all_training_path()
-        # TODO creates self.attached_model, self.training_model
-        # self.get_training_details()
-
-        # TODO #136 query training details
-        # get model attached
-        # is_started
-        # progress
+        # creates self.attached_model and self.training_model
+        self.get_training_details()
+        # NOTE: self.training_path is now created with `property` decorator below
+        # self.training_path = self.get_all_training_path()
 
     def __repr__(self):
         return "<{klass} {attrs}>".format(
@@ -823,24 +782,65 @@ class Training(BaseTraining):
                            for k, v in self.__dict__.items()),
         )
 
-    # TODO: fix this later
-    # def get_training_details(self):
-    #     if self.attached_model_id:
-    #         existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
-    #             for_data_table=True,
-    #             return_dict=True,
-    #             deployment_type=session_state.new_training.deployment_type))
-    #         model_df_row = Model.filtered_models_dataframe(models=existing_models,
-    #                                                        dataframe_col="id",
-    #                                                        filter_value=session_state.existing_models_table[0],
-    #                                                        column_names=existing_models_column_names)
-    #         self.attached_model = Model(model_row=model_df_row[0])
+    @classmethod
+    def from_new_training(cls, new_training: NewTraining, project: Project):
+        logger.debug("Converting from NewTraining to Training instance")
+        new_instance = cls(new_training.id, project)
 
-    #     if self.attached_model_id and self.training_model_id:
-    #         pass
+        for k, v in new_training.__dict__.items():
+            # - this `hasattr` checking can optionally be removed in the future,
+            # currently using it here for debugging
+            if hasattr(new_instance, k):
+                setattr(new_instance, k, v)
+            else:
+                logger.debug(
+                    f'Skipping `{k}` attribute when converting to Training instance')
+
+        return new_instance
+
+    def get_training_details(self):
+        if self.attached_model_id and self.training_model_id:
+            self.attached_model = Model(model_id=self.attached_model_id)
+            self.training_model = Model(model_id=self.training_model_id)
+        else:
+            self.attached_model = None
+            self.training_model = NewModel()
+
+    @property
+    def training_path(self) -> Dict[str, Path]:
+        # modified from get_all_training_path
+        # >>>> TRAINING PATH
+        paths = {}
+        paths['ROOT'] = self.get_training_path(self.project_path, self.name)
+        root = paths['ROOT']
+        # >>>> MODEL PATH
+        # paths['models'] = root / 'models'
+        if not self.training_model.name:
+            model_dirname = 'temp'
+        else:
+            # MUST use this to get a nicely formatted directory name
+            model_dirname = get_directory_name(self.training_model.name)
+        paths['models'] = root / 'models' / model_dirname
+        # PARTITIONED DATASET PATH
+        paths['images'] = root / 'images'
+        # EXPORTED MODEL PATH
+        # paths['exported_models'] = root / \
+        #     'exported_models'
+        paths['export'] = paths['models'] / 'export'
+        paths['model_tarfile'] = paths['models'] / \
+            f'{model_dirname}.tar.gz'
+        # ANNOTATIONS PATH
+        paths['annotations'] = root / 'annotations'
+        # this filename is based on the `generate_labelmap_file` function
+        # NOTE: this file is probably only needed for TF object detection
+        paths['labelmap'] = paths['export'] / 'labelmap.pbtxt'
+        # the tensorboard logdir is the same with models path but just to be explicit
+        paths['tensorboard_logdir'] = paths['models']
+        return paths
 
     @staticmethod
     def query_progress(training_id: int) -> Union[bool, None]:
+        # NOTE: this method is not being used for now
         sql_query = """
                 SELECT
                     is_started
@@ -859,6 +859,51 @@ class Training(BaseTraining):
             logger.error(
                 f"Training with ID {training_id} does not exists in the Database!!!")
             return None
+
+    def update_progress(self,
+                        progress: Dict[str, int],
+                        is_started: bool = True,
+                        verbose: bool = False):
+        # NOTE: progress for TFOD should be {'Step': <int>, 'Checkpoint': <int>}
+
+        self.is_started = is_started
+        self.progress = progress
+
+        sql_query = """
+                UPDATE
+                    public.training
+                SET
+                    is_started = %s,
+                    progress = %s::JSONB
+                WHERE
+                    id = %s;
+        """
+        progress_json = json.dumps(progress)
+        query_vars = [is_started, progress_json, self.id]
+
+        db_no_fetch(sql_query, conn, query_vars)
+        if verbose:
+            logger.info(f"Updated progress for Training {self.id} "
+                        f"with: '{progress}'")
+
+    def update_metrics(self, result_metrics: Dict[str, Any], verbose: bool = False):
+        self.training_model.metrics = result_metrics
+
+        sql_query = """
+                UPDATE
+                    public.models
+                SET
+                    metrics = %s::JSONB
+                WHERE
+                    id = %s;
+        """
+        metrics_json = json.dumps(result_metrics)
+        query_vars = [metrics_json, self.training_model.id]
+
+        db_no_fetch(sql_query, conn, query_vars)
+        if verbose:
+            logger.info(f"Updated metrics for Model {self.training_model.id} "
+                        f"with: '{result_metrics}'")
 
     def query_all_fields(self) -> NamedTuple:
         """Query fields of current Training
@@ -999,6 +1044,84 @@ class Training(BaseTraining):
 
         return all_project_training, column_names
 
+    def initialise_training_folder(self):
+        """Create Training Folder
+        """
+        '''
+        training_dir
+        |
+        |-annotations/
+        | |-labelmap
+        | |-TFRecords*
+        |
+        |-exported_models/
+        |-dataset
+        | |-train/
+        | |-evaluation/
+        |
+        |-models/
+
+        '''
+        # *************** GENERATE TRAINING PATHS ***************
+        training_paths = self.training_path
+
+        # >>>> CREATE Training directory recursively
+        filepath_keys = ('model_tarfile', 'labelmap')
+        for key, path in training_paths.items():
+            if key in filepath_keys:
+                # this is a file path and not a directory, thus skipping
+                continue
+            create_folder_if_not_exist(path)
+            logger.info(
+                f"Successfully created **{str(path)}**")
+
+        # >>>> ASSERT IF TRAINING DIRECTORY CREATED CORRECTLY
+        try:
+            assert (len([x for x in training_paths['ROOT'].iterdir() if x.is_dir()]) == (
+                len(training_paths) - 1)), f"Failed to create all folders"
+            logger.info(
+                f"Successfully created **{self.name}** training at {str(training_paths['ROOT'])}")
+
+        except AssertionError as e:
+
+            # Create a list of sub-folders excluding Training Root
+            directory_structure = [
+                x for x in training_paths.values() if x != training_paths['ROOT']]
+
+            missing_folders = [x for x in training_paths['ROOT'].iterdir(
+            ) if x.is_dir() and (x not in directory_structure)]
+
+            logger.error(f"{e}: Missing {missing_folders}")
+
+    # ! Deprecated, use training_path property
+    # @staticmethod
+    # def get_trained_filepaths(project_path: str,
+    #                           training_name: str,
+    #                           model_name: str,
+    #                           deployment_type: str,
+    #                           ) -> Dict[str, Path]:
+    #     training_path = BaseTraining.get_training_path(
+    #         project_path, training_name)
+
+    #     # TODO for image classification and segmentation
+    #     if deployment_type in (DeploymentType.OD, 'Object Detection with Bounding Boxes'):
+    #         model_path = training_path / 'models' / model_name
+    #         model_export_path = model_path / 'export'
+    #         model_tarfile_path = model_path / f'{model_name}.tar.gz'
+    #         return {
+    #             'training_path': training_path,
+    #             'model_path': model_path,
+    #             'model_export_path': model_export_path,
+    #             'model_tarfile_path': model_tarfile_path
+    #         }
+    #     elif deployment_type in (DeploymentType.Image_Classification, 'Image Classification'):
+    #         pass
+    #     elif deployment_type in (DeploymentType.Semantic, 'Semantic Segmentation with Polygons'):
+    #         pass
+    #     else:
+    #         logger.error(f"Error with deployment_type: '{deployment_type}'")
+
+
 # NOTE ******************* DEPRECATED *********************************************
     # def initialise_training(self, model: Model, project: Project):
     #     '''
@@ -1048,6 +1171,7 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
+
 
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
@@ -1130,10 +1254,127 @@ class Training(BaseTraining):
 
         return formatted_all_project_training
 
+    def reset_training_progress(self, progress: Optional[Dict[str, int]] = None):
+        if not progress:
+            # can pass in a Dictionary with {'Step': 0, 'Checkpoint': 0} instead
+            progress = {}
+        self.update_progress(progress, is_started=False, verbose=True)
+
+        # reset the training result metrics
+        self.update_metrics({})
+
+    def clone_training_session(self):
+        """
+        Clone the current training session to allow users to have faster access to training,
+        while retaining all the configuration selected for the current training session.
+        After this, the user should be moved to the training info page for modification.
+        Also, do not forget to reset all the `has_submmitted` values to False to allow 
+        the user to seamlessly navigate through the training & model selection forms.
+        """
+        # creating a temporary training session's name
+        new_training_name = '-'.join(
+            [self.name, get_random_string(length=5)])
+        context = {'column_name': 'name', 'value': new_training_name}
+        # just in case the database has the same training session's name
+        while NewTraining.check_if_exists(context, conn):
+            new_training_name = '-'.join(
+                [self.name, get_random_string(length=5)])
+            context = {'column_name': 'name', 'value': new_training_name}
+
+        self.name = new_training_name
+
+        # creating a temporary custom model name
+        new_model_name = '-'.join(
+            [self.training_model.name, get_random_string(length=5)])
+        context = {'column_name': 'name', 'value': new_model_name}
+        # just in case the database has the same custom model's name
+        while BaseModel.check_if_exists(context, conn):
+            new_model_name = '-'.join(
+                [self.training_model.name, get_random_string(length=5)])
+            context = {'column_name': 'name', 'value': new_model_name}
+
+        self.training_model.name = new_model_name
+
+        # insert the clone into the 'training' table and
+        # update self.id with the returned ID
+        insert_training_info_SQL = """
+                INSERT INTO public.training (
+                    name,
+                    description,
+                    attached_model_id,
+                    training_param,
+                    augmentation,
+                    partition_ratio,
+                    is_started,
+                    progress,
+                    project_id)
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s::JSONB,
+                    %s::JSONB,
+                    %s::JSONB,
+                    %s,
+                    %s::JSONB,
+                    %s)
+                RETURNING
+                    id;
+        """
+
+        partition_ratio_json = json.dumps(self.partition_ratio)
+        training_param_json = json.dumps(self.training_param_dict)
+        augment_param_json = json.dumps(self.augmentation_dict)
+        progress_json = json.dumps(self.progress)
+        # CARE self.training_model.id is NOT THE NEW ONE YET
+        insert_training_info_vars = [self.name, self.desc, self.attached_model.id,
+                                     training_param_json, augment_param_json, partition_ratio_json,
+                                     self.is_started, progress_json, self.project_id]
+
+        try:
+            query_return = db_fetchone(insert_training_info_SQL,
+                                       conn,
+                                       insert_training_info_vars).id
+            # NOTE: this will also update self.id with the new id returned from DB
+            self.id = query_return
+            logger.info(
+                f"Successfully load New Training Name, Desc and Partition Size for {self.id} ")
+            # return True
+        except TypeError as e:
+            logger.error(
+                f"{e}: Failed to load New Training Name, Desc and Partition Size for {self.id}")
+            # return False
+
+        # also update the training ID in the `training_model` attribute
+        self.training_model.training_id = self.id
+
+        # Insert as a new Project Training
+        self.insert_project_training()
+
+        # insert as a new training model and
+        # update the model ID with the ID returned from DB
+        self.training_model.insert_new_model(
+            model_type=self.training_model.model_type)
+
+        self.update_training_attached_model(
+            self.attached_model.id,
+            self.training_model.id
+        )
+
+        # finally, reset the clone's training progress and training model's metrics
+        # as we allow the user to use it to train a new model
+        self.reset_training_progress()
+
     @staticmethod
     def reset_training_page():
-        training_attributes = ["project_training_table", "training", "training_name",
-                               "training_desc", "labelling_pagination", "existing_training_pagination"]
+        training_attributes = ["training", "training_pagination", "labelling_pagination",
+                               "training_param_dict", "new_training", "trainer", "start_idx",
+                               ]
+        # this is required to avoid issues with caching model-related variables
+        # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89
+        # https://discuss.streamlit.io/t/button-to-clear-cache-and-rerun/3928/12
+        logger.debug("Clearing all existing Streamlit cache")
+        st.legacy_caching.clear_cache()
 
         reset_page_attributes(training_attributes)
 

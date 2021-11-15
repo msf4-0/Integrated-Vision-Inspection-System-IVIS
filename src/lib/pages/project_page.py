@@ -57,6 +57,7 @@ from project.project_management import (NewProject, NewProjectPagination,
                                         Project, ProjectPagination,
                                         ProjectPermission, query_all_projects)
 from user.user_management import User
+from training.training_management import NewTraining, Training
 
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import existing_project, new_project
@@ -172,6 +173,8 @@ def dashboard():
     data_table_place = st.empty()
 
     def to_existing_project():
+        # clear out the annoying "Create New Project" button that never vanished from the shadow
+        create_new_project_button_col1.empty()
 
         project_id_tmp = session_state.all_project_table[0]
         logger.debug(f"Entering Project {project_id_tmp}")
@@ -241,6 +244,8 @@ def index():
         # TODO #81 Add reset to project page *************************************************************************************
         Project.reset_project_page()
         reset_editor_page()
+        NewTraining.reset_new_training_page()
+        Training.reset_training_page()
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry

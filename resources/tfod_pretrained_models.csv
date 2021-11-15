@@ -29,7 +29,7 @@ SSD ResNet101 V1 FPN 1024x1024 (RetinaNet101),104,39.5,Boxes,http://download.ten
 SSD ResNet152 V1 FPN 640x640 (RetinaNet152),80,35.4,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/ssd_resnet152_v1_fpn_640x640_coco17_tpu-8.tar.gz
 SSD ResNet152 V1 FPN 1024x1024 (RetinaNet152),111,39.6,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/ssd_resnet152_v1_fpn_1024x1024_coco17_tpu-8.tar.gz
 Faster R-CNN ResNet50 V1 640x640,53,29.3,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/faster_rcnn_resnet50_v1_640x640_coco17_tpu-8.tar.gz
-Faster R-CNN ResNet50 V1 1024x1024,65,31,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/faster_rcnn_resnet50_v1_1024x1024_coco17_tpu-8.tar.gz
+Faster R-CNN ResNet50 V1 1024x1024,65,31.0,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/faster_rcnn_resnet50_v1_1024x1024_coco17_tpu-8.tar.gz
 Faster R-CNN ResNet50 V1 800x1333,65,31.6,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/faster_rcnn_resnet50_v1_800x1333_coco17_gpu-8.tar.gz
 Faster R-CNN ResNet101 V1 640x640,55,31.8,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/faster_rcnn_resnet101_v1_640x640_coco17_tpu-8.tar.gz
 Faster R-CNN ResNet101 V1 1024x1024,72,37.1,Boxes,http://download.tensorflow.org/models/object_detection/tf2/20200711/faster_rcnn_resnet101_v1_1024x1024_coco17_tpu-8.tar.gz

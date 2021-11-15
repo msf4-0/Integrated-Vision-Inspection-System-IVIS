@@ -22,29 +22,39 @@ else:
 
 from path_desc import TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH
 
-# assuming you run this script from the root directory of this project
-toml_filepath = ".streamlit/secrets.toml"
-parsed = toml.loads(open(toml_filepath).read())
 
-# # Connect to PostgreSQL db
-conn = psycopg2.connect(**parsed['postgres'])
+def connect_db(**context):
+    # load from toml file if context is not provided
+    if not context:
+        # assuming you run this script from the root directory of this project
+        toml_filepath = ".streamlit/secrets.toml"
+        parsed = toml.loads(open(toml_filepath).read())
 
-with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
-    cur.execute('SELECT version();')
-    conn.commit()
+        # # Connect to PostgreSQL db
+        conn = psycopg2.connect(**parsed['postgres'])
+    else:
+        conn = psycopg2.connect(**context)
 
-    # display the PostgreSQL database server version
-    db_version = cur.fetchone().version
+    # Check and verify connection
+    with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
+        cur.execute('SELECT version();')
+        conn.commit()
 
-print(f"PostgreSQL database version: {db_version}")
-print(f"PostgreSQL connection status: {conn.info.status}")
-print(
-    f"You are connected to database '{conn.info.dbname}' as user '{conn.info.user}' on host '{conn.info.host}' at port '{conn.info.port}'.")
+        # display the PostgreSQL database server version
+        db_version = cur.fetchone().version
 
-# # DB Functions
+    print(f"PostgreSQL database version: {db_version}")
+    print(f"PostgreSQL connection status: {conn.info.status}")
+    print(
+        f"You are connected to database '{conn.info.dbname}' as user '{conn.info.user}' on host '{conn.info.host}' at port '{conn.info.port}'.")
+    return conn
+
+    # ************************** DB Functions **************************
 
 
-def db_fetchone(sql_message, query_vars=None, conn=conn, return_output=False, fetch_col_name=False, return_dict=False):
+def db_fetchone(sql_message, query_vars=None, conn=None, return_output=False, fetch_col_name=False, return_dict=False):
+    assert conn is not None, "Please connect to db and pass in for faster computation."
+
     with conn.cursor(cursor_factory=NamedTupleCursor) as cur:
         try:
             if query_vars:
@@ -72,7 +82,7 @@ def db_fetchone(sql_message, query_vars=None, conn=conn, return_output=False, fe
             print(e)
 
 
-def insert_to_db(new_df):
+def insert_to_db(new_df, conn):
     sql_query = """
                 INSERT INTO public.models (
                     id,
@@ -82,6 +92,7 @@ def insert_to_db(new_df):
                     framework_id,
                     deployment_id
                     )
+                OVERRIDING SYSTEM VALUE
                 VALUES (
                     nextval('models_sequence'),
                     %s,
@@ -93,18 +104,18 @@ def insert_to_db(new_df):
     """
     for row in new_df.values:
         query_vars = row.tolist()
-        db_fetchone(sql_query, query_vars)
+        db_fetchone(sql_query, query_vars, conn=conn)
 
 
-def scrape_setup_model_details():
+def scrape_setup_model_details(conn):
     # ## Delete existing pretrained_models record
 
     # Delete existing pretrained models before inserting
     # `model_type_id` = 1 for pretrained_models type
     sql_query = """
-    DELETE FROM models WHERE model_type_id = 1
+    DELETE FROM public.models WHERE model_type_id = 1
     """
-    db_fetchone(sql_query)
+    db_fetchone(sql_query, conn=conn)
 
     # create a sequence so that the primary key `ud` would start at 1
     sql_query = """
@@ -114,7 +125,7 @@ def scrape_setup_model_details():
     start 1
     increment 1;
     """
-    db_fetchone(sql_query)
+    db_fetchone(sql_query, conn=conn)
 
     # # Scraping TFOD Model Zoo
 
@@ -126,6 +137,8 @@ def scrape_setup_model_details():
     model_links = soup.select("td a[href]")
     model_links = [link['href'] for link in model_links]
     df['model_links'] = model_links
+    df.columns = ["Model Name", "Speed (ms)", "COCO mAP",
+                  "Outputs", "model_links"]
 
     # save to CSV before formatting for database
     df.to_csv(TFOD_MODELS_TABLE_PATH, index=False)
@@ -133,15 +146,14 @@ def scrape_setup_model_details():
     # Modifying to insert into database
     # Need columns: id, name, description, metrics, model_path, model_type_id,
     #  framework_id, deployment_id
-    new_df = df[['Model name']].copy()
-    new_df.rename(columns={'Model name': 'Model Name'}, inplace=True)
+    new_df = df[['Model Name']].copy()
     new_df['metrics'] = json.dumps({'metrics': 'mAP'})
     new_df['model_type_id'] = 1  # for pretrained_model type
     new_df['framework_id'] = 1  # for Tensorflow type
     new_df['deployment_id'] = 2  # for Object Detection
 
     # ## Insert to DB
-    insert_to_db(new_df)
+    insert_to_db(new_df, conn)
 
     # # Scraping Keras pretrained model functions
 
@@ -168,7 +180,7 @@ def scrape_setup_model_details():
     df['deployment_id'] = 1  # for image classification
 
     # ## Insert to DB
-    insert_to_db(df)
+    insert_to_db(df, conn)
 
     # # Scraping keras-unet-collections models
 
@@ -188,14 +200,11 @@ def scrape_setup_model_details():
 
     model_df = pd.read_html(models_table.prettify())[0]
     model_df['links'] = model_links
-    model_df.rename(
-        columns={"keras_unet_collection.models": "model_func"}, inplace=True)
-    new_df.rename(columns={'Model name': 'Model Name'}, inplace=True)
-
+    model_df.columns = ["model_func", "Model Name", "Reference", "links"]
     # dropping the last two models built with Transformers as they don't work for new NumPy version,
     # refer to the repo for more details
     model_df.drop(model_df.index[-2:], inplace=True)
-    model_df.to_csv(SEGMENT_MODELS_TABLE_PATH)
+    model_df.to_csv(SEGMENT_MODELS_TABLE_PATH, index=False)
 
     # # for the available loss functions
     loss_df = pd.read_html(losses_table.prettify())[0]
@@ -209,10 +218,9 @@ def scrape_setup_model_details():
     loss_links = [i['href'] for i in loss_links]
 
     loss_df['links'] = loss_links
-    loss_df.rename(
-        columns={"keras_unet_collection.losses": "loss_func"}, inplace=True)
+    loss_df.columns = ['loss_func', 'Name', 'Reference', 'links']
 
-    df = model_df[['Name']].copy()
+    df = model_df[['Model Name']].copy()
     df['metrics'] = json.dumps(
         {"metrics": "mAP", "losses": loss_df.loss_func.tolist()})
     df['model_type_id'] = 1  # for pretrained_model type
@@ -221,4 +229,15 @@ def scrape_setup_model_details():
 
     # ## Insert to DB
 
-    insert_to_db(df)
+    insert_to_db(df, conn)
+
+
+def main():
+    # connect to DB using .streamlit/secrets.toml
+    conn = connect_db()
+    # then scrape all the pretrained model details and update our DB
+    scrape_setup_model_details(conn)
+
+
+if __name__ == '__main__':
+    main()

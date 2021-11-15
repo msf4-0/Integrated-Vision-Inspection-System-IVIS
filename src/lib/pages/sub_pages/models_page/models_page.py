@@ -58,12 +58,13 @@ from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.log import logger  # logger
 
 
+from path_desc import chdir_root
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from data_manager.database_manager import init_connection
 from pages.sub_pages.models_page.models_subpages.user_model_upload import user_model_upload_page
 from pages.sub_pages.training_page.new_training_subpages import new_training_augmentation_config, new_training_infodataset, new_training_training_config
-from path_desc import TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root
+from pages.sub_pages.training_page import run_training_page
 from project.project_management import Project
 from training.model_management import Model, ModelsPagination, NewModel
 from training.training_management import (NewTraining, NewTrainingPagination,
@@ -80,6 +81,14 @@ conn = init_connection(**st.secrets["postgres"])
 
 def existing_models():
     logger.debug("[NAVIGATOR] At `models_page.py` `existing_models` function")
+
+    if isinstance(session_state.new_training, NewTraining):
+        # done creating the info in database, thus converting it
+        # to a Training instance
+        session_state.new_training = Training.from_new_training(
+            session_state.new_training, session_state.project)
+        logger.debug("Converted NewTraining to Training instance")
+
     existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
         for_data_table=True,
         return_dict=True,
@@ -94,9 +103,11 @@ def existing_models():
     # ************************* SESSION STATE ************************************************
 
     # ************************ COLUMN PLACEHOLDER ********************************************
+    st.write(f"**Step 1: Select a pretrained Deep Learning model "
+             "from the table to be used for training, "
+             "or you may also choose to upload a model:**")
     to_model_upload_page_button_place = st.empty()
-    st.write(
-        f"**Step 1: Select a pretrained Deep Learning model from the table to be used for training:** ")
+
     if session_state.project.deployment_type == "Image Classification":
         st.markdown("This table is obtained from Keras available pretrained models for image classification"
                     "[here](https://www.tensorflow.org/api_docs/python/tf/keras/applications).")
@@ -205,9 +216,20 @@ def existing_models():
         for_display=True
     )
     st.dataframe(models_df, width=1500)
+
+    if session_state.new_training.attached_model is not None:
+        # then this has already selected a model before
+        model_name = session_state.new_training.attached_model.name
+        model_idx = int(models_df.query(
+            '`Model Name` == @model_name').index[0]
+        )
+    else:
+        # default to a good default SSD model to show to the user
+        model_idx = 22
     model_selected = st.selectbox(
         "Please select a Pre-trained model",
         options=models_df['Model Name'],
+        index=model_idx,
         key="existing_models_table",
     )
 
@@ -224,8 +246,8 @@ def existing_models():
         # with main_col2.container():
 
         if session_state.new_training.has_submitted[NewTrainingPagination.Model]:
-            current_name = session_state.new_training.name
-            current_desc = session_state.new_training.desc
+            current_name = session_state.new_training.training_model.name
+            current_desc = session_state.new_training.training_model.desc
             st.info(f"""
             **Current Model Name**: {current_name}  \n
             **Current Description**: {current_desc}  \n
@@ -260,7 +282,7 @@ def existing_models():
 
             if session_state.training_model_name:
                 if session_state.new_training.training_model.check_if_exists(context, conn):
-                    session_state.new_training.training_model.name = None
+                    session_state.new_training.training_model.name = ''
                     field_placeholder['training_model_name'].error(
                         f"Model name used. Please enter a new name")
                     sleep(0.7)
@@ -279,6 +301,7 @@ def existing_models():
             f"**Step 2: Enter the name of your model:** ")
 
         st.text_input('Model Name', key="training_model_name",
+                      value=session_state.new_training.training_model.name,
                       help="Enter the name of the model to be exported after training",
                       on_change=check_if_name_exist,
                       args=(session_state.new_training_place, conn,))
@@ -289,6 +312,7 @@ def existing_models():
         # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
         description = st.text_area(
             "Description (Optional)", key="training_model_desc",
+            value=session_state.new_training.training_model.desc,
             help="Enter the description of the model")
 
         if description:
@@ -356,13 +380,14 @@ def index():
     # ************************ MODEL PAGINATION *************************
     models_page = {
         # old page before this models_page
-        ModelsPagination.TrainingInfoDataset: new_training_infodataset.infodataset,
+        # ModelsPagination.TrainingInfoDataset: new_training_infodataset.infodataset,
         # the current page function in this script
         ModelsPagination.ExistingModels: existing_models,
         ModelsPagination.ModelUpload: user_model_upload_page,
 
-        ModelsPagination.TrainingConfig: new_training_training_config.training_configuration,
-        ModelsPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration,
+        # ModelsPagination.TrainingConfig: new_training_training_config.training_configuration,
+        # ModelsPagination.AugmentationConfig: new_training_augmentation_config.augmentation_configuration,
+        # ModelsPagination.Training: run_training_page.index,
     }
 
     # ********************** SESSION STATE ******************************
@@ -399,7 +424,7 @@ def index():
     # ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
     # Placeholder for Back and Next button for page navigation
     new_training_section_back_button_place, _, \
-        new_training_section_next_button_place = st.columns([0.5, 3, 0.2])
+        new_training_section_next_button_place = st.columns([0.5, 3, 0.5])
 
     # typing.NamedTuple type
 
@@ -430,7 +455,8 @@ def index():
                 if new_training_model_submission_dict.insert(
                         attached_model=session_state.new_training.attached_model,
                         project_name=session_state.project.name,
-                        training_name=session_state.new_training.name):
+                        training_name=session_state.new_training.name,
+                        training_id=session_state.new_training.id):
 
                     # run update training attached model
                     if session_state.new_training.update_training_attached_model(
@@ -441,10 +467,9 @@ def index():
                         logger.info(
                             f"Successfully created new training model {session_state.new_training.training_model.id}")
 
-                        # Go to Training Configuration Page TODO
                         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
-        elif session_state.new_training.has_submitted[NewTrainingPagination.Model] == True:
+        elif session_state.new_training.has_submitted[NewTrainingPagination.Model]:
             if session_state.new_training.training_model.name:
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
@@ -456,34 +481,45 @@ def index():
                     if session_state.new_training.update_training_attached_model(
                             attached_model_id=session_state.new_training.attached_model.id,
                             training_model_id=session_state.new_training.training_model.id):
-                        # set has_submitted =True
-                        session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
-                        session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
                         logger.info(
                             f"Successfully updated new training model {session_state.new_training.training_model.id}")
+                        # session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
+                        for page, submitted in session_state.new_training.has_submitted.items():
+                            if not submitted:
+                                session_state.new_training_pagination = page
+                                break
+                        else:
+                            # go to Training page if all forms have been submitted
+                            session_state.new_training_pagination = NewTrainingPagination.Training
+                        logger.debug('New Training Pagination: '
+                                     f'{session_state.new_training_pagination}')
             else:
                 session_state.new_training_place['training_model_name'].error(
                     'Training Model Name already exists, please enter a new name')
 
     # ***************** NEXT BUTTON **************************
-    if session_state.models_pagination == ModelsPagination.ExistingModels:
-        with new_training_section_next_button_place:
-            st.button("Submit Model Info", key="models_page_next_button",
-                      on_click=to_training_configuration_page)
+    with new_training_section_next_button_place:
+        st.button("Submit Model Info", key="models_page_next_button",
+                  on_click=to_training_configuration_page)
 
-        # ***************** BACK BUTTON **************************
-        def to_training_infodataset_page():
-            session_state.models_pagination = ModelsPagination.TrainingInfoDataset
-            # must update this pagination variable too to make things work properly
-            session_state.new_training_pagination = NewTrainingPagination.InfoDataset
+    # ***************** BACK BUTTON **************************
+    def to_training_infodataset_page():
+        # session_state.models_pagination = ModelsPagination.TrainingInfoDataset
+        # must update this pagination variable too to make things work properly
+        session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
-        with new_training_section_back_button_place:
-            st.button("Modify Training Info", key="models_page_back_button",
-                      on_click=to_training_infodataset_page)
+    with new_training_section_back_button_place:
+        st.button("Modify Training Info", key="models_page_back_button",
+                  on_click=to_training_infodataset_page)
 
-    # st.write(vars(session_state.new_training))
-    # st.write(vars(session_state.new_training.training_model))
-    # st.write(vars(session_state.new_training.attached_model))
+    st.write("vars(session_state.new_training)")
+    st.write(vars(session_state.new_training))
+    st.write("vars(session_state.new_training.training_model)")
+    st.write(vars(session_state.new_training.training_model))
+    st.write("vars(session_state.new_training.attached_model)")
+    st.write(vars(session_state.new_training.attached_model))
+
+
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
         index()

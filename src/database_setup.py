@@ -34,7 +34,6 @@ import toml
 from streamlit import cli as stcli
 from streamlit import session_state
 
-from core.utils.model_details_db_setup import scrape_setup_model_details
 
 # ***************** Add src/lib to path ***************************
 SRC = Path(__file__).resolve().parent  # ROOT folder -> ./src
@@ -45,7 +44,8 @@ if str(LIB_PATH) not in sys.path:
 # ***************** Add src/lib to path ***************************
 
 
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger  # logger
+from core.utils.model_details_db_setup import connect_db, scrape_setup_model_details
 from data_manager.database_manager import db_no_fetch, init_connection, initialise_database_pipeline, test_db_conn, DatabaseStatus
 from path_desc import DATABASE_DIR, PROJECT_ROOT
 
@@ -53,7 +53,7 @@ from path_desc import DATABASE_DIR, PROJECT_ROOT
 # conn = init_connection(**st.secrets["postgres"])
 place = {}
 SECRETS_DIR = PROJECT_ROOT / ".streamlit/secrets.toml"
-st.write(SECRETS_DIR)
+# st.write(SECRETS_DIR)
 
 # **********************************SESSION STATE ******************************
 
@@ -87,7 +87,7 @@ def check_if_field_empty(context: Dict) -> bool:
 
         if not v and v == "":
             empty_fields.append(k)
-    log_info(empty_fields)
+    logger.info(empty_fields)
 
     # if empty_fields not empty -> return True, else -> return False (Negative Logic)
     return not empty_fields  # Negative logic
@@ -103,7 +103,7 @@ def test_database_connection(**dsn: Dict):
     if conn != None:
 
         success_msg = f"Successfully connected to Database {dsn['dbname']}"
-        log_info(success_msg)
+        logger.info(success_msg)
         success_place = st.empty()
         success_place.success(success_msg)
         sleep(0.7)
@@ -115,14 +115,20 @@ def test_database_connection(**dsn: Dict):
 
 def modify_secrets_toml(**context: Dict):
     if test_database_connection(**context):
-        conn = init_connection(**context)
-        session_state.database_status = initialise_database_pipeline(conn,
-                                                                     context)
+        if st._is_running_with_streamlit:
+            conn = init_connection(**context)
+            database_status = initialise_database_pipeline(
+                conn,
+                context)
+            session_state.database_status = database_status
+        else:
+            # connect to DB without using streamlit cache
+            conn = connect_db(**context)
+            database_status = initialise_database_pipeline(
+                conn,
+                context)
 
-        # also scrape model details online and setup the `models` table
-        scrape_setup_model_details()
-
-        if session_state.database_status == DatabaseStatus.Exist:
+        if database_status == DatabaseStatus.Exist:
             # Write to secrets.toml file if database configuration is valid
             context['dbname'] = "integrated_vision_inspection_system"
             secrets = {
@@ -130,7 +136,10 @@ def modify_secrets_toml(**context: Dict):
             }
             with open(str(SECRETS_DIR), 'w+') as f:
                 new_toml = toml.dump(secrets, f)
-                log_info(new_toml)
+                logger.info(new_toml)
+
+            # also scrape model details online and setup the `models` table
+            scrape_setup_model_details(conn)
 
 
 def db_config_form():
@@ -218,14 +227,30 @@ def database_setup():
                 db_config_form()
 
 
+def database_docker_setup():
+    db_config = {
+        "host": "localhost",
+        "port": "5432",
+        # the rest are obtained from the environment variables
+        # defined in docker-compose.yml
+        "dbname": os.environ['POSTGRES_DB'],
+        "user": os.environ['POSTGRES_USER'],
+        "password": os.environ['POSTGRES_PASSWORD']
+    }
+    modify_secrets_toml(**db_config)
+
+
 def main():
     pass
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-
+        print('[INFO] Setting up database using Streamlit ...')
         database_setup()
+    elif os.environ.get('DOCKERCONTAINER'):
+        print('[INFO] Setting up database for Docker container ...')
+        database_docker_setup()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

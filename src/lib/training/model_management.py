@@ -33,7 +33,7 @@ from logging import error
 from os import name
 from pathlib import Path
 from time import sleep
-from typing import Dict, List, NamedTuple, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 import pandas as pd
 import psycopg2
@@ -197,7 +197,8 @@ class ModelsPagination(IntEnum):
     ModelUpload = 2
     TrainingConfig = 3
     AugmentationConfig = 4
-    TrainingInfoDataset = 5  # this is an old page before models_page
+    # TrainingInfoDataset = 5  # this is an old page before models_page
+    # Training = 6  # time to run training and show training progress
 
     def __str__(self):
         return self.name
@@ -246,17 +247,17 @@ class ModelCompatibility(IntEnum):
 class BaseModel:
     def __init__(self, model_id: Union[int, str]) -> None:
         self.id: Union[str, int] = model_id
-        self.name: str = None
-        self.desc: str = None
-        self.deployment_type: str = None
+        self.name: str = ''
+        self.desc: str = ''
+        self.deployment_type: str = ''
         self.metrics: Dict = {}
         self.model_input_size: Dict = {}
         self.perf_metrics: List = []
-        self.model_type: str = None
-        self.framework: str = None
+        self.model_type: str = ''
+        self.framework: str = ''
         self.training_id: int = None
         self.model_path: Path = None
-        self.model_path_relative: str = None
+        self.model_path_relative: str = ''
         self.labelmap_path: Path = None
         self.saved_model_dir: Path = None
         self.has_submitted: bool = False
@@ -284,8 +285,9 @@ class BaseModel:
 
         return query
 
+    @staticmethod
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_exists(self, context: List, conn) -> bool:
+    def check_if_exists(context: Dict[str, Any], conn) -> bool:
         table = 'public.models'
         exists_flag = check_if_exists(
             table, context['column_name'], context['value'], conn)
@@ -790,7 +792,8 @@ class BaseModel:
     def create_new_project_model_pipeline(self,
                                           attached_model,
                                           project_name: str,
-                                          training_name: str) -> bool:
+                                          training_name: str,
+                                          training_id: int) -> bool:
 
         with st.container():
 
@@ -803,6 +806,7 @@ class BaseModel:
             self.model_type = attached_model.model_type
             self.framework = attached_model.framework
             self.deployment_type = attached_model.deployment_type
+            self.training_id = training_id
 
             # get destination folder
             self.model_type = 'Project Models'
@@ -933,6 +937,7 @@ class NewModel(BaseModel):
 
 class Model(BaseModel):
     def __init__(self, model_id: int = None, model_row: Dict = None) -> None:
+        super().__init__(model_id)
 
         # ******************************IF GIVEN DATAFRAME ROW******************************
         if model_row:

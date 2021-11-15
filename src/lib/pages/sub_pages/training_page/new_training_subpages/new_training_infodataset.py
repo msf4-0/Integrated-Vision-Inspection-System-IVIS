@@ -55,7 +55,10 @@ from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from path_desc import chdir_root
 
-from training.training_management import NewTrainingPagination, NewTrainingSubmissionHandlers, TrainingPagination
+from training.training_management import (NewTraining, NewTrainingPagination,
+                                          NewTrainingSubmissionHandlers,
+                                          Training,
+                                          TrainingPagination)
 from training.model_management import ModelsPagination
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -97,7 +100,7 @@ def infodataset():
     # ************COLUMN PLACEHOLDERS *****************************************************
 
     # >>>> New Training INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    if session_state.new_training.has_submitted[session_state.new_training_pagination]:
+    if session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
         # display existing information to the users for easier reference when updating
         # existing training info
         with existing_info_place.container():
@@ -119,9 +122,9 @@ def infodataset():
         logger.debug(f"New Training: {context}")
 
         if session_state.new_training_name:
-            if session_state.new_training.check_if_exists(context, conn):
+            if NewTraining.check_if_exists(context, conn):
 
-                session_state.new_training.name = None
+                session_state.new_training.name = ''
                 field_placeholder['new_training_name'].error(
                     f"Training name used. Please enter a new name")
                 sleep(1)
@@ -140,6 +143,7 @@ def infodataset():
         # **** TRAINING TITLE ****
         st.text_input(
             "Training Title", key="new_training_name",
+            value=session_state.new_training.name,
             help="Enter the name of the training",
             on_change=check_if_name_exist, args=(session_state.new_training_place, conn,))
         session_state.new_training_place["new_training_name"] = st.empty()
@@ -147,6 +151,7 @@ def infodataset():
         # **** TRAINING DESCRIPTION (Optional) ****
         description = st.text_area(
             "Description (Optional)", key="new_training_desc",
+            value=session_state.new_training.desc,
             help="Enter the description of the training")
 
         if description:
@@ -166,11 +171,16 @@ def infodataset():
     with datasetcol3.container():
 
         # >>>> Store SELECTED DATASET >>>>
-        st.multiselect(
-            "Dataset List", key="new_training_dataset_chosen",
-            options=session_state.project.dataset_dict, help="Assign dataset to the training")
-        session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
-        )
+        # - JUST include all the dataset selected during the project creation
+        # st.multiselect(
+        #     "Dataset List", key="new_training_dataset_chosen",
+        #     options=session_state.project.dataset_dict, help="Assign dataset to the training")
+        # session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
+        # )
+        # TODO: REMOVE this session state originally used by the multiselect widget
+        session_state.new_training_dataset_chosen = list(
+            session_state.project.dataset_dict.keys())
+        # NOTE: This is changed to directly init the new_training.dataset_chosen from `project.dataset_dict.keys()`
 
         if len(session_state.new_training_dataset_chosen) > 0:
 
@@ -186,9 +196,14 @@ def infodataset():
                     1.0 - session_state.partition_slider[1], 2)
 
             # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            curr_partition_ratio = session_state.new_training.partition_ratio
+            slider_value_1 = curr_partition_ratio['train']
+            slider_value_2 = 1.0 - curr_partition_ratio['test']
+            slider_value = (slider_value_1, slider_value_2)
+
             st.slider("Dataset Partition Ratio",
                       min_value=0.5, max_value=1.0,
-                      value=(0.8, 1.0), step=0.1,
+                      value=slider_value, step=0.1,
                       key="partition_slider", on_change=update_dataset_partition_ratio)
 
             with st.expander("Partition info"):
@@ -198,9 +213,9 @@ def infodataset():
                                                                    session_state.project.dataset_dict)
 
             st.info(f"""
-            ### Train Dataset Ratio: {session_state.new_training.partition_ratio['train']} ({session_state.new_training.partition_size['train']} data)
-            ### Evaluation Dataset Ratio: {session_state.new_training.partition_ratio['eval']} ({session_state.new_training.partition_size['eval']} data)
-            ### Test Dataset Ratio: {session_state.new_training.partition_ratio['test']} ({session_state.new_training.partition_size['test']} data)
+            #### Train Dataset Ratio: {session_state.new_training.partition_ratio['train']} ({session_state.new_training.partition_size['train']} data)
+            #### Evaluation Dataset Ratio: {session_state.new_training.partition_ratio['eval']} ({session_state.new_training.partition_size['eval']} data)
+            #### Test Dataset Ratio: {session_state.new_training.partition_ratio['test']} ({session_state.new_training.partition_size['test']} data)
             """)
 
             if session_state.new_training.partition_ratio['eval'] <= 0:
@@ -208,7 +223,7 @@ def infodataset():
                     f"Evaluation Dataset Partition Ratio should be more than 0.1")
 
             # >>>> DISPLAY DATASET CHOSEN >>>>
-            st.write("### Dataset choosen:")
+            st.write("### Dataset chosen:")
             for idx, data in enumerate(session_state.new_training_dataset_chosen):
                 st.write(f"{idx+1}. {data}")
             # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> DATASET PARTITION CONFIG >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -297,9 +312,14 @@ def infodataset():
     # Placeholder for Back and Next button for page navigation
     _, _, new_training_section_next_button_place = st.columns([1, 3, 1])
 
+    if isinstance(session_state.new_training, Training):
+        # Training instance will not need to insert new info anymore, just need to update
+        def insert_function(): return None
+    else:
+        insert_function = session_state.new_training.insert_training_info_dataset
     # typing.NamedTuple type
     new_training_infodataset_submission_dict = NewTrainingSubmissionHandlers(
-        insert=session_state.new_training.insert_training_info_dataset,
+        insert=insert_function,
         update=session_state.new_training.update_training_info_dataset,
         context={
             'new_training_name': session_state.new_training_name,
@@ -316,7 +336,7 @@ def infodataset():
         # NEXT page if constraints are met
 
         # >>>> IF IT IS A NEW SUBMISSION
-        if not session_state.new_training.has_submitted[session_state.new_training_pagination]:
+        if not session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
             if session_state.new_training.check_if_field_empty(
                     context=new_training_infodataset_submission_dict.context,
                     field_placeholder=session_state.new_training_place,
@@ -328,23 +348,34 @@ def infodataset():
                     session_state.new_training_pagination = NewTrainingPagination.Model
                     # must set this to tell the models_page.py to move to stay in its page
                     session_state.models_pagination = ModelsPagination.ExistingModels
-                    session_state.new_training.has_submitted[session_state.new_training_pagination] = True
+                    session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset] = True
                     logger.info(
                         f"Successfully created new training {session_state.new_training.id}")
 
         # >>>> UPDATE if Training has already been submitted prior to this
-        elif session_state.new_training.has_submitted[session_state.new_training_pagination] == True:
+        elif session_state.new_training.has_submitted[NewTrainingPagination.InfoDataset]:
             if session_state.new_training.name:
 
                 # UPDATE Database
                 # Training Name,Desc, Dataset chosen, Partition Size
                 if new_training_infodataset_submission_dict.update(session_state.new_training_dataset_chosen,
                                                                    session_state.project.dataset_dict):
-                    session_state.new_training_pagination = NewTrainingPagination.Model
-                    # must set this to tell the models_page.py to move to stay in its page
-                    session_state.models_pagination = ModelsPagination.ExistingModels
+                    # session_state.new_training_pagination = NewTrainingPagination.Model
+                    # # must set this to tell the models_page.py to move to stay in its page
+                    # session_state.models_pagination = ModelsPagination.ExistingModels
+
+                    for page, submitted in session_state.new_training.has_submitted.items():
+                        if not submitted:
+                            session_state.new_training_pagination = page
+                            break
+                    else:
+                        # go to Training page if all forms have been submitted
+                        session_state.new_training_pagination = NewTrainingPagination.Training
+
                     logger.info(
                         f"Successfully updated new training {session_state.new_training.id}")
+                    logger.debug('New Training Pagination: '
+                                 f'{session_state.new_training_pagination}')
             else:
                 session_state.new_training_place['new_training_name'].error(
                     'Training Name already exists, please enter a new name')

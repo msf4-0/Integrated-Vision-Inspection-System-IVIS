@@ -22,11 +22,14 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
  """
+import json
 import sys
 from pathlib import Path
+from typing import Any, Dict
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
+
 
 # DEFINE Web APP page configuration
 layout = 'wide'
@@ -44,20 +47,82 @@ if str(LIB_PATH) not in sys.path:
 
 
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
 from core.utils.log import logger  # logger
-from data_manager.database_manager import init_connection
-
-# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
-
-# >>>> Variable Declaration <<<<
-
-# <<<< Variable Declaration <<<<
+from training.training_management import NewTrainingPagination
 
 
 def training_configuration():
     logger.debug("At new_training_training_config.py")
-    st.write("TRAINING CONFIG")
+
+    if 'training_param_dict' not in session_state:
+        session_state.training_param_dict = {}
+
+    st.markdown(f"**Step 2: Select training configuration:** ")
+
+    train_config_col, _ = st.columns([1, 1])
+
+    with train_config_col:
+        def update_training_param():
+            training_param = {}
+            for k, v in session_state.items():
+                if k.startswith('param_'):
+                    # store this to keep track of current training config startswith 'param_'
+                    session_state.training_param_dict[k] = v
+                    # e.g. param_batch_size -> batch_size
+                    new_key = k.replace('param_', '')
+                    training_param[new_key] = v
+            # update the database and our Training instance
+            session_state.new_training.update_training_param(training_param)
+            session_state.new_training.has_submitted[NewTrainingPagination.TrainingConfig] = True
+            session_state.new_training_pagination = NewTrainingPagination.Training
+
+        if session_state.project.deployment_type == "Image Classification":
+            pass
+
+        elif session_state.project.deployment_type == "Object Detection with Bounding Boxes":
+            # only storing `batch_size` and `num_train_steps`
+            if session_state.new_training.training_param_dict:
+                # taking the stored param from DB
+                batch_size = session_state.new_training.training_param_dict['batch_size']
+                num_train_steps = session_state.new_training.training_param_dict['num_train_steps']
+            else:
+                batch_size = 4
+                num_train_steps = 2000
+
+            # NOTE: store them in key names starting exactly with `param_`
+            #  to be able to extract them and send them over to the Trainer for training
+            # e.g. param_batch_size -> batch_size at the Trainer later
+            with st.form(key='training_config_form'):
+                st.number_input(
+                    "Batch size", min_value=1, max_value=128,
+                    value=batch_size, step=1,
+                    key="param_batch_size",
+                    help=("Update batch size based on the system's memory you"
+                          " have. Higher batch size will need a higher memory."
+                          " Recommended to start with 4. Reduce if memory warning happens.")
+                )
+                st.number_input(
+                    "Number of training steps", min_value=100, max_value=10_000,
+                    value=num_train_steps,
+                    step=50, key='param_num_train_steps',
+                    help="Recommended to train for at least 2000 steps."
+                )
+                # TODO: combine submission with augmentation config together
+                st.form_submit_button("Submit Config",
+                                      on_click=update_training_param)
+
+        elif session_state.project.deployment_type == "Semantic Segmentation with Polygons":
+            pass
+
+    # TODO: augmentation config for image classification and segmentation,
+    # TFOD API does not need this because TFOD's pipeline config already has own augmentation
+
+    # ******************************BACK BUTTON******************************
+    def to_models_page():
+        session_state.new_training_pagination = NewTrainingPagination.Model
+
+    st.button("Modify Model Info", key="training_config_back_button",
+              on_click=to_models_page)
 
 
 if __name__ == "__main__":

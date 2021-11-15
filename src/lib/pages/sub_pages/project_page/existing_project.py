@@ -37,6 +37,9 @@ from project.project_management import ExistingProjectPagination, ProjectPermiss
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page.existing_project_pages import existing_project_dashboard
 from pages.sub_pages.labelling_page import labelling_dashboard
+
+from annotation.annotation_management import reset_editor_page
+from training.training_management import NewTraining
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -90,7 +93,7 @@ def index():
     }
 
     # ****************************** HEADER **********************************************
-    st.write(f"# {session_state.project.name}")
+    st.write(f"# Project: {session_state.project.name}")
 
     project_description = session_state.project.desc if session_state.project.desc is not None else " "
     st.write(f"{project_description}")
@@ -114,11 +117,16 @@ def index():
 
         # NOTE: TO RESET SUB-PAGES AFTER EXIT
 
-        session_state.existing_project_pagination = existing_project_page_options.index(
-            session_state.existing_project_page_navigator_radio)
+        navigation_selected = session_state.existing_project_page_navigator_radio
+        navigation_selected_idx = existing_project_page_options.index(
+            navigation_selected)
+        session_state.existing_project_pagination = navigation_selected_idx
 
-        if "dataset_page_navigator_radio" in session_state:
-            del session_state.existing_project_page_navigator_radio
+        if navigation_selected == "Labelling":
+            reset_editor_page()
+        elif navigation_selected == "Training":
+            NewTraining.reset_new_training_page()
+        # TODO: Add reset on other selections
 
     with st.sidebar.expander(session_state.project.name, expanded=True):
         st.radio("Navigation", options=existing_project_page_options,
