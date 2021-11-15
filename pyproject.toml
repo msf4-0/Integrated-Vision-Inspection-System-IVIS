@@ -28,7 +28,7 @@ psutil = "^5.8.0"
 pycocotools = "^2.0.2"
 scipy = "^1.7.1"
 streamlit-webrtc = "^0.28.1"
-humanize = "^3.11.0"
+humanize = "^3.12.0"
 
 opencv-python = "~4.5.2"
 tensorflow-datasets = "^4.4.0"
