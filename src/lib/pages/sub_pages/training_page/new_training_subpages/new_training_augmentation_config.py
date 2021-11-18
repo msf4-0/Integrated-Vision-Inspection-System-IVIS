@@ -82,7 +82,8 @@ def augmentation_configuration(RELEASE=True):
         if "project" not in session_state:
             # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
             # uploaded pet segmentation: 96
-            project_id_tmp = 96
+            # uploaded face detection: 111
+            project_id_tmp = 111
             session_state.project = Project(project_id_tmp)
             logger.debug(f"Entering Project {project_id_tmp}")
         if 'user' not in session_state:
@@ -90,7 +91,8 @@ def augmentation_configuration(RELEASE=True):
         if 'new_training' not in session_state:
             # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
             # uploaded pet segmentation: 20
-            train_id_temp = 20
+            # uploaded face detection: 32
+            train_id_temp = 32
             session_state.new_training = Training(
                 train_id_temp, session_state.project)
             logger.debug(f"Entering Training {train_id_temp}")

@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 import sys
 from pathlib import Path
 import time
@@ -7,6 +8,7 @@ import shutil
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
 import glob
+from imutils.paths import list_images
 
 from sklearn.model_selection import train_test_split
 import pandas as pd
@@ -249,6 +251,26 @@ def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
     if activation == 'Snake' or output_activation == 'Snake':
         custom_objects['Snake'] = Snake
     return custom_objects
+
+
+# NOTE: Clear cache cannot clear st.experimental_memo yet
+# https://github.com/streamlit/streamlit/issues/3986
+# @st.experimental_memo
+@st.cache
+def get_test_images_labels(
+    pickle_path: Path,
+    deployment_type: str) -> Union[Tuple[List[str], List[str], Dict[int, str]],
+                                   Tuple[List[str], List[str]]]:
+    logger.debug("Loading test set data from pickle file")
+    with st.spinner("Getting test set images and labels ..."):
+        with open(pickle_path, 'rb') as f:
+            test_set_data = pickle.load(f)
+        if deployment_type == 'Image Classification':
+            X_test, y_test, encoded_label_dict = test_set_data
+            return X_test, y_test, encoded_label_dict
+        elif deployment_type == 'Semantic Segmentation with Polygons':
+            X_test, y_test = test_set_data
+            return X_test, y_test
 
 
 @st.cache(show_spinner=False)
@@ -567,7 +589,7 @@ def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, A
     # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
     detect_fn = tf.saved_model.load(str(saved_model_path))
     end_time = time.perf_counter()
-    logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
+    logger.info(f'Done Loading TFOD model! Took {end_time - start_time:.2f} seconds')
     return detect_fn
 
 
@@ -606,9 +628,23 @@ def tfod_detect(detect_fn: Callable[[tf.Tensor], Dict[str, Any]],
     return detections
 
 
+@st.cache
+def get_tfod_test_set_data(test_data_dir: Path, return_xml_df: bool = True):
+    with st.spinner("Getting images and annotations ..."):
+        # test_data_dir should be in (training_path['images'] / 'test')
+        logger.debug(f"Test set image directory: {test_data_dir}")
+        test_img_paths = sorted(list_images(test_data_dir))
+        # get the ground truth bounding box data from XML files
+        if return_xml_df:
+            gt_xml_df = xml_to_df(str(test_data_dir))
+            return test_img_paths, gt_xml_df
+        else:
+            return test_img_paths
+
 # ******************************* TFOD funcs *******************************
 
 # *********************** Classification model funcs ***********************
+
 
 def tf_classification_preprocess_input(imagePath, label, image_size):
     raw = tf.io.read_file(imagePath)

@@ -1,7 +1,7 @@
 from itertools import zip_longest
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
 from pathlib import Path
 import numpy as np
 import cv2
@@ -26,8 +26,12 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g',
                         st_newlines: bool = True, bold_name: bool = True) -> str:
     """
     Format param_dict to become a nice output to show on Streamlit.
+
     `float_format` is used for formatting floats.
     The formatting for significant digits `.5g` is based on [StackOverflow](https://stackoverflow.com/questions/25780022/how-to-make-python-format-floats-with-certain-amount-of-significant-digits).
+
+    Set both `st_newlines` and `bold_name` to True for displaying with `st.info`.
+    Set them to False to display as one line, especially useful for table/dataframe.
     """
     config_info = []
     for k, v in param_dict.items():
@@ -62,6 +66,36 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g',
         separator = '; '
     config_info = separator.join(config_info)
     return config_info
+
+
+def prettify_db_metrics(data_list: Union[List[NamedTuple], List[Dict]],
+                        return_dict: bool = False,
+                        **kwargs) -> Union[List[NamedTuple], List[Dict]]:
+    """Prettify Metrics in Dict or Namedtuple queried from database (DB) for displaying.
+
+    Args:
+        data_list (Union[List[namedtuple], List[dict]]): Query results from DB
+        return_dict (bool, optional): True if query results of type Dict. Defaults to False.
+        kwargs: Optional arguments to pass to `pretty_format_param`
+
+    Returns:
+        List: List of Formatted Metrics query results
+    """
+    prettified_data = []
+    for data in data_list:
+        # convert datetime with TZ to (2021-07-30 12:12:12) format
+        if return_dict:
+            data["Metrics"] = pretty_format_param(
+                data["Metrics"],
+                **kwargs)
+        else:
+            prettified_metrics = pretty_format_param(
+                data.Date_Time,
+                **kwargs)
+            data = data._replace(
+                Metrics=prettified_metrics)
+        prettified_data.append(data)
+    return prettified_data
 
 
 def pretty_st_metric(
@@ -243,16 +277,17 @@ def draw_gt_bboxes(
             thickness=2)
         # draw the class name if given
         if class_name:
+            y = ymin - 36 if ymin - 36 > 0 else ymin
             ((label_width, label_height), _) = cv2.getTextSize(
                 class_name, fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=1.75, thickness=2
             )
 
             cv2.rectangle(
                 image_with_gt_box,
-                (xmin, ymin),
+                (xmin - 1, y),
                 (
                     int(xmin + label_width + label_width * 0.05),
-                    int(ymin + label_height + label_height * 1),
+                    int(y + label_height + label_height * 1),
                 ),
                 color=color,
                 thickness=cv2.FILLED,
@@ -262,8 +297,8 @@ def draw_gt_bboxes(
                 image_with_gt_box,
                 class_name,
                 (
-                    int(xmin + label_width * 0.03),
-                    int(ymin + label_height + label_height * 0.5),
+                    int(xmin + label_width * 0.08),
+                    int(y + label_height + label_height * 0.5),
                 ),  # bottom left
                 fontFace=cv2.FONT_HERSHEY_PLAIN,
                 fontScale=1.75,
@@ -278,11 +313,13 @@ def draw_tfod_bboxes(
         image_np: np.ndarray,
         category_index: Dict[int, Any],
         min_score_thresh: float = 0.6) -> np.ndarray:
-    """`category_index` is loaded using `load_labelmap` method"""
+    """Draw TFOD detected bounding boxes on the image. Note that this does
+    not create a new image copy for the purpose of faster computation.
+
+    `category_index` is loaded using `load_labelmap` method"""
     label_id_offset = 1  # might need this
-    image_np_with_detections = image_np.copy()
     viz_utils.visualize_boxes_and_labels_on_image_array(
-        image_np_with_detections,
+        image_np,
         detections['detection_boxes'],
         # detections['detection_classes'] + label_id_offset,
         detections['detection_classes'],
@@ -293,7 +330,6 @@ def draw_tfod_bboxes(
         min_score_thresh=min_score_thresh,
         agnostic_mode=False
     )
-    return image_np_with_detections
 
 
 def get_colored_mask_image(image: np.ndarray,

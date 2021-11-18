@@ -43,6 +43,7 @@ from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
 import tensorflow as tf
 
+
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -68,6 +69,7 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
 from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
                                               DeploymentType)
 from machine_learning.utils import load_trained_keras_model, modify_trained_model_layers
+from machine_learning.visuals import prettify_db_metrics
 
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
@@ -148,8 +150,8 @@ MODEL_FILES = {
     Framework.TensorFlow: {
         'model_extension': ('.pb'),
         'checkpoint': 'checkpoint',
-        'config': 'pipeline.config',
-        'labelmap': 'labelmap.pbtxt'
+        'config': '.config',
+        'labelmap': '.pbtxt'
     },
     Framework.PyTorch: {
         'model_extension': ('.pt', '.pth', '.pkl'),
@@ -224,6 +226,13 @@ EVALUATION_TAGS = {
 }
 
 # TODO #17 Work on converter
+
+
+class UploadedTFODPaths(NamedTuple):
+    labelmap: Path
+    pipeline: Path
+    checkpoint_dir: Path
+    saved_model_dir: Path
 
 
 class ModelCompatibility(IntEnum):
@@ -361,7 +370,7 @@ class BaseModel:
             # if framework_const == Framework.TensorFlow:
             framework_check_list = MODEL_FILES[Framework.TensorFlow]
             model_files = []  # use to temporariy store detected files, raise Error if length>1!!!
-            checkpoint_files = []
+            checkpoint_paths = []
             config_files = []
             labelmap_files = []
 
@@ -371,18 +380,17 @@ class BaseModel:
                     logger.debug(f"{model_files = }")
 
                 elif os.path.basename(file) == framework_check_list['checkpoint']:
-                    checkpoint_files.append(file)
-                    logger.debug(f"{checkpoint_files = }")
+                    checkpoint_paths.append(file)
+                    logger.debug(f"{checkpoint_paths = }")
 
-                elif deployment_type_const == DeploymentType.OD:
-                    # OPTIONAL
-                    if file == framework_check_list['config']:
-                        config_files.append(file)
-                        logger.debug(f"{config_files = }")
+                # OPTIONAL
+                elif file.endswith(framework_check_list['config']):
+                    config_files.append(file)
+                    logger.debug(f"{config_files = }")
 
-                    if file == framework_check_list['labelmap']:
-                        labelmap_files.append(file)
-                        logger.debug(f"{labelmap_files = }")
+                elif file.endswith(framework_check_list['labelmap']):
+                    labelmap_files.append(file)
+                    logger.debug(f"{labelmap_files = }")
 
             self.compatibility_flag = ModelCompatibility.MissingModel
             if not model_files:
@@ -393,7 +401,7 @@ class BaseModel:
                 st.error("There should only be one model file")
                 logger.error("There should only be one model file")
                 st.stop()
-            if not checkpoint_files:
+            if not checkpoint_paths:
                 st.error("Checkpoint files missing")
                 logger.error("Checkpoint files missing")
                 st.stop()
@@ -429,9 +437,9 @@ class BaseModel:
             # if deployment_type_const in COMPUTER_VISION_LIST:
             if not labelmap_files:
                 st.warning(
-                    f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                    f"**labelmap.pbtxt** file is not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
                 logger.warning(
-                    f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                    f"**labelmap.pbtxt** file is not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
                 self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
 
             st.success(
@@ -1185,29 +1193,6 @@ class Model(BaseModel):
 
         return models, column_names
 
-    def query_uploaded_models(for_data_table: bool = False,
-                              return_dict: bool = False,
-                              deployment_type: Union[str, IntEnum] = None
-                              ) -> Tuple[Union[NamedTuple,
-                                               List[Dict[str, Any]]], List[str]]:
-        """Wrapper function to query model table
-
-        Args:
-            for_data_table (bool, optional): True if query for data table. Defaults to False.
-            return_dict (bool, optional): True if query results of type Dict. Defaults to False.
-            deployment_type (IntEnum, optional): Deployment type. Defaults to None.
-
-        Returns:
-            Tuple[NamedTuple, List[str]]: NamedTuple fetched from database, with 
-                list of column names.
-        """
-        models, column_names = query_model_by_deployment_type(
-            deployment_type=deployment_type,
-            for_data_table=for_data_table,
-            return_dict=return_dict)
-
-        return models, column_names
-
     @staticmethod
     @st.cache
     def get_framework_list() -> List[namedtuple]:
@@ -1488,21 +1473,10 @@ def query_all_models(
             ORDER BY
                 ID ASC;
                     """
-
     models, column_names = db_fetchall(
         query_all_model_SQL, conn, fetch_col_name=True, return_dict=return_dict)
-
     logger.info(f"Querying all models......")
-
-    models_tmp = []
-
-    if models:
-        models_tmp = datetime_formatter(models, return_dict=return_dict)
-
-    else:
-        models_tmp = []
-
-    return models_tmp, column_names
+    return models, column_names
 
 
 # @st.cache(ttl=60)
@@ -1560,7 +1534,7 @@ def query_model_by_deployment_type(
                         )
                     END AS "Training Name"
             ),
-                   m.updated_at  AS "Date/Time",
+            to_char(m.updated_at, 'YYYY-MM-DD HH24:MI:SS')  AS "Date/Time",
             m.description AS "Description",
             m.metrics AS "Metrics",
             m.model_path AS "Model Path",
@@ -1570,60 +1544,113 @@ def query_model_by_deployment_type(
             INNER JOIN public.deployment_type dt ON m.deployment_id = dt.id
         WHERE dt.name = %s
         ORDER BY
-            m.id;        
+            m.id;
                 """.format(ID_string=ID_string)
-
     model_dt_vars = [deployment_type]
-
     models, column_names = db_fetchall(
-        model_dt_SQL, conn, model_dt_vars, fetch_col_name=True, return_dict=return_dict)
-
+        model_dt_SQL, conn, model_dt_vars,
+        fetch_col_name=True,
+        return_dict=return_dict)
     logger.info(f"Querying models filtered by Deployment Type from database....")
-
-    models_tmp = []
-
-    if models:
-        models_tmp = datetime_formatter(models, return_dict)
-
-    else:
-        models_tmp = []
-
-    return models_tmp, column_names
+    return models, column_names
 
 
 def query_current_project_models(
     project_id: int,
     for_data_table: bool = False,
-    return_dict: bool = False) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
-                                        List[str]]:
-    """Query rows of project models filtered by current project_id from 'models' table"""
+    return_dict: bool = False,
+    prettify_metrics: bool = False,
+    trained: bool = False) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
+                                    List[str]]:
+    """Query rows of project models filtered by current project_id from 'models' table
+
+    `prettify_metrics` is to prettify the Metrics into one line especially for displaying
+    with a table.
+
+    `trained` = True means `is_started` = True in the 'training' table.
+    """
     ID_string = "id" if for_data_table else "ID"
 
+    if trained:
+        is_started = (True,)
+    else:
+        is_started = (True, False)
     sql_query = f"""
-        SELECT  m.id          AS \"{ID_string}\",
+        SELECT  t.id          AS \"{ID_string}\",
+                m.id          AS "Model ID",
                 m.name        AS "Name",
                 f.name        AS "Framework",
                 t.name        AS "Training Name",
+                (
+                    SELECT
+                        name AS "Base Model Name"
+                    FROM
+                        public.models
+                    WHERE
+                        id = t.attached_model_id
+                ),
                 m.description AS "Description",
                 m.metrics     AS "Metrics",
-                m.updated_at  AS "Date/Time"
+                to_char(m.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS "Date/Time"
         FROM public.models m
                 LEFT JOIN public.training t ON m.training_id = t.id
                 LEFT JOIN public.framework f ON f.id = m.framework_id
-        WHERE m.model_type_id = 2
-            AND t.project_id = %s
+        WHERE t.project_id = %s
+            AND t.is_started in %s
+            AND m.model_type_id = 2
         ORDER BY m.id;
     """
-    query_vars = [project_id]
+    query_vars = [project_id, is_started]
     models, column_names = db_fetchall(
-        sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
+        sql_query, conn, query_vars,
+        fetch_col_name=True,
+        return_dict=return_dict)
+    if prettify_metrics:
+        models = prettify_db_metrics(models,
+                                     return_dict=return_dict,
+                                     st_newlines=False,
+                                     bold_name=False)
     logger.info(f"Queried current project's models from database")
+    return models, column_names
 
-    models_tmp = []
-    if models:
-        models_tmp = datetime_formatter(models, return_dict)
 
-    return models_tmp, column_names
+def query_uploaded_models(
+    for_data_table: bool = False,
+    return_dict: bool = False,
+    deployment_type: str = None) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
+                                          List[str]]:
+    """Query rows of uploaded models filtered by `deployment_type` from 'models' table.
+    The query here has the same columns as `query_current_project_models()` except for
+    "Base Model Name", "Training Name" and "Metrics" columns.
+    """
+    ID_string = "id" if for_data_table else "ID"
+    sql_query = f"""
+    SELECT  t.id                AS \"{ID_string}\",
+            m.id                AS "Model ID",
+            m.name              AS "Name",
+            f.name              AS "Framework",
+            m.description                                  AS "Description",
+            to_char(m.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS "Date/Time"
+        FROM public.models m
+            LEFT JOIN public.training t ON m.training_id = t.id
+            LEFT JOIN public.framework f ON f.id = m.framework_id
+            LEFT JOIN public.deployment_type d ON m.deployment_id = d.id
+        WHERE m.model_type_id = 3
+            AND d.name in %s
+        ORDER BY m.id;
+    """
+    if not deployment_type:
+        query_vars = ('Image Classification',
+                      'Object Detection with Bounding Boxes',
+                      'Semantic Segmentation with Polygons')
+    else:
+        query_vars = (deployment_type,)
+    models, column_names = db_fetchall(
+        sql_query, conn, query_vars,
+        fetch_col_name=True,
+        return_dict=return_dict)
+    logger.info(f"Queried all user-uploaded models from database")
+    return models, column_names
 
 
 def get_trained_models_df(models: List[NamedTuple],

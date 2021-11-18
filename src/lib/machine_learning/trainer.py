@@ -22,6 +22,7 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
+from __future__ import annotations
 
 from functools import partial
 from itertools import cycle
@@ -32,7 +33,7 @@ import sys
 import shutil
 from pathlib import Path
 from time import perf_counter, sleep
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import cv2
 import numpy as np
 import pickle
@@ -58,7 +59,6 @@ from keras.losses import categorical_crossentropy
 
 from sklearn.metrics import classification_report, confusion_matrix
 from imutils.paths import list_images
-from core.utils.file_handler import create_tarfile
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -68,16 +68,18 @@ if str(LIB_PATH) not in sys.path:
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
-from project.project_management import Project
-from training.training_management import Training, AugmentationConfig
+from core.utils.file_handler import create_tarfile
+if TYPE_CHECKING:
+    from project.project_management import Project
+    from training.training_management import Training, AugmentationConfig
 from training.labelmap_management import Framework, Labels
 from path_desc import (DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
-from .command_utils import (find_tfod_eval_metrics, run_command,
+from .command_utils import (export_tfod_savedmodel, find_tfod_eval_metrics, run_command,
                             run_command_update_metrics, find_tfod_metric)
 from .utils import (check_unique_label_counts, classification_predict, copy_images, custom_train_test_split, generate_tfod_xml_csv, get_bbox_label_info,
-                    get_coco_classes, get_tfod_last_ckpt_path, get_transform,
+                    get_coco_classes, get_test_images_labels, get_tfod_last_ckpt_path, get_tfod_test_set_data, get_transform,
                     load_image_into_numpy_array, load_keras_model, load_labelmap,
                     load_tfod_checkpoint, load_tfod_model, load_trained_keras_model, modify_trained_model_layers, preprocess_image,
                     segmentation_predict, segmentation_read_and_preprocess,
@@ -122,13 +124,6 @@ class Trainer:
         self.metrics, self.metric_names = new_training.get_training_metrics()
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.training_path
-        # created this path to save all the test set related paths and encoded_labels
-        self.test_set_pkl_path: Path = self.training_path['models'] / \
-            'test_images_and_labels.pkl'
-        self.test_result_txt_path: Path = self.training_path['models'] / \
-            'test_result.txt'
-        self.confusion_matrix_path: Path = self.training_path['models'] / \
-            'confusion_matrix.png'
 
     def train(self, is_resume: bool = False, stdout_output: bool = False,
               train_one_batch: bool = False):
@@ -376,16 +371,25 @@ class Trainer:
 
         # ******************** Create label_map.pbtxt *****************
         with st.spinner('Creating labelmap file ...'):
-            logger.info('Creating labelmap file')
             CLASS_NAMES = self.class_names
-            labelmap_string = Labels.generate_labelmap_string(
-                CLASS_NAMES,
-                framework=Framework.TensorFlow,
-                deployment_type=self.deployment_type)
-            Labels.generate_labelmap_file(labelmap_string=labelmap_string,
-                                          dst=files["LABELMAP"].parent,
-                                          framework=Framework.TensorFlow,
-                                          deployment_type=self.deployment_type)
+            existing_labelmap_paths = list(pt_model_dir.rglob("*.pbtxt"))
+            if existing_labelmap_paths:
+                # should only be one file after the `check_if_required_files_exist()`
+                p = existing_labelmap_paths[0]
+                # use existing labelmap file if exists, especially
+                #  if it's uploaded by user
+                logger.info(f"Using existing labelmap file at '{p}'")
+                shutil.copy2(p, files["LABELMAP"])
+            else:
+                logger.info(f"Creating labelmap file")
+                labelmap_string = Labels.generate_labelmap_string(
+                    CLASS_NAMES,
+                    framework=Framework.TensorFlow,
+                    deployment_type=self.deployment_type)
+                Labels.generate_labelmap_file(labelmap_string=labelmap_string,
+                                              dst=files["LABELMAP"].parent,
+                                              framework=Framework.TensorFlow,
+                                              deployment_type=self.deployment_type)
 
         # ******************** Generate TFRecords ********************
         with st.spinner('Generating TFRecords ...'):
@@ -503,10 +507,10 @@ class Trainer:
             st.info(eval_result_text)
 
             # store the results to directly show on the training page in the future
-            with open(self.test_result_txt_path, 'w') as f:
+            with open(self.training_path['test_result_txt_file'], 'w') as f:
                 f.write(eval_result_text)
             logger.debug("Saved evaluation script results at: "
-                         f"{self.test_result_txt_path}")
+                         f"{self.training_path['test_result_txt_file']}")
         else:
             st.error("There was some error occurred with COCO evaluation.")
             logger.error("There was some error occurred with COCO evaluation.")
@@ -521,22 +525,8 @@ class Trainer:
 
     def export_tfod_model(self, stdout_output=False):
         paths = self.training_path
-        if paths['export'].exists():
-            # remove any existing export directory first
-            shutil.rmtree(paths['export'])
 
-        with st.spinner("Exporting model ... This may take awhile ..."):
-            pipeline_conf_path = paths['config_file']
-            FREEZE_SCRIPT = TFOD_DIR / 'research' / \
-                'object_detection' / 'exporter_main_v2.py '
-            command = (f"python {FREEZE_SCRIPT} "
-                       "--input_type=image_tensor "
-                       f"--pipeline_config_path={pipeline_conf_path} "
-                       f"--trained_checkpoint_dir={paths['models']} "
-                       f"--output_directory={paths['export']}")
-            logger.debug(f"{stdout_output = }")
-            run_command(command, stdout_output)
-        st.success('Model is successfully exported!')
+        export_tfod_savedmodel(paths)
 
         # copy the labelmap file into the export directory first
         # to store it for exporting
@@ -567,16 +557,17 @@ class Trainer:
                     pipeline_config_path=self.training_path['config_file'])
                 tensor_dtype = tf.float32
         category_index = load_labelmap(paths['labelmap_file'])
+        logger.debug(f"{category_index = }")
 
         # show the stored evaluation result during training
-        if self.test_result_txt_path.exists():
+        if paths['test_result_txt_file'].exists():
             st.subheader("Object Detection Evaluation results")
-            with open(self.test_result_txt_path) as f:
+            with open(paths['test_result_txt_file']) as f:
                 eval_result_text = f.read()
             st.info(eval_result_text)
         else:
-            logger.error("""Some error occurred while running COCO evaluation script,
-            and the results were not saved.""")
+            logger.error(f"""Some error occurred while running COCO evaluation script,
+            and the results were not saved at {paths['test_result_txt_file']}.""")
 
         # **************** SHOW SOME IMAGES FOR EVALUATION ****************
         st.header("Prediction Results on Test Set:")
@@ -589,18 +580,9 @@ class Trainer:
             # to keep track of the image index to show
             session_state['start_idx'] = 0
 
-        @ st.experimental_memo
-        def get_test_images_annotations():
-            with st.spinner("Getting images and annotations ..."):
-                test_data_dir = paths['images'] / 'test'
-                logger.debug(f"Test set image directory: {test_data_dir}")
-                test_img_paths = sorted(list_images(test_data_dir))
-                # get the ground truth bounding box data from XML files
-                gt_xml_df = xml_to_df(str(test_data_dir))
-            return test_img_paths, gt_xml_df
-
         # take the test set images
-        image_paths, gt_xml_df = get_test_images_annotations()
+        test_data_dir = paths['images'] / 'test'
+        image_paths, gt_xml_df = get_tfod_test_set_data(test_data_dir)
 
         with options_col:
             def reset_start_idx():
@@ -638,10 +620,11 @@ class Trainer:
                     performance of the model on real images before deciding
                     to export the model. Or you may choose to export the
                     model by clicking the "Export Model" button above first
+                    (if this is in training page)
                     before checking the evaluation results. Note that the
                     inference time for the first image will take significantly
                     longer than others. In production, we will also export the
-                    model before using it for inference.""")
+                    model before deploying it for inference.""")
 
         n_samples = session_state['n_samples']
         start_idx = session_state['start_idx']
@@ -682,8 +665,14 @@ class Trainer:
                 logger.info(f"Done inference on {filename}. "
                             f"[{time_elapsed:.2f} secs]")
 
-                img_with_detections = draw_tfod_bboxes(
-                    detections, img, category_index,
+                img_with_detections = img.copy()
+                pred_classes = [category_index(i)['name']
+                                for i in np.unique(
+                                    detections['detection_classes']).tolist()
+                                ]
+                logger.info(f"Detected classes: {pred_classes}")
+                draw_tfod_bboxes(
+                    detections, img_with_detections, category_index,
                     session_state.conf_threshold)
 
                 img = draw_gt_bboxes(img, bboxes,
@@ -1031,9 +1020,9 @@ class Trainer:
                 images_and_labels = (X_test, y_test, encoded_label_dict)
             else:
                 images_and_labels = (X_test, y_test)
-            with open(self.test_set_pkl_path, "wb") as f:
+            with open(self.training_path['test_set_pkl_file'], "wb") as f:
                 logger.debug("Dumping test set data as pickle file "
-                             f"in {self.test_set_pkl_path}")
+                             f"in {self.training_path['test_set_pkl_file']}")
                 pickle.dump(images_and_labels, f)
 
         # ***************** Preparing tf.data.Dataset *****************
@@ -1185,15 +1174,15 @@ class Trainer:
                 plt.ylabel('Actual')
                 plt.xlabel('Predicted')
                 # save the figure to reuse later
-                plt.savefig(str(self.confusion_matrix_path),
+                plt.savefig(str(self.training_path['confusion_matrix_file']),
                             bbox_inches="tight")
                 st.pyplot(fig)
 
         # save the results in a txt file to easily show again later
-        with open(self.test_result_txt_path, "w") as f:
+        with open(self.training_path['test_result_txt_file'], "w") as f:
             f.write(result_txt)
         logger.debug(
-            f"Test set result saved at {self.test_result_txt_path}")
+            f"Test set result saved at {self.training_path['test_result_txt_file']}")
 
         # remove the model weights file, which is basically just used for loading
         # the best weights with the lowest val_loss. Decided to just use the
@@ -1214,27 +1203,29 @@ class Trainer:
         model = load_keras_model(self.training_path['output_keras_model_file'],
                                  self.metrics)
 
-        if self.test_result_txt_path.exists():
+        if self.training_path['test_result_txt_file'].exists():
             # show the evaluation results stored during training
-            with open(self.test_result_txt_path) as f:
+            with open(self.training_path['test_result_txt_file']) as f:
                 result_txt = f.read()
             st.subheader("Evaluation result on validation set and "
                          "test set if available:")
-            if self.deployment_type == 'Image Classification':
-                # NOTE: this `header_txt` must be the same as the one used during the creation
-                #  of the text in run_keras_training()
-                header_txt = "Classification report:"
-                results, classif_report = result_txt.split(header_txt)
-                classif_report = header_txt + classif_report
-                st.info(results)
-                st.text(classif_report)
-            else:
-                st.info(result_txt)
+            result_col, _ = st.columns(2)
+            with result_col:
+                if self.deployment_type == 'Image Classification':
+                    # NOTE: this `header_txt` must be the same as the one used during the creation
+                    #  of the text in run_keras_training()
+                    header_txt = "Classification report:"
+                    results, classif_report = result_txt.split(header_txt)
+                    classif_report = header_txt + classif_report
+                    st.info(results)
+                    st.text(classif_report)
+                else:
+                    st.info(result_txt)
 
-        if self.confusion_matrix_path.exists():
+        if self.training_path['confusion_matrix_file'].exists():
             logger.debug("Showing confusion matrix from "
-                         f"{self.confusion_matrix_path}")
-            image = plt.imread(self.confusion_matrix_path)
+                         f"{self.training_path['confusion_matrix_file']}")
+            image = plt.imread(self.training_path['confusion_matrix_file'])
             st.image(image)
             st.markdown("___")
 
@@ -1251,22 +1242,17 @@ class Trainer:
             # to keep track of the image index to show
             session_state['start_idx'] = 0
 
-        # NOTE: Clear cache cannot clear st.experimental_memo yet
-        # https://github.com/streamlit/streamlit/issues/3986
-        # @st.experimental_memo
-        @st.cache
-        def get_test_images_labels():
-            logger.debug("Loading test set data from pickle file")
-            with st.spinner("Getting test set images and labels ..."):
-                with open(self.test_set_pkl_path, 'rb') as f:
-                    test_set_data = pickle.load(f)
-                return test_set_data
-
         logger.info("Loading test set data")
         if self.deployment_type == 'Image Classification':
-            X_test, y_test, encoded_label_dict = get_test_images_labels()
+            X_test, y_test, encoded_label_dict = get_test_images_labels(
+                self.training_path['test_set_pkl_file'],
+                self.deployment_type
+            )
         else:
-            X_test, y_test = get_test_images_labels()
+            X_test, y_test = get_test_images_labels(
+                self.training_path['test_set_pkl_file'],
+                self.deployment_type
+            )
 
         with options_col:
             st.header("Prediction results on test set")
@@ -1338,10 +1324,8 @@ class Trainer:
                                f"Predicted: {pred_classname}; "
                                f"Score: {y_proba * 100:.1f}")
 
-                    # convert to RGB for visualization
-                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     with col:
-                        st.image(img, caption=caption)
+                        st.image(img, channels='BGR', caption=caption)
         else:
             with figure_row_place:
                 class_colors = create_class_colors(self.class_names)

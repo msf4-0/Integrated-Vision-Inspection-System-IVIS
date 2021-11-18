@@ -384,7 +384,10 @@ class Task(BaseTask):
                             FROM
                                 public.dataset d
                             WHERE
-                                d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+                                d.id = t.dataset_id),
+                        t.is_labelled AS "Is Labelled",
+                        t.skipped AS "Skipped",
+                        to_char(t.updated_at, 'YYYY-MM-DD HH24:MI:SS')  AS "Date/Time"
                     FROM
                         public.task t
                         LEFT JOIN public.annotations a ON a.id = t.annotation_id
@@ -398,31 +401,11 @@ class Task(BaseTask):
         logger.info(
             f"Querying annotations and tasks from database for Project {project_id}")
 
-        try:
-            all_task = []
-            all_task_query_return, column_names = db_fetchall(
-                query_all_task_SQL, conn, query_all_task_vars, fetch_col_name=True, return_dict=return_dict)
-
-            for task in all_task_query_return:
-                # convert datetime with TZ to (2021-07-30 12:12:12) format
-                if return_dict:
-                    converted_datetime = task["Date/Time"].strftime(
-                        '%Y-%m-%d %H:%M:%S')
-                    task["Date/Time"] = converted_datetime
-                else:
-                    converted_datetime = task.Date_Time.strftime(
-                        '%Y-%m-%d %H:%M:%S')
-
-                    task = task._replace(
-                        Date_Time=converted_datetime)
-                all_task.append(task)
-
-        except Exception as e:
-            logger.error(f"{e}: No task found for Project {project_id} ")
-            all_task = []
-            column_names = []
-
-        return all_task, column_names
+        all_task_query_return, column_names = db_fetchall(
+            query_all_task_SQL, conn, query_all_task_vars,
+            fetch_col_name=True,
+            return_dict=return_dict)
+        return all_task_query_return, column_names
 
     @staticmethod
     def create_all_task_dataframe(all_task: Union[List[namedtuple], List[dict]], column_names: List = None) -> pd.DataFrame:
@@ -493,7 +476,10 @@ class Task(BaseTask):
                     FROM
                         public.dataset d
                     WHERE
-                        d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+                        d.id = t.dataset_id),
+                t.is_labelled AS "Is Labelled",
+                t.skipped AS "Skipped",
+                to_char(t.updated_at, 'YYYY-MM-DD HH24:MI:SS')  AS "Date/Time"
             FROM
                 public.task t
                 LEFT JOIN public.annotations a ON a.id = t.annotation_id

@@ -1,4 +1,5 @@
 import copy
+import shutil
 import subprocess
 import pprint
 from pathlib import Path
@@ -10,6 +11,8 @@ import numpy as np
 import streamlit as st
 from streamlit import session_state
 from streamlit_tensorboard import st_tensorboard
+
+from path_desc import TFOD_DIR
 
 from .visuals import pretty_st_metric, PrettyMetricPrinter
 from core.utils.log import logger
@@ -362,3 +365,29 @@ def run_command_update_metrics(
     returncode = process.wait()
     traceback = check_process_returncode(returncode, traceback)
     return process.stdout.read()
+
+
+def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
+    paths = training_paths
+    if paths['export'].exists():
+        # remove any existing export directory first
+        shutil.rmtree(paths['export'])
+
+    with st.spinner("Exporting TensorFlow Object Detection model ... "
+                    "This may take awhile ..."):
+        pipeline_conf_path = paths['config_file']
+        FREEZE_SCRIPT = TFOD_DIR / 'research' / \
+            'object_detection' / 'exporter_main_v2.py '
+        command = (f"python {FREEZE_SCRIPT} "
+                   "--input_type=image_tensor "
+                   f"--pipeline_config_path={pipeline_conf_path} "
+                   f"--trained_checkpoint_dir={paths['models']} "
+                   f"--output_directory={paths['export']}")
+        run_command(command, stdout_output=False)
+
+    if (paths['export'] / 'saved_model').exists():
+        logger.info("Successfully exported TensorFlow Object Detection model")
+        return True
+    else:
+        logger.error("Failed to export TensorFlow Object Detection model!")
+        return False

@@ -127,8 +127,8 @@ class ExistingProjectPagination(IntEnum):
     Dashboard = 0
     Labelling = 1
     Training = 2
+    # Models = 3
     # show all trained project models with latest result metrics
-    Models = 3
     Deployment = 4
     Settings = 5
 

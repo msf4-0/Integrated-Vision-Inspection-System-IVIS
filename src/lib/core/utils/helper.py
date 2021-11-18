@@ -15,6 +15,7 @@ from inspect import signature
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+import cv2
 
 import pandas as pd
 import streamlit as st
@@ -241,6 +242,8 @@ def dataframe2dict(orient='index') -> List[Dict[str, Any]]:
 
 def datetime_formatter(data_list: Union[List[NamedTuple], List[Dict]], return_dict: bool = False) -> List:
     """Convert datetime format to %Y-%m-%d %H:%M:%S for Dict and namedtuple from DB query
+    NOTE: CAN JUST use to_char(<column_name>, 'YYYY-MM-DD HH24:MI:SS') in query instead!
+
 
     Args:
         data_list (Union[List[namedtuple], List[dict]]): Query results from DB
@@ -488,3 +491,35 @@ def find_net_change(initial_list: List, submitted_list: List) -> Tuple:
         flag = NetChange.NoChange
         logger.info(f"No Change: {flag}")
         return None, flag
+
+
+def list_available_cameras():
+    """
+    Test the ports and returns a tuple with the available ports and the ones that are working.
+    """
+    # https://stackoverflow.com/questions/57577445/list-available-cameras-opencv-python
+    dev_port = 0
+    working_ports = []
+    available_ports = []
+    while True:
+        cap = cv2.VideoCapture(dev_port)
+        if not cap.isOpened():
+            logger.debug(f"Port {dev_port} is not working.")
+            break
+        is_reading, img = cap.read()
+        w = cap.get(3)
+        h = cap.get(4)
+        if is_reading:
+            logger.debug(
+                f"Port {dev_port} is working and reads images ({h} x {w})")
+            working_ports.append(dev_port)
+            # cv2.imshow('frame', img)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+        else:
+            logger.debug(f"Port {dev_port} for camera ({h} x {w}) is present "
+                         "but does not reads.")
+            available_ports.append(dev_port)
+        cap.release()
+        dev_port += 1
+    return available_ports, working_ports
