@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+from datetime import datetime
 import logging
 import mimetypes
 import sys
@@ -43,20 +44,32 @@ from path_desc import chdir_root
 conn = init_connection(**st.secrets["postgres"])
 
 
+DATETIME_STR_FORMAT = "%Y-%m-%d_%H-%M-%S_%f"
+
+
+def get_now_string(dt_format=DATETIME_STR_FORMAT) -> str:
+    return datetime.now().strftime(dt_format)
+
+
+def get_today_string(dt_format="%d-%b") -> str:
+    return datetime.now().strftime(dt_format)
+
+
 class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""
 
 
 class Timer:
-    def __init__(self, description: str = '', disable: bool = None):
+    def __init__(self, description: str = '', disable: bool = None,
+                 logging_level: int = logging.DEBUG):
         self.description = description
         self._start_time = None
         if disable is not None:
-            # optionally enable/disable it
+            # optionally enable/disable it ONLY when using context manager
             self._disabled = disable
         else:
-            # disable Timer if logger level is not equal to logging.DEBUG
-            self._disabled = True if logger.getEffectiveLevel() != logging.DEBUG else False
+            # defaults to False
+            self._disabled = False
 
     def start(self):
         """Start a new timer"""
@@ -72,7 +85,7 @@ class Timer:
 
         time_elapsed = perf_counter() - self._start_time
         self._start_time = None
-        logger.debug(f"{self.description} [{time_elapsed:.4f} seconds]")
+        logger.info(f"{self.description} [{time_elapsed:.4f} seconds]")
 
     def __enter__(self):
         """Start a new timer as a context manager"""

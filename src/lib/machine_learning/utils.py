@@ -160,18 +160,22 @@ def copy_images(image_paths: Path,
             shutil.copy2(image_path, dest_dir)
 
 
-def load_image_into_numpy_array(path: str):
+def load_image_into_numpy_array(path: str, bgr2rgb: bool = True):
     """Load an image from file into a numpy array.
     Puts image into numpy array of shape (height, width, channels), where channels=3 for RGB to feed into tensorflow graph.
+
     Args:
-    path: the file path to the image
+        path: the file path to the image
+
     Returns:
-    uint8 numpy array with shape (img_height, img_width, 3)
+        uint8 numpy array with shape (img_height, img_width, 3)
     """
     # always read in 3 channels
     img = cv2.imread(path, cv2.IMREAD_COLOR)
     # convert from OpenCV's BGR to RGB format
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    if bgr2rgb:
+        # NOTE: This step is required for TFOD!
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
 
 
@@ -517,14 +521,14 @@ def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
     The `ckpt_dir` should be `training_path['models']`.
 
     Return None if no ckpt-*.index file found"""
-    ckpt_filepaths = glob.glob(str(ckpt_dir / 'ckpt-*.index'))
+    ckpt_filepaths = ckpt_dir.rglob('ckpt-*.index')
     if not ckpt_filepaths:
-        logger.warning("""There is no checkpoint file found,
-        the TFOD model is not trained yet.""")
+        logger.error("There is no checkpoint file found, "
+                     "the TFOD model is not trained yet.")
         return None
 
-    def get_ckpt_cnt(path):
-        ckpt = path.split("ckpt-")[-1].split(".")[0]
+    def get_ckpt_cnt(path: Path):
+        ckpt = str(path).split("ckpt-")[-1].split(".")[0]
         return int(ckpt)
 
     latest_ckpt = sorted(ckpt_filepaths, key=get_ckpt_cnt, reverse=True)[0]
@@ -589,7 +593,8 @@ def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, A
     # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
     detect_fn = tf.saved_model.load(str(saved_model_path))
     end_time = time.perf_counter()
-    logger.info(f'Done Loading TFOD model! Took {end_time - start_time:.2f} seconds')
+    logger.info(
+        f'Done Loading TFOD model! Took {end_time - start_time:.2f} seconds')
     return detect_fn
 
 

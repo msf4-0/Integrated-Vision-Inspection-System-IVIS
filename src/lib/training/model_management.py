@@ -1620,13 +1620,13 @@ def query_uploaded_models(
     deployment_type: str = None) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
                                           List[str]]:
     """Query rows of uploaded models filtered by `deployment_type` from 'models' table.
-    The query here has the same columns as `query_current_project_models()` except for
-    "Base Model Name", "Training Name" and "Metrics" columns.
+    The query here has the similar columns as `query_current_project_models()` except for
+    using `m.id` instead of `t.id` `as "id", and without "Base Model Name", 
+    "Training Name" and "Metrics" columns.
     """
     ID_string = "id" if for_data_table else "ID"
     sql_query = f"""
-    SELECT  t.id                AS \"{ID_string}\",
-            m.id                AS "Model ID",
+    SELECT  m.id                AS \"{ID_string}\",
             m.name              AS "Name",
             f.name              AS "Framework",
             m.description                                  AS "Description",
@@ -1640,11 +1640,12 @@ def query_uploaded_models(
         ORDER BY m.id;
     """
     if not deployment_type:
-        query_vars = ('Image Classification',
+        # provide all types
+        query_vars = [('Image Classification',
                       'Object Detection with Bounding Boxes',
-                      'Semantic Segmentation with Polygons')
+                       'Semantic Segmentation with Polygons')]
     else:
-        query_vars = (deployment_type,)
+        query_vars = [(deployment_type,)]
     models, column_names = db_fetchall(
         sql_query, conn, query_vars,
         fetch_col_name=True,

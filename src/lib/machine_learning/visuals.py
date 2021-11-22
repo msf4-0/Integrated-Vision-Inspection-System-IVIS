@@ -312,16 +312,19 @@ def draw_tfod_bboxes(
         detections: Dict[str, Any],
         image_np: np.ndarray,
         category_index: Dict[int, Any],
-        min_score_thresh: float = 0.6) -> np.ndarray:
+        min_score_thresh: float = 0.6,
+        is_checkpoint: bool = False) -> np.ndarray:
     """Draw TFOD detected bounding boxes on the image. Note that this does
     not create a new image copy for the purpose of faster computation.
 
     `category_index` is loaded using `load_labelmap` method"""
-    label_id_offset = 1  # might need this
+    if is_checkpoint:
+        # NOTE: Model loaded from TFOD Checkpoint seems to need this
+        label_id_offset = 1
+        detections['detection_classes'] += label_id_offset
     viz_utils.visualize_boxes_and_labels_on_image_array(
         image_np,
         detections['detection_boxes'],
-        # detections['detection_classes'] + label_id_offset,
         detections['detection_classes'],
         detections['detection_scores'],
         category_index,

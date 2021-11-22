@@ -47,6 +47,7 @@ from deployment.deployment_management import Deployment, DeploymentPagination
 from deployment.utils import reset_camera
 from machine_learning.trainer import Trainer
 from machine_learning.command_utils import run_tensorboard
+from machine_learning.utils import load_labelmap
 from machine_learning.visuals import pretty_format_param
 from user.user_management import User
 from project.project_management import Project
@@ -143,8 +144,8 @@ def index(RELEASE=True):
     # the only difference is without "Base Model Name" and "Metrics" columns
     UPLOADED_DT_COLS = [
         {
-            'field': "Model ID",
-            'headerName': "ID",
+            'field': "id",
+            'headerName': "Model ID",
             'headerAlign': "center",
             'align': "center",
             'flex': 5,
@@ -176,6 +177,7 @@ def index(RELEASE=True):
         },
     ]
 
+    st.header(f"Model Selection for Deployment:")
     options = ('Project Model', 'User-Uploaded Model')
     selected_model_type = st.radio(
         'Select the type of model', options,
@@ -183,6 +185,7 @@ def index(RELEASE=True):
         help='Project Model is a model trained in our application.')
 
     if selected_model_type == 'Project Model':
+        st.markdown("## All Trained Project Model for Current Project")
         # namedtuple of query from DB
         models, _ = query_current_project_models(
             session_state.project.id,
@@ -194,6 +197,7 @@ def index(RELEASE=True):
             st.info("""No trained models available for this project yet.""")
             st.stop()
     else:
+        st.markdown(f"## All User-Uploaded Models for {DEPLOYMENT_TYPE}")
         if DEPLOYMENT_TYPE != 'Object Detection with Bounding Boxes':
             st.info("Sorry, instant deployment of user-uploaded model is currently "
                     "only supported for Object Detection task.")
@@ -201,14 +205,11 @@ def index(RELEASE=True):
         models, _ = query_uploaded_models(
             for_data_table=True,
             return_dict=True,
-            prettify_metrics=True,
             deployment_type=DEPLOYMENT_TYPE)
         if not models:
             st.info("""No uploaded models available for your system yet.""")
             st.stop()
 
-    st.header(f"Model Selection for Deployment:")
-    st.markdown(f"## All Trained {selected_model_type} for Current Project")
     st.markdown("Select one to display more information about the trained model")
 
     def reset_cache():
@@ -217,24 +218,29 @@ def index(RELEASE=True):
         st.legacy_caching.clear_cache()
     unique_key = selected_model_type.split()[0]
     columns = PROJECT_DT_COLS if selected_model_type == 'Project Model' else UPLOADED_DT_COLS
-    selected_train_id = data_table(
+    # this ID is Training ID for Project Model, but Model ID for User-uploaded Model
+    selected_id = data_table(
         models, columns, checkbox=False,
         key=f'data_table_model_selection_{unique_key}',
         on_change=reset_cache)
 
-    if not selected_train_id:
+    deploy_button_place = st.empty()
+
+    if not selected_id:
         st.stop()
         # take the first one if none is selected
-        # selected_train_id = models[0]['id']
+        # selected_id = models[0]['id']
     else:
         # index into the single value in the List[int]
-        selected_train_id = selected_train_id[0]
+        selected_id = selected_id[0]
     selected_row = next(m for m in models
-                        if m['id'] == selected_train_id)
+                        if m['id'] == selected_id)
+
+    model_info_col, metric_col = st.columns(2)
 
     if selected_model_type == 'Project Model':
         # INITIALIZE training instance here for information with the model
-        training = Training(selected_train_id, session_state.project)
+        training = Training(selected_id, session_state.project)
         trained_model = training.training_model
         # store the trainer to use for training, inference and deployment
         with st.spinner("Initializing trainer ..."):
@@ -255,7 +261,6 @@ def index(RELEASE=True):
         """
         # Framework:
         # {selected_model.framework}
-        model_info_col, metric_col = st.columns(2)
         with model_info_col:
             st.subheader("Selected Model Information:")
             st.info(model_information)
@@ -272,25 +277,32 @@ def index(RELEASE=True):
                 run_tensorboard(logdir)
 
         # If debugging, consider commenting the evaluation part for faster loading times
-        # st.markdown("___")
-        # st.header("Evaluation results:")
-        # with st.spinner("Running evaluation ..."):
-        #     try:
-        #         trainer.evaluate()
-        #     except Exception as e:
-        #         if not RELEASE:
-        #             st.exception(e)
-        #         st.error("Some error has occurred. Please try "
-        #                  "training/exporting the model again.")
-        #         logger.error(f"Error evaluating: {e}")
+        st.markdown("___")
+        st.header("Evaluation results:")
+        with st.spinner("Running evaluation ..."):
+            try:
+                trainer.evaluate()
+            except Exception as e:
+                if not RELEASE:
+                    st.exception(e)
+                st.error("Some error has occurred. Please try "
+                         "training/exporting the model again.")
+                logger.error(f"Error evaluating: {e}")
     else:
-        selected_model_id = selected_row['Model ID']
-        model = Model(selected_model_id)
+        model = Model(selected_id)
         uploaded_model_dir = model.get_path()
         labelmap_paths = list(uploaded_model_dir.rglob("*.pbtxt"))
         if labelmap_paths:
             # should have only one file
             labelmap_path = labelmap_paths[0]
+            try:
+                category_index = load_labelmap(labelmap_path)
+                # classes = [d['name'] for d in category_index.values()]
+            except Exception as e:
+                st.error(f"Error loading the uploaded labelmap file associated with "
+                         "the model, cannot proceed to deployment without labelmap.")
+                logger.error(f"Error loading the uploaded labelmap file: {e}")
+                st.stop()
         else:
             st.error("This uploaded model does include 'labelmap.pbtxt' file, "
                      "thus not compatible to be instantly deployed.")
@@ -301,28 +313,32 @@ def index(RELEASE=True):
         #### Description:
         {selected_row['Description']}
         """
+        with model_info_col:
+            st.info(model_information)
+        st.markdown("#### Categories loaded from uploaded labelmap file:")
+        st.json(category_index)
         # Framework:
         # {selected_model.framework}
 
     # BUTTON to deploy the selected model
     def enter_deployment():
-        reset_camera()
+        Deployment.reset_deployment_page()
         st.legacy_caching.clear_cache()
 
         if selected_model_type == 'Project Model':
             session_state.deployment = Deployment.from_trainer(trainer)
         else:
             session_state.deployment = Deployment.from_uploaded_model(
-                uploaded_model_dir, labelmap_path)
+                model, uploaded_model_dir, category_index)
 
         with st.sidebar.container():
             with st.spinner("Preparing model for deployment ..."):
                 session_state.deployment.run_preparation_pipeline()
         session_state.deployment_pagination = DeploymentPagination.Deployment
 
-    st.sidebar.button("🛠️ Deploy selected model",
-                      key='btn_deploy_selected_model',
-                      on_click=enter_deployment)
+    deploy_button_place.button("🛠️ Deploy selected model",
+                               key='btn_deploy_selected_model',
+                               on_click=enter_deployment)
 
 
 if __name__ == "__main__":

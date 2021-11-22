@@ -551,11 +551,13 @@ class Trainer:
                 detect_fn = load_tfod_model(
                     self.training_path['export'] / 'saved_model')
                 tensor_dtype = tf.uint8
+                is_checkpoint = False
             else:
                 detect_fn = load_tfod_checkpoint(
                     ckpt_dir=self.training_path['models'],
                     pipeline_config_path=self.training_path['config_file'])
                 tensor_dtype = tf.float32
+                is_checkpoint = True
         category_index = load_labelmap(paths['labelmap_file'])
         logger.debug(f"{category_index = }")
 
@@ -566,8 +568,8 @@ class Trainer:
                 eval_result_text = f.read()
             st.info(eval_result_text)
         else:
-            logger.error(f"""Some error occurred while running COCO evaluation script,
-            and the results were not saved at {paths['test_result_txt_file']}.""")
+            logger.error("Some error occurred while running COCO evaluation script, and "
+                         f"the results were not saved at {paths['test_result_txt_file']}.")
 
         # **************** SHOW SOME IMAGES FOR EVALUATION ****************
         st.header("Prediction Results on Test Set:")
@@ -666,20 +668,28 @@ class Trainer:
                             f"[{time_elapsed:.2f} secs]")
 
                 img_with_detections = img.copy()
-                pred_classes = [category_index(i)['name']
-                                for i in np.unique(
-                                    detections['detection_classes']).tolist()
-                                ]
+                # logger.debug(f"{detections['detection_classes'] = }")
+                if is_checkpoint:
+                    # need offset for checkpoint
+                    unique_classes = np.unique(
+                        detections['detection_classes'] + 1)
+                else:
+                    unique_classes = np.unique(
+                        detections['detection_classes'])
+                pred_classes = [category_index[c]['name']
+                                for c in unique_classes]
                 logger.info(f"Detected classes: {pred_classes}")
                 draw_tfod_bboxes(
                     detections, img_with_detections, category_index,
-                    session_state.conf_threshold)
+                    session_state.conf_threshold,
+                    is_checkpoint=is_checkpoint)
 
                 img = draw_gt_bboxes(img, bboxes,
                                      class_names=class_names,
                                      class_colors=class_colors)
-                true_img_col.image(img, caption=f'Ground Truth: {filename}')
-                pred_img_col.image(img_with_detections,
+                true_img_col.image(img, channels='BGR',
+                                   caption=f'Ground Truth: {filename}')
+                pred_img_col.image(img_with_detections, channels='BGR',
                                    caption=f'Prediction: {filename}')
 
         prev_btn_col_2.button('⏮️ Previous samples', key='btn_prev_images_2',

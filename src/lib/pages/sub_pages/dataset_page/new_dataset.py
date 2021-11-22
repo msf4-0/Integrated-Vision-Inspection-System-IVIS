@@ -90,28 +90,13 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
     chdir_root()  # change to root directory
 
-    # ******** SESSION STATE ********
-    if "new_dataset" not in session_state:
-        # set random dataset ID before getting actual from Database
-        logger.debug("Enter new dataset")
-        session_state.new_dataset = NewDataset(get_random_string(length=8))
-    if 'user' not in session_state:
-        session_state.user = User(1)
-    if 'is_labeled' not in session_state:
-        session_state.is_labeled = False
-    if session_state.is_labeled and ('project' not in session_state):
-        # initialize project with the inserted project, note that this only works
-        #  after the new_project has been stored in database
-        project_id = session_state.new_project.id
-        del session_state['new_project']
-        session_state.project = Project(project_id)
-        logger.info(f"Project ID {project_id} initialized")
-    # ******** SESSION STATE ********
-
     # ******** DEBUGGING ********
     # NOTE: If debugging for inserting uploaded annotations, you need to select
     #  an existing project_id
     if not RELEASE:
+        # debugging upload dataset
+        session_state.is_labeled = False
+
         if not session_state.is_labeled and ("new_project" not in session_state):
             session_state.new_project = NewProject(get_random_string(length=8))
             # session_state.new_project.deployment_type = "Object Detection with Bounding Boxes"
@@ -123,6 +108,25 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             uploading labeled dataset""")
             session_state.project = Project(project_id)
     # ******** DEBUGGING ********
+
+    # ******** SESSION STATE ********
+    if "new_dataset" not in session_state:
+        # set random dataset ID before getting actual from Database
+        logger.debug("Enter new dataset")
+        session_state.new_dataset = NewDataset(get_random_string(length=8))
+    if 'user' not in session_state:
+        session_state.user = User(1)
+    if 'is_labeled' not in session_state:
+        session_state.is_labeled = False
+    logger.debug(f"{session_state.is_labeled = }")
+    if session_state.is_labeled and ('project' not in session_state):
+        # initialize project with the inserted project, note that this only works
+        #  after the new_project has been stored in database
+        project_id = session_state.new_project.id
+        del session_state['new_project']
+        session_state.project = Project(project_id)
+        logger.info(f"Project ID {project_id} initialized")
+    # ******** SESSION STATE ********
 
     if is_existing_dataset:
         # session_state.dataset_chosen should be obtained from existing_project_dashboard
@@ -603,9 +607,6 @@ if __name__ == "__main__":
                        page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
     if st._is_running_with_streamlit:
-        # debugging upload dataset
-        session_state.is_labeled = True
-
         # initialise connection to Database
         conn = init_connection(**st.secrets["postgres"])
 

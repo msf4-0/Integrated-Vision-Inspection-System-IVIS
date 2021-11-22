@@ -12,6 +12,7 @@ from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+from deployment.deployment_management import Deployment
 from pages.sub_pages.training_page import training_dashboard
 
 # DEFINE Web APP page configuration
@@ -130,6 +131,11 @@ def index():
         elif navigation_selected == "Training":
             NewTraining.reset_new_training_page()
             Training.reset_training_page()
+        elif navigation_selected == "Deployment":
+            # NOTE: not resetting here to ensure the deployment keeps running
+            # even when in another page, especially for switching user
+            # Deployment.reset_deployment_page()
+            pass
         elif navigation_selected == "Settings":
             Project.reset_settings_page()
         # TODO: Add reset on other selections

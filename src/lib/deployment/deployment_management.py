@@ -24,45 +24,34 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 from __future__ import annotations
-
-from collections import namedtuple
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import datetime
 from functools import partial
-import os
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Callable, NamedTuple, Optional, Tuple, Union, List, Dict, TYPE_CHECKING
-from colorutils import static
-import cv2
-import numpy as np
-from psycopg2 import sql
-from PIL import Image
-from time import perf_counter, sleep
 from enum import IntEnum
 import json
-from copy import copy, deepcopy
-import pandas as pd
+
+from psycopg2 import sql
+import cv2
+import numpy as np
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as session_state
+from streamlit import session_state
 import tensorflow as tf
-from yaml import full_load
-from machine_learning.command_utils import export_tfod_savedmodel, run_command
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 # >>>> User-defined Modules >>>>
-from path_desc import MQTT_CONFIG_PATH, TFOD_DIR, chdir_root, MEDIA_ROOT
 from core.utils.log import logger
-from core.utils.helper import Timer, get_identifier_str_IntEnum
+from core.utils.helper import Timer, get_identifier_str_IntEnum, get_now_string
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.form_manager import reset_page_attributes
 from machine_learning.utils import classification_predict, get_test_images_labels, load_keras_model, load_labelmap, load_tfod_model, preprocess_image, segmentation_predict, tfod_detect
@@ -70,7 +59,8 @@ if TYPE_CHECKING:
     from machine_learning.trainer import Trainer
     from training.model_management import Model
 from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
-
+from machine_learning.command_utils import export_tfod_savedmodel
+from deployment.utils import reset_camera, reset_camera_ports, reset_client
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -98,7 +88,8 @@ class DeploymentType(IntEnum):
 
 class DeploymentPagination(IntEnum):
     Models = 0
-    Deployment = 1
+    UploadModel = 1
+    Deployment = 2
 
     def __str__(self):
         return self.name
@@ -109,6 +100,25 @@ class DeploymentPagination(IntEnum):
             return DeploymentPagination[s]
         except KeyError:
             raise ValueError()
+
+
+@dataclass(eq=False)
+class DeploymentConfig:
+    input_type: str = 'Image'
+    video_width: int = 500
+    use_camera: bool = False
+    camera_type: str = 'USB Camera'
+    camera_port: int = 0
+    mqtt_qos: int = 1
+    publishing: bool = True
+
+    # not always used
+    ip_cam_address: str = ''
+    confidence_threshold: float = 0.4
+    ignore_background: bool = False
+
+    def asdict(self):
+        return deepcopy(self.__dict__)
 
 
 # KIV
@@ -133,6 +143,7 @@ class BaseDeployment:
 
 class Deployment(BaseDeployment):
     def __init__(self,
+                 project_path: Path,
                  deployment_type: str,
                  training_path: Dict[str, Path] = None,
                  image_size: int = None,
@@ -142,6 +153,7 @@ class Deployment(BaseDeployment):
                  is_uploaded: bool = False,
                  category_index: Dict[int, Dict[str, Any]] = None) -> None:
         super().__init__()
+        self.project_path = project_path
         self.training_path: Dict[str, Path] = training_path
         self.metrics: List[Callable] = metrics
         self.metric_names: List[str] = metric_names
@@ -159,6 +171,7 @@ class Deployment(BaseDeployment):
 
     @classmethod
     def from_trainer(cls, trainer: Trainer):
+        project_path = trainer.project_path
         deployment_type = trainer.deployment_type
         training_path = trainer.training_path
         metrics = trainer.metrics
@@ -169,19 +182,21 @@ class Deployment(BaseDeployment):
             image_size = trainer.training_param['image_size']
         else:
             image_size = None
-        return cls(deployment_type, training_path, image_size,
+        return cls(project_path, deployment_type, training_path, image_size,
                    metrics, metric_names, class_names)
 
     @classmethod
     def from_uploaded_model(cls, model: Model, uploaded_model_dir: Path,
-                            labelmap_path: Path):
+                            category_index: Dict[int, Dict[str, Any]]):
         """This only works for uploaded TFOD model for now"""
+        project_path = session_state.project.get_project_path(
+            session_state.project.name)
         deployment_type = model.deployment_type
         training_path = {'uploaded_model_dir': uploaded_model_dir}
-        category_index = load_labelmap(labelmap_path)
         class_names = [d['name'] for d in category_index.values()]
-        return cls(deployment_type, training_path, category_index=category_index,
-                   class_names=class_names, is_uploaded=True)
+        return cls(project_path, deployment_type, training_path,
+                   category_index=category_index, class_names=class_names,
+                   is_uploaded=True)
 
     @st.cache
     def query_deployment_list(self):
@@ -259,25 +274,21 @@ class Deployment(BaseDeployment):
             self.encoded_label_dict = encoded_label_dict
 
     def classification_inference_pipeline(
-            self, img: np.ndarray, disable_timer: bool = True,
-            **kwargs) -> Tuple[str, float]:
-        with Timer("Inference time", disable_timer):
-            preprocessed_img = preprocess_image(img, self.image_size)
-            y_pred, y_proba = classification_predict(
-                preprocessed_img,
-                self.model,
-                return_proba=True)
+            self, img: np.ndarray, **kwargs) -> Tuple[str, float]:
+        preprocessed_img = preprocess_image(img, self.image_size)
+        y_pred, y_proba = classification_predict(
+            preprocessed_img,
+            self.model,
+            return_proba=True)
         pred_classname = self.encoded_label_dict[y_pred]
         return pred_classname, y_proba
 
     def tfod_inference_pipeline(
             self, img: np.ndarray, conf_threshold: float = 0.6,
-            disable_timer: bool = True, draw_result: bool = True,
-            **kwargs):
-        with Timer("Inference time", disable_timer):
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            detections = tfod_detect(self.model, img,
-                                     tensor_dtype=tf.uint8)
+            draw_result: bool = True, **kwargs):
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        detections = tfod_detect(self.model, img,
+                                 tensor_dtype=tf.uint8)
         if draw_result:
             draw_tfod_bboxes(detections, img,
                              self.category_index,
@@ -286,16 +297,15 @@ class Deployment(BaseDeployment):
         return detections
 
     def segment_inference_pipeline(
-            self, img: np.ndarray, disable_timer: bool = True,
+            self, img: np.ndarray,
             draw_result: bool = True, class_colors: np.ndarray = None,
             ignore_background: bool = False, **kwargs):
-        with Timer("Inference time", disable_timer):
-            orig_H, orig_W = img.shape[:2]
-            preprocessed_img = preprocess_image(img, self.image_size)
-            pred_mask = segmentation_predict(
-                self.model, preprocessed_img, orig_W, orig_H)
+        orig_H, orig_W = img.shape[:2]
+        preprocessed_img = preprocess_image(img, self.image_size)
+        pred_mask = segmentation_predict(
+            self.model, preprocessed_img, orig_W, orig_H)
         if draw_result:
-            assert class_colors is not None
+            # must provide class_colors
             drawn_output = get_colored_mask_image(
                 img, pred_mask, class_colors,
                 ignore_background=ignore_background)
@@ -311,28 +321,54 @@ class Deployment(BaseDeployment):
         elif self.deployment_type == 'Semantic Segmentation with Polygons':
             return partial(self.classification_inference_pipeline, **kwargs)
 
-    def get_detection_results(self, detections: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_detection_results(self, detections: Dict[str, Any],
+                              conf_threshold: float = None) -> List[Dict[str, Any]]:
         results = []
-        for class_idx, prob in zip(detections['detection_classes'],
-                                   detections['detection_scores']):
-            detection = {'name': self.category_index[class_idx]['name'],
-                         'prob': prob}
+        now = get_now_string()
+        for class_id, prob, box in zip(detections['detection_classes'],
+                                       detections['detection_scores'],
+                                       detections['detection_boxes']):
+            if prob < conf_threshold:
+                continue
+            ymin, xmin, ymax, xmax = np.around(box, 4).tolist()
+            tl = [xmin, ymin]
+            br = [xmax, ymax]
+            detection = {'name': self.category_index[class_id]['name'],
+                         # need to change to string to be serialized with json.dumps()
+                         'probability': f"{prob * 100:.2f}%",
+                         'top_left': tl,
+                         'bottom_right': br,
+                         'time': now}
             results.append(detection)
         return results
 
-    def get_segmentation_results(self, prediction_mask: np.ndarray) -> Dict[str, str]:
+    def get_segmentation_results(self, prediction_mask: np.ndarray) -> List[Dict[str, Any]]:
         class_names = self.class_names_arr[np.unique(prediction_mask)]
-        results = {'Detected classes': class_names}
+        results = [{'classes_found': class_names,
+                   'time': get_now_string()}]
         return results
+
+    def get_csv_path(self, now: datetime) -> Path:
+        year_and_month = now.strftime("%Y-%b")
+        date_today = now.day
+        csv_path = self.project_path / 'deployment_results' / \
+            year_and_month / f"result_day-{date_today}.csv"
+        return csv_path
 
     @staticmethod
     def reset_deployment_page():
         """Method to reset all widgets and attributes in the Deployment Pages when changing pages
         """
+        if 'csv_file' in session_state and not session_state.csv_file.closed:
+            session_state.csv_file.close()
 
-        # probably should not reset "client" to let it stay connected?
-        project_attributes = ["deployment_pagination", "training", "trainer",
-                              "training_paths", "publishing", "camera"]
+        reset_camera()
+        reset_camera_ports()
+        reset_client()
+
+        project_attributes = ["deployment_pagination", "trainer", "publishing",
+                              "record", "vid_writer", "refresh", "csv_file", "csv_writer",
+                              "deployment_conf", "today"]
 
         reset_page_attributes(project_attributes)
 

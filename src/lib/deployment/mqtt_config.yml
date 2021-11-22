@@ -4,7 +4,8 @@ mqtt:
   QOS: 1
 
 camera:
-  mqtt_topic: homie/webcam/capture
+  publish_results: homie/webcam/capture
+  start_publish_topic: homie/webcam/start
   stop_publish_topic: homie/webcam/stop
 
 processing:
@@ -16,4 +17,3 @@ save-captures:
   save_frame_topic: homie/webcam/save
   start_record_topic: homie/webcam/start_record
   stop_record_topic: homie/webcam/stop_record
-  captures_directory: captures/
