@@ -50,32 +50,6 @@ class MQTTConfig:
     )
 
 
-def reset_camera():
-    if 'camera' in session_state:
-        if isinstance(session_state.camera, WebcamVideoStream):
-            session_state.camera.stop()
-            session_state.camera.stream.release()
-        elif isinstance(session_state.camera, cv2.VideoCapture):
-            session_state.camera.release()
-        del session_state['camera']
-
-
-def reset_camera_ports():
-    if 'working_ports' in session_state:
-        del session_state['working_ports']
-
-
-def reset_client():
-    if 'client' in session_state:
-        try:
-            session_state.client.loop_stop()
-            session_state.client.disconnect()
-        except Exception as e:
-            logger.error(f"Could not stop and disconnect client: {e}")
-        del session_state['client']
-        del session_state['client_connected']
-
-
 def on_connect(client, userdata, flags, rc):
     mqtt_conf = MQTTConfig()
     # The callback for when the client receives a CONNACK response from the server.
@@ -135,3 +109,47 @@ def create_csv_file_and_writer(
     session_state.csv_file = open(csv_path, 'a')
     session_state.csv_writer = DictWriter(
         session_state.csv_file, fieldnames=results[0].keys())
+
+
+def reset_csv_file_and_writer():
+    if 'csv_file' in session_state:
+        if session_state.csv_file and not session_state.csv_file.closed:
+            session_state.csv_file.close()
+        del session_state['csv_file']
+    if 'csv_writer' in session_state:
+        del session_state['csv_writer']
+
+
+def reset_camera():
+    if 'camera' in session_state:
+        if isinstance(session_state.camera, WebcamVideoStream):
+            session_state.camera.stop()
+            session_state.camera.stream.release()
+        elif isinstance(session_state.camera, cv2.VideoCapture):
+            session_state.camera.release()
+        del session_state['camera']
+
+
+def reset_camera_ports():
+    if 'working_ports' in session_state:
+        del session_state['working_ports']
+
+
+def reset_record_and_vid_writer():
+    if 'vid_writer' in session_state:
+        if isinstance(session_state.vid_writer, cv2.VideoWriter):
+            session_state.vid_writer.release()
+        del session_state['vid_writer']
+    if 'record' in session_state:
+        del session_state['record']
+
+
+def reset_client():
+    if 'client' in session_state:
+        try:
+            session_state.client.loop_stop()
+            session_state.client.disconnect()
+        except Exception as e:
+            logger.error(f"Could not stop and disconnect client: {e}")
+        del session_state['client']
+        del session_state['client_connected']

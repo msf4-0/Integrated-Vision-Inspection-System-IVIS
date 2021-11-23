@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 from __future__ import annotations
+import shutil
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
@@ -60,7 +61,7 @@ if TYPE_CHECKING:
     from training.model_management import Model
 from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
 from machine_learning.command_utils import export_tfod_savedmodel
-from deployment.utils import reset_camera, reset_camera_ports, reset_client
+from deployment.utils import reset_camera, reset_camera_ports, reset_client, reset_csv_file_and_writer, reset_record_and_vid_writer
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -109,6 +110,7 @@ class DeploymentConfig:
     use_camera: bool = False
     camera_type: str = 'USB Camera'
     camera_port: int = 0
+    retention_period: int = 7
     mqtt_qos: int = 1
     publishing: bool = True
 
@@ -349,11 +351,39 @@ class Deployment(BaseDeployment):
         return results
 
     def get_csv_path(self, now: datetime) -> Path:
-        year_and_month = now.strftime("%Y-%b")
-        date_today = now.day
-        csv_path = self.project_path / 'deployment_results' / \
-            year_and_month / f"result_day-{date_today}.csv"
+        full_date = now.strftime("%d-%b-%Y")
+        csv_path = self.project_path / 'deployment_results' \
+            / full_date / f"{full_date}.csv"
         return csv_path
+
+    @staticmethod
+    def get_datetime_from_csv_path(csv_path: Path) -> datetime:
+        # year_and_month = csv_path.parent.name
+        # date_today = csv_path.stem
+        # file_date = f"{year_and_month}_{date_today}"
+        full_date = csv_path.stem
+        dt_format = "%d-%b-%Y"  # based on get_csv_path()
+        dt = datetime.strptime(full_date, dt_format)
+        return dt
+
+    def delete_old_csv_files(self, retention_period: int):
+        """Delete CSV files older than `retention_period` (in `days`)."""
+        # directory based on get_csv_path()
+        csv_dir = self.project_path / 'deployment_results'
+        csv_paths = csv_dir.iterdir()
+        sorted_csv_paths = sorted(
+            csv_paths, key=self.get_datetime_from_csv_path, reverse=True)
+        now = datetime.now()
+        for p in sorted_csv_paths:
+            csv_date = self.get_datetime_from_csv_path(p)
+            days_from_created = (now - csv_date).days
+            if days_from_created > retention_period:
+                logger.info(f"Removing old CSV file older than {retention_period} "
+                            f"days at {p}")
+                shutil.rmtree(p)
+            else:
+                # stop because no more older files
+                break
 
     @staticmethod
     def reset_deployment_page():
@@ -364,11 +394,12 @@ class Deployment(BaseDeployment):
 
         reset_camera()
         reset_camera_ports()
+        reset_record_and_vid_writer()
+        reset_csv_file_and_writer()
         reset_client()
 
         project_attributes = ["deployment_pagination", "trainer", "publishing",
-                              "record", "vid_writer", "refresh", "csv_file", "csv_writer",
-                              "deployment_conf", "today"]
+                              "refresh", "deployment_conf", "today"]
 
         reset_page_attributes(project_attributes)
 

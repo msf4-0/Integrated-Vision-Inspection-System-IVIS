@@ -24,7 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 import json
 import os
@@ -62,7 +62,7 @@ from machine_learning.utils import get_test_images_labels, get_tfod_test_set_dat
 from machine_learning.visuals import create_class_colors, create_color_legend
 from data_manager.dataset_management import Dataset
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
-from deployment.utils import MQTTConfig, create_csv_file_and_writer, get_mqtt_client, reset_camera, reset_camera_ports
+from deployment.utils import MQTTConfig, create_csv_file_and_writer, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
 from core.utils.helper import Timer, get_directory_name, get_now_string, get_today_string, list_available_cameras
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -265,14 +265,21 @@ def index(RELEASE=True):
         deploy_conf.use_camera = use_cam
         if use_cam:
             # TODO: test using streamlit-webrtc
+            def pause_deployment():
+                reset_camera()
+                reset_record_and_vid_writer()
+                reset_csv_file_and_writer()
 
             st.sidebar.button(
-                "Stop and reset camera", key='btn_reset_cam',
-                on_click=reset_camera,
-                help=("Reset camera if there is any problem with loading up  \n"
+                "Pause deployment and reset camera", key='btn_pause_deploy',
+                on_click=pause_deployment,
+                help=("Pause deployment after you have deployed the model  \n"
+                      "with a running video camera. Or use this to reset  \n"
+                      "camera if there is any problem with loading up  \n"
                       "the camera. Note that this is extremely important  \n"
                       "to ensure your camera is properly stopped and the  \n"
-                      "camera access is given back to your system."))
+                      "camera access is given back to your system. This will  \n"
+                      "also save the latest CSV file in order to be opened."))
 
             with st.sidebar.container():
                 options = ('USB Camera', 'IP Camera')
@@ -299,8 +306,44 @@ def index(RELEASE=True):
                         "Enter the IP address", value=deploy_conf.ip_cam_address)
                     deploy_conf.ip_cam_address = video_source.strip()
 
-            # only show these if a camera is not selected yet, to avoid keep checking
-            # available ports
+            # **************************** CSV FILE STUFF ****************************
+            if 'today' not in session_state:
+                # using this to keep track of the current day for updating CSV file,
+                # store in session_state to take into account the case when user
+                # decided to move to another page during deployment
+                session_state.today = datetime.now().date()
+
+            # prepare CSV directory and path
+            starting_time = datetime.now()
+            csv_path = session_state.deployment.get_csv_path(starting_time)
+            csv_dir = csv_path.parent
+            os.makedirs(csv_dir, exist_ok=True)
+            logger.info(f'Operation begins at: {starting_time.isoformat()}')
+            logger.info(f'Inference results will be saved in {csv_dir}')
+            with st.sidebar.container():
+                st.markdown("___")
+                st.subheader("Info about saving results")
+                st.markdown("#### Data retention period")
+                day = st.number_input("Day", 1, 1000, deploy_conf.retention_period, 1,
+                                      key='day_input')
+                week = st.number_input("Week", 0, 10, 0, 1, key='week_input',
+                                       help='7 days per week')
+                month = st.number_input("Month", 0, 12, 0, 1, key='month_input',
+                                        help='30 days per month')
+                # in 'days' unit
+                retention_period = day + (7 * week) + (30 * month)
+                deploy_conf.retention_period = retention_period
+                st.markdown(f"Retention period = **{retention_period}** days")
+                with st.expander("CSV save file info"):
+                    st.markdown(
+                        f"**Inference results will be saved continuously in**: *{csv_dir}*  \n"
+                        f"A new file will be created daily and files older than the "
+                        f"retention period (`{retention_period} days`) will be deleted. "
+                        "Be sure to click the `Pause deployment and reset camera` button "
+                        "to ensure the latest CSV file is saved properly if you have any "
+                        "problem with opening the file.")
+
+            # only show these if a camera is not selected and not deployed yet
             if not session_state.camera:
                 if st.sidebar.button(
                     "🛠️ Deploy model", key='btn_start_cam',
@@ -360,7 +403,6 @@ def index(RELEASE=True):
             logger.debug(f"{width = }, {height = }, {fps_input = }")
         else:
             st.stop()
-
         # **************************** MQTT STUFF ****************************
         if 'client' not in session_state:
             session_state.client = get_mqtt_client()
@@ -535,10 +577,12 @@ def index(RELEASE=True):
             st.button(
                 "Stop deployment and reset", key='btn_stop_deploy',
                 on_click=stop_deployment,
-                help="""Please make sure to use this button to stop deployment before 
-                proceeding to any other page!! Except when switching to another user,
-                which is needed to prevent any other users from changing deployment settings.""")
-
+                help="This will stop the deployment and reset the entire  \n"
+                "deployment configuration. Please make sure to use this  \n"
+                "button to stop deployment before proceeding to any other  \n"
+                "page! Or use the pause button if you want to pause the  \n"
+                "deployment to do any other things without resetting,  \n"
+                "such as switching user, or viewing the latest saved CSV file.")
         show_labels = st.checkbox("Show the detected labels", value=True)
         if show_labels:
             result_col = st.container()
@@ -565,26 +609,6 @@ def index(RELEASE=True):
                                     conf_threshold=conf_threshold)
         publish_func = partial(session_state.client.publish,
                                conf.topics.publish_results, qos=selected_qos)
-
-        if 'today' not in session_state:
-            # using this to keep track of the current day for updating CSV file,
-            # store in session_state to take into account the case when user
-            # decided to move to another page during deployment
-            session_state.today = datetime.now().date()
-
-        # prepare CSV directory and path
-        starting_time = datetime.now()
-        csv_path = session_state.deployment.get_csv_path(starting_time)
-        csv_dir = csv_path.parent
-        os.makedirs(csv_dir, exist_ok=True)
-        logger.info(f'Operation begins at: {starting_time.isoformat()}')
-        logger.info(f'Inference results will be saved in {csv_dir}')
-        with stop_deploy_col:
-            with st.expander("CSV save file location"):
-                st.markdown(f"**Inference results will be saved continuously in**: *{csv_dir}*  \n"
-                            "A new file will be created daily. Be sure to click the `Stop deployment` "
-                            "button to ensure the latest CSV file is saved properly if you need it.")
-
         fps = 0
         prev_time = 0
         first_csv_save = True
@@ -651,26 +675,31 @@ def index(RELEASE=True):
                 payload = json.dumps(results)
                 info = publish_func(payload=payload)
 
-            # save results to CSV file
-            if first_csv_save:
-                first_csv_save = False
-                if not csv_path.exists():
-                    new_file = True
+            # save results to CSV file only if using video camera
+            if use_cam:
+                if first_csv_save:
+                    first_csv_save = False
+                    if not csv_path.exists():
+                        new_file = True
+                    else:
+                        new_file = False
+                    create_csv_file_and_writer(
+                        csv_path, results, new_file=new_file)
+                now = datetime.now()
+                today = now.date()
+                if today > session_state.today:
+                    session_state.csv_file.close()
+
+                    session_state.deployment.delete_old_csv_files(
+                        retention_period)
+
+                    csv_path = session_state.deployment.get_csv_path(now)
+                    session_state.today = today
+                    create_csv_file_and_writer(csv_path, results)
+                    st.experimental_rerun()
                 else:
-                    new_file = False
-                create_csv_file_and_writer(
-                    csv_path, results, new_file=new_file)
-            now = datetime.now()
-            today = now.date()
-            if today > session_state.today:
-                session_state.csv_file.close()
-                csv_path = session_state.deployment.get_csv_path(now)
-                session_state.today = today
-                create_csv_file_and_writer(csv_path, results)
-                st.experimental_rerun()
-            else:
-                for row in results:
-                    session_state.csv_writer.writerow(row)
+                    for row in results:
+                        session_state.csv_writer.writerow(row)
 
             # This below does not seem to work properly
             # if fps > max_allowed_fps:
