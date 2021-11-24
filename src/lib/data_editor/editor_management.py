@@ -540,7 +540,7 @@ class Editor(BaseEditor):
         total_label_counts = sum(label_count_dict.values())
         self.labels_results = []
 
-        logger.info(f"Getting Label Details (labels_results)")
+        logger.debug(f"Getting Label Details (labels_results)")
         # Compatible with multiple annotation types
         # if self.labels_dict:
         #     annotation_type = list(self.labels_dict.keys())[0]

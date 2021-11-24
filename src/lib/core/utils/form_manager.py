@@ -81,5 +81,5 @@ def remove_newline_trailing_whitespace(text: str) -> str:
 def reset_page_attributes(attributes_list: List):
     for attrib in attributes_list:
         if attrib in session_state:
-            logger.info(f"del {attrib}")
+            logger.debug(f"del {attrib}")
             del session_state[attrib]

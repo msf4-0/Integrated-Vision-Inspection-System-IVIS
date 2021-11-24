@@ -144,10 +144,10 @@ class Labels:
         Returns:
             List: List of labels
         """
-
-        labels_list = set(split_string(
+        # NOTE: `set` does not preserve the order of the labels
+        labels_list = sorted(set(split_string(
             remove_newline_trailing_whitespace(str(comma_separated_string)),
-            separator=','))
+            separator=',')))
 
         return labels_list
 

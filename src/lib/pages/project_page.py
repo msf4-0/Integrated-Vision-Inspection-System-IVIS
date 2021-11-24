@@ -22,30 +22,23 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
-
 import sys
-from enum import IntEnum
 from pathlib import Path
-from time import sleep
 
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
 
-# DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
-
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
+# DEFINE Web APP page configuration
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 from annotation.annotation_management import (Annotations, LabellingPagination,
                                               reset_editor_page)
@@ -58,29 +51,29 @@ from project.project_management import (NewProject, NewProjectPagination,
                                         ProjectPermission, query_all_projects)
 from user.user_management import User
 from training.training_management import NewTraining, Training
+from deployment.deployment_management import Deployment
+from data_manager.dataset_management import NewDataset
 
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 from pages.sub_pages.project_page import existing_project, new_project
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
-PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
+# conn = init_connection(**st.secrets["postgres"])
+# PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
 
-# <<<< Variable Declaration <<<<
+# # <<<< Variable Declaration <<<<
 chdir_root()  # change to root directory
 
-# TODO: #40 REMOVE SIDEBAR AFTER INTEGRATING INTO APP.PY
-with st.sidebar.container():
-    st.image("resources/MSF-logo.gif", use_column_width=True)
+# # TODO: #40 REMOVE SIDEBAR AFTER INTEGRATING INTO APP.PY
+# with st.sidebar.container():
+#     st.image("resources/MSF-logo.gif", use_column_width=True)
 
-    st.title("Integrated Vision Inspection System", anchor='title')
-    st.header(
-        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-    st.markdown("""___""")
-    # st.radio("", options=PAGE_OPTIONS, key="all_pages")
-
-navigator = st.sidebar.empty()
+#     st.title("Integrated Vision Inspection System", anchor='title')
+#     st.header(
+#         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+#     st.markdown("""___""")
+#     st.radio("", options=PAGE_OPTIONS, key="all_pages")
 
 
 def dashboard():
@@ -219,9 +212,8 @@ def index():
     if 'user' not in session_state:
         session_state.user = User(1)
 
-    project_page_options = ("Dashboard", "Create New Project")
-
     # NOTE DEPRECATED ******************************************************************************
+    # project_page_options = ("Dashboard", "Create New Project")
     # def project_page_navigator():
 
     #     NewProject.reset_new_project_page()
@@ -238,13 +230,15 @@ def index():
 
     def to_project_dashboard():
 
-        # TODO #81 Add reset to project page *************************************************************************************
+        # reset all pages
         NewProject.reset_new_project_page()
         reset_editor_page()
+        NewDataset.reset_new_dataset_page()
         NewTraining.reset_new_training_page()
         Training.reset_training_page()
         Project.reset_project_page()
         Project.reset_settings_page()
+        Deployment.reset_deployment_page()
 
         session_state.project_pagination = ProjectPagination.Dashboard
         session_state.new_project_pagination = NewProjectPagination.Entry
@@ -252,9 +246,11 @@ def index():
         # if "project_page_navigator_radio" in session_state:
         #     del session_state.project_page_navigator_radio
 
+    navigator = st.sidebar.empty()
     with navigator.container():
         st.button("Home", key="to_project_dashboard_sidebar",
-                  on_click=to_project_dashboard)
+                  on_click=to_project_dashboard,
+                  help="This clears the current project session.")
     logger.debug(f"Navigator: {session_state.project_pagination = }")
     # st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()

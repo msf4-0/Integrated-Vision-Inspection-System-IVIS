@@ -54,10 +54,9 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
                    "Semantic Segmentation with Polygons")
 
 
-chdir_root()  # change to root directory
-
-
 def index():
+    chdir_root()  # change to root directory
+
     RELEASE = True
     logger.debug("At Exisiting Project Dashboard INDEX")
     # ****************** TEST ******************************
@@ -117,28 +116,42 @@ def index():
     # >>>> CALLBACK for RADIO >>>>
     def existing_project_page_navigator():
 
-        # NOTE: TO RESET SUB-PAGES AFTER EXIT
-
         navigation_selected = session_state.existing_project_page_navigator_radio
         navigation_selected_idx = existing_project_page_options.index(
             navigation_selected)
         session_state.existing_project_pagination = navigation_selected_idx
 
+        # NOTE: TO RESET SUB-PAGES AFTER EXIT
+        # reset all pages except for the currently selected one
         if navigation_selected == "Overview":
-            Project.reset_dashboard_page()
-        if navigation_selected == "Labelling":
             reset_editor_page()
-        elif navigation_selected == "Training":
             NewTraining.reset_new_training_page()
             Training.reset_training_page()
+            Project.reset_settings_page()
+        elif navigation_selected == "Labelling":
+            Project.reset_dashboard_page()
+            NewTraining.reset_new_training_page()
+            Training.reset_training_page()
+            Project.reset_settings_page()
+        elif navigation_selected == "Training":
+            Project.reset_dashboard_page()
+            reset_editor_page()
+            Project.reset_settings_page()
         elif navigation_selected == "Deployment":
             # NOTE: not resetting here to ensure the deployment keeps running
             # even when in another page, especially for switching user
             # Deployment.reset_deployment_page()
-            pass
-        elif navigation_selected == "Settings":
+
+            Project.reset_dashboard_page()
+            reset_editor_page()
+            NewTraining.reset_new_training_page()
+            Training.reset_training_page()
             Project.reset_settings_page()
-        # TODO: Add reset on other selections
+        elif navigation_selected == "Settings":
+            Project.reset_dashboard_page()
+            reset_editor_page()
+            NewTraining.reset_new_training_page()
+            Training.reset_training_page()
 
     if session_state.project.datasets:
         # only show this if project has already selected a dataset

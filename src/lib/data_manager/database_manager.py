@@ -676,7 +676,7 @@ def create_relation_database(conn):
             CACHE 1)
             , users_id bigint NOT NULL
             , login_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
-            , logout_at timestamp with time zone NOT NULL
+            , logout_at timestamp with time zone
             , PRIMARY KEY (id)
         );
 

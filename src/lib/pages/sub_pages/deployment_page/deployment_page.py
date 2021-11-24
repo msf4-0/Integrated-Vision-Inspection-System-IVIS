@@ -123,9 +123,9 @@ def index(RELEASE=True):
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
         class_colors = create_class_colors(
             session_state.deployment.class_names)
-        ignore_background = deploy_conf.ignore_background
         ignore_background = st.checkbox(
-            "Ignore background", value=False, key='ignore_background',
+            "Ignore background", value=deploy_conf.ignore_background,
+            key='ignore_background',
             help="Ignore background class for visualization purposes")
         deploy_conf.ignore_background = ignore_background
         legend = create_color_legend(
@@ -563,14 +563,16 @@ def index(RELEASE=True):
                     st.experimental_rerun()
 
         if session_state.publishing:
+            deploy_conf.publishing = True
+            # using buttons to allow the widget to change after rerun
+            # whereas checkbox does not change after rerun
             if publish_place.button("Stop publishing results", key='btn_stop_pub'):
                 session_state.publishing = False
-                deploy_conf.publishing = False
                 st.experimental_rerun()
         else:
+            deploy_conf.publishing = False
             if publish_place.button("Start publishing results", key='btn_start_pub'):
                 session_state.publishing = True
-                deploy_conf.publishing = True
                 st.experimental_rerun()
 
         with stop_deploy_col:

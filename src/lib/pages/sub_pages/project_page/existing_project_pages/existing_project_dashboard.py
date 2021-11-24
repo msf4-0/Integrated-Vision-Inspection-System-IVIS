@@ -282,9 +282,9 @@ def index(RELEASE=True):
 
 if __name__ == "__main__":
     # Set to wide page layout for debugging on this page
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+    # layout = 'wide'
+    # st.set_page_config(page_title="Integrated Vision Inspection System",
+    #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
     if st._is_running_with_streamlit:
         # This is set to False for debugging purposes
         # when running Streamlit directly from this page

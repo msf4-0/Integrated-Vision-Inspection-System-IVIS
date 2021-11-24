@@ -910,8 +910,8 @@ class Project(BaseProject):
         """Method to reset all widgets and attributes in the Project Page when changing pages
         """
 
-        project_attributes = ["all_project_table", "project", "editor",
-                              "labelling_pagination", "existing_project_pagination"]
+        project_attributes = ["all_project_table", "project", "project_pagination",
+                              "editor", "labelling_pagination", "existing_project_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************

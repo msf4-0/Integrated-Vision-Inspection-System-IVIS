@@ -23,81 +23,60 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 
 """
-
-import streamlit as st
-from streamlit import cli as stcli
-from streamlit import session_state as SessionState
 from pathlib import Path
 from time import sleep
 import sys
 
-import psycopg2
+import streamlit as st
+from streamlit import cli as stcli
+from streamlit import session_state
 
 # >>>>>>>>>>>>>>>>>>>>>PATH>>>>>>>>>>>>>>>>>>>>>
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 TEST_MODULE_PATH = SRC / "test" / "test_page" / "module"
 
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-    if str(TEST_MODULE_PATH) not in sys.path:
-        sys.path.insert(0, str(TEST_MODULE_PATH))
-    else:
-        pass
+if str(TEST_MODULE_PATH) not in sys.path:
+    sys.path.insert(0, str(TEST_MODULE_PATH))
 # <<<<<<<<<<<<<<<<<<<<<<PATH<<<<<<<<<<<<<<<<<<<<<<<
 
 # DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>> User-defined modules >>>>
-from user.user_management import UserLogin
 from path_desc import chdir_root
-from core.utils.log import std_log  # logger
+from core.utils.log import logger
+from data_manager.database_manager import init_connection
+from user.user_management import LoginPagination, User, UserLogin, AccountStatus, check_if_field_empty, reset_login_page
+from main_page_management import MainPagination
 
 # <<<< User-defined modules <<<<
-
-
-@st.cache(allow_output_mutation=True, hash_funcs={"_thread.RLock": lambda _: None})
-def init_connection():
-    std_log(
-        f"Connected to database {st.secrets['postgres']['dbname']} at PORT {st.secrets['postgres']['port']}")
-    return psycopg2.connect(**st.secrets["postgres"])
-
 
 # >>>> Variable declaration >>>>
 user_test = {"username": 'chuzhenhao', "psd": "shrdc", "status": "NEW"}
 user = {}
 login_field_place = {}
-conn = init_connection()
+conn = init_connection(**st.secrets["postgres"])
 FIELDS = {
     'username': 'Username',
     'psd': "Password"
 }
 
 
-def check_if_field_empty(field, field_placeholder, field_name=None):
-    empty_fields = []
+def activation_page(user: UserLogin = None, layout='wide'):  # activation page for new users
+    if not user:
+        if 'user_login' not in session_state:
+            st.warning("No user to be activated.")
+            st.stop()
+        user = session_state.user_login
 
-    # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-    for key, value in field.items():
-        if value == "":
-            field_placeholder[key].error(
-                f"Please do not leave field blank")
-            empty_fields.append(key)
-
-        else:
-            pass
-
-    return not empty_fields
-
-
-def activation_page(user, layout='centered'):  # activation page for new users
+    st.write("vars(session_state.user_login)")
+    st.write(vars(session_state.user_login))
 
     psd_place = {}
     psd = {}
@@ -106,7 +85,7 @@ def activation_page(user, layout='centered'):  # activation page for new users
     st.markdown("___")
     activation_place = st.empty()
     if layout == 'wide':
-        col1, col2, col3 = activation_place.beta_columns([1, 3, 1])
+        col1, col2, col3 = activation_place.columns([1, 3, 1])
     else:
         col2 = activation_place
 
@@ -129,31 +108,39 @@ def activation_page(user, layout='centered'):  # activation page for new users
             if has_submitted:
                 if psd["first"] == psd["second"]:
                     user.psd = psd["first"]
-                    user.status = "ACTIVE"
-
                     user.update_psd()
-                    st.success(""" Successfully activated account.
-                                Please return to Login Page.
+
+                    # update the user status to ACTIVE after their first success login
+                    user.update_status(AccountStatus.ACTIVE)
+
+                    st.success("""Successfully activated account.
+                                Returning to Login Page.
                                 """)
-                    user = {}
-                    sleep(5)
+                    reset_login_page()
+                    sleep(3)
+                    session_state.login_pagination = LoginPagination.Login
+                    st.experimental_rerun()
 
                 else:
                     st.error(
                         "Activation failed, passwords does not match. Please enter again.")
-    has_submit_back = col2.button(label="Back", key="back_to_login")
-    if has_submit_back:
-        login_page(layout)
+
+    def to_login_cb():
+        # login_page(layout)
+        session_state.main_pagination = LoginPagination.Login
+
+    with col2:
+        st.button("Back", key="btn_back_to_login", on_click=to_login_cb)
 
 
-def login_page(layout='centered'):
+def login_page(layout='wide'):
     user = {}  # store user input
     login_place = st.empty()  # PLACEHOLDER to replace with error message
 
     # >>>> Place login container at the centre when layout == 'wide'
     if layout == 'wide':
-        left, mid_login, right = login_place.beta_columns([1, 3, 1])
-    else:  # Place login container at the centre when layout =='centred'
+        left, mid_login, right = login_place.columns([1, 3, 1])
+    else:  # Place login container at the centre when layout =='centered'
         mid_login = login_place
 
     with mid_login.form(key="login", clear_on_submit=True):
@@ -175,11 +162,6 @@ def login_page(layout='centered'):
        # st.write(f"{username},{pswrd}")
        # >>>>>>>> INPUT >>>>>>>>
 
-       # number of login attempts by user
-        if "attempt" not in SessionState:
-            # SessionState.attempt = 0
-            SessionState.user_login = UserLogin()  # Instantiate UserManager class SS holder
-
         # user_login = UserLogin()  # Instatiate Temp login user
         success_place = st.empty()  # Placeholder for Login success
 
@@ -192,42 +174,46 @@ def login_page(layout='centered'):
             # >>>>>>>> VERIFICATION >>>>>>>>
             if has_submitted:  # if both fields entered
 
-                if SessionState.user_login.user_verification(user, conn):
+                if "user_login" not in session_state:
+                    # Instantiate UserManager class SS holder
+                    session_state.user_login = UserLogin()
+
+                if session_state.user_login.user_verification(user, conn):
 
                     # >>>> CHECK user status >>>>
-                    if SessionState.user_login.status == 'NEW':
+                    if session_state.user_login.status == AccountStatus.NEW:
+                        session_state.login_pagination = LoginPagination.Activation
+                        logger.info("This is a new account, entering activation page "
+                                    "to activate it.")
+                        st.experimental_rerun()
+                    elif session_state.user_login.status == AccountStatus.LOCKED:
 
-                        # TODO:GOTO activation page
-
-                        std_log("activation")
-                    elif SessionState.user_login.status == 'LOCKED':
-
-                        admin_email = 'admin@shrdc.com'  # Random admin email
+                        # admin_email = 'admin@shrdc.com'  # Random admin email
                         st.error(
-                            f"Account Locked. Please contact admin {admin_email}")
-                        # TODO: consider Markdown with href
+                            f"Account Locked. Please contact any Administrator.")
 
                     # >>>>>>>> SUCCESS ENTER >>>>>>>>
                     else:
                         # for other status, enter web app
                         # set status as log-in
+                        session_state.user_login.update_status(
+                            AccountStatus.LOGGED_IN)
 
-                        SessionState.user_login.update_status('LOGGED_IN')
                         # Save Session Log
-                        with conn:  # open connections
-                            with conn.cursor() as cur:
-                                cur.execute("""INSERT INTO session_log (user_id)
-                                                VALUES (%s)
-                                                RETURNING id;""", [SessionState.user_login.id])
-                                # this state would include id, user_id, login_at
-                                # RETURNS Session ID
-                                conn.commit()  # commit SELECT query password
-                                session_id = cur.fetchone()
+                        session_state.user_login.save_session_log()
 
-                                # STORE session_id in user_login object
-                                SessionState.user_login.session_id = session_id[0]
+                        success_place.success(
+                            "### You have logged in successfully. Welcome 👋🏻")
+                        # change to User
+                        session_state.user = User.from_user_login(
+                            session_state.user_login)
 
-                        success_place.success("### Welcome 👋🏻")
+                        sleep(2)
+                        success_place.empty()
+
+                        reset_login_page()
+                        session_state.main_pagination = MainPagination.Projects
+                        st.experimental_rerun()
                     # <<<< CHECK user status <<<<
 
                 else:
@@ -237,40 +223,39 @@ def login_page(layout='centered'):
             # <<<<<<<< VERIFICATION <<<<<<<<
 
 
-def show():
-    LOGIN_PAGES = {
-        'Login Page': login_page,
-        'Activation Page': activation_page
-    }
-    # >>>> START >>>>
-    with st.sidebar.beta_container():
-
-        st.image("resources/MSF-logo.gif", use_column_width=True)
-    # with st.beta_container():
-        st.title("Integrated Vision Inspection System", anchor='title')
-
-        st.header(
-            "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-        st.markdown("""___""")
-    # with st.beta_container():
-    with st.beta_container():
-        st.title("")
-        st.title("")
-        st.title("")
-
-    # st.markdown("""___""")
-
-    # <<<< START <<<<
-
+def index():
     chdir_root()  # change to root directory
-    # activation_page(user,conn,layout)
-    login_page(layout)
+
+    LOGIN_PAGES = {
+        LoginPagination.Login: login_page,
+        LoginPagination.Activation: activation_page
+    }
+
+    if 'login_pagination' not in session_state:
+        session_state.login_pagination = LoginPagination.Login
+
+    LOGIN_PAGE_OPTIONS = ("Login", "Account Activation")
+
+    # >>>> CALLBACK for RADIO >>>>
+    def login_page_navigator():
+        navigation_selected = session_state.login_page_navigator_radio
+        navigation_selected_idx = LOGIN_PAGE_OPTIONS.index(
+            navigation_selected)
+        session_state.login_pagination = navigation_selected_idx
+
+    with st.sidebar.expander("Login Navigation", expanded=True):
+        st.radio("Pages", options=LOGIN_PAGE_OPTIONS,
+                 index=session_state.login_pagination,
+                 on_change=login_page_navigator, key="login_page_navigator_radio")
+    st.sidebar.markdown("___")
+
+    logger.debug(f"Navigator: {session_state.login_pagination = }")
+    LOGIN_PAGES[session_state.login_pagination]()
 
 
-if __name__ == "__main__":
+if __name__ == "__login__":
     if st._is_running_with_streamlit:
-
-        show()
+        index()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

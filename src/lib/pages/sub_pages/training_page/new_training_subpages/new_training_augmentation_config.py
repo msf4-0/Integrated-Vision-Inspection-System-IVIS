@@ -390,9 +390,9 @@ def augmentation_configuration(RELEASE=True):
 
 if __name__ == "__main__":
     # DEFINE wide page layout for debugging on this page
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+    # layout = 'wide'
+    # st.set_page_config(page_title="Integrated Vision Inspection System",
+    #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
     if st._is_running_with_streamlit:
         augmentation_configuration(RELEASE=False)

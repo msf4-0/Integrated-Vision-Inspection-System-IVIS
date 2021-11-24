@@ -253,6 +253,12 @@ def dataframe2dict(orient='index') -> List[Dict[str, Any]]:
     return inner
 
 
+def standard_db_datetime_formatter(dt: datetime) -> str:
+    """Convert to the standard format of datetime to be stored in PostgreSQL database."""
+    dt = dt.strftime('%Y-%m-%d %H:%M:%S.%f')
+    return dt
+
+
 def datetime_formatter(data_list: Union[List[NamedTuple], List[Dict]], return_dict: bool = False) -> List:
     """Convert datetime format to %Y-%m-%d %H:%M:%S for Dict and namedtuple from DB query
     NOTE: CAN JUST use to_char(<column_name>, 'YYYY-MM-DD HH24:MI:SS') in query instead!

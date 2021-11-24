@@ -1,8 +1,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Webcam Test Screenshot",
-                   page_icon="random", layout='wide')
+# st.set_page_config(page_title="Webcam Test Screenshot",
+#                    page_icon="random", layout='wide')
 
 components.html(
     """<!DOCTYPE html>

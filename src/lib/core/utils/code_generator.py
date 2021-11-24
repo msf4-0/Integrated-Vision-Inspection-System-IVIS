@@ -8,6 +8,7 @@ import random
 import string
 import uuid
 import secrets
+from passlib.hash import argon2
 
 
 def RandomAlphaNum():
@@ -41,7 +42,7 @@ def get_random_string(length=12, allowed_chars=(
     return ''.join(secrets.choice(allowed_chars) for i in range(length))
 
 
-def make_random_password(self, length=12,
+def make_random_password(length=12,
                          allowed_chars='abcdefghjkmnpqrstuvwxyz'
                          'ABCDEFGHJKLMNPQRSTUVWXYZ'
                          '23456789'):

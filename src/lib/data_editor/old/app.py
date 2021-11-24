@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_labelstudio import st_labelstudio
 
-st.set_page_config(layout='wide')
+# st.set_page_config(layout='wide')
 st.title("Label Studio")
 config = """
       <View>

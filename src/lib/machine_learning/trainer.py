@@ -1169,7 +1169,8 @@ class Trainer:
 
                 # append to the test results
                 header_txt = "Classification report:"
-                result_txt += "  \n".join([header_txt, classif_report])
+                result_txt += "  \n".join(
+                    [result_txt, header_txt, classif_report])
 
             with st.spinner("Creating confusion matrix ..."):
                 cm = confusion_matrix(y_true, preds)

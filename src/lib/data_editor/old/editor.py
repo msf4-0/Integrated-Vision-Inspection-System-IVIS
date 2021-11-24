@@ -14,9 +14,9 @@ from PIL import Image
 from base64 import b64encode, decode
 from io import BytesIO
 # DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>> User-defined Modules >>>>
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -253,12 +253,12 @@ def main():
                         }
                     ]
                 }
-            ],
-        'id': 1, #task id
+        ],
+        'id': 1,  # task id
         'data': {
             # 'image': "https://htx-misc.s3.amazonaws.com/opensource/label-studio/examples/images/nick-owuor-astro-nic-visuals-wDifg5xc9Z4-unsplash.jpg"
             'image': f'{data_url}'
-                }
+            }
     }
 
     v = annotation_sel()

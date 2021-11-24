@@ -87,7 +87,7 @@ st.title("Image Upload Test")
 with st.sidebar.beta_container():
     st.markdown("""
     ## Batch Image Upload """)
-    
+
     # streamlit.file_uploader(label, type=None, accept_multiple_files=False, key=None, help=None)
     uploaded_files_multi = st.file_uploader(
         label="Upload Image", type=['jpg', "png", "jpeg"], accept_multiple_files=True, key=2)

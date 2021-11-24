@@ -49,9 +49,10 @@ def check_unique_label_counts(labels: List[int], encoded_label_dict: Dict[int, s
     if one_member_idxs.any():
         label_idx = int(unique_values[one_member_idxs][0])
         label_name = encoded_label_dict[label_idx]
-        logger.error(f"""The least populated class in y: '{label_name}' has only 1 image,
-        which is too few. The minimum number of groups for any class cannot be less
-        than 2. This will not work for stratification in `train_test_split()`""")
+        logger.error(
+            f"The least populated class in y: '{label_name}' has only 1 image, "
+            "which is too few. The minimum number of groups for any class cannot be less "
+            "than 2. This will not work for stratification in `train_test_split()`")
         return False
     return True
 
@@ -522,7 +523,7 @@ def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
 
     Return None if no ckpt-*.index file found"""
     ckpt_filepaths = ckpt_dir.rglob('ckpt-*.index')
-    if not ckpt_filepaths:
+    if not list(ckpt_filepaths):
         logger.error("There is no checkpoint file found, "
                      "the TFOD model is not trained yet.")
         return None

@@ -253,8 +253,8 @@ class Deployment(BaseDeployment):
             if self.is_uploaded:
                 # this is a user-uploaded model
                 # category_index has already been loaded in `self.from_uploaded_model()`
-                saved_model_dir = list(
-                    paths['uploaded_model_dir'].rglob("saved_model"))[0]
+                saved_model_dir = next(
+                    paths['uploaded_model_dir'].rglob("saved_model"))
             else:
                 # this is a project model trained in our app
                 if re_export:
@@ -273,7 +273,7 @@ class Deployment(BaseDeployment):
             *_, encoded_label_dict = get_test_images_labels(
                 paths['test_set_pkl_file'],
                 self.deployment_type)
-            self.encoded_label_dict = encoded_label_dict
+            self.encoded_label_dict: Dict[int, str] = encoded_label_dict
 
     def classification_inference_pipeline(
             self, img: np.ndarray, **kwargs) -> Tuple[str, float]:
