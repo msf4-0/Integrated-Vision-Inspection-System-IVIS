@@ -102,8 +102,7 @@ def activation_page(user: UserLogin = None, layout='wide'):  # activation page f
             has_submitted = check_if_field_empty(psd, psd_place, FIELDS)
             if has_submitted:
                 if psd["first"] == psd["second"]:
-                    user.psd = psd["first"]
-                    user.update_psd()
+                    user.update_psd(psd["first"])
 
                     # update the user status to ACTIVE after their first success login
                     user.update_status(AccountStatus.ACTIVE)
@@ -205,7 +204,7 @@ def login_page(layout='wide'):
                         session_state.user_login.save_session_log()
 
                         success_place.success(
-                            "### You have logged in successfully. Welcome 👋🏻")
+                            "#### You have logged in successfully. Welcome 👋🏻")
                         # change to User
                         session_state.user = User.from_user_login(
                             session_state.user_login)

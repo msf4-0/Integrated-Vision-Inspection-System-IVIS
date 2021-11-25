@@ -91,6 +91,7 @@ class DeploymentPagination(IntEnum):
     Models = 0
     UploadModel = 1
     Deployment = 2
+    SwitchUser = 3
 
     def __str__(self):
         return self.name
@@ -168,7 +169,8 @@ class Deployment(BaseDeployment):
         self.is_uploaded = is_uploaded
         self.category_index = category_index
 
-        self.deployment_list: List = self.query_deployment_list()
+        # not needed for now
+        # self.deployment_list: List = self.query_deployment_list()
         self.model: tf.keras.Model = None
 
     @classmethod
@@ -200,8 +202,9 @@ class Deployment(BaseDeployment):
                    category_index=category_index, class_names=class_names,
                    is_uploaded=True)
 
-    @st.cache
-    def query_deployment_list(self):
+    @staticmethod
+    @st.experimental_memo
+    def query_deployment_list():
         query_deployment_list_sql = """
                                     SELECT
                                         name
@@ -389,6 +392,7 @@ class Deployment(BaseDeployment):
     def reset_deployment_page():
         """Method to reset all widgets and attributes in the Deployment Pages when changing pages
         """
+        tf.keras.backend.clear_session()
         if 'csv_file' in session_state and not session_state.csv_file.closed:
             session_state.csv_file.close()
 

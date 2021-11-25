@@ -210,7 +210,7 @@ class BaseUser:
         self.position: str = ''
         self.psd: str = ''
         self.role: UserRole = None
-        self.account_status: AccountStatus = None
+        self.status: AccountStatus = None
         self.session_id: int = None
 # TODO: load UserLogin into User class
 
@@ -225,8 +225,8 @@ class BaseUser:
         update_vars = [status, self.id]
         db_no_fetch(update_sql, conn, update_vars)
 
-    def update_psd(self):
-        self.psd = argon2.hash(self.psd)
+    def update_psd(self, input_password: str):
+        hashed_psd = argon2.hash(input_password)
 
         update_query = """
             UPDATE users
@@ -234,10 +234,11 @@ class BaseUser:
                 status_id = %s
             WHERE username = %s;
         """
-        query_vars = [self.psd, self.status, self.username]
+        query_vars = [hashed_psd, self.status, self.username]
         db_no_fetch(update_query, conn, query_vars)
 
-        delattr(self, 'psd')  # REMOVE password
+        # not storing psd in the User instance
+        # delattr(self, 'psd')  # REMOVE password
 
     def save_session_log(self):
         sql_insert = """
@@ -371,7 +372,7 @@ class User(BaseUser):
                 self.last_name, self.email, self.department, \
                 self.position, role_fullname, account_status = query_return
             self.role = UserRole.get_enum_from_fullname(role_fullname)
-            self.account_status = AccountStatus.from_string(account_status)
+            self.status = AccountStatus.from_string(account_status)
             current_timestamp = datetime.now()
             update_last_activity_SQL = """
                                     UPDATE
@@ -435,6 +436,22 @@ class User(BaseUser):
             new_info["position"], roles_id, hashed_psd, self.id]
         db_no_fetch(sql_update, conn, update_vars)
 
+    @staticmethod
+    def delete_user(user_id: int) -> bool:
+        sql_delete = """
+            DELETE FROM users
+            WHERE id = %s
+            RETURNING id;
+        """
+        delete_vars = [user_id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if record:
+            return True
+        else:
+            logger.error("Error deleting user due to constraints with other existing data, "
+                         "most likely due to existing annotations/training done by the user")
+            return False
+
 
 def get_default_user_info() -> BaseUser:
     default_user = BaseUser()
@@ -493,15 +510,9 @@ def query_all_admins() -> List[NamedTuple]:
 
 
 def query_all_users(return_dict: bool = False,
-                    for_data_table: bool = False) -> Union[List[NamedTuple], List[Dict[str, Any]]]:
-    """Return values for all project
-
-    Args:
-        return_dict (bool, optional): True if results to be in Python Dictionary, else collections.namedtuple. Defaults to False.
-
-    Returns:
-        List[NamedTuple]: [description]
-    """
+                    for_data_table: bool = False) -> Tuple[
+                        Union[List[NamedTuple], List[Dict[str, Any]]],
+                        List[str]]:
     ID_string = "id" if for_data_table else "ID"
     sql_query = f"""
         SELECT 
@@ -520,12 +531,35 @@ def query_all_users(return_dict: bool = False,
     """
     users, column_names = db_fetchall(
         sql_query, conn, fetch_col_name=True, return_dict=return_dict)
-    logger.info(f"Queried users from database")
+    logger.info(f"Queried all users info from database")
     return users, column_names
 
 
+def query_user_session_log(
+    user_id: int,
+    return_dict: bool = False,
+    for_data_table: bool = False) -> Tuple[
+        Union[List[NamedTuple], List[Dict[str, Any]]],
+        List[str]]:
+    ID_string = "id" if for_data_table else "ID"
+    sql_query = f"""
+        SELECT
+            id                                        AS "{ID_string}",
+            to_char(login_at, 'YYYY-MM-DD HH:MI:SS')  AS "Login Log",
+            to_char(logout_at, 'YYYY-MM-DD HH:MI:SS') AS "Logout Log"
+        FROM session_log
+        WHERE users_id = %s
+    """
+    query_vars = [user_id]
+    user_session_log, column_names = db_fetchall(
+        sql_query, conn, query_vars,
+        fetch_col_name=True, return_dict=return_dict)
+    logger.info(f"Queried current user's session logs from database")
+    return user_session_log, column_names
+
+
 def reset_login_page():
-    login_attributes = ["login_pagination", "user_login"]
+    login_attributes = ["login_pagination", "user_login", "current_user"]
 
     reset_page_attributes(login_attributes)
 

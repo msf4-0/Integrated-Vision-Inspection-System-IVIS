@@ -72,6 +72,8 @@ with st.sidebar.container():
 
 
 def to_project_cb():
+    reset_login_page()
+    reset_user_management_page()
     session_state.main_pagination = MainPagination.Projects
 
 

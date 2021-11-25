@@ -25,7 +25,9 @@ SPDX-License-Identifier: Apache-2.0
 """
 import sys
 from pathlib import Path
+from itertools import zip_longest
 from time import sleep
+
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
@@ -33,10 +35,20 @@ from streamlit import session_state
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import logger
+from core.utils.code_generator import make_random_password
 from user.user_management import AccountStatus, User, query_all_users
 from main_page_management import MainPagination, UserManagementPagination, reset_user_management_page
 from data_manager.data_table_component.data_table import data_table
 from pages.sub_pages.user_page import create_new_user
+
+
+def danger_zone_header():
+    st.markdown("""
+    <h3 style='color: darkred; 
+    text-decoration: underline'>
+    Danger Zone
+    </h3>
+    """, unsafe_allow_html=True)
 
 
 def dashboard():
@@ -97,10 +109,10 @@ def dashboard():
         }
     ]
 
-    # TODO: allow reset user passwords
-    # TODO: allow user deletion or role change
-
     def to_new_user_cb():
+        if 'current_user' in session_state:
+            # must delete this to avoid editing existing user
+            del session_state['current_user']
         session_state.main_pagination = MainPagination.CreateUser
 
     st.button("Create New User", key='btn_create_user',
@@ -116,15 +128,19 @@ def dashboard():
     if not selected_user_ids:
         st.stop()
 
-    selected_user_row = next(
-        filter(lambda x: x['id'] == selected_user_ids[0], users))
+    try:
+        selected_user_row = next(
+            filter(lambda x: x['id'] == selected_user_ids[0], users))
+    except StopIteration:
+        logger.debug("Refreshing page after deleting user will cause data_table "
+                     "to still select the previous user and throw this error. Don't mind!")
+        st.stop()
     info_col1, _, info_col2 = st.columns([1, 0.1, 1])
-    for field1, field2 in zip(USER_FIELDS[:4], USER_FIELDS[4:]):
+    for field1, field2 in zip_longest(USER_FIELDS[:4], USER_FIELDS[4:]):
         with info_col1:
-            if field1 != 'id':
-                st.markdown(f"**{field1}**: {selected_user_row[field1]}")
+            st.markdown(f"**{field1}**: {selected_user_row[field1]}")
         with info_col2:
-            if field2 != 'id':
+            if field2 is not None:
                 st.markdown(f"**{field2}**: {selected_user_row[field2]}")
 
     session_state.current_user = User(selected_user_ids[0])
@@ -136,11 +152,19 @@ def dashboard():
     st.button("Edit selected user's info", key='btn_edit_selected_user',
               on_click=to_edit_user_cb)
 
-    st.button("Reset selected user's password", key='btn_reset_psd')
+    def reset_user_psd_cb():
+        random_psd = make_random_password(22)
+        session_state.current_user.update_psd(random_psd)
+        session_state.current_user.update_status(AccountStatus.NEW)
+        st.info(f"New password generated for the user: **{random_psd}**  \nPlease ask "
+                "the user to login with the temporary password to activate his account.")
+
+    if st.button("Reset selected user's password", key='btn_reset_psd'):
+        reset_user_psd_cb()
 
     all_status = AccountStatus.get_all_status()
     current_user_status_idx = all_status.index(
-        session_state.current_user.account_status.name)
+        session_state.current_user.status.name)
     st.markdown("#### Edit selected user's status")
     selected_user_status = st.selectbox(
         "Select a user status", options=all_status,
@@ -150,6 +174,25 @@ def dashboard():
         session_state.current_user.update_status(new_status)
         st.success("User status updated successfully")
         sleep(1)
+        st.experimental_rerun()
+
+    st.markdown("___")
+    danger_zone_header()
+    if st.button("Delete selected user", key='btn_delete_user'):
+        selected_user_id = session_state.current_user.id
+        delete_success = User.delete_user(selected_user_id)
+        if not delete_success:
+            st.error(
+                "Error deleting the selected user due to constraints with other existing "
+                "data, most likely due to existing annotations/training done by the user.")
+            st.stop()
+
+        del session_state['current_user']
+        st.success("User deleted successfully")
+        sleep(1)
+        if selected_user_id == session_state.user.id:
+            reset_user_management_page()
+            session_state.main_pagination = MainPagination.Login
         st.experimental_rerun()
 
 

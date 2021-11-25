@@ -231,6 +231,9 @@ def show(layout='wide'):
             if existing_user:
                 # note that this `current_user` is referenced to session_state.current_user
                 current_user.update_info(new_user)
+                if session_state.user.id == current_user.id:
+                    # update our logged in's user with the new info
+                    session_state.user = current_user
                 st.success("Information updated successfully")
                 logger.info(f"Information updated successfully for user with "
                             f"username: {current_user.username}")
@@ -249,7 +252,7 @@ def show(layout='wide'):
             if new_user['role'] != "Administrator":
                 st.warning(
                     f"""Please advice the user to login with the temporary password used
-                    here to activate the account.\n__Employee Temporary Password: 
+                    here to activate the account.  \n__Employee Temporary Password: 
                     {new_user["psd"]}__
                     """)
             else:

@@ -837,7 +837,7 @@ def create_relation_database(conn):
 
         -- SESSION_LOG
         ALTER TABLE IF EXISTS public.session_log
-            ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION NOT VALID;
+            ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE CASCADE NOT VALID;
 
         ALTER TABLE public.session_log VALIDATE CONSTRAINT fk_users_id;
 

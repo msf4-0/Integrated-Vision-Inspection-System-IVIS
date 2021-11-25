@@ -58,7 +58,7 @@ def index():
     chdir_root()  # change to root directory
 
     RELEASE = True
-    logger.debug("At Exisiting Project Dashboard INDEX")
+    logger.debug("Navigator: At Existing Project Dashboard INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
 
@@ -128,15 +128,18 @@ def index():
             NewTraining.reset_new_training_page()
             Training.reset_training_page()
             Project.reset_settings_page()
+            Deployment.reset_deployment_page()
         elif navigation_selected == "Labelling":
             Project.reset_dashboard_page()
             NewTraining.reset_new_training_page()
             Training.reset_training_page()
             Project.reset_settings_page()
+            Deployment.reset_deployment_page()
         elif navigation_selected == "Training":
             Project.reset_dashboard_page()
             reset_editor_page()
             Project.reset_settings_page()
+            Deployment.reset_deployment_page()
         elif navigation_selected == "Deployment":
             # NOTE: not resetting here to ensure the deployment keeps running
             # even when in another page, especially for switching user
@@ -152,6 +155,7 @@ def index():
             reset_editor_page()
             NewTraining.reset_new_training_page()
             Training.reset_training_page()
+            Deployment.reset_deployment_page()
 
     if session_state.project.datasets:
         # only show this if project has already selected a dataset

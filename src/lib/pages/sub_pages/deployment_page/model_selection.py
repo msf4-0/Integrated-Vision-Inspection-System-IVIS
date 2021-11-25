@@ -224,7 +224,7 @@ def index(RELEASE=True):
         key=f'data_table_model_selection_{unique_key}',
         on_change=reset_cache)
 
-    deploy_button_place = st.empty()
+    deploy_button_col = st.container()
 
     if not selected_id:
         st.stop()
@@ -331,14 +331,15 @@ def index(RELEASE=True):
             session_state.deployment = Deployment.from_uploaded_model(
                 model, uploaded_model_dir, category_index)
 
-        with st.sidebar.container():
+        with deploy_button_col:
             with st.spinner("Preparing model for deployment ..."):
                 session_state.deployment.run_preparation_pipeline()
         session_state.deployment_pagination = DeploymentPagination.Deployment
 
-    deploy_button_place.button("🛠️ Deploy selected model",
-                               key='btn_deploy_selected_model',
-                               on_click=enter_deployment)
+    with deploy_button_col:
+        st.button("🛠️ Deploy selected model",
+                                key='btn_deploy_selected_model',
+                                on_click=enter_deployment)
 
 
 if __name__ == "__main__":

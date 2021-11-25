@@ -2,7 +2,8 @@ from enum import IntEnum
 
 from core.utils.form_manager import reset_page_attributes
 
-MAIN_PAGE_OPTIONS = ("Login", "Logout", "Projects", "User Management")
+MAIN_PAGE_OPTIONS = ("Create User", "Login", "Projects",
+                     "User Management", "User Info")
 
 
 class MainPagination(IntEnum):

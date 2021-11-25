@@ -25,20 +25,60 @@ SPDX-License-Identifier: Apache-2.0
 """
 import sys
 from pathlib import Path
+import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
+from main_page_management import MainPagination
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import logger
+from user.user_management import query_user_session_log
 
 
 def main():
     logger.debug("Navigator: User Info")
-    # TODO: show user info
-    # TODO: show session logs
-    pass
+    st.header("User Information")
+    st.markdown("___")
+
+    attr2fullname = {
+        'emp_id': 'Employee Company ID',
+        'first_name': 'First Name',
+        'last_name': 'Last Name',
+        'email': 'Employee Company Email',
+        'department': 'Department',
+        'position': 'Position',
+        'username': 'Username',
+        'role': 'Role'}
+    user_attrs = list(attr2fullname)
+
+    user_info = session_state.user.__dict__
+
+    info_col1, _, info_col2 = st.columns([1, 0.1, 1])
+    # total 8 attributes, no need `zip_longest`
+    for attr1, attr2 in zip(user_attrs[:4], user_attrs[4:]):
+        with info_col1:
+            st.markdown(f"**{attr2fullname[attr1]}**: {user_info[attr1]}")
+        with info_col2:
+            st.markdown(f"**{attr2fullname[attr2]}**: {user_info[attr2]}")
+
+    def to_edit_user_cb():
+        # session_state.current_user is required to modify existing user info
+        session_state.current_user = session_state.user
+        session_state.main_pagination = MainPagination.CreateUser
+
+    st.button("Edit user info", key='btn_edit_logged_in_user',
+              on_click=to_edit_user_cb)
+
+    st.markdown("___")
+    st.header("User Session Log")
+    st.markdown("___")
+    user_session_log, column_names = query_user_session_log(
+        session_state.user.id, return_dict=True)
+    session_df = pd.DataFrame(user_session_log, columns=column_names)
+    session_df.fillna('-', inplace=True)
+    st.dataframe(session_df, width=1000, height=1200)
 
 
 if __name__ == "__main__":
