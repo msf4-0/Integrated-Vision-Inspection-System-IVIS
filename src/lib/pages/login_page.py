@@ -59,13 +59,7 @@ from main_page_management import MainPagination
 
 # >>>> Variable declaration >>>>
 user_test = {"username": 'chuzhenhao', "psd": "shrdc", "status": "NEW"}
-user = {}
-login_field_place = {}
 conn = init_connection(**st.secrets["postgres"])
-FIELDS = {
-    'username': 'Username',
-    'psd': "Password"
-}
 
 
 def activation_page(user: UserLogin = None, layout='wide'):  # activation page for new users
@@ -75,17 +69,18 @@ def activation_page(user: UserLogin = None, layout='wide'):  # activation page f
             st.stop()
         user = session_state.user_login
 
-    st.write("vars(session_state.user_login)")
-    st.write(vars(session_state.user_login))
-
     psd_place = {}
     psd = {}
+    FIELDS = {
+        'first': 'New Password',
+        'second': 'Confirm Password'
+    }
 
     st.write("## __User Account Activation__")
     st.markdown("___")
     activation_place = st.empty()
     if layout == 'wide':
-        col1, col2, col3 = activation_place.columns([1, 3, 1])
+        _, col2, _ = activation_place.columns([1, 3, 1])
     else:
         col2 = activation_place
 
@@ -95,16 +90,16 @@ def activation_page(user: UserLogin = None, layout='wide'):  # activation page f
                                      type="password", help="Enter new password")
         psd_place["first"] = st.empty()
 
-        # psd re-enter
-        psd["second"] = st.text_input(label="Re-enter Password", key="re_enter_password",
-                                      type="password", help="Re-enter new password")
+        # psd confirm
+        psd["second"] = st.text_input(label="Confirm Password", key="confirm_password",
+                                      type="password", help="Confirm Password")
         psd_place["second"] = st.empty()
 
         submit_activation = st.form_submit_button(
             "Confirm", help="Submit desired password to activate user account")
         if submit_activation:
 
-            has_submitted = check_if_field_empty(psd, psd_place)
+            has_submitted = check_if_field_empty(psd, psd_place, FIELDS)
             if has_submitted:
                 if psd["first"] == psd["second"]:
                     user.psd = psd["first"]
@@ -117,7 +112,7 @@ def activation_page(user: UserLogin = None, layout='wide'):  # activation page f
                                 Returning to Login Page.
                                 """)
                     reset_login_page()
-                    sleep(3)
+                    sleep(2)
                     session_state.login_pagination = LoginPagination.Login
                     st.experimental_rerun()
 
@@ -134,7 +129,12 @@ def activation_page(user: UserLogin = None, layout='wide'):  # activation page f
 
 
 def login_page(layout='wide'):
+    FIELDS = {
+        'username': 'Username',
+        'psd': "Password"
+    }
     user = {}  # store user input
+    login_field_place = {}
     login_place = st.empty()  # PLACEHOLDER to replace with error message
 
     # >>>> Place login container at the centre when layout == 'wide'
@@ -183,6 +183,8 @@ def login_page(layout='wide'):
                     # >>>> CHECK user status >>>>
                     if session_state.user_login.status == AccountStatus.NEW:
                         session_state.login_pagination = LoginPagination.Activation
+                        st.success("This is a new account, entering activation page "
+                                   "to activate it.")
                         logger.info("This is a new account, entering activation page "
                                     "to activate it.")
                         st.experimental_rerun()
@@ -233,21 +235,6 @@ def index():
 
     if 'login_pagination' not in session_state:
         session_state.login_pagination = LoginPagination.Login
-
-    LOGIN_PAGE_OPTIONS = ("Login", "Account Activation")
-
-    # >>>> CALLBACK for RADIO >>>>
-    def login_page_navigator():
-        navigation_selected = session_state.login_page_navigator_radio
-        navigation_selected_idx = LOGIN_PAGE_OPTIONS.index(
-            navigation_selected)
-        session_state.login_pagination = navigation_selected_idx
-
-    with st.sidebar.expander("Login Navigation", expanded=True):
-        st.radio("Pages", options=LOGIN_PAGE_OPTIONS,
-                 index=session_state.login_pagination,
-                 on_change=login_page_navigator, key="login_page_navigator_radio")
-    st.sidebar.markdown("___")
 
     logger.debug(f"Navigator: {session_state.login_pagination = }")
     LOGIN_PAGES[session_state.login_pagination]()

@@ -28,8 +28,8 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 from path_desc import chdir_root
 from core.utils.log import logger
 from data_manager.database_manager import init_connection
-from main_page_management import MainPagination
-from user.user_management import User, UserRole, query_all_admins, reset_login_page
+from main_page_management import MainPagination, reset_user_management_page
+from user.user_management import AccountStatus, User, UserRole, query_all_admins, reset_login_page
 from project.project_management import NewProject, Project
 from annotation.annotation_management import reset_editor_page
 from training.training_management import NewTraining, Training
@@ -76,6 +76,7 @@ def to_project_cb():
 
 
 def to_user_management_cb():
+    reset_user_management_page()
     session_state.main_pagination = MainPagination.UserManagement
 
 
@@ -90,6 +91,7 @@ def login_cb():
 def logout_cb():
     # session_state.main_pagination = MainPagination.Logout
 
+    session_state.user.update_status(AccountStatus.LOGGED_OUT)
     session_state.user.update_logout_session_log()
     del session_state['user']
     st.success("You have logged out successfully!")
@@ -97,6 +99,7 @@ def logout_cb():
 
     # only need to reset everything on logout
     reset_login_page()
+    reset_user_management_page()
     NewProject.reset_new_project_page()
     reset_editor_page()
     NewDataset.reset_new_dataset_page()
@@ -147,28 +150,6 @@ def main():
         else:
             # only show a Login button
             st.sidebar.button("Login", key='btn_login', on_click=login_cb)
-
-    # >>>> CALLBACK for RADIO >>>>
-    # def main_page_navigator():
-    #     navigation_selected = session_state.main_page_navigator_radio
-    #     session_state.main_pagination = MainPagination.get_enum_from_display_name(
-    #         navigation_selected)
-
-    #     if session_state.main_pagination == MainPagination.Logout:
-    #         # only need to reset everything on logout
-    #         NewProject.reset_new_project_page()
-    #         reset_editor_page()
-    #         NewDataset.reset_new_dataset_page()
-    #         NewTraining.reset_new_training_page()
-    #         Training.reset_training_page()
-    #         Project.reset_project_page()
-    #         Project.reset_settings_page()
-    #         Deployment.reset_deployment_page()
-
-    # with st.sidebar.expander("Main Navigation", expanded=True):
-    #     st.radio("Pages", options=main_page_options,
-    #              index=session_state.main_pagination,
-    #              on_change=main_page_navigator, key="main_page_navigator_radio")
 
     st.sidebar.markdown("___")
 

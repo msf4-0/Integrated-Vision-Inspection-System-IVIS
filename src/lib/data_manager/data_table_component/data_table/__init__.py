@@ -71,6 +71,7 @@ def data_table(
 
     NOTE: data_table must have an 'id' column, not 'ID'. And this ID will be returned when
     any row of the data_table is clicked on. Multiple rows can be selected if checkbox=True.
+    An empty list will be returned if no row is clicked on yet.
 
     Args:
         rows (List[Dict]): Row data

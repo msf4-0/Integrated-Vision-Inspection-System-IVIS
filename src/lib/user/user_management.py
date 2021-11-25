@@ -16,7 +16,6 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
 from core.utils.form_manager import check_if_exists, reset_page_attributes
-from core.utils.helper import standard_db_datetime_formatter
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -49,11 +48,13 @@ class LoginPagination(IntEnum):
             raise ValueError()
 
 
-USER_ROLES = ("Administrator", "Developer (Deployment)",
-              "Developer (Model Training)", "Annotator")
+# must follow the names defined in database 'users' table
+USER_ROLES = ("Administrator", "Developer 1 (Deployment)",
+              "Developer 2 (Model Training)", "Annotator")
 
 
 class UserRole(IntEnum):
+    # must follow the order in 'users' table
     Administrator = 1
     Developer1 = 2
     Developer2 = 3
@@ -106,17 +107,21 @@ class AccountStatus(IntEnum):  # User Status
         except KeyError:
             raise ValueError()
 
+    @staticmethod
+    def get_all_status() -> List[str]:
+        return [s.name for s in AccountStatus]
+
 # TODO: move to form_manager
 
 
-def check_if_field_empty(new_user, field_placeholder, field_name):
+def check_if_field_empty(user_inputs: Dict[str, Any], field_placeholder, field_name):
     empty_fields = []
-    # all_field_filled = all(new_user)
+    # all_field_filled = all(user_inputs: Dict[str, Any])
     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
-    for key, value in new_user.items():
+    for key, value in user_inputs.items():
         if value == "":
             field_placeholder[key].error(
-                f"Please do not leave {field_name[key]} field blank")
+                f"Please do not leave **{field_name[key]}** field blank")
             empty_fields.append(key)
 
     return not empty_fields
@@ -196,14 +201,14 @@ def create_user(user, conn=conn):
 class BaseUser:
     def __init__(self) -> None:
         self.id: int = None
-        self.emp_id: Union[int, str] = None
-        self.username: str = None
-        self.first_name: str = None
-        self.last_name: str = None
-        self.email: str = None
-        self.department: str = None
-        self.position: str = None
-        self.psd: str = None
+        self.emp_id: Union[int, str] = ''
+        self.username: str = ''
+        self.first_name: str = ''
+        self.last_name: str = ''
+        self.email: str = ''
+        self.department: str = ''
+        self.position: str = ''
+        self.psd: str = ''
         self.role: UserRole = None
         self.account_status: AccountStatus = None
         self.session_id: int = None
@@ -253,13 +258,13 @@ class UserLogin(BaseUser):
 
         # TODO:Temporary
         self.id: int = None
-        self.username: str = None
+        self.username: str = ''
         # self.first_name
         # self.last_name
         # self.email
         # self.department
         # self.position
-        self.psd: str = None
+        self.psd: str = ''
         # self.role
         self.status: AccountStatus = None
         self.session_id: int = None
@@ -367,7 +372,7 @@ class User(BaseUser):
                 self.position, role_fullname, account_status = query_return
             self.role = UserRole.get_enum_from_fullname(role_fullname)
             self.account_status = AccountStatus.from_string(account_status)
-            current_timestamp = datetime.now().astimezone()
+            current_timestamp = datetime.now()
             update_last_activity_SQL = """
                                     UPDATE
                                         public.users
@@ -389,9 +394,87 @@ class User(BaseUser):
                 users_id = %s;
         """
         now = datetime.now()
-        now = standard_db_datetime_formatter(now)
         update_vars = [now, self.id]
         db_no_fetch(sql_update, conn, update_vars)
+
+    def update_info(self, new_info: Dict[str, Any]):
+        logger.info("Updating user information")
+        hashed_psd = argon2.hash(new_info["psd"])
+        logger.debug(f'password: {new_info["psd"]}')
+
+        role = UserRole.get_enum_from_fullname(new_info['role'])
+
+        # update everything in the instance except for 'psd'
+        self.emp_id, self.username, self.first_name, \
+            self.last_name, self.email, self.department, \
+            self.position, self.role = (
+                new_info["emp_id"], new_info["username"], new_info["first_name"],
+                new_info["last_name"], new_info["email"], new_info["department"],
+                new_info["position"], role)
+
+        sql_update = """
+            UPDATE
+                users
+            SET
+                emp_id = %s,
+                username = %s,
+                first_name = %s,
+                last_name = %s,
+                email = %s,
+                department = %s,
+                position = %s,
+                roles_id = %s,
+                psd = %s
+            WHERE
+                id = %s;
+        """
+        roles_id = role.value
+        update_vars = [
+            new_info["emp_id"], new_info["username"], new_info["first_name"],
+            new_info["last_name"], new_info["email"], new_info["department"],
+            new_info["position"], roles_id, hashed_psd, self.id]
+        db_no_fetch(sql_update, conn, update_vars)
+
+
+def get_default_user_info() -> BaseUser:
+    default_user = BaseUser()
+    return default_user
+
+
+def check_if_other_user_exists(
+        emp_id: Union[int, str],
+        username: str, current_user: User, conn) -> Tuple[bool, List[str]]:
+    """This function works similarly with check_if_user_exists() but do not consider 
+    the unique fields of the current existing user. This function is used when modifying
+    existing user info.
+    """
+    sql_query = """
+        SELECT *
+        FROM users
+        WHERE emp_id = %s
+            AND username = %s
+            AND id != %s;
+    """
+    query_vars = [str(emp_id), username, current_user.id]
+    record = db_fetchone(sql_query, conn, query_vars)
+    columns_with_used_values = []
+    if record:
+        if record.emp_id == current_user.emp_id:
+            columns_with_used_values.append('emp_id')
+        if record.username == current_user.username:
+            columns_with_used_values.append('username')
+        return True, columns_with_used_values
+    return False, columns_with_used_values
+
+
+def verify_password(user: User, input_password: str) -> bool:
+    sql_query = """
+        SELECT psd FROM users WHERE id = %s;
+    """
+    query_vars = [user.id]
+    hashed_psd = db_fetchone(sql_query, conn, query_vars).psd
+    is_correct = argon2.verify(input_password, hashed_psd)
+    return is_correct
 
 
 @st.cache(hash_funcs={psycopg2.extensions.connection: lambda _: None})
@@ -409,14 +492,42 @@ def query_all_admins() -> List[NamedTuple]:
     return admins
 
 
-def query_all_users():
-    pass
+def query_all_users(return_dict: bool = False,
+                    for_data_table: bool = False) -> Union[List[NamedTuple], List[Dict[str, Any]]]:
+    """Return values for all project
+
+    Args:
+        return_dict (bool, optional): True if results to be in Python Dictionary, else collections.namedtuple. Defaults to False.
+
+    Returns:
+        List[NamedTuple]: [description]
+    """
+    ID_string = "id" if for_data_table else "ID"
+    sql_query = f"""
+        SELECT 
+            u.id                               AS "{ID_string}",
+            emp_id                             AS "Employee ID",
+            CONCAT(first_name, ' ', last_name) AS "Full Name",
+            email                              AS "Email",
+            department                         AS "Department",
+            position                           AS "Position",
+            r.name                             AS "Role",
+            st.name                            AS "Status"
+        FROM users u
+            LEFT JOIN roles r on u.roles_id = r.id
+            LEFT JOIN account_status st on u.status_id = st.id
+        ORDER BY u.id;
+    """
+    users, column_names = db_fetchall(
+        sql_query, conn, fetch_col_name=True, return_dict=return_dict)
+    logger.info(f"Queried users from database")
+    return users, column_names
 
 
 def reset_login_page():
-    project_attributes = ["login_pagination", "user_login"]
+    login_attributes = ["login_pagination", "user_login"]
 
-    reset_page_attributes(project_attributes)
+    reset_page_attributes(login_attributes)
 
 
 # user_create = create_user()  # Create New User
