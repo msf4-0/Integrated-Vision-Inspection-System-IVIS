@@ -43,6 +43,8 @@ from streamlit import cli as stcli
 from streamlit import session_state
 from streamlit.report_thread import add_report_ctx
 
+from user.user_management import User, UserRole
+
 # DEFINE Web APP page configuration
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
@@ -82,52 +84,82 @@ def kpi_format(text: str):
 
 def index(RELEASE=True):
     if 'deployment' not in session_state:
-        st.sidebar.warning("You have not deployed any model yet.")
-        st.sidebar.warning(
+        st.warning("You have not deployed any model yet.")
+        st.warning(
             "Please go to the Model Selection page and deploy a model first.")
         st.stop()
 
     if 'camera' not in session_state:
-        # REMEMBER TO DELETE THIS if exists when entering this page
         session_state.camera = None
     if 'working_ports' not in session_state:
         session_state.working_ports = None
-
-    # training paths obtained from Training.training_path in previous page
-    # TRAINING_PATHS = session_state.deployment.training_path
-    DEPLOYMENT_TYPE = session_state.deployment.deployment_type
-
-    # def back_to_model():
-    #     session_state.deployment_pagination = DeploymentPagination.Models
-    # st.sidebar.button(
-    #     "Back to Model Selection",
-    #     key='btn_back_model_select_deploy', on_click=back_to_model)
-
-    # deploy_config_path = session_state.deployment.get_config_path()
     if 'deployment_conf' not in session_state:
+        # to store the config in case the user needs to go to another page during deployment
         session_state.deployment_conf = DeploymentConfig()
 
     deploy_conf = session_state.deployment_conf
+    # st.write("deploy_conf")
+    # st.write(deploy_conf)
 
-    options = ('Image', 'Video')
-    index = options.index(deploy_conf.input_type)
-    input_type = st.sidebar.radio(
-        'Choose the Type of Input', options,
-        index=index, key='input_type')
-    deploy_conf.input_type = input_type
+    deployment: Deployment = session_state.deployment
+    user: User = session_state.user
+    DEPLOYMENT_TYPE = deployment.deployment_type
+
+    def stop_deployment():
+        Deployment.reset_deployment_page()
+        session_state.deployment_pagination = DeploymentPagination.Models
+        st.experimental_rerun()
+
+    def update_deploy_conf(conf_attr: str):
+        """Update deployment config on any change of the widgets.
+
+        NOTE: `conf_attr` must exist in the `session_state` and must be the same
+        with the `DeploymentConfig` attribute's name."""
+        val = session_state[conf_attr]
+        logger.debug(conf_attr, val)
+        setattr(deploy_conf, conf_attr, val)
+
+    pause_deploy_place = st.sidebar.empty()
+
+    st.sidebar.button(
+        "End Deployment", key='btn_stop_image_deploy',
+        on_click=stop_deployment,
+        help="This will stop the deployment and reset the entire  \n"
+        "deployment configuration. Please make sure to use this  \n"
+        "button to stop deployment before proceeding to any other  \n"
+        "page! Or use the pause button if you want to pause the  \n"
+        "deployment to do any other things without resetting,  \n"
+        "such as switching user, or viewing the latest saved  \n"
+        "CSV file (only for video camera deployment).")
+    st.sidebar.markdown("___")
+
+    if user.role <= UserRole.Developer1:
+        # use this variable to know whether the user has access to edit deployment config
+        has_access = True
+        options = ('Image', 'Video')
+        idx = options.index(deploy_conf.input_type)
+        st.sidebar.radio(
+            'Choose the Type of Input', options,
+            index=idx, key='input_type',
+            on_change=update_deploy_conf, args=('input_type',))
+    else:
+        has_access = False
+        st.info(f"NOTE: Your user role **{user.role.fullname}** "
+                "does not have access to editing deployment configuration.")
+        st.markdown(f"**Input type**: {deploy_conf.input_type}")
 
     options_col, _ = st.columns(2)
 
     if DEPLOYMENT_TYPE == 'Image Classification':
         pipeline_kwargs = {}
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-        class_colors = create_class_colors(
-            session_state.deployment.class_names)
+        class_colors = create_class_colors(deployment.class_names)
         ignore_background = st.checkbox(
             "Ignore background", value=deploy_conf.ignore_background,
             key='ignore_background',
-            help="Ignore background class for visualization purposes")
-        deploy_conf.ignore_background = ignore_background
+            help="Ignore background class for visualization purposes.  \n"
+            "Note that turning this on will significantly reduce the FPS.",
+            on_change=update_deploy_conf, args=('ignore_background',))
         legend = create_color_legend(
             class_colors, bgr2rgb=False, ignore_background=ignore_background)
         st.markdown("**Legend**")
@@ -138,21 +170,25 @@ def index(RELEASE=True):
         pipeline_kwargs = {'class_colors': class_colors,
                            'ignore_background': ignore_background}
     else:
-        conf_threshold = options_col.slider(
-            "Confidence threshold:",
-            min_value=0.1,
-            max_value=0.99,
-            value=deploy_conf.confidence_threshold,
-            step=0.01,
-            format='%.2f',
-            key='conf_threshold',
-            help=("If a prediction's confidence score exceeds this threshold, "
-                  "then it will be displayed, otherwise discarded."),
-        )
-        deploy_conf.confidence_threshold = conf_threshold
-        pipeline_kwargs = {'conf_threshold': conf_threshold}
+        if has_access:
+            options_col.slider(
+                "Confidence threshold:",
+                min_value=0.1,
+                max_value=0.99,
+                value=deploy_conf.confidence_threshold,
+                step=0.01,
+                format='%.2f',
+                key='confidence_threshold',
+                help=("If a prediction's confidence score exceeds this threshold, "
+                      "then it will be displayed, otherwise discarded."),
+                on_change=update_deploy_conf, args=('confidence_threshold',)
+            )
+        else:
+            options_col.markdown(
+                f"**Confidence threshold**: {deploy_conf.confidence_threshold}")
+        pipeline_kwargs = {'conf_threshold': deploy_conf.confidence_threshold}
 
-    if input_type == 'Image':
+    if deploy_conf.input_type == 'Image':
         image_type = st.sidebar.radio(
             "Select type of image",
             ("Image from project datasets", "Uploaded Image"),
@@ -203,7 +239,7 @@ def index(RELEASE=True):
             # help=f'Original image width is **{ori_image_width}**.')
             st.sidebar.markdown(f"Original image width: **{ori_image_width}**")
 
-        inference_pipeline = session_state.deployment.get_inference_pipeline(
+        inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
 
         # run inference on the image
@@ -241,11 +277,15 @@ def index(RELEASE=True):
             st.image(img_with_detections, width=image_width,
                      caption=f'Detection result for: {filename}')
 
-    elif input_type == 'Video':
+    elif deploy_conf.input_type == 'Video':
         if DEPLOYMENT_TYPE == 'Image Classification':
             st.warning("""Sorry **Image Classification** type does not support video 
                 input""")
             st.stop()
+
+        def update_conf_and_reset_camera(conf_attr: str):
+            update_deploy_conf(conf_attr)
+            reset_camera()
 
         # Does not seem to work properly
         # max_allowed_fps = st.sidebar.slider(
@@ -253,58 +293,67 @@ def index(RELEASE=True):
         #     key='selected_max_allowed_fps', on_change=reset_camera,
         #     help="""This is the maximum allowed frame rate that the
         #         videostream will run at.""")
-        selected_width = st.sidebar.slider(
-            'Width of video', 320, 1200, deploy_conf.video_width, 10,
-            key='selected_width',
-            help="This is the width of video for visualization purpose."
-        )
-        deploy_conf.video_width = int(selected_width)
+        if has_access:
+            st.sidebar.slider(
+                'Width of video', 320, 1200, deploy_conf.video_width, 10,
+                key='video_width',
+                help="This is the width of video for visualization purpose.",
+                on_change=update_deploy_conf, args=('video_width',)
+            )
 
-        use_cam = st.sidebar.checkbox('Use video camera', value=deploy_conf.use_camera,
-                                      key='cbox_use_camera', on_change=reset_camera)
-        deploy_conf.use_camera = use_cam
-        if use_cam:
+            st.sidebar.checkbox(
+                'Use video camera', value=deploy_conf.use_camera,
+                key='use_camera',
+                on_change=update_conf_and_reset_camera, args=('use_camera',))
+        else:
+            st.sidebar.markdown(
+                f"**Width of video**: {deploy_conf.video_width}")
+            if deploy_conf.use_camera:
+                st.sidebar.markdown("Using **video camera** for deployment.")
+            else:
+                st.sidebar.markdown("Using **uploaded video**.")
+
+        if deploy_conf.use_camera:
             # TODO: test using streamlit-webrtc
-            def pause_deployment():
-                reset_camera()
-                reset_record_and_vid_writer()
-                reset_csv_file_and_writer()
-
-            st.sidebar.button(
-                "Pause deployment and reset camera", key='btn_pause_deploy',
-                on_click=pause_deployment,
-                help=("Pause deployment after you have deployed the model  \n"
-                      "with a running video camera. Or use this to reset  \n"
-                      "camera if there is any problem with loading up  \n"
-                      "the camera. Note that this is extremely important  \n"
-                      "to ensure your camera is properly stopped and the  \n"
-                      "camera access is given back to your system. This will  \n"
-                      "also save the latest CSV file in order to be opened."))
 
             with st.sidebar.container():
-                options = ('USB Camera', 'IP Camera')
-                index = options.index(deploy_conf.camera_type)
-                camera_type = st.radio(
-                    "Select type of camera", options, index=0,
-                    key='camera_type', on_change=reset_camera)
-                deploy_conf.camera_type = camera_type
-                if camera_type == 'USB Camera':
-                    if not session_state.working_ports:
-                        with st.spinner("Checking available camera ports ..."):
-                            _, working_ports = list_available_cameras()
-                            session_state.working_ports = working_ports.copy()
-                    st.button("Refresh camera ports", key='btn_refresh',
-                              on_click=reset_camera_ports)
-                    video_source = st.radio(
-                        "Select a camera port",
-                        options=session_state.working_ports,
-                        index=deploy_conf.camera_port,
-                        key='selected_cam_port', on_change=reset_camera)
-                    deploy_conf.camera_port = int(video_source)
+                if has_access:
+                    options = ('USB Camera', 'IP Camera')
+                    idx = options.index(deploy_conf.camera_type)
+                    st.radio(
+                        "Select type of camera", options, index=idx,
+                        key='camera_type', on_change=update_conf_and_reset_camera,
+                        args=('camera_type',))
+                if deploy_conf.camera_type == 'USB Camera':
+                    if has_access:
+                        if not session_state.working_ports:
+                            with st.spinner("Checking available camera ports ..."):
+                                _, working_ports = list_available_cameras()
+                                session_state.working_ports = working_ports.copy()
+                        st.button("Refresh camera ports", key='btn_refresh',
+                                  on_click=reset_camera_ports,
+                                  args=('use_camera',))
+                        st.radio(
+                            "Select a camera port",
+                            options=session_state.working_ports,
+                            index=deploy_conf.camera_port,
+                            key='camera_port',
+                            on_change=update_conf_and_reset_camera,
+                            args=('camera_port',))
+                    else:
+                        st.markdown("USB Camera from camera port: "
+                                    f"**{deploy_conf.camera_port}**")
+                    video_source = deploy_conf.camera_port
                 else:
-                    video_source = st.text_input(
-                        "Enter the IP address", value=deploy_conf.ip_cam_address)
-                    deploy_conf.ip_cam_address = video_source.strip()
+                    if has_access:
+                        st.text_input(
+                            "Enter the IP address", value=deploy_conf.ip_cam_address,
+                            key='ip_cam_address',
+                            on_change=update_deploy_conf, args=('ip_cam_address',))
+                    else:
+                        st.markdown("IP Camera with address: "
+                                    f"**{deploy_conf.ip_cam_address}** ")
+                    video_source = deploy_conf.ip_cam_address
 
             # **************************** CSV FILE STUFF ****************************
             if 'today' not in session_state:
@@ -313,9 +362,20 @@ def index(RELEASE=True):
                 # decided to move to another page during deployment
                 session_state.today = datetime.now().date()
 
+            def update_retention_period():
+                retention_period = session_state.day_input \
+                    + (7 * session_state.week_input) \
+                    + (30 * session_state.month_input)
+                if retention_period == 0:
+                    warning_place.warning(
+                        "Retention period must be larger than 1 day!")
+                    return
+                # in 'days' unit
+                deploy_conf.retention_period = retention_period
+
             # prepare CSV directory and path
             starting_time = datetime.now()
-            csv_path = session_state.deployment.get_csv_path(starting_time)
+            csv_path = deployment.get_csv_path(starting_time)
             csv_dir = csv_path.parent
             os.makedirs(csv_dir, exist_ok=True)
             logger.info(f'Operation begins at: {starting_time.isoformat()}')
@@ -324,16 +384,20 @@ def index(RELEASE=True):
                 st.markdown("___")
                 st.subheader("Info about saving results")
                 st.markdown("#### Data retention period")
-                day = st.number_input("Day", 1, 1000, deploy_conf.retention_period, 1,
-                                      key='day_input')
-                week = st.number_input("Week", 0, 10, 0, 1, key='week_input',
-                                       help='7 days per week')
-                month = st.number_input("Month", 0, 12, 0, 1, key='month_input',
+                warning_place = st.empty()
+                if has_access:
+                    with st.form('retention_period_form', clear_on_submit=True):
+                        st.number_input("Day", 0, 1000, deploy_conf.retention_period, 1,
+                                        key='day_input')
+                        st.number_input("Week", 0, 10, 0, 1, key='week_input',
+                                        help='7 days per week')
+                        st.number_input("Month", 0, 12, 0, 1, key='month_input',
                                         help='30 days per month')
-                # in 'days' unit
-                retention_period = day + (7 * week) + (30 * month)
-                deploy_conf.retention_period = retention_period
-                st.markdown(f"Retention period = **{retention_period}** days")
+                        st.form_submit_button(
+                            'Change retention period', on_click=update_retention_period)
+                retention_period = deploy_conf.retention_period
+
+                st.markdown(f"Retention period = **{retention_period} days**")
                 with st.expander("CSV save file info"):
                     st.markdown(
                         f"**Inference results will be saved continuously in**: *{csv_dir}*  \n"
@@ -346,7 +410,7 @@ def index(RELEASE=True):
             # only show these if a camera is not selected and not deployed yet
             if not session_state.camera:
                 if st.sidebar.button(
-                    "🛠️ Deploy model", key='btn_start_cam',
+                    "🛠️ Deploy Model", key='btn_start_cam',
                         help='Deploy your model with the selected camera source'):
                     with st.spinner("Loading up camera ..."):
                         # NOTE: VideoStream does not work with filepath
@@ -392,6 +456,7 @@ def index(RELEASE=True):
             else:
                 sleep(2)  # give the camera some time to sink in
 
+        # after user has clicked the "Deploy Model button"
         if session_state.camera:
             if isinstance(session_state.camera, WebcamVideoStream):
                 stream = session_state.camera.stream
@@ -401,9 +466,29 @@ def index(RELEASE=True):
             height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps_input = int(stream.get(cv2.CAP_PROP_FPS))
             logger.debug(f"{width = }, {height = }, {fps_input = }")
+
+            def pause_deployment():
+                reset_camera()
+                reset_record_and_vid_writer()
+                reset_csv_file_and_writer()
+
+            pause_deploy_place.button(
+                "Pause Deployment", key='btn_pause_deploy',
+                on_click=pause_deployment,
+                help=("Pause deployment after you have deployed the model  \n"
+                      "with a running video camera. Or use this to reset  \n"
+                      "camera if there is any problem with loading up  \n"
+                      "the camera. Note that this is extremely important  \n"
+                      "to ensure your camera is properly stopped and the  \n"
+                      "camera access is given back to your system. This will  \n"
+                      "also save the latest CSV file in order to be opened."))
         else:
             st.stop()
         # **************************** MQTT STUFF ****************************
+        SAVED_FRAME_DIR = Path.home() / "Downloads" / "saved_frame"
+        if not SAVED_FRAME_DIR.exists():
+            os.makedirs(SAVED_FRAME_DIR)
+
         if 'client' not in session_state:
             session_state.client = get_mqtt_client()
             session_state.client_connected = False
@@ -416,18 +501,18 @@ def index(RELEASE=True):
             session_state.record = False
             session_state.vid_writer = None
 
+            # use this to refresh the page once to show widget changes
             session_state.refresh = False
 
         def create_video_writer_if_not_exists():
             if not session_state.vid_writer:
                 logger.info("Creating video file to record to")
-                downloads_folder = Path.home() / "Downloads"
                 # NOTE: THIS VIDEO SAVE FORMAT IS VERY PLATFORM DEPENDENT
                 # TODO: THE VIDEO FILE MIGHT NOT SAVE PROPERLY
                 # usually either MJPG + .avi, or XVID + .mp4
                 FOURCC = cv2.VideoWriter_fourcc(*"XVID")
                 filename = f"video_{get_now_string()}.mp4"
-                video_save_path = str(downloads_folder / filename)
+                video_save_path = str(SAVED_FRAME_DIR / filename)
                 # st.info(f"Video is being saved to **{video_save_path}**")
                 logger.info(f"Video is being saved to '{video_save_path}'")
                 # this FPS value is the FPS of the output video file,
@@ -442,14 +527,14 @@ def index(RELEASE=True):
         def start_publish_cb(client, userdata, msg):
             logger.info("Start publishing")
             session_state.publishing = True
-            # use this to refresh the page once to show widget changes
+            deploy_conf.publishing = True
             session_state.refresh = True
 
         def stop_publish_cb(client, userdata, msg):
             logger.info("Stopping publishing ...")
             # session_state.client_connected = False
             session_state.publishing = False
-            session_state.deployment_conf.publishing = False
+            deploy_conf.publishing = False
             logger.info("Stopped")
             session_state.refresh = True
             # st.success("Stopped publishing")
@@ -459,11 +544,13 @@ def index(RELEASE=True):
         def save_frame_cb(client, userdata, msg):
             now = get_now_string()
             filename = f'image-{now}.png'
-            logger.info(f'Payload received for topic "{msg.payload}", '
-                        f'saving frame as: "{filename}"')
+            save_path = str(SAVED_FRAME_DIR / filename)
+            logger.debug(f'Payload received for topic "{msg.topic}", '
+                         f'saving frame at: "{save_path}"')
             # need this to access to the frame from within mqtt callback
-            nonlocal frame
-            cv2.imwrite(filename, frame)
+            nonlocal output_img
+            cv2.imwrite(save_path,
+                        cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR))
 
         def start_record_cb(client, userdata, msg):
             session_state.record = True
@@ -477,9 +564,13 @@ def index(RELEASE=True):
 
         st.sidebar.markdown("___")
         st.sidebar.subheader("MQTT Options")
-        selected_qos = st.sidebar.radio(
-            'MQTT QoS', (0, 1, 2), deploy_conf.mqtt_qos, key='selected_qos')
-        deploy_conf.mqtt_qos = int(selected_qos)
+        if has_access:
+            st.sidebar.radio(
+                'MQTT QoS', (0, 1, 2), deploy_conf.mqtt_qos, key='mqtt_qos',
+                on_change=update_deploy_conf, args=('mqtt_qos',))
+        else:
+            st.sidebar.markdown(
+                f"MQTT QoS is set to level **{deploy_conf.mqtt_qos}**")
         st.sidebar.info(
             "#### Publishing Results to MQTT Topic:  \n"
             f"{conf.topics.publish_results}"
@@ -492,8 +583,13 @@ def index(RELEASE=True):
             f"**Start recording frames**: {conf.topics.start_record}  \n"
             f"**Stop recording frames**: {conf.topics.stop_record}")
         with st.sidebar.expander("Notes"):
-            st.markdown("NOTE: Just publish an arbitrary message to any of the "
-                        "subscribed MQTT topics to trigger the functionality.")
+            st.markdown(
+                f"""NOTE: Just publish an arbitrary message to any of the subscribed
+                MQTT topics to trigger the functionality. For the saved frames or recorded
+                video, they will be saved in your User 'Downloads' folder at
+                *{SAVED_FRAME_DIR}*. Please **do not simply delete this folder during 
+                deployment**, otherwise error will occur. You can delete it after 
+                pausing/ending the deployment if you wish.""")
 
         if not session_state.client_connected:
             with st.spinner("Connecting to MQTT broker ..."):
@@ -523,21 +619,16 @@ def index(RELEASE=True):
                 session_state.client.message_callback_add(
                     conf.topics.stop_record, stop_record_cb)
                 for topic in conf.topics:
-                    session_state.client.subscribe(topic, qos=selected_qos)
+                    session_state.client.subscribe(
+                        topic, qos=deploy_conf.mqtt_qos)
                 session_state.client.loop_start()
                 # need to add this to avoid Missing ReportContext error
                 # https://github.com/streamlit/streamlit/issues/1326
                 add_report_ctx(session_state.client._thread)
 
         # ************************ OUTPUT VIDEO STUFF ************************
-        def stop_deployment():
-            Deployment.reset_deployment_page()
-            session_state.deployment_pagination = DeploymentPagination.Models
-            st.experimental_rerun()
-
         st.subheader("Output Video")
         show_video_col = st.container()
-        video_savepath_place = st.empty()
         record_text_place = st.empty()
         output_video_place = st.empty()
         publish_place = st.sidebar.empty()
@@ -549,42 +640,45 @@ def index(RELEASE=True):
                 'Show video', value=True, key='show_video')
             draw_result = st.checkbox(
                 "Draw labels", value=True, key='draw_result')
+
+            def update_record(is_recording: bool):
+                session_state.record = is_recording
+                # refresh page to show the widget change
+                st.experimental_rerun()
+
             if not session_state.record:
-                video_savepath_place.empty()
-                if st.button('Start recording', key='btn_start_record',
-                             help="The video will be saved in your user 'Downloads' folder."):
-                    session_state.record = True
-                    st.experimental_rerun()
+                st.button('Start recording', key='btn_start_record',
+                          help="The video will be saved in your user 'Downloads' folder.",
+                          on_click=update_record, args=(True,))
             else:
-                stop_and_save_vid = st.button("Stop recording and save the video",
-                                              key='btn_stop_and_save_vid')
-                if stop_and_save_vid:
-                    session_state.record = False
-                    st.experimental_rerun()
+                st.button("Stop recording and save the video",
+                          key='btn_stop_and_save_vid',
+                          on_click=update_record, args=(False,))
 
-        if session_state.publishing:
-            deploy_conf.publishing = True
-            # using buttons to allow the widget to change after rerun
-            # whereas checkbox does not change after rerun
-            if publish_place.button("Stop publishing results", key='btn_stop_pub'):
-                session_state.publishing = False
+        if has_access:
+            def update_publishing_conf(is_publishing: bool):
+                deploy_conf.publishing = is_publishing
+                session_state.publishing = is_publishing
+                # refresh page to show the widget change
                 st.experimental_rerun()
+
+            if session_state.publishing:
+                # using buttons to allow the widget to change after rerun
+                # whereas checkbox does not change after rerun
+                publish_place.button("Stop publishing results", key='btn_stop_pub',
+                                     on_click=update_publishing_conf, args=(False,))
+            else:
+                publish_place.button("Start publishing results", key='btn_start_pub',
+                                     on_click=update_publishing_conf, args=(True,))
         else:
-            deploy_conf.publishing = False
-            if publish_place.button("Start publishing results", key='btn_start_pub'):
-                session_state.publishing = True
-                st.experimental_rerun()
+            session_state.publishing = deploy_conf.publishing
+            if session_state.publishing:
+                st.markdown("Currently is publishing results to the topic: "
+                            f"*{conf.topics.publish_results}*")
+            else:
+                st.markdown(
+                    "Currently is not publishing any results through MQTT.")
 
-        with stop_deploy_col:
-            st.button(
-                "Stop deployment and reset", key='btn_stop_deploy',
-                on_click=stop_deployment,
-                help="This will stop the deployment and reset the entire  \n"
-                "deployment configuration. Please make sure to use this  \n"
-                "button to stop deployment before proceeding to any other  \n"
-                "page! Or use the pause button if you want to pause the  \n"
-                "deployment to do any other things without resetting,  \n"
-                "such as switching user, or viewing the latest saved CSV file.")
         show_labels = st.checkbox("Show the detected labels", value=True)
         if show_labels:
             result_col = st.container()
@@ -602,15 +696,18 @@ def index(RELEASE=True):
             st.markdown(kpi_format(height), unsafe_allow_html=True)
         st.markdown("___")
 
-        inference_pipeline = session_state.deployment.get_inference_pipeline(
+        inference_pipeline = deployment.get_inference_pipeline(
             draw_result=draw_result, **pipeline_kwargs)
         if DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-            get_result_fn = session_state.deployment.get_segmentation_results
+            get_result_fn = deployment.get_segmentation_results
         else:
-            get_result_fn = partial(session_state.deployment.get_detection_results,
-                                    conf_threshold=conf_threshold)
+            get_result_fn = partial(deployment.get_detection_results,
+                                    conf_threshold=deploy_conf.confidence_threshold)
         publish_func = partial(session_state.client.publish,
-                               conf.topics.publish_results, qos=selected_qos)
+                               conf.topics.publish_results, qos=deploy_conf.mqtt_qos)
+
+        use_cam = deploy_conf.use_camera
+        selected_width = deploy_conf.video_width
         fps = 0
         prev_time = 0
         first_csv_save = True
@@ -648,12 +745,10 @@ def index(RELEASE=True):
                 with show_video_col:
                     create_video_writer_if_not_exists()
                 session_state.vid_writer.write(
-                    cv2.cvtColor(output_img, cv2.COLOR_BGR2RGB))
+                    cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR))
             else:
                 record_text_place.empty()
                 if session_state.vid_writer:
-                    # remove text of the save location
-                    video_savepath_place.empty()
                     logger.info("Saving recorded file")
                     # must release to close the video file
                     session_state.vid_writer.release()
@@ -678,30 +773,32 @@ def index(RELEASE=True):
                 info = publish_func(payload=payload)
 
             # save results to CSV file only if using video camera
-            if use_cam:
-                if first_csv_save:
-                    first_csv_save = False
-                    if not csv_path.exists():
-                        new_file = True
-                    else:
-                        new_file = False
-                    create_csv_file_and_writer(
-                        csv_path, results, new_file=new_file)
-                now = datetime.now()
-                today = now.date()
-                if today > session_state.today:
-                    session_state.csv_file.close()
+            if not use_cam:
+                continue
 
-                    session_state.deployment.delete_old_csv_files(
-                        retention_period)
-
-                    csv_path = session_state.deployment.get_csv_path(now)
-                    session_state.today = today
-                    create_csv_file_and_writer(csv_path, results)
-                    st.experimental_rerun()
+            if first_csv_save:
+                first_csv_save = False
+                if not csv_path.exists():
+                    new_file = True
                 else:
-                    for row in results:
-                        session_state.csv_writer.writerow(row)
+                    new_file = False
+                create_csv_file_and_writer(
+                    csv_path, results, new_file=new_file)
+            now = datetime.now()
+            today = now.date()
+            if today > session_state.today:
+                session_state.csv_file.close()
+
+                deployment.delete_old_csv_files(
+                    retention_period)
+
+                csv_path = deployment.get_csv_path(now)
+                session_state.today = today
+                create_csv_file_and_writer(csv_path, results)
+                st.experimental_rerun()
+            else:
+                for row in results:
+                    session_state.csv_writer.writerow(row)
 
             # This below does not seem to work properly
             # if fps > max_allowed_fps:

@@ -469,6 +469,11 @@ class BaseModel:
                 logger.debug(f"Temp h5 path: {path}")
 
                 with st.spinner("Trying to load Keras model to check ..."):
+                    if 'deployment' in session_state:
+                        logger.info("Resetting existing deployment to avoid issues "
+                                    "with loading Keras model")
+                        Deployment.reset_deployment_page()
+
                     try:
                         model = load_trained_keras_model(path)
                         # try checking whether it's possible to modify the layers
@@ -553,7 +558,7 @@ class BaseModel:
         return model_type
 
     @staticmethod
-    @st.cache
+    @st.experimental_memo
     def get_framework_list() -> List[NamedTuple]:
         """Get a list of framework
 
@@ -1192,24 +1197,6 @@ class Model(BaseModel):
                 for_data_table=for_data_table, return_dict=return_dict)
 
         return models, column_names
-
-    @staticmethod
-    @st.cache
-    def get_framework_list() -> List[namedtuple]:
-        """Get list of Deep Learning frameworks from Database
-
-        Returns:
-            List[namedtuple]: List of framework in namedtuple (ID, Name)
-        """
-        get_framework_list_SQL = """
-            SELECT
-             
-                name as "Name"
-            FROM
-                public.framework;
-                    """
-        framework_list = db_fetchall(get_framework_list_SQL, conn)
-        return framework_list
 
     @staticmethod
     def create_models_dataframe(models: Union[List[namedtuple], List[dict]],

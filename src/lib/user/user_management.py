@@ -392,10 +392,10 @@ class User(BaseUser):
             SET
                 logout_at = %s
             WHERE
-                users_id = %s;
+                id = %s AND users_id = %s;
         """
         now = datetime.now()
-        update_vars = [now, self.id]
+        update_vars = [now, self.session_id, self.id]
         db_no_fetch(sql_update, conn, update_vars)
 
     def update_info(self, new_info: Dict[str, Any]):

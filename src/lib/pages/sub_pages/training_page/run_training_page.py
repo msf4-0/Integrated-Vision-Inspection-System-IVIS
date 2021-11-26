@@ -34,6 +34,8 @@ from streamlit import session_state
 
 import tensorflow as tf
 
+from deployment.deployment_management import Deployment
+
 # >>>> **************** TEMP (for debugging) **************** >>>
 # add the paths to be able to import them to this file
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
@@ -101,6 +103,10 @@ def index(RELEASE=True):
 
         st.markdown("""___""")
     # ****************** TEST END ******************************
+
+    if 'deployment' in session_state:
+        logger.info("Resetting deployment page to avoid issues with training")
+        Deployment.reset_deployment_page()
 
     def initialize_trainer():
         if 'trainer' not in session_state:

@@ -24,47 +24,35 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
-from enum import IntEnum
-from pathlib import Path
-from time import sleep
-import pandas as pd
 
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state
 
-from training.model_management import ModelsPagination
-
-
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from pages.sub_pages.training_page import new_training
-from pages.sub_pages.models_page import models_page
 from path_desc import chdir_root
 from project.project_management import Project, ProjectPermission
 from training.training_management import NewTraining, NewTrainingPagination, Training, TrainingPagination
-# >>>> TEMP
-from user.user_management import User
+from user.user_management import User, UserRole
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
+# conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
@@ -235,6 +223,12 @@ def dashboard():
 def index():
     RELEASE = True
     logger.debug("Navigator: At training_dashboard.py INDEX")
+
+    if session_state.user.role == UserRole.Annotator:
+        st.warning(
+            "You are not allowed to access to the training page.")
+        st.stop()
+
     # ****************** TEST ******************************
     if not RELEASE:
 

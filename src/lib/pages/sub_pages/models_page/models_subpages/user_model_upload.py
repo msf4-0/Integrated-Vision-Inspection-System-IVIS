@@ -190,16 +190,16 @@ def user_model_upload_page():
     # framework_col1.write("## __Framework :__")
 
     with framework_col2:
-        framework_list_query = Model.get_framework_list()
+        # framework_list_query = Model.get_framework_list()
 
-        framework_list = [
-            frameworks.Name for frameworks in framework_list_query]
-        framework_list.insert(0, "")
+        # framework_list = [
+        #     frameworks.Name for frameworks in framework_list_query]
+        # framework_list.insert(0, "")
         # st.selectbox(label="Select Deep Learning Framework",
         #              options=framework_list,
         #              format_func=lambda x: 'Select a framework' if x == "" else x,
         #              key='model_upload_framework')
-        place['model_upload_framework'] = st.empty()
+        # place['model_upload_framework'] = st.empty()
 
         # NOTE: using only TensorFlow framework for now
         # session_state.model_upload.framework = session_state.model_upload_framework

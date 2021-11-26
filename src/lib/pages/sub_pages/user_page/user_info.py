@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 import sys
+from itertools import cycle
 from pathlib import Path
 import pandas as pd
 import streamlit as st
@@ -56,12 +57,10 @@ def main():
     user_info = session_state.user.__dict__
 
     info_col1, _, info_col2 = st.columns([1, 0.1, 1])
-    # total 8 attributes, no need `zip_longest`
-    for attr1, attr2 in zip(user_attrs[:4], user_attrs[4:]):
-        with info_col1:
-            st.markdown(f"**{attr2fullname[attr1]}**: {user_info[attr1]}")
-        with info_col2:
-            st.markdown(f"**{attr2fullname[attr2]}**: {user_info[attr2]}")
+    cols = cycle((info_col1, info_col2))
+    for (attr, fullname), col in zip(attr2fullname.items(), cols):
+        with col:
+            st.markdown(f"**{fullname}**: {user_info[attr]}")
 
     def to_edit_user_cb():
         # session_state.current_user is required to modify existing user info

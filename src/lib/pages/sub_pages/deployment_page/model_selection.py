@@ -44,20 +44,23 @@ from streamlit import session_state
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 from deployment.deployment_management import Deployment, DeploymentPagination
-from deployment.utils import reset_camera
 from machine_learning.trainer import Trainer
 from machine_learning.command_utils import run_tensorboard
 from machine_learning.utils import load_labelmap
 from machine_learning.visuals import pretty_format_param
-from user.user_management import User
+from user.user_management import User, UserRole
 from project.project_management import Project
-from training.training_management import NewTrainingPagination, Training
-from training.model_management import Model, ModelType, get_trained_models_df, query_current_project_models, query_uploaded_models
+from training.training_management import Training
+from training.model_management import Model, query_current_project_models, query_uploaded_models
 from data_manager.data_table_component.data_table import data_table
 
 
 def index(RELEASE=True):
-    DEPLOYMENT_TYPE = session_state.project.deployment_type
+    DEPLOYMENT_TYPE: str = session_state.project.deployment_type
+    user: User = session_state.user
+    if user.role > UserRole.Developer1:
+        st.warning("You are not allowed to deploy model.")
+        st.stop()
 
     # ****************** TEST ******************************
     if not RELEASE:
@@ -224,7 +227,7 @@ def index(RELEASE=True):
         key=f'data_table_model_selection_{unique_key}',
         on_change=reset_cache)
 
-    deploy_button_col = st.container()
+    deploy_button_col, _ = st.columns(2)
 
     if not selected_id:
         st.stop()
@@ -338,8 +341,8 @@ def index(RELEASE=True):
 
     with deploy_button_col:
         st.button("🛠️ Deploy selected model",
-                                key='btn_deploy_selected_model',
-                                on_click=enter_deployment)
+                  key='btn_deploy_selected_model',
+                  on_click=enter_deployment)
 
 
 if __name__ == "__main__":

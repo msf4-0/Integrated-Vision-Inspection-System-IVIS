@@ -290,7 +290,9 @@ class Deployment(BaseDeployment):
 
     def tfod_inference_pipeline(
             self, img: np.ndarray, conf_threshold: float = 0.6,
-            draw_result: bool = True, **kwargs):
+            draw_result: bool = True, **kwargs) -> Union[
+                Tuple[np.ndarray, Dict[str, Any]],
+                Dict[str, Any]]:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         detections = tfod_detect(self.model, img,
                                  tensor_dtype=tf.uint8)
@@ -304,7 +306,9 @@ class Deployment(BaseDeployment):
     def segment_inference_pipeline(
             self, img: np.ndarray,
             draw_result: bool = True, class_colors: np.ndarray = None,
-            ignore_background: bool = False, **kwargs):
+            ignore_background: bool = False, **kwargs) -> Union[
+                Tuple[np.ndarray, np.ndarray],
+                np.ndarray]:
         orig_H, orig_W = img.shape[:2]
         preprocessed_img = preprocess_image(img, self.image_size)
         pred_mask = segmentation_predict(

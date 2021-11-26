@@ -22,36 +22,33 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
-from copy import deepcopy
 import sys
 from pathlib import Path
-from time import sleep
 from typing import Any, Dict, List
+
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
-from core.utils.helper import create_dataframe
-from data_manager.data_table_component.data_table import data_table
-from data_manager.dataset_management import Dataset
-from pages.sub_pages.training_page import training_dashboard
-from training.model_management import Model, ModelType, get_trained_models_df, query_current_project_models
+from streamlit import session_state
 
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 from core.utils.log import logger  # logger
+from core.utils.helper import create_dataframe
+from data_manager.data_table_component.data_table import data_table
+from data_manager.dataset_management import Dataset
+from training.model_management import Model, query_current_project_models
+from user.user_management import UserRole
 from project.project_management import (ExistingProjectPagination, SettingsPagination,
                                         ProjectPermission, Project,
                                         query_project_datasets, remove_project_dataset)
@@ -76,11 +73,6 @@ def show_selection(df: pd.DataFrame, selected_ids: List[int], name_col: str = 'N
 
 
 def project():
-    if session_state.project.desc:
-        st.markdown("Project description:")
-        st.markdown(f"{session_state.project.desc}")
-        st.markdown("""___""")
-
     danger_zone_header()
     st.markdown("""**WARNING**: This will delete all the information associated with 
         this project. Confirmation will be asked.""")
@@ -443,7 +435,13 @@ def models():
 
 
 def index(RELEASE=True):
-    logger.debug("At Exisiting Project Project INDEX")
+    logger.debug("At Settings Page")
+
+    if session_state.user.role == UserRole.Annotator:
+        st.warning(
+            "You are not allowed to access to settings page to delete any data.")
+        st.stop()
+
     # ****************** TEST ******************************
     if not RELEASE:
         # ************************TO REMOVE************************

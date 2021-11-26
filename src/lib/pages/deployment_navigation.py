@@ -28,27 +28,23 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
 
-from user.user_management import reset_login_page
-
-
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration for debugging on this page
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-
-from path_desc import chdir_root
 from core.utils.log import logger
 from project.project_management import Project
 from training.model_management import NewModel
 from deployment.deployment_management import DeploymentPagination
-from deployment.utils import reset_camera
+from user.user_management import UserRole, reset_login_page
 from pages.sub_pages.models_page.models_subpages.user_model_upload import user_model_upload_page
 from pages.sub_pages.deployment_page import model_selection, deployment_page
 from pages import login_page
@@ -56,6 +52,12 @@ from pages import login_page
 
 def index(RELEASE=True):
     logger.debug("At deployment navigation")
+
+    if session_state.user.role == UserRole.Annotator:
+        st.warning(
+            "You are not allowed to access to the deployment page.")
+        st.stop()
+
     # ****************** TEST ******************************
     if not RELEASE:
         # ************************TO REMOVE************************
@@ -110,8 +112,8 @@ def index(RELEASE=True):
         elif navigation_selected == "Switch User":
             reset_login_page()
 
-    with st.sidebar.expander(session_state.project.name, expanded=True):
-        st.radio("Deployment Navigation", options=deployment_page_options,
+    with st.sidebar.expander("Deployment Navigation", expanded=True):
+        st.radio("Sections", options=deployment_page_options,
                  index=session_state.deployment_pagination,
                  on_change=deployment_page_navigator,
                  key="deployment_page_navigator_radio")

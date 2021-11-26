@@ -159,8 +159,8 @@ def index():
 
     if session_state.project.datasets:
         # only show this if project has already selected a dataset
-        with st.sidebar.expander(session_state.project.name, expanded=True):
-            st.radio("Navigation", options=existing_project_page_options,
+        with st.sidebar.expander("Project Navigation", expanded=True):
+            st.radio("Sections", options=existing_project_page_options,
                      index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
     st.sidebar.markdown("___")
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

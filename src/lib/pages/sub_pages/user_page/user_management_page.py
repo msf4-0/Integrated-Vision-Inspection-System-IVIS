@@ -25,7 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 import sys
 from pathlib import Path
-from itertools import zip_longest
+from itertools import cycle
 from time import sleep
 
 import streamlit as st
@@ -135,13 +135,12 @@ def dashboard():
         logger.debug("Refreshing page after deleting user will cause data_table "
                      "to still select the previous user and throw this error. Don't mind!")
         st.stop()
+
     info_col1, _, info_col2 = st.columns([1, 0.1, 1])
-    for field1, field2 in zip_longest(USER_FIELDS[:4], USER_FIELDS[4:]):
-        with info_col1:
-            st.markdown(f"**{field1}**: {selected_user_row[field1]}")
-        with info_col2:
-            if field2 is not None:
-                st.markdown(f"**{field2}**: {selected_user_row[field2]}")
+    cols = cycle((info_col1, info_col2))
+    for field, col in zip(USER_FIELDS, cols):
+        with col:
+            st.markdown(f"**{field}**: {selected_user_row[field]}")
 
     session_state.current_user = User(selected_user_ids[0])
 
@@ -178,7 +177,13 @@ def dashboard():
 
     st.markdown("___")
     danger_zone_header()
-    if st.button("Delete selected user", key='btn_delete_user'):
+    if st.checkbox("Delete selected user", key='cbox_delete_user',
+                   help="Confirmation will be asked."):
+        confirm_del = st.button("Confirm deletion?",
+                                key='btn_confirm_delete_user')
+        if not confirm_del:
+            st.stop()
+
         selected_user_id = session_state.current_user.id
         delete_success = User.delete_user(selected_user_id)
         if not delete_success:
