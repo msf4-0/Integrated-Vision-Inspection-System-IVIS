@@ -56,7 +56,7 @@ else:
     pass
 
 from core.utils.code_generator import get_random_string
-from core.utils.file_handler import (extract_one_to_bytes, list_files_in_archived,
+from core.utils.file_handler import (extract_archive, extract_one_to_bytes, list_files_in_archived,
                                      save_uploaded_extract_files)
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
@@ -350,7 +350,7 @@ class BaseModel:
 
         return sorted(empty_fields)[0]
 
-    def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> Tuple[bool, List[str]]:
+    def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> Tuple[int, List[str]]:
         # check if necessary files required included in the package
         # Load list of files
         # Check Models
@@ -362,17 +362,20 @@ class BaseModel:
         # framework_const = Model.get_framework(self.framework, string=False)
         deployment_type_const = Deployment.get_deployment_type(
             self.deployment_type)
+        file_list = list_files_in_archived(archived_filepath=uploaded_file.name,
+                                           file_object=uploaded_file)
+        labelmap_files = []
+        # this is to check whether the Keras model has the same number of output nodes with
+        # the labelmap file. This is not used for TFOD
+        num_output_nodes = 0
         # try:
         if deployment_type_const == DeploymentType.OD:
-            file_list = list_files_in_archived(archived_filepath=uploaded_file.name,
-                                               file_object=uploaded_file)
             # Currently supports TensorFlow for Object Detection
             # if framework_const == Framework.TensorFlow:
             framework_check_list = MODEL_FILES[Framework.TensorFlow]
             model_files = []  # use to temporariy store detected files, raise Error if length>1!!!
             checkpoint_paths = []
             config_files = []
-            labelmap_files = []
 
             for file in file_list:
                 if file.endswith(framework_check_list['model_extension']):
@@ -437,15 +440,17 @@ class BaseModel:
             # if deployment_type_const in COMPUTER_VISION_LIST:
             if not labelmap_files:
                 st.warning(
-                    f"**labelmap.pbtxt** file is not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                    """**labelmap.pbtxt** file is not included in the uploaded folder.
+                    It is not required for new training. But if this file is included, 
+                    instant deployment with the model is possible.""")
                 logger.warning(
-                    f"**labelmap.pbtxt** file is not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                    "**labelmap.pbtxt** file is not included in the uploaded folder. "
+                    "It is not required for new training. But if this file is included, "
+                    "instant deployment with the model is possible.")
                 self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
 
             st.success(
                 f"**{uploaded_file.name}** contains the required files for Training")
-
-            return True, labelmap_files
 
             # NOT using these frameworks for now
             # elif framework_const == Framework.PyTorch:
@@ -460,13 +465,47 @@ class BaseModel:
             #     pass
         elif deployment_type_const in (DeploymentType.Image_Classification,
                                        DeploymentType.Semantic):
+            labelmap_ext = MODEL_FILES[Framework.TensorFlow]['labelmap']
+            h5_filepaths = []
+            unknown_files = []
+
+            for fpath in file_list:
+                if fpath.endswith('.h5'):
+                    h5_filepaths.append(fpath)
+                elif fpath.endswith(labelmap_ext):
+                    labelmap_files.append(fpath)
+                else:
+                    unknown_files.append(fpath)
+
+            self.compatibility_flag = ModelCompatibility.Compatible
+            if unknown_files:
+                st.error(f"Unknown files found:")
+                with st.expander("List of unknown files", expanded=True):
+                    text = '  \n'.join(unknown_files)
+                    st.markdown(f"{text}")
+            if not labelmap_files:
+                st.warning(
+                    """**labelmap.pbtxt** file is not included in the uploaded folder.
+                    It is not required for new training. But if this file is included, 
+                    instant deployment with the model is possible.""")
+                logger.warning(
+                    "Labelmap file is not found in the uploaded archive.")
+                self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
+            if not h5_filepaths:
+                st.error("Keras H5 file is not found")
+                st.stop()
+            if h5_filepaths > 1:
+                st.error("Two Keras H5 model files are found")
+                st.stop()
+            if labelmap_files > 1:
+                st.error("Two labelmap files are found")
+                st.stop()
+
             error = False
-            h5_file = uploaded_file.getvalue()
             with get_temp_dir() as temp_dir:
-                path = os.path.join(temp_dir, uploaded_file.name)
-                with open(path, 'wb') as f:
-                    f.write(h5_file)
-                logger.debug(f"Temp h5 path: {path}")
+                extract_archive(temp_dir, file_object=uploaded_file)
+                model_path = os.path.join(temp_dir, h5_filepaths[0])
+                logger.debug(f"Uploaded {model_path = }")
 
                 with st.spinner("Trying to load Keras model to check ..."):
                     if 'deployment' in session_state:
@@ -475,7 +514,16 @@ class BaseModel:
                         Deployment.reset_deployment_page()
 
                     try:
-                        model = load_trained_keras_model(path)
+                        model = load_trained_keras_model(model_path)
+
+                        # also check input_shape, our implementation uses image_size of
+                        # equal height and width in `preprocess_image()`
+                        height, width = model.input_shape
+                        assert height == width, "Model input shape's height should be equal to width"
+
+                        # get output_nodes to check with labelmap file's num_classes
+                        num_output_nodes = model.layers[-1].output_shape[-1]
+
                         # try checking whether it's possible to modify the layers
                         # with dummy numbers
                         model = modify_trained_model_layers(
@@ -496,18 +544,20 @@ class BaseModel:
                                      f"H5 file: {e}")
                         error = True
             if error:
-                # must do it this way to ensure the temp_dir is properly removed
+                # must st.stop() outside of the context manager to ensure
+                # the temp_dir is properly removed
                 st.stop()
+
+            st.success(
+                "🎉 The uploaded Keras model is verified to be compatible!")
         else:
             st.error(f"Error with deployment type {deployment_type_const}")
             logger.error(f"Error with deployment type {deployment_type_const}")
             self.compatibility_flag = ModelCompatibility.MissingModel
             st.stop()
 
-        self.compatibility_flag = ModelCompatibility.Compatible  # Set flag as Compatible
-        st.success("🎉 The uploaded Keras model is verified to be compatible!")
-
-        return True, []
+        logger.debug(f"{num_output_nodes = }")
+        return num_output_nodes, labelmap_files
 
         # except Exception as e:
         #     error_msg = f"{e}"
@@ -625,7 +675,7 @@ class BaseModel:
                 framework / str(model_path)
 
         elif model_type == ModelType.ProjectTrained:
-            # must follow Training.training_path
+            # must follow Training.get_paths()
             model_path = PROJECT_DIR / \
                 get_directory_name(project_name) / 'training' / get_directory_name(
                     training_name) / 'models' / str(model_path)
@@ -641,7 +691,7 @@ class BaseModel:
     def get_trained_keras_filepath(self, model_path: Path):
         """Get the path to the uploaded Keras H5 model file.
 
-        NOTE: take note of this path to use to load model in Training.training_path
+        NOTE: take note of this path to use to load model in Training.get_paths()
         """
         filename = f"{get_directory_name(self.name)}.h5"
         filepath = model_path / filename
@@ -678,7 +728,7 @@ class BaseModel:
         query_result = db_fetchone(query_model_project_training_SQL,
                                    conn, query_model_project_training_vars)
         if query_result:
-            # take note of this path to be the same in Training.training_path
+            # take note of this path to be the same in Training.get_paths()
             # and also Model.model_path
             project_model_path = PROJECT_DIR / \
                 get_directory_name(query_result.Project_Name) / 'training' / \
@@ -876,19 +926,10 @@ class BaseModel:
 
         progress_bar.progress(1 / 3)
         with st.spinner('Storing uploaded model ...'):
-            file_extension = os.path.splitext(self.file_upload.name)[-1]
-            if file_extension == '.h5':
-                pt_keras_filepath = self.get_trained_keras_filepath(model_path)
-                logger.info(
-                    f'Saving h5 model file to: {pt_keras_filepath}')
-                with open(pt_keras_filepath, 'wb') as f:
-                    f.write(self.file_upload.getbuffer())
-            else:
-                logger.info(
-                    "Saving object detection model files to the model path")
-                save_uploaded_extract_files(dst=model_path,
-                                            filename=self.file_upload.name,
-                                            fileObj=self.file_upload)
+            logger.info("Saving model files to the model path")
+            save_uploaded_extract_files(dst=model_path,
+                                        filename=self.file_upload.name,
+                                        fileObj=self.file_upload)
         if label_map_string:
             # generate labelmap
             # move labelmap to dst
@@ -915,11 +956,15 @@ class BaseModel:
                                           attached_model,
                                           project_name: str,
                                           training_name: str,
-                                          training_id: int, **kwargs) -> bool:
+                                          training_id: int,
+                                          new_model_name: str, **kwargs) -> bool:
         # kwargs is required for the submission_func in models_page
         # Ensure attached_model is type Model class
         assert isinstance(
             attached_model, Model), "attached_model must be type Model class"
+
+        # only update model name on form submission
+        self.name = new_model_name
 
         # Get metrics, model_type, framework and deployment_type from attached_model
         self.metrics = attached_model.metrics
@@ -978,23 +1023,35 @@ class BaseModel:
             training_name=training_name,
             model_type=self.model_type,
             new_model_flag=True)
+        logger.debug(f"Previous model path: {prev_model_path}")
 
-        # update new name and get new path
-        self.name = new_model_name
+        # get new model path with the new name
         model_path = self.get_pt_user_project_model_path(
-            model_path=self.name,
+            model_path=new_model_name,
             framework=self.framework,
             project_name=project_name,
             training_name=training_name,
             model_type=self.model_type,
             new_model_flag=True)
-        logger.info(f"Training Model Path: {str(model_path)}")
 
         if prev_model_path.exists():
             # rename the existing directory to the new name
             logger.info("Renaming existing model path to new path:"
                         f"{prev_model_path} -> {model_path}")
-            os.rename(prev_model_path, model_path)
+            try:
+                os.rename(prev_model_path, model_path)
+            except Exception as e:
+                logger.error(
+                    f"Error renaming model path, probably due to access error: {e}")
+                st.error(
+                    f"""Error renaming model path, probably due to access error. Please
+                    make sure there is nothing accessing the previous model path at:
+                    {prev_model_path}""")
+                st.stop()
+        logger.info(f"New Updated Model Path: {model_path}")
+
+        # update new name if no error
+        self.name = new_model_name
 
         logger.info(f"Updating Training Model into DB")
         self.update_model_table(model_type=self.model_type)

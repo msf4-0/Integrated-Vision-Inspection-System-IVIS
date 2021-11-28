@@ -104,22 +104,34 @@ def index(RELEASE=True):
         st.markdown("""___""")
     # ****************** TEST END ******************************
 
+    training: Training = session_state.new_training
+    project: Project = session_state.project
+    trainer: Trainer = session_state.get('trainer')
+    training_paths = training.get_paths()
+
     if 'deployment' in session_state:
         logger.info("Resetting deployment page to avoid issues with training")
         Deployment.reset_deployment_page()
 
-    def initialize_trainer():
+    def reset_trainer():
+        if 'trainer' in session_state:
+            del session_state['trainer']
+
+    def initialize_trainer(reset: bool = False):
+        if reset:
+            reset_trainer()
+
         if 'trainer' not in session_state:
             # store the trainer to use for training, inference and deployment
             with st.spinner("Initializing trainer ..."):
                 logger.info("Initializing trainer")
-                session_state.trainer = Trainer(
-                    session_state.project,
-                    session_state.new_training)
+                session_state.trainer = Trainer(project, training)
+                nonlocal trainer
+                trainer = session_state.trainer
 
     st.markdown("### Training Info:")
 
-    dataset_chosen = session_state.new_training.dataset_chosen
+    dataset_chosen = training.dataset_chosen
     if len(dataset_chosen) == 1:
         dataset_chosen_str = dataset_chosen[0]
     else:
@@ -127,21 +139,23 @@ def index(RELEASE=True):
         for idx, data in enumerate(dataset_chosen):
             dataset_chosen_str.append(f"**{idx+1}**. {data}")
         dataset_chosen_str = '; '.join(dataset_chosen_str)
-    partition_ratio = session_state.new_training.partition_ratio
+    partition_ratio = training.partition_ratio
     st.info(f"""
-    **Training Session Name**: {session_state.new_training.name}  \n
-    **Training Description**: {session_state.new_training.desc}  \n
+    **Training Session Name**: {training.name}  \n
+    **Training Description**: {training.desc}  \n
     **Dataset List**: {dataset_chosen_str}  \n
     **Partition Ratio**: training : validation : test -> 
     {partition_ratio['train']} : {partition_ratio['eval']} : {partition_ratio['test']}  \n
-    **Selected Model Name**: {session_state.new_training.attached_model.name}  \n
-    **Model Name**: {session_state.new_training.training_model.name}  \n
-    **Model Description**: {session_state.new_training.training_model.desc}
+    **Selected Model Name**: {training.attached_model.name}  \n
+    **Model Name**: {training.training_model.name}  \n
+    **Model Description**: {training.training_model.desc}
     """)
 
     train_info_btn, model_info_btn, _ = st.columns([2, 1, 4])
 
     def back_train_info_page():
+        # reset it in case the user decided to change any info
+        reset_trainer()
         session_state.new_training_pagination = NewTrainingPagination.InfoDataset
 
     with train_info_btn:
@@ -149,13 +163,14 @@ def index(RELEASE=True):
                   on_click=back_train_info_page)
 
     def back_model_page():
+        reset_trainer()
         session_state.new_training_pagination = NewTrainingPagination.Model
 
     with model_info_btn:
         st.button('⚙️ Edit Model Info', key='btn_edit_model_info',
                   on_click=back_model_page)
 
-    if session_state.new_training.is_started:
+    if training.is_started:
         st.warning("✏️ **NOTE**: Only edit the model selection"
                    " if you want to re-train your model! Otherwise the information"
                    " stored in database would not be correct for the current trained model.")
@@ -164,12 +179,12 @@ def index(RELEASE=True):
     train_config_col, aug_config_col = st.columns([1, 1])
 
     with train_config_col:
-        config_info = pretty_format_param(
-            session_state.new_training.training_param_dict)
+        config_info = pretty_format_param(training.training_param_dict)
         st.markdown('### Training Config:')
         st.info(config_info)
 
         def back_config_page():
+            reset_trainer()
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
         st.button('⚙️ Edit Training Config', key='btn_edit_config',
@@ -178,7 +193,7 @@ def index(RELEASE=True):
     with aug_config_col:
         # TODO: confirm that this works for image classification and segmentation
         st.markdown('### Augmentation Config:')
-        augmentation_config = session_state.new_training.augmentation_config
+        augmentation_config = training.augmentation_config
         if augmentation_config.exists():
             aug_config_info = pretty_format_param(
                 augmentation_config.to_dict())
@@ -187,12 +202,13 @@ def index(RELEASE=True):
             st.info("No augmentation config selected.")
 
         def back_aug_config_page():
+            reset_trainer()
             session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig
 
         st.button('⚙️ Edit Augmentation Config', key='btn_edit_aug_config',
                   on_click=back_aug_config_page)
 
-    if session_state.new_training.is_started:
+    if training.is_started:
         st.warning(
             "✏️ **NOTE**: Only edit training/augmentation config if you want to "
             "re-train or continue training!")
@@ -207,13 +223,13 @@ def index(RELEASE=True):
 
     def start_training_callback(is_resume=False, train_one_batch=False):
         if not is_resume:
-            root = session_state.new_training.training_path['ROOT']
+            root = training_paths['ROOT']
             if root.exists():
                 logger.info(f"Removing existing training directory {root}")
                 shutil.rmtree(root)
 
             logger.info("Creating training directories ...")
-            session_state.new_training.initialise_training_folder()
+            training.initialise_training_folder()
 
         def stop_run_training():
             # BEWARE that this will just refresh the page
@@ -229,9 +245,9 @@ def index(RELEASE=True):
             st.warning('✏️ **NOTE**: If you click this button, '
                        'the latest progress might not be saved.')
 
-        logdir = session_state.new_training.training_path['tensorboard_logdir']
+        logdir = training_paths['tensorboard_logdir']
 
-        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+        if training.deployment_type == 'Object Detection with Bounding Boxes':
             # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
             #  folders and store the logs inside this folder, so don't accidentally
             #  delete this entire folder
@@ -255,13 +271,14 @@ def index(RELEASE=True):
         #     run_tensorboard(logdir)
 
         with st.spinner("Exporting tasks for training ..."):
-            session_state.project.export_tasks(
-                for_training_id=session_state.new_training.id)
+            logger.info("Exporting tasks for training ...")
+            project.export_tasks(for_training_id=training.id)
 
-        initialize_trainer()
+        # reset to make sure everything is new
+        initialize_trainer(reset=True)
         # start training, set `stdout_output` to True to print the logging outputs generated
         #  from the TFOD scripts; set to False to avoid clutterring the console outputs
-        session_state.trainer.train(
+        trainer.train(
             is_resume, stdout_output=False, train_one_batch=train_one_batch)
 
         def refresh_page():
@@ -272,44 +289,48 @@ def index(RELEASE=True):
                   help="Refresh this page to show all the results",
                   on_click=refresh_page)
 
-    if not session_state.new_training.is_started:
+    if not training.is_started:
         with train_btn_place.container():
-            if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
-                st.button(
+            if project.deployment_type != 'Object Detection with Bounding Boxes':
+                train_one_batch = st.button(
                     "⚡ Test training one batch", key='btn_train_one_batch',
                     help="""This is just a test run to see whether the model can 
                     perform well on only one batch of data (more specifically,
                     whether it's capable enough to overfit one batch of data).
                     This is also a good way to check whether there is any problem
                     with the dataset, the model, or the training pipeline.""")
-                if session_state.btn_train_one_batch:
+                if train_one_batch:
                     start_training_callback(train_one_batch=True)
 
-            st.button("⚡ Start training", key='btn_start_training')
+            start_train = st.button(
+                "⚡ Start training", key='btn_start_training',
+                help="If you experience any error related to 'Memory' or 'Resources',  \n"
+                "please try to reduce the `Batch Size` before training again.")
             if not tf.config.list_physical_devices('GPU'):
                 st.warning("""WARNING: You don't have access to GPU. Training will
                 take much longer time to complete without GPU.""")
-            if session_state.btn_start_training:
+            if start_train:
                 # must do it this way instead of using callback on button
                 #  to properly show the training progress below the rendered widgets
                 start_training_callback()
     else:
         with train_btn_place.container():
             st.header("Training results:")
-            st.button("📈 Show TensorBoard", key='btn_show_tensorboard')
-            if session_state.btn_show_tensorboard:
+            show_tb = st.button("📈 Show TensorBoard",
+                                key='btn_show_tensorboard')
+            if show_tb:
                 with st.spinner("Loading Tensorboard ..."):
-                    logdir = session_state.new_training.training_path['tensorboard_logdir']
+                    logdir = training_paths['tensorboard_logdir']
                     run_tensorboard(logdir)
 
             clone_col, download_col = st.columns([1, 1])
 
             def clone_train_session():
-                session_state.new_training.clone_training_session()
+                training.clone_training_session()
 
                 # set all the submissions as True to allow proper updates instead of inserting info into DB
-                for page in session_state.new_training.has_submitted:
-                    session_state.new_training.has_submitted[page] = True
+                for page in training.has_submitted:
+                    training.has_submitted[page] = True
 
                 # must go back to the InfoDataset page to allow user to
                 # update the temporarily created names if necessary
@@ -324,7 +345,7 @@ def index(RELEASE=True):
 
             with download_col:
                 initialize_trainer()
-                exist_dict = session_state.trainer.check_model_exists()
+                exist_dict = trainer.check_model_exists()
 
                 if exist_dict['model_tarfile']:
                     def show_download_msg():
@@ -333,14 +354,14 @@ def index(RELEASE=True):
                         time.sleep(2)
                         place.empty()
                         # remove exported directory after downloaded
-                        export_dir = session_state.trainer.training_path['export']
+                        export_dir = training_paths['export']
                         if export_dir.exists():
                             shutil.rmtree(export_dir)
                         # remove the tarfile after downloaded
                         if model_tarfile_path.exists():
                             os.remove(model_tarfile_path)
 
-                    model_tarfile_path = session_state.trainer.training_path['model_tarfile']
+                    model_tarfile_path = training_paths['model_tarfile']
                     with st.spinner("Preparing model to be downloaded ..."):
                         with model_tarfile_path.open(mode="rb") as fp:
                             st.download_button(
@@ -354,7 +375,7 @@ def index(RELEASE=True):
                         st.success('✏️ Model is successfully archived! This may take awhile'
                                    ' to download, depending on the file size of the trained '
                                    'model.')
-                        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                        if training.deployment_type == 'Object Detection with Bounding Boxes':
                             st.warning("""The exported object detection model will also be
                             removed after you have downloaded it. You can try checking the
                             evaluation result below after exporting, because it will load
@@ -365,7 +386,7 @@ def index(RELEASE=True):
                     def export_callback():
                         # with message_place.container():
                         try:
-                            session_state.trainer.export_model()
+                            trainer.export_model()
                             st.experimental_rerun()
                         except Exception as e:
                             st.error("""Some error has occurred when exporting,
@@ -374,7 +395,7 @@ def index(RELEASE=True):
                             if not RELEASE:
                                 st.exception(e)
                             st.stop()
-                    if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                    if training.deployment_type == 'Object Detection with Bounding Boxes':
                         label = "📁 Export TensorFlow SavedModel"
                     else:
                         label = "📁 Export TensorFlow Keras Model"
@@ -387,12 +408,12 @@ def index(RELEASE=True):
         with retrain_place.container():
             retrain_col_1, resume_train_col = st.columns([1, 1])
             with retrain_col_1:
-                st.button("⚡ Re-train", key='btn_retrain')
+                retrain = st.button("⚡ Re-train", key='btn_retrain')
                 st.warning('✏️ **NOTE**: If you re-train your model, '
                            'all the existing model data will be overwritten.')
 
             with resume_train_col:
-                st.button("⚡ Continue training", key='btn_resume_train')
+                resume_train = st.button("⚡ Continue training", key='btn_resume_train')
                 st.warning('✏️ If you think your model needs more training, '
                            'This will continue training your model from the latest progress.')
 
@@ -400,12 +421,15 @@ def index(RELEASE=True):
             metric_col_1, _ = st.columns([1, 1])
             with metric_col_1:
                 metrics = pretty_format_param(
-                    session_state.new_training.training_model.metrics)
+                    training.training_model.metrics)
                 st.markdown("#### Final Metrics:")
+                progress_text = pretty_format_param(
+                    training.progress, st_newlines=False, bold_name=True)
+                st.markdown(f"Latest progress at {progress_text}")
                 st.info(metrics)
 
-                if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
-                    with st.expander("Notions about the metrics"):
+                if training.deployment_type == 'Object Detection with Bounding Boxes':
+                    with st.expander("Notion about the metrics"):
                         st.markdown(
                             "From [TFOD docs](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html#training-the-model):  \n")
                         st.markdown("""Following what people have said online,
@@ -418,13 +442,14 @@ def index(RELEASE=True):
                         as a number of other metrics even while your model is training, have a look at 
                         the **TensorBoard** above.""")
 
-            if session_state.new_training.training_path['models'].exists():
+            if training_paths['models'].exists():
                 initialize_trainer()
                 st.markdown("___")
                 st.header("Evaluation results:")
+
                 with st.spinner("Running evaluation ..."):
                     try:
-                        session_state.trainer.evaluate()
+                        trainer.evaluate()
                     except Exception as e:
                         if not RELEASE:
                             st.exception(e)
@@ -432,21 +457,21 @@ def index(RELEASE=True):
                                  "training/exporting the model again.")
                         logger.error(f"Error evaluating: {e}")
             else:
-                logger.info(f"Model {session_state.new_training.training_model_id} "
+                logger.info(f"Model {training.training_model_id} "
                             "is not exported yet. Skipping evaluation")
 
-        if session_state.btn_retrain or session_state.btn_resume_train:
+        if retrain or resume_train:
             # clear out the unnecessary placeholders
             train_btn_place.empty()
             result_place.empty()
             retrain_place.empty()
 
-            is_resume = False if session_state.btn_retrain else True
+            is_resume = False if retrain else True
             with retrain_place.container():
                 start_training_callback(is_resume)
 
-    # st.write("vars(session_state.new_training)")
-    # st.write(vars(session_state.new_training))
+    # st.write("vars(training)")
+    # st.write(vars(training))
 
 
 if __name__ == "__main__":

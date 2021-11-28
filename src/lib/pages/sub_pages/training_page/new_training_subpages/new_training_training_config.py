@@ -25,10 +25,12 @@ SPDX-License-Identifier: Apache-2.0
 import sys
 from pathlib import Path
 from typing import Any, Dict
+
+from tensorflow import keras
 from keras_unet_collection import models
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as session_state
+from streamlit import session_state
 
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -75,7 +77,7 @@ def training_configuration(RELEASE=True):
             session_state.user = User(1)
         if 'new_training' not in session_state:
             # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
-            session_state.new_training = Training(18, session_state.project)
+            training = Training(18, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -87,6 +89,12 @@ def training_configuration(RELEASE=True):
     st.markdown(f"### Step 2: Select training configuration at sidebar.")
 
     DEPLOYMENT_TYPE = session_state.project.deployment_type
+    training: Training = session_state.new_training
+    param_dict = training.training_param_dict
+    if not param_dict:
+        # to change NoneType to a Dict
+        param_dict = {}
+    logger.debug(f"{param_dict = }")
 
     if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
         train_config_col = st.sidebar.container()
@@ -97,12 +105,13 @@ def training_configuration(RELEASE=True):
     def check_segmentation_model(training_param: Dict[str, Any] = None):
         if not training_param:
             training_param = get_training_param_from_session_state()
-        model_param_dict = session_state.new_training.get_segmentation_model_params(
+        model_param_dict = training.get_segmentation_model_params(
             training_param
         )
         with train_config_col:
             try:
                 with st.spinner("Building model with the selected parameters ..."):
+                    keras.backend.clear_session()
                     getattr(models, model_func)(**model_param_dict)
                 # raise Exception("DUMMY ERROR")
             except Exception as e:
@@ -124,12 +133,12 @@ def training_configuration(RELEASE=True):
                 # continue only if the model is built successfully
                 check_segmentation_model(training_param)
             # update the database and our Training instance
-            session_state.new_training.update_training_param(training_param)
-            session_state.new_training.has_submitted[NewTrainingPagination.TrainingConfig] = True
+            training.update_training_param(training_param)
+            training.has_submitted[NewTrainingPagination.TrainingConfig] = True
             logger.info(
                 "Successfully submitted the selected training parameters")
 
-            if not session_state.new_training.has_submitted[NewTrainingPagination.AugmentationConfig]:
+            if not training.has_submitted[NewTrainingPagination.AugmentationConfig]:
                 session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig
             else:
                 # go to Training page if all forms have been submitted
@@ -139,25 +148,15 @@ def training_configuration(RELEASE=True):
             st.experimental_rerun()
 
         if DEPLOYMENT_TYPE != "Object Detection with Bounding Boxes":
-            # NOTE: most of these params will also be used for Semantic Segmentation for Keras training
-            param_dict = session_state.new_training.training_param_dict
-            if param_dict:
-                # details_col.write(param_dict)
-                # taking the stored param from DB
-                learning_rate = param_dict['learning_rate']
-                optimizer = param_dict['optimizer']
-                batch_size = param_dict['batch_size']
-                num_epochs = param_dict['num_epochs']
-                # NOTE: not using fine_tune_all for now
-                # fine_tune_all = param_dict['fine_tune_all']
-                image_size = param_dict['image_size']
-            else:
-                image_size = 224
-                learning_rate = 1e-4
-                optimizer = "Adam"
-                batch_size = 32
-                num_epochs = 10
-                # fine_tune_all = False
+            # NOTE: these params will also be used for Semantic Segmentation for Keras training
+            # details_col.write(param_dict)
+            learning_rate = param_dict.get('learning_rate', 1e-4)
+            optimizer = param_dict.get('optimizer', "Adam")
+            batch_size = param_dict.get('batch_size', 32)
+            num_epochs = param_dict.get('num_epochs', 10)
+            # NOTE: not using fine_tune_all for now
+            # fine_tune_all = param_dict.get('fine_tune_all', False)
+            image_size = param_dict.get('image_size', 224)
 
             # NOTE: store them in key names starting exactly with `param_`
             #  to be able to extract them and send them over to the Trainer for training
@@ -202,7 +201,7 @@ def training_configuration(RELEASE=True):
                 and minimize the loss function (or error function) during training.
                 Recommeded to start with **Adam**."""
             )
-            bs_choices = (4, 8, 16, 32, 64, 128)
+            bs_choices = (1, 2, 4, 8, 16, 32, 64, 128)
             st.select_slider(
                 "Batch size", bs_choices,
                 value=batch_size,
@@ -244,14 +243,8 @@ def training_configuration(RELEASE=True):
         else:
             # ******************************** TFOD config ********************************
             # only storing `batch_size` and `num_train_steps`
-            param_dict = session_state.new_training.training_param_dict
-            if param_dict:
-                # taking the stored param from DB
-                batch_size = param_dict['batch_size']
-                num_train_steps = param_dict['num_train_steps']
-            else:
-                batch_size = 4
-                num_train_steps = 2000
+            batch_size = param_dict.get('batch_size', 4)
+            num_train_steps = param_dict.get('num_train_steps', 2000)
 
             with st.form(key='training_config_form'):
                 bs_choices = (1, 2, 4, 8, 16, 32, 64, 128)
@@ -280,43 +273,24 @@ def training_configuration(RELEASE=True):
         # no need these params if the attached_model is not pretrained (i.e. is uploaded
         #  or is a trained project model)
         if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons" \
-                and not session_state.new_training.attached_model.is_not_pretrained:
+                and not training.attached_model.is_not_pretrained:
             # NOTE: refer to Notion for details about the model parameters
             # or refer to this Colab Notebook https://colab.research.google.com/drive/1PgI3Adcq_EixOrZm5kFsjabswxIw0c4p?usp=sharing
-            param_dict = session_state.new_training.training_param_dict
-            if param_dict:
-                # taking the stored params from DB
-                filter_num = param_dict['filter_num']
-                # note: there is also an `n_labels` parameter initialized directly below
-                filter_size = filter_num[0]
-                depth = len(filter_num)
-                if 'recur_num' in param_dict:
-                    recur_num = param_dict['recur_num']
-                stack_num_up = param_dict['stack_num_up']
-                stack_num_down = param_dict['stack_num_down']
-                activation = param_dict['activation']
-                output_activation = param_dict['output_activation']
-                batch_norm = param_dict['batch_norm']
-                pool = param_dict['pool']
-                unpool = param_dict['unpool']
-                if 'aspp_num_down' in param_dict:
-                    aspp_num_down = param_dict['aspp_num_down']
-                    aspp_num_up = param_dict['aspp_num_up']
-                use_hybrid_loss = param_dict['use_hybrid_loss']
-            else:
-                filter_size = 32
-                depth = 4
-                recur_num = 2
-                stack_num_up = 2
-                stack_num_down = 2
-                activation = 'ReLU'
-                output_activation = 'Softmax'
-                batch_norm = True
-                pool = True
-                unpool = True
-                aspp_num_down = 256
-                aspp_num_up = 128
-                use_hybrid_loss = False
+            filter_num = param_dict.get('filter_num', [32, 64, 128, 256])
+            # note: there is also an `n_labels` parameter initialized directly below
+            filter_size = filter_num[0]
+            depth = len(filter_num)
+            recur_num = param_dict.get('recur_num', 2)
+            stack_num_up = param_dict.get('stack_num_up', 2)
+            stack_num_down = param_dict.get('stack_num_down', 2)
+            activation = param_dict.get('activation', 'ReLU')
+            output_activation = param_dict.get('output_activation', 'Softmax')
+            batch_norm = param_dict.get('batch_norm', True)
+            pool = param_dict.get('pool', True)
+            unpool = param_dict.get('unpool', True)
+            aspp_num_down = param_dict.get('aspp_num_down', 256)
+            aspp_num_up = param_dict.get('aspp_num_up', 128)
+            use_hybrid_loss = param_dict.get('use_hybrid_loss', False)
 
             st.markdown("___")
             st.subheader("Segmentation model parameters")
@@ -329,7 +303,7 @@ def training_configuration(RELEASE=True):
             depth_choices = (4, 5, 6)
             depth = st.select_slider(
                 "Depth", depth_choices, value=depth, key='depth',
-                help="""Number of filters per down/up-sampling blocks.
+                help="""`depth` parameter. Number of filters per down/up-sampling blocks.
                 e.g. If selected first layer filter size 32 with depth of 4:
                 `[32, 64, 128, 256]`. i.e. 1st layer has 32 filters; 2nd: 64; 
                 3rd: 128; 4th: 256. This is the conventional pattern for the 
@@ -343,41 +317,42 @@ def training_configuration(RELEASE=True):
             session_state['param_n_labels'] = num_classes
 
             recur_num_choices = (1, 2, 3)
-            if session_state.new_training.attached_model.name == 'R2U-Net':
+            if training.attached_model.name == 'R2U-Net':
                 st.select_slider(
                     "Number of recurrent iterations", recur_num_choices, value=recur_num,
-                    key='param_recur_num', help="""Number of recurrent iterations per 
-                    down- and upsampling level"""
+                    key='param_recur_num', help="`param_recur_num` parameter.  \n"
+                    "Number of recurrent iterations per down- and upsampling level"
                 )
 
-            if session_state.new_training.attached_model.name == 'ResUnet-a':
+            if training.attached_model.name == 'ResUnet-a':
                 # recommended dilation_num by author
                 session_state['param_dilation_num'] = [1, 3, 5, 31]
                 aspp_num_choices = (64, 128, 256)
                 st.select_slider(
                     "Number of filters in ASPP up layer", aspp_num_choices, value=aspp_num_up,
                     key='param_aspp_num_up',
-                    help="""Number of Atrous Spatial Pyramid Pooling (ASPP) layer 
-                    filters after the last upsampling block."""
+                    help="""`aspp_num_up` parameter. Number of Atrous Spatial Pyramid 
+                    Pooling (ASPP) layer  \nfilters after the last upsampling block."""
                 )
                 st.select_slider(
                     "Number of filters in ASPP down layer", aspp_num_choices, value=aspp_num_down,
                     key='param_aspp_num_down',
-                    help="""Number of ASPP layer 
-                    filters after the last downsampling block"""
+                    help="""`aspp_num_down` parameter. Number of ASPP layer  \nfilters 
+                    after the last downsampling block."""
                 )
             else:
                 stack_num_choices = (1, 2, 3)
                 st.select_slider(
                     "Number of upsampling Conv layers", stack_num_choices, value=stack_num_up,
                     key='param_stack_num_up',
-                    help="""Number of convolutional layers (after concatenation) 
-                    per upsampling level/block"""
+                    help="""`stack_num_up` parameter. Number of convolutional  \nlayers
+                    (after concatenation) per upsampling level/block"""
                 )
                 st.select_slider(
                     "Number of downsampling Conv layers", stack_num_choices, value=stack_num_down,
                     key='param_stack_num_down',
-                    help="""Number of convolutional layers per downsampling level/block"""
+                    help="""`stack_num_down` parameter. Number of convolutional  \nlayers
+                    per downsampling level/block"""
                 )
 
             # NOTE: 'GELU' and 'Snake' are custom objects, they can be loaded from
@@ -411,8 +386,8 @@ def training_configuration(RELEASE=True):
             pool = st.selectbox(
                 "Pooling layer", pool_choices,
                 index=pool_choices.index(pool), key='pool',
-                help="""False for strided Conv layers; True for Max Pooling;
-                    'Average' for Average Pooling"""
+                help="`pool` parameter. False for strided Conv layers;  \n"
+                "True for Max Pooling;'Average' for Average Pooling"
             )
             session_state['param_pool'] = 'ave' if pool == 'Average' else pool
 
@@ -421,9 +396,10 @@ def training_configuration(RELEASE=True):
             unpool = st.selectbox(
                 "Unpooling layer", unpool_choices,
                 index=unpool_choices.index(unpool), key='unpool',
-                help="""True for Upsampling2D with bilinear interpolation.
-                'Nearest' for Upsampling2D with nearest interpolation.
-                False for Conv2DTranspose + batch norm + activation. """
+                help="`unpool` parameter. True for Upsampling2D with bilinear "
+                "interpolation.  \n"
+                "'Nearest' for Upsampling2D with nearest interpolation.  \n"
+                "False for Conv2DTranspose + batch norm + activation. "
             )
             session_state['param_unpool'] = 'nearest' if unpool == 'Nearest' else unpool
 
@@ -431,8 +407,9 @@ def training_configuration(RELEASE=True):
             loss_func = 'Hybrid Loss' if use_hybrid_loss else 'Focal Tversky Loss'
             loss_func = st.radio(
                 'Loss function', loss_choices, index=loss_choices.index(loss_func), key='loss_func',
-                help="""Hybrid Loss is a combination of Focal Tversky Loss and Intersection
-                over Union (IoU) Loss. In general, focal Tversky loss is good enough.""")
+                help="Hybrid Loss is a combination of Focal Tversky Loss and  \n"
+                "Intersection over Union (IoU) Loss.  \n"
+                "In general, focal Tversky loss is good enough.")
             session_state['param_use_hybrid_loss'] = (True if loss_func == 'Hybrid Loss'
                                                       else False)
 
@@ -444,7 +421,7 @@ def training_configuration(RELEASE=True):
     if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
         with details_col:
             model_name2_func = get_segmentation_model_name2func()
-            model_name = session_state.new_training.attached_model.name
+            model_name = training.attached_model.name
             model_func = model_name2_func[model_name]
             # show docstring
             st.subheader(f"**{model_name}** Model Docstring:")

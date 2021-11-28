@@ -10,7 +10,7 @@ DEBUG = False
 def select_num_interval(
     param_name: str, limits_list: list, defaults, n_for_hash, **kwargs
 ):
-    # NOTE: the `n_for_hash` is the index from the `tranform_names`, check `get_transormations_params`
+    # NOTE: the `n_for_hash` is the index from the `tranform_names`, check `get_transformations_params`
     st.sidebar.subheader(param_name)
     key = f"aug_{param_name}_{n_for_hash}"
     min_max_interval = st.sidebar.slider(

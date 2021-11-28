@@ -60,9 +60,9 @@ from user.user_management import User, UserRole
 place = {}
 
 PROGRESS_COLUMN_HEADER = {
-    "Image Classification": 'Steps',
+    "Image Classification": 'Epoch',
     "Object Detection with Bounding Boxes": 'Checkpoint / Steps',
-    "Semantic Segmentation with Polygons": 'Checkpoint / Steps'
+    "Semantic Segmentation with Polygons": 'Epoch'
 }
 
 chdir_root()  # change to root directory

@@ -31,14 +31,14 @@ from streamlit import session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-# LIB_PATH = SRC / "lib"
-# if str(LIB_PATH) not in sys.path:
-#     sys.path.insert(0, str(LIB_PATH))  # ./lib
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 from annotation.annotation_management import (Annotations, LabellingPagination,
                                               reset_editor_page)
@@ -59,21 +59,21 @@ from pages.sub_pages.project_page import existing_project, new_project
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
-# conn = init_connection(**st.secrets["postgres"])
+conn = init_connection(**st.secrets["postgres"])
 # PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
 
 # # <<<< Variable Declaration <<<<
 chdir_root()  # change to root directory
 
 # # TODO: #40 REMOVE SIDEBAR AFTER INTEGRATING INTO APP.PY
-# with st.sidebar.container():
-#     st.image("resources/MSF-logo.gif", use_column_width=True)
+with st.sidebar.container():
+    st.image("resources/MSF-logo.gif", use_column_width=True)
 
-#     st.title("Integrated Vision Inspection System", anchor='title')
-#     st.header(
-#         "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
-#     st.markdown("""___""")
-#     st.radio("", options=PAGE_OPTIONS, key="all_pages")
+    st.title("Integrated Vision Inspection System", anchor='title')
+    st.header(
+        "(Integrated by Malaysian Smart Factory 4.0 Team at SHRDC)", anchor='heading')
+    st.markdown("""___""")
+    # st.radio("", options=PAGE_OPTIONS, key="all_pages")
 
 
 def dashboard():

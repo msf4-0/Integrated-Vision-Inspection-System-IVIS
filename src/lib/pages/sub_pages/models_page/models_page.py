@@ -83,6 +83,8 @@ def existing_models():
             session_state.new_training, session_state.project)
         logger.debug("Converted NewTraining to Training instance")
 
+    training: Training = session_state.new_training
+
     existing_models, existing_models_column_names = deepcopy(Model.query_model_table(
         for_data_table=True,
         return_dict=True,
@@ -175,8 +177,8 @@ def existing_models():
     #                                                    filter_value=session_state.existing_models_table,
     #                                                    column_names=existing_models_column_names)
 
-    #     # Instantiate Attached Model in `new_training` object
-    #     session_state.new_training.attached_model = Model(
+    #     # Instantiate Attached Model in `training` object
+    #     training.attached_model = Model(
     #         model_row=model_df_row[0])
 
     # with main_col1.container():
@@ -189,18 +191,18 @@ def existing_models():
     # header
     st.markdown(f"### Models Selection")
 
-    if session_state.new_training.has_submitted[NewTrainingPagination.Model]:
-        if session_state.new_training.attached_model.is_not_pretrained:
-            model_type_constant = session_state.new_training.attached_model.model_type_constant
+    if training.has_submitted[NewTrainingPagination.Model]:
+        if training.attached_model.is_not_pretrained:
+            model_type_constant = training.attached_model.model_type_constant
             if model_type_constant == ModelType.UserUpload:
                 model_label = 'Selected Uploaded Model'
             else:
                 model_label = 'Selected Project Model'
         else:
             model_label = 'Selected Pre-trained Model'
-        selected_model_name = session_state.new_training.attached_model.name
-        current_name = session_state.new_training.training_model.name
-        current_desc = session_state.new_training.training_model.desc
+        selected_model_name = training.attached_model.name
+        current_name = training.training_model.name
+        current_desc = training.training_model.desc
         st.info(f"""
         ### Previously submitted model information:
         **{model_label}**: {selected_model_name}  \n
@@ -208,8 +210,8 @@ def existing_models():
         **Training Description**: {current_desc}  \n
         """)
 
-    if session_state.new_training.attached_model is not None:
-        model_type_constant = session_state.new_training.attached_model.model_type_constant
+    if training.attached_model is not None:
+        model_type_constant = training.attached_model.model_type_constant
         if model_type_constant == ModelType.PreTrained:
             model_type_idx = 0
         elif model_type_constant == ModelType.ProjectTrained:
@@ -243,7 +245,7 @@ def existing_models():
         trained_models_df['Metrics'] = trained_models_df['Metrics'].apply(
             pretty_format_param, st_newlines=False, bold_name=False)
 
-        current_training_model_id = session_state.new_training.training_model.id
+        current_training_model_id = training.training_model.id
         # need to check with int because it could be a randomly initialized ID for NewModel
         if isinstance(current_training_model_id, int) and \
                 model_type_constant == ModelType.ProjectTrained:
@@ -262,9 +264,9 @@ def existing_models():
         st.dataframe(trained_models_df, width=1920)
 
         # get the index of submitted model or just set to 0
-        if session_state.new_training.attached_model is not None \
-                and session_state.new_training.attached_model.model_type_constant == model_type_constant:
-            trained_model_name = session_state.new_training.attached_model.name
+        if training.attached_model is not None \
+                and training.attached_model.model_type_constant == model_type_constant:
+            trained_model_name = training.attached_model.name
             trained_model_idx = int(trained_models_df.query(
                 'Name == @trained_model_name').index[0]
             )
@@ -323,10 +325,10 @@ def existing_models():
 
         # get the index of the model in the table, either from previously submitted info,
         #  or from recommended model
-        if session_state.new_training.attached_model is not None \
-                and not session_state.new_training.attached_model.is_not_pretrained:
+        if training.attached_model is not None \
+                and not training.attached_model.is_not_pretrained:
             # then this has already selected a model before
-            model_name = session_state.new_training.attached_model.name
+            model_name = training.attached_model.name
             model_idx = int(models_df.query(
                 '`Model Name` == @model_name').index[0])
         else:
@@ -363,11 +365,11 @@ def existing_models():
 
     # >>>> MAIN_COL2
 
-    # if session_state.new_training.attached_model:
+    # if training.attached_model:
     # with main_col2.container():
 
     # - can consider adding the bottom line after done creating self.model_input_size
-    # Model Input Size: {session_state.new_training.attached_model.model_input_size}
+    # Model Input Size: {training.attached_model.model_input_size}
     model_information = f"""
     ## Selected Model Information:
     ### Name:
@@ -392,8 +394,8 @@ def existing_models():
 
         with field_placeholder['training_model_name'].container():
             if session_state.training_model_name:
-                if session_state.new_training.training_model.check_if_exists(context, conn):
-                    # session_state.new_training.training_model.name = ''
+                if training.training_model.check_if_exists(context, conn):
+                    # training.training_model.name = ''
                     st.error("Model name used. Please enter a new name")
                     # sleep(0.7)
                     # field_placeholder['training_model_name'].empty()
@@ -401,7 +403,7 @@ def existing_models():
                         f"Training Model name used. Please enter a new name")
                     st.stop()
                 else:
-                    # session_state.new_training.training_model.name = session_state.training_model_name
+                    # training.training_model.name = session_state.training_model_name
                     logger.info("Training Model name fresh and ready to rumble: "
                                 f"'{session_state.training_model_name}'")
             else:
@@ -412,7 +414,7 @@ def existing_models():
     st.write(f"**Step 2: Enter the name for your new training model** ")
 
     st.text_input('Model Name', key="training_model_name",
-                  value=session_state.new_training.training_model.name,
+                  value=training.training_model.name,
                   help="Enter the name of the model to be exported after training",
                   #   on_change=check_if_name_exist,
                   #   args=(session_state.new_training_place, conn,)
@@ -424,11 +426,11 @@ def existing_models():
     # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
     description = st.text_area(
         "Description (Optional)", key="training_model_desc",
-        value=session_state.new_training.training_model.desc,
+        value=training.training_model.desc,
         help="Enter the description of the model")
 
     if description:
-        session_state.new_training.training_model.desc = remove_newline_trailing_whitespace(
+        training.training_model.desc = remove_newline_trailing_whitespace(
             description)
 
     # ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
@@ -443,12 +445,9 @@ def existing_models():
     def to_training_configuration_page():
         check_if_name_exist(session_state.new_training_place, conn)
 
-        # update the training_model_name if the name is good to go
-        session_state.new_training.training_model.name = session_state.training_model_name
-
         new_training_model_submission_dict = NewTrainingSubmissionHandlers(
-            insert=session_state.new_training.training_model.create_new_project_model_pipeline,
-            update=session_state.new_training.training_model.update_new_project_model_pipeline,
+            insert=training.training_model.create_new_project_model_pipeline,
+            update=training.training_model.update_new_project_model_pipeline,
             context={
                 'training_model_name': session_state.training_model_name,
                 # 'attached_model_selection': session_state.existing_models_table
@@ -459,13 +458,13 @@ def existing_models():
         # run submission according to current page
         # NEXT page if all constraints met
 
-        # >>>> IF IT IS A NEW SUBMISSION
-        if not session_state.new_training.has_submitted[NewTrainingPagination.Model]:
+        if not training.has_submitted[NewTrainingPagination.Model]:
+            # >>>> IF IT IS A NEW SUBMISSION
             submission_func = new_training_model_submission_dict.insert
         else:
             submission_func = new_training_model_submission_dict.update
 
-        if session_state.new_training.training_model.check_if_field_empty(
+        if training.training_model.check_if_field_empty(
                 context=new_training_model_submission_dict.context,
                 field_placeholder=session_state.new_training_place,
                 name_key=new_training_model_submission_dict.name_key
@@ -475,25 +474,37 @@ def existing_models():
             if submission_func(
                     attached_model=selected_model,
                     project_name=session_state.project.name,
-                    training_name=session_state.new_training.name,
-                    training_id=session_state.new_training.id,
+                    training_name=training.name,
+                    training_id=training.id,
                     new_model_name=session_state.training_model_name
             ):
+                if training.attached_model is not None and \
+                        selected_model.name != training.attached_model.name:
+                    # must change training config if model is changed
+                    go_to_train_config = True
+                else:
+                    go_to_train_config = False
+
                 # NOTE: UPDATE THESE ONLY AFTER user has clicked submit button
                 # set the model selected in the page to be our attached_model
-                session_state.new_training.attached_model = selected_model
+                training.attached_model = selected_model
 
                 # run update training attached model
-                if session_state.new_training.update_training_attached_model(
-                        attached_model_id=session_state.new_training.attached_model.id,
-                        training_model_id=session_state.new_training.training_model.id):
+                if training.update_training_attached_model(
+                        attached_model_id=training.attached_model.id,
+                        training_model_id=training.training_model.id):
                     # set has_submitted =True
-                    session_state.new_training.has_submitted[NewTrainingPagination.Model] = True
+                    training.has_submitted[NewTrainingPagination.Model] = True
                     logger.info(
-                        f"Successfully created new training model {session_state.new_training.training_model.id}")
+                        f"Successfully created new training model {training.training_model.id}")
 
-                    # session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
-                    for page, submitted in session_state.new_training.has_submitted.items():
+                    # Go to TrainingConfig page to avoid issues in case the model has
+                    # been changed, especially for segmentation models, which could have
+                    # different parameters for different pretrained models
+                    if go_to_train_config:
+                        training.has_submitted[NewTrainingPagination.TrainingConfig] = False
+
+                    for page, submitted in training.has_submitted.items():
                         if not submitted:
                             session_state.new_training_pagination = page
                             break
@@ -551,12 +562,12 @@ def index(RELEASE=True):
         if "new_training_pagination" not in session_state:
             session_state.new_training_pagination = NewTrainingPagination.Model
 
-        if 'new_training' not in session_state:
+        if 'training' not in session_state:
 
-            session_state.new_training = NewTraining(training_id_tmp,
-                                                     project=session_state.project)
-            session_state.new_training.name = "My Tenth Training"
-            session_state.new_training.deployment_type = "Object Detection with Bounding Boxes"
+            training = NewTraining(training_id_tmp,
+                                   project=session_state.project)
+            training.name = "My Tenth Training"
+            training.deployment_type = "Object Detection with Bounding Boxes"
 
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
@@ -620,12 +631,12 @@ def index(RELEASE=True):
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     models_page[session_state.models_pagination]()
 
-    # st.write("vars(session_state.new_training)")
-    # st.write(vars(session_state.new_training))
-    # st.write("vars(session_state.new_training.training_model)")
-    # st.write(vars(session_state.new_training.training_model))
-    # st.write("vars(session_state.new_training.attached_model)")
-    # st.write(vars(session_state.new_training.attached_model))
+    # st.write("vars(training)")
+    # st.write(vars(training))
+    # st.write("vars(training.training_model)")
+    # st.write(vars(training.training_model))
+    # st.write("vars(training.attached_model)")
+    # st.write(vars(training.attached_model))
 
 
 if __name__ == "__main__":

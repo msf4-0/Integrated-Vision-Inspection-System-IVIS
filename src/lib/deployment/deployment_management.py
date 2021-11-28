@@ -43,6 +43,7 @@ from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
 import tensorflow as tf
 
+
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -55,13 +56,16 @@ from core.utils.log import logger
 from core.utils.helper import Timer, get_identifier_str_IntEnum, get_now_string
 from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
 from core.utils.form_manager import reset_page_attributes
-from machine_learning.utils import classification_predict, get_test_images_labels, load_keras_model, load_labelmap, load_tfod_model, preprocess_image, segmentation_predict, tfod_detect
+from machine_learning.utils import (classification_predict, get_label_dict_from_labelmap,
+                                    load_keras_model, load_labelmap, load_tfod_model, load_trained_keras_model,
+                                    preprocess_image, segmentation_predict, tfod_detect)
 if TYPE_CHECKING:
     from machine_learning.trainer import Trainer
     from training.model_management import Model
 from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
 from machine_learning.command_utils import export_tfod_savedmodel
-from deployment.utils import reset_camera, reset_camera_ports, reset_client, reset_csv_file_and_writer, reset_record_and_vid_writer
+from deployment.utils import (reset_camera, reset_camera_ports,
+                              reset_client, reset_csv_file_and_writer, reset_record_and_vid_writer)
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -128,8 +132,8 @@ class DeploymentConfig:
 DEPLOYMENT_TYPE = {
     "Image Classification": DeploymentType.Image_Classification,
     "Object Detection with Bounding Boxes": DeploymentType.OD,
-    "Semantic Segmentation with Polygons": DeploymentType.Instance,
-    "Semantic Segmentation with Masks": DeploymentType.Semantic
+    "Semantic Segmentation with Polygons": DeploymentType.Semantic,
+    "Semantic Segmentation with Masks": DeploymentType.Instance
 }
 
 COMPUTER_VISION_LIST = [DeploymentType.Image_Classification, DeploymentType.OD,
@@ -148,25 +152,36 @@ class Deployment(BaseDeployment):
     def __init__(self,
                  project_path: Path,
                  deployment_type: str,
-                 training_path: Dict[str, Path] = None,
+                 training_path: Dict[str, Path],
                  image_size: int = None,
                  metrics: List[Callable] = None,
                  metric_names: List[str] = None,
                  class_names: List[str] = None,
                  is_uploaded: bool = False,
-                 category_index: Dict[int, Dict[str, Any]] = None) -> None:
+                 category_index: Dict[int, Dict[str, Any]] = None,
+                 training_param: Dict[str, Any] = None) -> None:
         super().__init__()
+        # project_path is currently only used to get the path to save CSV file
+        # or captured frames
         self.project_path = project_path
-        self.training_path: Dict[str, Path] = training_path
-        self.metrics: List[Callable] = metrics
-        self.metric_names: List[str] = metric_names
-        self.class_names: List[str] = class_names
-        self.class_names_arr: np.ndarray = np.array(class_names)
-        self.deployment_type: str = deployment_type
-        self.image_size: int = image_size
+        self.deployment_type = deployment_type
+        self.training_path = training_path
 
-        # THIS ONLY WORKS FOR TFOD MODEL FOR NOW
+        # these are needed for classification/segmentation model
+        self.image_size = image_size
+        self.metrics = metrics
+        self.metric_names = metric_names
+        self.class_names = class_names
+
+        # for segmentation to get results faster
+        self.class_names_arr: np.ndarray = np.array(class_names)
+        # only needed for segmentation to load the model
+        self.training_param = training_param
+
+        # whether is user-uploaded model
         self.is_uploaded = is_uploaded
+
+        # only needed for TFOD
         self.category_index = category_index
 
         # not needed for now
@@ -186,18 +201,25 @@ class Deployment(BaseDeployment):
             image_size = trainer.training_param['image_size']
         else:
             image_size = None
+        if deployment_type == 'Semantic Segmentation with Polygons':
+            training_param = trainer.training_param
+        else:
+            training_param = None
         return cls(project_path, deployment_type, training_path, image_size,
-                   metrics, metric_names, class_names)
+                   metrics, metric_names, class_names,
+                   training_param=training_param)
 
     @classmethod
     def from_uploaded_model(cls, model: Model, uploaded_model_dir: Path,
                             category_index: Dict[int, Dict[str, Any]]):
-        """This only works for uploaded TFOD model for now"""
         project_path = session_state.project.get_project_path(
             session_state.project.name)
         deployment_type = model.deployment_type
         training_path = {'uploaded_model_dir': uploaded_model_dir}
         class_names = [d['name'] for d in category_index.values()]
+        if deployment_type != 'Object Detection with Bounding Boxes':
+            # don't need category_index for classification/segmentation
+            category_index = None
         return cls(project_path, deployment_type, training_path,
                    category_index=category_index, class_names=class_names,
                    is_uploaded=True)
@@ -254,7 +276,7 @@ class Deployment(BaseDeployment):
         paths = self.training_path
         if self.deployment_type == 'Object Detection with Bounding Boxes':
             if self.is_uploaded:
-                # this is a user-uploaded model
+                # 'uploaded_model_dir' is generated in `self.from_uploaded_model()`;
                 # category_index has already been loaded in `self.from_uploaded_model()`
                 saved_model_dir = next(
                     paths['uploaded_model_dir'].rglob("saved_model"))
@@ -268,15 +290,29 @@ class Deployment(BaseDeployment):
 
             self.model = load_tfod_model(saved_model_dir)
         else:
-            self.model = load_keras_model(
-                paths['output_keras_model_file'],
-                self.metrics)
+            if self.is_uploaded:
+                model_fpath = next(paths['uploaded_model_dir'].rglob('*.h5'))
+                self.model = load_trained_keras_model(model_fpath)
+            else:
+                model_fpath = paths['output_keras_model_file']
+                self.model = load_keras_model(model_fpath, self.metrics,
+                                              self.training_param)
+                # delete it after loaded the model
+                delattr(self, 'training_param')
+
+            # take the width as the image_size for preprocessing
+            # as we resize the image with the same width and height
+            self.image_size = self.model.input_shape[1]
 
         if self.deployment_type == 'Image Classification':
-            *_, encoded_label_dict = get_test_images_labels(
-                paths['test_set_pkl_file'],
-                self.deployment_type)
-            self.encoded_label_dict: Dict[int, str] = encoded_label_dict
+            if self.is_uploaded:
+                # 'uploaded_model_dir' is generated in `self.from_uploaded_model()`
+                labelmap_path = next(
+                    paths['uploaded_model_dir'].rglob("*.pbtxt"))
+            else:
+                labelmap_path = paths['labelmap_file']
+            self.encoded_label_dict = get_label_dict_from_labelmap(
+                labelmap_path)
 
     def classification_inference_pipeline(
             self, img: np.ndarray, **kwargs) -> Tuple[str, float]:
@@ -285,7 +321,7 @@ class Deployment(BaseDeployment):
             preprocessed_img,
             self.model,
             return_proba=True)
-        pred_classname = self.encoded_label_dict[y_pred]
+        pred_classname = self.encoded_label_dict.get(y_pred, 'Unknown')
         return pred_classname, y_proba
 
     def tfod_inference_pipeline(
@@ -330,6 +366,13 @@ class Deployment(BaseDeployment):
         elif self.deployment_type == 'Semantic Segmentation with Polygons':
             return partial(self.classification_inference_pipeline, **kwargs)
 
+    def get_classification_results(self, pred_classname: str, probability: float):
+        results = [{'class_found': pred_classname,
+                    # need to change to string to be serialized with json.dumps()
+                    'probability': f"{probability * 100:.2f}%",
+                    'time': get_now_string()}]
+        return results
+
     def get_detection_results(self, detections: Dict[str, Any],
                               conf_threshold: float = None) -> List[Dict[str, Any]]:
         results = []
@@ -362,6 +405,17 @@ class Deployment(BaseDeployment):
         csv_path = self.project_path / 'deployment_results' \
             / full_date / f"{full_date}.csv"
         return csv_path
+
+    def get_frame_save_dir(self, save_type: str = 'video') -> Path:
+        """To save frames or record videos. 
+
+        `save_type` should be either `'video'` or `'image'.`"""
+        if save_type == 'video':
+            dirname = 'video_recordings'
+        else:
+            dirname = 'saved_frames'
+        record_dir = self.project_path / dirname
+        return record_dir
 
     @staticmethod
     def get_datetime_from_csv_path(csv_path: Path) -> datetime:

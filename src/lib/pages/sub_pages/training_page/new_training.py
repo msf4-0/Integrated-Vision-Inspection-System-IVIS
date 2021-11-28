@@ -162,8 +162,8 @@ def index():
     new_training_page[session_state.new_training_pagination]()
 
     # ! DEBUGGING PURPOSE, REMOVE LATER
-    st.write("vars(session_state.new_training) = ")
-    st.write(vars(session_state.new_training))
+    # st.write("vars(session_state.new_training) = ")
+    # st.write(vars(session_state.new_training))
     # st.write("vars(session_state.new_training.attached_model)")
     # st.write(vars(session_state.new_training.attached_model))
     # st.write("session_state.new_training.attached_model.get_path()")

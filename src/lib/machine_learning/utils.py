@@ -1,7 +1,6 @@
 import json
 import os
 import pickle
-import sys
 from pathlib import Path
 import time
 import shutil
@@ -26,16 +25,6 @@ from object_detection.utils import config_util, label_map_util
 from object_detection.builders import model_builder
 from keras_unet_collection.losses import focal_tversky, iou_seg
 from keras_unet_collection.activations import Snake, GELU
-
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
@@ -218,7 +207,7 @@ def get_all_keras_custom_objects() -> Dict[str, Callable]:
     return custom_objects
 
 
-def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
+def get_segmentation_model_custom_objects(training_param: Dict[str, Any]) -> Dict[str, Callable]:
     """Get the custom objects required for loading the Keras segmentation model.
 
     NOTE: these custom metrics might change depending on how you built the model
@@ -226,10 +215,9 @@ def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
 
     metrics = [hybrid_loss, iou_seg, focal_tversky]
     """
-    use_hybrid_loss: bool = session_state.new_training.training_param_dict['use_hybrid_loss']
-    activation: str = session_state.new_training.training_param_dict['activation']
-    output_activation: str = session_state.new_training.training_param_dict[
-        'output_activation']
+    use_hybrid_loss: bool = training_param['use_hybrid_loss']
+    activation: str = training_param['activation']
+    output_activation: str = training_param['output_activation']
 
     # KIV: For now, the metric names are taken from training_model instance and the metric
     # functions are dynamically generated using `eval`, so be sure to import the function
@@ -280,19 +268,24 @@ def get_test_images_labels(
 
 @st.cache(show_spinner=False)
 # @st.experimental_memo
-def load_keras_model(model_path: Union[str, Path], metrics: List[Callable]):
+def load_keras_model(model_path: Union[str, Path], metrics: List[Callable],
+                     training_param: Dict[str, Any] = None):
     """Load the exported keras h5 model instead of only weights.
 
     The `custom_objects` is dynamically extracted from `training_model` instance
     for the segmentation model's custom loss functions or metrics.
 
-    `metrics` should be obtained from Training.get_training_metrics()
+    `metrics` should be obtained from Training.get_training_metrics().
+
+    `training_param` is required for Semantic Segmentation with Polygons.
 
     Returns the Keras model instance."""
     if session_state.project.deployment_type == 'Semantic Segmentation with Polygons':
-        custom_objects = get_segmentation_model_custom_objects()
+        assert training_param is not None
+        custom_objects = get_segmentation_model_custom_objects(training_param)
     else:
         custom_objects = None
+    tf.keras.backend.clear_session()
     model = tf.keras.models.load_model(model_path, custom_objects)
     # https://github.com/tensorflow/tensorflow/issues/45903#issuecomment-804973541
     model.compile(loss=model.loss, optimizer=model.optimizer, metrics=metrics)
@@ -516,20 +509,30 @@ def load_labelmap(labelmap_path):
     return category_index
 
 
+def get_label_dict_from_labelmap(labelmap_path) -> Dict[int, str]:
+    """Get encoded_label_dict for image classification/segmentation class names"""
+    category_index = load_labelmap(labelmap_path)
+    encoded_label_dict = {
+        i: d['name'] for i, d in enumerate(category_index.values())
+    }
+    return encoded_label_dict
+
+
 def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
     """Find and return the latest TFOD checkpoint path. 
 
     The `ckpt_dir` should be `training_path['models']`.
 
     Return None if no ckpt-*.index file found"""
-    ckpt_filepaths = ckpt_dir.rglob('ckpt-*.index')
-    if not list(ckpt_filepaths):
-        logger.error("There is no checkpoint file found, "
-                     "the TFOD model is not trained yet.")
+    ckpt_filepaths = glob.glob(str(ckpt_dir / 'ckpt-*.index'))
+    if not ckpt_filepaths:
+        logger.warning("""There is no checkpoint file found,
+        the TFOD model is not trained yet.""")
         return None
 
-    def get_ckpt_cnt(path: Path):
-        ckpt = str(path).split("ckpt-")[-1].split(".")[0]
+    def get_ckpt_cnt(path):
+        # get the number of checkpoint
+        ckpt = path.split("ckpt-")[-1].split(".")[0]
         return int(ckpt)
 
     latest_ckpt = sorted(ckpt_filepaths, key=get_ckpt_cnt, reverse=True)[0]
@@ -548,6 +551,7 @@ def load_tfod_checkpoint(
 
     `pipeline_config_path` should be training_path['models'] / 'pipeline.config'
     """
+    tf.keras.backend.clear_session()
     ckpt_path = get_tfod_last_ckpt_path(ckpt_dir)
 
     logger.info(f'Loading TFOD checkpoint from {ckpt_path} ...')
@@ -589,6 +593,7 @@ def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, A
     Due to this, this method should not be used outside of training/deployment page.
     Maybe can improve this by using st.experimental_memo or other methods. Not sure.
     """
+    tf.keras.backend.clear_session()
     logger.info(f'Loading model from {saved_model_path} ...')
     start_time = time.perf_counter()
     # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION

@@ -468,10 +468,11 @@ def check_if_other_user_exists(
     sql_query = """
         SELECT *
         FROM users
-        WHERE emp_id = %s
-            AND username = %s
+        WHERE (emp_id = %s
+            OR username = %s)
             AND id != %s;
     """
+    # 'emp_id' column is a 'text' field
     query_vars = [str(emp_id), username, current_user.id]
     record = db_fetchone(sql_query, conn, query_vars)
     columns_with_used_values = []

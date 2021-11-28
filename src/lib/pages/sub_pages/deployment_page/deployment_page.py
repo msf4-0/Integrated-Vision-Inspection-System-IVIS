@@ -116,7 +116,7 @@ def index(RELEASE=True):
         NOTE: `conf_attr` must exist in the `session_state` and must be the same
         with the `DeploymentConfig` attribute's name."""
         val = session_state[conf_attr]
-        logger.debug(conf_attr, val)
+        logger.debug(f"Updated deploy_conf: {conf_attr} = {val}")
         setattr(deploy_conf, conf_attr, val)
 
     pause_deploy_place = st.sidebar.empty()
@@ -233,25 +233,40 @@ def index(RELEASE=True):
 
         if DEPLOYMENT_TYPE != 'Semantic Segmentation with Polygons':
             ori_image_width = img.shape[1]
-            image_width = st.sidebar.slider(
+            display_width = st.sidebar.slider(
                 "Select width of image to resize for display",
-                35, 1000, 500, 5, key='selected_width')
+                35, 1000, 500, 5, key='display_width')
             # help=f'Original image width is **{ori_image_width}**.')
             st.sidebar.markdown(f"Original image width: **{ori_image_width}**")
 
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
 
-        # run inference on the image
-        with st.spinner("Running detection ..."):
+        if DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
+            with st.expander("Notes about deployment for semantic segmentation"):
+                st.markdown(
+                    """If this is an externally trained segmentation model, it might 
+                    not work properly for making predictions for our app's implementation.
+                    Please try with sample images or uploaded images first to see the results. 
+                    If there is anything wrong, please do not proceed to video deployment.""")
+
+        with st.spinner("Running inference ..."):
             with Timer("Inference on image"):
-                result = inference_pipeline(img)
+                try:
+                    result = inference_pipeline(img)
+                except Exception as e:
+                    # uncomment the following line to see the traceback
+                    # st.exception(e)
+                    logger.error("Error running inference with the model")
+                    st.error("""Error when trying to run inference with the model,
+                        please check with Admin/Developer for debugging.""")
+                    st.stop()
         if DEPLOYMENT_TYPE == 'Image Classification':
             pred_classname, y_proba = result
             caption = (f"{filename}; "
                        f"Predicted: {pred_classname}; "
                        f"Score: {y_proba * 100:.1f}")
-            st.image(img, channels='BGR', width=image_width, caption=caption)
+            st.image(img, channels='BGR', width=display_width, caption=caption)
         elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
             drawn_mask_output, pred_mask = result
             # convert to RGB for visualizing with Matplotlib
@@ -274,15 +289,10 @@ def index(RELEASE=True):
             st.markdown("___")
         else:
             img_with_detections, detections = result
-            st.image(img_with_detections, width=image_width,
+            st.image(img_with_detections, width=display_width,
                      caption=f'Detection result for: {filename}')
 
     elif deploy_conf.input_type == 'Video':
-        if DEPLOYMENT_TYPE == 'Image Classification':
-            st.warning("""Sorry **Image Classification** type does not support video 
-                input""")
-            st.stop()
-
         def update_conf_and_reset_camera(conf_attr: str):
             update_deploy_conf(conf_attr)
             reset_camera()
@@ -373,12 +383,9 @@ def index(RELEASE=True):
                 # in 'days' unit
                 deploy_conf.retention_period = retention_period
 
-            # prepare CSV directory and path
-            starting_time = datetime.now()
-            csv_path = deployment.get_csv_path(starting_time)
-            csv_dir = csv_path.parent
-            os.makedirs(csv_dir, exist_ok=True)
-            logger.info(f'Operation begins at: {starting_time.isoformat()}')
+            # show CSV directory
+            csv_path = deployment.get_csv_path(datetime.now())
+            csv_dir = csv_path.parents[1]
             logger.info(f'Inference results will be saved in {csv_dir}')
             with st.sidebar.container():
                 st.markdown("___")
@@ -403,7 +410,7 @@ def index(RELEASE=True):
                         f"**Inference results will be saved continuously in**: *{csv_dir}*  \n"
                         f"A new file will be created daily and files older than the "
                         f"retention period (`{retention_period} days`) will be deleted. "
-                        "Be sure to click the `Pause deployment and reset camera` button "
+                        "Be sure to click the `Pause deployment` button "
                         "to ensure the latest CSV file is saved properly if you have any "
                         "problem with opening the file.")
 
@@ -438,7 +445,7 @@ def index(RELEASE=True):
                 shutil.rmtree(TEMP_DIR)
             os.makedirs(TEMP_DIR)
             video_path = str(TEMP_DIR / video_file.name)
-            st.write(f"{video_path = }")
+            logger.debug(f"{video_path = }")
             with open(video_path, 'wb') as f:
                 f.write(video_file.getvalue())
 
@@ -465,7 +472,8 @@ def index(RELEASE=True):
             width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps_input = int(stream.get(cv2.CAP_PROP_FPS))
-            logger.debug(f"{width = }, {height = }, {fps_input = }")
+            logger.info(
+                f"Video properties: {width = }, {height = }, {fps_input = }")
 
             def pause_deployment():
                 reset_camera()
@@ -485,9 +493,11 @@ def index(RELEASE=True):
         else:
             st.stop()
         # **************************** MQTT STUFF ****************************
-        SAVED_FRAME_DIR = Path.home() / "Downloads" / "saved_frame"
-        if not SAVED_FRAME_DIR.exists():
-            os.makedirs(SAVED_FRAME_DIR)
+        saved_frame_dir = deployment.get_frame_save_dir('image')
+        recording_dir = deployment.get_frame_save_dir('video')
+        for save_dir in (saved_frame_dir, recording_dir):
+            if not save_dir.exists():
+                os.makedirs(save_dir)
 
         if 'client' not in session_state:
             session_state.client = get_mqtt_client()
@@ -512,7 +522,7 @@ def index(RELEASE=True):
                 # usually either MJPG + .avi, or XVID + .mp4
                 FOURCC = cv2.VideoWriter_fourcc(*"XVID")
                 filename = f"video_{get_now_string()}.mp4"
-                video_save_path = str(SAVED_FRAME_DIR / filename)
+                video_save_path = str(recording_dir / filename)
                 # st.info(f"Video is being saved to **{video_save_path}**")
                 logger.info(f"Video is being saved to '{video_save_path}'")
                 # this FPS value is the FPS of the output video file,
@@ -544,7 +554,7 @@ def index(RELEASE=True):
         def save_frame_cb(client, userdata, msg):
             now = get_now_string()
             filename = f'image-{now}.png'
-            save_path = str(SAVED_FRAME_DIR / filename)
+            save_path = str(saved_frame_dir / filename)
             logger.debug(f'Payload received for topic "{msg.topic}", '
                          f'saving frame at: "{save_path}"')
             # need this to access to the frame from within mqtt callback
@@ -586,10 +596,10 @@ def index(RELEASE=True):
             st.markdown(
                 f"""NOTE: Just publish an arbitrary message to any of the subscribed
                 MQTT topics to trigger the functionality. For the saved frames or recorded
-                video, they will be saved in your User 'Downloads' folder at
-                *{SAVED_FRAME_DIR}*. Please **do not simply delete this folder during 
-                deployment**, otherwise error will occur. You can delete it after 
-                pausing/ending the deployment if you wish.""")
+                video, they will be saved in your project's folder at *{saved_frame_dir}*.
+                Please **do not simply delete this folder during deployment**, otherwise
+                error will occur. You can delete it after pausing/ending the deployment
+                if you wish.""")
 
         if not session_state.client_connected:
             with st.spinner("Connecting to MQTT broker ..."):
@@ -698,16 +708,29 @@ def index(RELEASE=True):
 
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=draw_result, **pipeline_kwargs)
-        if DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
+        logger.debug(f"{DEPLOYMENT_TYPE = }")
+        if DEPLOYMENT_TYPE == 'Image Classification':
+            is_image_classif = True
+            get_result_fn = deployment.get_classification_results
+        elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
+            is_image_classif = False
             get_result_fn = deployment.get_segmentation_results
         else:
+            is_image_classif = False
             get_result_fn = partial(deployment.get_detection_results,
                                     conf_threshold=deploy_conf.confidence_threshold)
         publish_func = partial(session_state.client.publish,
                                conf.topics.publish_results, qos=deploy_conf.mqtt_qos)
 
+        starting_time = datetime.now()
+        csv_path = deployment.get_csv_path(starting_time)
+        csv_dir = csv_path.parent
+        if not csv_dir.exists():
+            os.makedirs(csv_dir)
+        logger.info(f'Operation begins at: {starting_time.isoformat()}')
+        logger.info(f'Inference results will be saved in {csv_dir}')
         use_cam = deploy_conf.use_camera
-        selected_width = deploy_conf.video_width
+        display_width = deploy_conf.video_width
         fps = 0
         prev_time = 0
         first_csv_save = True
@@ -728,15 +751,25 @@ def index(RELEASE=True):
             # frame.flags.writeable = True  # might need this?
             # run inference on the frame
             result = inference_pipeline(frame)
-            if draw_result:
-                output_img, pred = result
+            if is_image_classif:
+                results = get_result_fn(*result)
+                output_img = frame
+                # the read frame is in BGR format
+                channels = 'BGR'
             else:
-                output_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pred = result
-            results = get_result_fn(pred)
+                if draw_result:
+                    output_img, pred = result
+                    channels = 'RGB'
+                else:
+                    pred = result
+                    output_img = frame
+                    # the read frame is in BGR format
+                    channels = 'BGR'
+                results = get_result_fn(pred)
 
             if show_video:
-                output_video_place.image(output_img, width=selected_width)
+                output_video_place.image(output_img, channels=channels,
+                                         width=display_width)
 
             if session_state.record:
                 # need to be within the video loop to ensure we also get the latest
@@ -744,8 +777,10 @@ def index(RELEASE=True):
                 record_text_place.info("Recording ...")
                 with show_video_col:
                     create_video_writer_if_not_exists()
-                session_state.vid_writer.write(
-                    cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR))
+                if channels == 'RGB':
+                    # cv2.VideoWriter needs BGR format
+                    output_img = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
+                session_state.vid_writer.write(output_img)
             else:
                 record_text_place.empty()
                 if session_state.vid_writer:
@@ -804,6 +839,12 @@ def index(RELEASE=True):
             # if fps > max_allowed_fps:
             #     sleep(1 / (fps - max_allowed_fps))
 
+        # clean up everything if it's an uploaded video
+        if session_state.vid_writer:
+            logger.info("Saving recorded file")
+            # must release to close the video file
+            session_state.vid_writer.release()
+            session_state.vid_writer = None
         reset_camera()
         if TEMP_DIR.exists():
             logger.debug("Removing temporary directory")

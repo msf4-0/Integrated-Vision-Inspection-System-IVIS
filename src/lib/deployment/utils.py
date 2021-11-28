@@ -13,7 +13,7 @@ import streamlit as st
 from streamlit import session_state
 
 from core.utils.log import logger
-from path_desc import CSV_SAVEPATH, MQTT_CONFIG_PATH
+from path_desc import MQTT_CONFIG_PATH
 
 
 def load_mqtt_config() -> Dict[str, str]:
@@ -95,8 +95,9 @@ def create_csv_file_and_writer(
         csv_path: Path, results: List[Dict[str, Any]], new_file: bool = True):
     """Create session_state.csv_file (in open state and append mode) and 
     also session_state.csv_writer"""
-    if not csv_path.parent.exists():
-        os.makedirs(csv_path.parent)
+    csv_dir = csv_path.parent
+    if not csv_dir.exists():
+        os.makedirs(csv_dir)
     if new_file:
         with open(csv_path, 'w') as csv_file:
             session_state.csv_writer = DictWriter(

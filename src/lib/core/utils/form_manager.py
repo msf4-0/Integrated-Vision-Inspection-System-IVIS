@@ -29,15 +29,15 @@ def check_if_exists(table: str, column_name: str, condition, conn=conn):
     # Separate schema and tablename from 'table'
     schema, tablename = [i for i in table.split('.')]
     check_if_exists_SQL = sql.SQL("""
-                        SELECT
-                            EXISTS (
-                                SELECT
-                                    *
-                                FROM
-                                    {}
-                                WHERE
-                                    {} = %s);
-                            """).format(sql.Identifier(schema, tablename), sql.Identifier(column_name))
+        SELECT
+            EXISTS (
+                SELECT
+                    *
+                FROM
+                    {}
+                WHERE
+                    {} = %s);
+    """).format(sql.Identifier(schema, tablename), sql.Identifier(column_name))
     check_if_exists_vars = [condition]
     exist_flag = db_fetchone(check_if_exists_SQL, conn,
                              check_if_exists_vars).exists

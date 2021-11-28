@@ -116,10 +116,10 @@ class NewTrainingPagination(IntEnum):
 
 # NOTE KIV
 PROGRESS_TAGS = {
-    DeploymentType.Image_Classification: ['Epoch', 'Steps'],
-    DeploymentType.OD: ['Checkpoint', 'Steps'],
-    DeploymentType.Instance: ['Checkpoint', 'Steps'],
-    DeploymentType.Semantic: ['Epoch', 'Steps']
+    DeploymentType.Image_Classification: ['Epoch'],
+    DeploymentType.OD: ['Checkpoint', 'Step'],
+    DeploymentType.Instance: ['Checkpoint', 'Step'],
+    DeploymentType.Semantic: ['Epoch']
 }
 
 
@@ -226,8 +226,8 @@ class BaseTraining:
         #  `min_area`, `min_visibility` and `train_size`
         self.augmentation_config: AugmentationConfig()
         self.is_started: bool = False
-        self.progress: Dict = {}
-        # currently training_path is created using `property` in the Training class
+        self.progress: Dict[str, int] = {}
+        # currently training_path is created using `Training.get_paths()`
         # self.training_path: Dict[str, Path] = {
         #     'ROOT': None,
         #     'annotations': None,
@@ -240,7 +240,7 @@ class BaseTraining:
         # }
         # this tells whether the data has already been stored in dataset,
         # to be able to tell the submission forms whether we are inserting or updating the DB
-        self.has_submitted: Dict = {
+        self.has_submitted: Dict[NewTrainingPagination, bool] = {
             NewTrainingPagination.InfoDataset: False,
             NewTrainingPagination.Model: False,
             NewTrainingPagination.TrainingConfig: False,
@@ -873,7 +873,6 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
-
     @staticmethod
     def reset_new_training_page():
 
@@ -897,7 +896,7 @@ class Training(BaseTraining):
         self.dataset_chosen = self.query_dataset_chosen(self.id)
         # creates self.attached_model and self.training_model
         self.get_training_details()
-        # NOTE: self.training_path is now created with `property` decorator below
+        # NOTE: training_paths should always be obtained from self.get_paths()
         # self.training_path = self.get_all_training_path()
 
     def __repr__(self):
@@ -931,13 +930,9 @@ class Training(BaseTraining):
             self.attached_model = None
             self.training_model = NewModel()
 
-    @property
-    def training_path(self) -> Dict[str, Path]:
-        """Using property decorator to make sure these paths are dynamically generated
+    def get_paths(self) -> Dict[str, Path]:
+        """Using a method to make sure these paths are always dynamically generated
         based on latest info of the training session or the model.
-
-        Optionally can also change this to a function to avoid computing all the paths
-        every time you try to access this property attribute.
         """
         # modified from get_all_training_path
         # >>>> TRAINING PATH
@@ -977,12 +972,12 @@ class Training(BaseTraining):
         # NOTE: need to exclude file paths from the `initialise_training_folder` method.
         # currently setting every filepath's key to end with "file" to easily skip them
 
+        # this filename is based on the `generate_labelmap_file` function
+        paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
         paths['test_result_txt_file'] = paths['models'] / 'test_result.txt'
 
         if self.deployment_type == 'Object Detection with Bounding Boxes':
-            # this filename is based on the `generate_labelmap_file` function
             # this file is probably only needed for TF object detection
-            paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
             paths['config_file'] = paths['models'] / 'pipeline.config'
         else:
             if self.attached_model.is_not_pretrained:
@@ -999,8 +994,9 @@ class Training(BaseTraining):
             # when using Keras
             paths['model_weights_file'] = paths['models'] / \
                 f"keras-model-weights.h5"
+            # do not use model's name for h5 model file in case user decided to change model name
             paths['output_keras_model_file'] = paths['models'] / \
-                f"{model_dirname}.h5"
+                f"keras-model.h5"
         # model_tarfile should be in the same folder with 'export' folder,
         # because we are tarring the 'export' folder
         paths['model_tarfile'] = paths['models'] / \
@@ -1258,7 +1254,7 @@ class Training(BaseTraining):
 
         '''
         # *************** GENERATE TRAINING PATHS ***************
-        training_paths = self.training_path
+        training_paths = self.get_paths()
 
         # >>>> CREATE Training directory recursively
         # filepath_keys = ('model_tarfile', 'labelmap', 'keras_model', 'model_weights')
@@ -1368,7 +1364,6 @@ class Training(BaseTraining):
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
 
-
     @staticmethod
     def progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
                                deployment_type: Union[str, IntEnum],
@@ -1389,23 +1384,24 @@ class Training(BaseTraining):
             deployment_type)  # Make sure it is IntEnum
 
         # get progress tags based on Deployment Type
-        progress_tag = PROGRESS_TAGS[deployment_type]
+        logger.debug(f"{deployment_type = }")
+        progress_tags = PROGRESS_TAGS[deployment_type]
+        logger.debug(f"{progress_tags = }")
 
         formatted_all_project_training = []
         for project_training in all_project_training:
             if return_dict:
                 if project_training['Is Started'] == True:
+                    logger.debug(f"{project_training['Progress'] = }")
                     # Preprocess
                     progress_value = []
 
-                    for tag in progress_tag:
+                    for tag in progress_tags:
                         # for k, v in project_training["Progress"].items():
 
-                        # if k in progress_tag:
+                        # if k in progress_tags:
 
-                        v = project_training["Progress"].get(
-                            tag)if project_training["Progress"].get(
-                            tag) is not None else '-'
+                        v = project_training["Progress"].get(tag, '-')
                         progress_value.append(str(v))
 
                     progress_row = join_string(progress_value, ' / ')
@@ -1419,11 +1415,9 @@ class Training(BaseTraining):
                     # Preprocess
                     progress_value = []
                     # for k, v in project_training.Progress.items():
-                    for tag in progress_tag:
+                    for tag in progress_tags:
 
-                        v = project_training.Progress.get(
-                            tag)if project_training.Progress.get(
-                            tag) is not None else '-'
+                        v = project_training.Progress.get(tag, '-')
                         progress_value.append(str(v))
 
                     progress_row = join_string(progress_value, ' / ')
@@ -1608,14 +1602,14 @@ class Training(BaseTraining):
         # remove unwanted files to save space, only files needed
         # for continue training, or test set evaluation are kept
         if 'new_training' in session_state:
-            paths = session_state.new_training.training_path
+            paths = session_state.new_training.get_paths()
             dataset_export_path = session_state.project.get_export_path()
             paths_to_del = (paths['model_tarfile'], dataset_export_path)
             for p in paths_to_del:
                 if p.exists():
+                    logger.debug(
+                        f"Removing unnecessary existing training related path: {p}")
                     if p.is_file():
-                        logger.debug(
-                            f"Removing unnecessary existing training related path: {p}")
                         os.remove(p)
                     else:
                         shutil.rmtree(p)

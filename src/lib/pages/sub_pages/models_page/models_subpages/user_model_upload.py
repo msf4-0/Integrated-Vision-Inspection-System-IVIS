@@ -25,31 +25,25 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
-from copy import deepcopy
-from enum import IntEnum
 from pathlib import Path
 from time import sleep
+from typing import Any, Dict, List
 
 import streamlit as st
 import pandas as pd
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state
 
-
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
-layout = 'wide'
+# layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
+# SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 from core.utils.code_generator import get_random_string
 from core.utils.file_handler import (list_files_in_archived,
@@ -91,6 +85,9 @@ def user_model_upload_page():
     if 'generate_labelmap_flag' not in session_state:
         session_state.generate_labelmap_flag = False
 
+    model_upload: NewModel = session_state.model_upload
+    labelmap: Labels = session_state.labelmap
+
     # ******** SESSION STATE *********************************************************
 
     # Page title
@@ -126,7 +123,7 @@ def user_model_upload_page():
     # >>>> New Project INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     id_right.write(
-        f"### __Model ID:__ {session_state.model_upload.id}")
+        f"### __Model ID:__ {model_upload.id}")
 
     infocol1.write("## __Model Information :__")
 
@@ -136,15 +133,15 @@ def user_model_upload_page():
                    'value': session_state.model_upload_name}
 
         if session_state.model_upload_name:
-            if session_state.model_upload.check_if_exists(context, conn):
-                session_state.model_upload.name = None
+            if model_upload.check_if_exists(context, conn):
+                model_upload.name = None
                 field_placeholder['model_upload_name'].error(
                     f"Model name used. Please enter a new name")
                 sleep(1)
                 field_placeholder['model_upload_name'].empty()
                 logger.error(f"Model name used. Please enter a new name")
             else:
-                session_state.model_upload.name = session_state.model_upload_name
+                model_upload.name = session_state.model_upload_name
                 logger.info(f"Model name fresh and ready to rumble")
 
     with infocol2:
@@ -161,7 +158,7 @@ def user_model_upload_page():
             help="Enter the description of the project")
 
         if description:
-            session_state.model_upload.desc = remove_newline_trailing_whitespace(
+            model_upload.desc = remove_newline_trailing_whitespace(
                 description)
         else:
             pass
@@ -178,11 +175,11 @@ def user_model_upload_page():
                      help="Please select the deployment type for the model")
 
         place["model_upload_deployment_type"] = st.empty()
-        session_state.model_upload.deployment_type = session_state.model_upload_deployment_type
+        model_upload.deployment_type = session_state.model_upload_deployment_type
 
         if session_state.model_upload_deployment_type:
             deployment_type_constant = Deployment.get_deployment_type(
-                deployment_type=session_state.model_upload.deployment_type,
+                deployment_type=model_upload.deployment_type,
                 string=False)
             logger.debug(f"{deployment_type_constant = }")
     # ************************* FRAMEWORK *************************
@@ -202,28 +199,39 @@ def user_model_upload_page():
         # place['model_upload_framework'] = st.empty()
 
         # NOTE: using only TensorFlow framework for now
-        # session_state.model_upload.framework = session_state.model_upload_framework
-        session_state.model_upload.framework = 'TensorFlow'
+        # model_upload.framework = session_state.model_upload_framework
+        model_upload.framework = 'TensorFlow'
 
     # ************************* MODEL UPLOAD *************************
     model_upload_col1.write("## __Model Upload :__")
 
     # ***********************ONLY ALLOW SINGLE FILE UPLOAD***********************
+    def check_output_nodes(labelmap_dict: List[Dict[int, Any]], num_output_nodes: int):
+        """Check whether number of nodes of output layer is the same as the number of
+        classes in the labelmap file. Only check for uploaded classification/segmentation
+        Keras Model. Executes `st.stop()` if they are not equal."""
+        if model_upload.deployment_type != 'Object Detection with Bounding Boxes':
+            labelmap_num_classes = len(labelmap_dict)
+            if labelmap_num_classes != num_output_nodes:
+                st.error(
+                    """Number of classes found in labelmap file does not match the 
+                    number of nodes in the output layer of the uploaded Keras Model.""")
+                logger.error(
+                    """Number of classes found in labelmap file does not match the 
+                    number of nodes in the output layer of the uploaded Keras Model.""")
+                st.stop()
 
     with model_upload_col2:
-        if deployment_type_constant == DeploymentType.OD:
-            supported_types = ['zip', 'tar.gz', 'tar.xz', 'tar.bz2']
-        else:
-            supported_types = ['.h5']
-        st.file_uploader(label='Upload Model',
-                         type=supported_types,
-                         accept_multiple_files=False,
-                         key='model_upload_widget')
+        uploaded_file = st.file_uploader(label='Upload Model',
+                                         type=['zip', 'tar.gz',
+                                               'tar.xz', 'tar.bz2'],
+                                         accept_multiple_files=False,
+                                         key='model_upload_widget')
         place['model_upload_file_upload'] = st.empty()
         # TODO AMMEND when adding compatibility for other Deep Learning Frameworks
         if deployment_type_constant == DeploymentType.OD:
             model_folder_structure_info = f"""
-            ### Please ensure your files meets according to the following convention for TensorFlow Object Detection API:
+            ### Please ensure your files meet the following convention for TensorFlow Object Detection API:
             An archive file (zipfile or tarfile) containing:
             - Model file with extension: `.pb`
             - Config file: pipeline.config
@@ -256,10 +264,13 @@ def user_model_upload_page():
                          DeploymentType.Instance: 'Semantic Segmentation'}
             task_name = task_dict[deployment_type_constant]
             model_folder_structure_info = f"""
-            ### Please ensure your files meets according to the following convention:
+            ### Please ensure your files in the uploaded archive meet the following convention:
             #### TensorFlow Keras H5 Model
-            - A single Keras model file with the following extension: `.h5`
+            - A Keras model file with the following extension: `.h5`
             - The model should be built and trained for the task of **{task_name}**
+            #### Labelmap file (optional)
+            - The extension should end with '.pbtxt'
+            - If this file is provided, the model can be instantly deployed.
             """
             with st.expander(label='Model Folder Structure'):
                 st.markdown(model_folder_structure_info)
@@ -267,74 +278,85 @@ def user_model_upload_page():
         # **************************** CHECK UPLOADED MODELS COMPATIBILITY ****************************
         def check_files():
             context = {
-                'model_upload_deployment_type': session_state.model_upload.deployment_type,
-                # 'model_upload_framework': session_state.model_upload.framework,
-                'model_upload_file_upload': session_state.model_upload_widget
+                'model_upload_deployment_type': model_upload.deployment_type,
+                # 'model_upload_framework': model_upload.framework,
+                'model_upload_file_upload': uploaded_file
             }
-            if session_state.model_upload.check_if_field_empty(context,
-                                                               field_placeholder=place,
-                                                               name_key='model_upload_name',
-                                                               deployment_type_constant=deployment_type_constant):
+            if model_upload.check_if_field_empty(context,
+                                                 field_placeholder=place,
+                                                 name_key='model_upload_name',
+                                                 deployment_type_constant=deployment_type_constant):
                 with st.spinner("Checking compatible files in uploaded model"):
-                    _, label_map_files = session_state.model_upload.check_if_required_files_exist(
-                        uploaded_file=session_state.model_upload_widget)
+                    num_output_nodes, label_map_files = model_upload.check_if_required_files_exist(
+                        uploaded_file=uploaded_file)
 
-                if session_state.model_upload.compatibility_flag <= 1:
-                    session_state.model_upload.file_upload = session_state.model_upload_widget
+                if model_upload.compatibility_flag <= 1:
+                    model_upload.file_upload = uploaded_file
 
                 if label_map_files:
-                    session_state.labelmap.filename = label_map_files[0]
-                    logger.debug(f"{session_state.labelmap.filename = }")
+                    labelmap.filename = label_map_files[0]
+                    logger.debug(f"{labelmap.filename = }")
                     with st.spinner(text='Loading Labelmap'):
-                        if session_state.model_upload.framework and session_state.model_upload.deployment_type:
-                            label_map_string = session_state.labelmap.get_labelmap_member_from_archived(
-                                name=session_state.labelmap.filename,
-                                archived_filepath=session_state.model_upload.file_upload.name,
-                                file_object=session_state.model_upload.file_upload)
+                        if model_upload.framework and model_upload.deployment_type:
+                            label_map_string = labelmap.get_labelmap_member_from_archived(
+                                name=labelmap.filename,
+                                archived_filepath=model_upload.file_upload.name,
+                                file_object=model_upload.file_upload)
                             # logger.info(label_map_string)
                             if label_map_string:
-                                session_state.labelmap.dict = session_state.labelmap.generate_labelmap_dict(
-                                    label_map_string=label_map_string,
-                                    framework=session_state.model_upload.framework)
+                                try:
+                                    labelmap.dict = labelmap.generate_labelmap_dict(
+                                        label_map_string=label_map_string,
+                                        framework=model_upload.framework)
+                                except Exception as e:
+                                    logger.error(
+                                        f"Error reading the uploaded labelmap file: {e}")
+                                    st.error(
+                                        "Error reading the uploaded labelmap file")
                                 # logger.info(
-                                #     f"labelmap_dict:{session_state.labelmap.dict}")
+                                #     f"labelmap_dict:{labelmap.dict}")
+                                check_output_nodes(
+                                    labelmap.dict, num_output_nodes)
                 else:
                     # CLEAR LABELMAP DICT IF LABELMAP FILES DOES NOT EXISTS
-                    session_state.labelmap.dict = {}
+                    labelmap.dict = {}
 
         if st.button("Check compatibility", key='check_files'):  # NOTE KIV
             check_files()
 
+        # st.write("labelmap.dict")
+        # st.write(labelmap.dict)
+        # st.write(f"{len(labelmap.dict) = }")
+
         # *********************************TEMP*********************************
 
         # def save_file():
-        #     if session_state.model_upload_widget:
+        #     if uploaded_file:
         #         with model_upload_col2:
         #             with st.spinner(text='Storing uploaded model'):
         #                 save_uploaded_extract_files(dst='/home/rchuzh/Desktop/test2',
-        #                                             filename=session_state.model_upload_widget.name,
-        #                                             fileObj=session_state.model_upload_widget)
+        #                                             filename=uploaded_file.name,
+        #                                             fileObj=uploaded_file)
 
         # st.button("Save file", key='save_file', on_click=save_file)
 
         # *********************************TEMP*********************************
 
     # *********************************************** SHOW TABLE OF LABELS ***********************************************
-    if (not session_state.labelmap.dict) \
-        and ((session_state.model_upload.compatibility_flag != ModelCompatibility.Compatible)
-             and (session_state.model_upload.compatibility_flag != ModelCompatibility.MissingModel)):
+    if not labelmap.dict and model_upload.compatibility_flag not in (
+            ModelCompatibility.Compatible, ModelCompatibility.MissingModel):
         with labelmap_col2.container():
             (session_state.generate_labelmap_flag,
-             session_state.labelmap.label_map_string) = labelmap_generator(
-                framework=session_state.model_upload.framework,
-                deployment_type=session_state.model_upload.deployment_type)
+             labelmap.label_map_string) = labelmap_generator(
+                framework=model_upload.framework,
+                deployment_type=model_upload.deployment_type)
 
             # TODO create labelmap file and move to dst folder
 
-    if session_state.labelmap.dict and session_state.model_upload_widget:
-        if session_state.model_upload_widget.name == session_state.model_upload.file_upload.name:
+    if labelmap.dict and uploaded_file:
+        if uploaded_file.name == model_upload.file_upload.name:
             with labelmap_col2.container():
-                df = pd.DataFrame(session_state.labelmap.dict)
+                df = pd.DataFrame(labelmap.dict)
                 df.set_index('id')
                 st.write(f"Labelmap from Model:")
                 st.dataframe(df)
@@ -371,25 +393,25 @@ def user_model_upload_page():
     #         #         label="Channels (C)", key="model_input_channel-", min_value=0, step=1)
     #         with st.container():
     #             with model_input_size_col1:
-    #                 session_state.model_upload.model_input_size['width'] = st.number_input(
+    #                 model_upload.model_input_size['width'] = st.number_input(
     #                     label="Width (W)", key="model_input_width", min_value=0, step=1)
     #                 place['model_upload_width'] = st.empty()
 
     #             with model_input_size_col2:
-    #                 session_state.model_upload.model_input_size['height'] = st.number_input(
+    #                 model_upload.model_input_size['height'] = st.number_input(
     #                     label="Height (H)", key="model_input_height", min_value=0, step=1)
     #                 place['model_upload_height'] = st.empty()
 
     #             with model_input_size_col3:
     #                 # NOTE OPTIONAL
-    #                 session_state.model_upload.model_input_size['channel'] = st.number_input(
+    #                 model_upload.model_input_size['channel'] = st.number_input(
     #                     label="Channels (C)", key="model_input_channel", min_value=0, step=1)
     #                 place['model_upload_channel'] = st.empty()
 
     #             input_size_context = {
-    #                 'model_upload_width': session_state.model_upload.model_input_size['width'],
-    #                 'model_upload_height': session_state.model_upload.model_input_size['height'],
-    #                 'model_upload_channel': session_state.model_upload.model_input_size['channel'],
+    #                 'model_upload_width': model_upload.model_input_size['width'],
+    #                 'model_upload_height': model_upload.model_input_size['height'],
+    #                 'model_upload_channel': model_upload.model_input_size['channel'],
     #             }
     #     else:
     #         input_size_context = {}
@@ -407,25 +429,25 @@ def user_model_upload_page():
 
     # ******************************** SUBMISSION *************************************************
     context = {
-        'model_upload_name': session_state.model_upload.name,
-        'model_upload_deployment_type': session_state.model_upload.deployment_type,
-        # 'model_upload_framework': session_state.model_upload.framework,
-        'model_upload_file_upload': session_state.model_upload_widget,
+        'model_upload_name': model_upload.name,
+        'model_upload_deployment_type': model_upload.deployment_type,
+        # 'model_upload_framework': model_upload.framework,
+        'model_upload_file_upload': uploaded_file,
     }
 
     # Columns for submit button
-    ignore_col1, ignore_col2 = st.columns([3, 0.5])
-    submit_col1, submit_col2 = st.columns([3, 0.5])
+    ignore_col1, ignore_col2 = st.columns([2, 0.5])
+    submit_col1, submit_col2 = st.columns([2, 0.5])
     with submit_col2:
         submit_btn_place = st.empty()
     bottom_col1, bottom_col2, bottom_col3 = st.columns([
         1.5, 3.5, 0.5])
 
-    if not session_state.model_upload.has_submitted:
+    if not model_upload.has_submitted:
         def model_upload_submit():
             success = False
             # >>>> IF IT IS A NEW SUBMISSION
-            if session_state.model_upload.check_if_field_empty(
+            if model_upload.check_if_field_empty(
                     context,
                     field_placeholder=place,
                     name_key='model_upload_name',
@@ -433,22 +455,22 @@ def user_model_upload_page():
                 # input_size_context=input_size_context):
 
                 logger.debug(
-                    f"{session_state.model_upload.compatibility_flag = }")
+                    f"{model_upload.compatibility_flag = }")
 
                 with model_upload_col2:
-                    # NOTE: image classification and segmentation does not have labelmap_file
-                    _, label_map_files = session_state.model_upload.check_if_required_files_exist(
-                        uploaded_file=session_state.model_upload_widget)
+                    # NOTE: only image classification and segmentation have num_output_nodes
+                    num_output_nodes, label_map_files = model_upload.check_if_required_files_exist(
+                        uploaded_file=uploaded_file)
                     sleep(0.5)
 
-                if session_state.model_upload.compatibility_flag == ModelCompatibility.MissingExtraFiles_ModelExists \
+                if model_upload.compatibility_flag == ModelCompatibility.MissingExtraFiles_ModelExists \
                         and not label_map_files:
                     # IF THERE ARE NON COMPULSORY FILES MISSING
-                    session_state.model_upload.file_upload = session_state.model_upload_widget
+                    model_upload.file_upload = uploaded_file
 
                     def continue_upload():
                         # CALLBACK to continue upload model to server disregarding the warning
-                        session_state.model_upload.create_new_model_pipeline()
+                        model_upload.create_new_model_pipeline()
 
                     if not session_state.generate_labelmap_flag:
                         ignore_button = ignore_col2.button(
@@ -457,15 +479,17 @@ def user_model_upload_page():
                             continue_upload()
                             success = True
                     elif session_state.generate_labelmap_flag:
-                        session_state.model_upload.create_new_model_pipeline(
-                            label_map_string=session_state.labelmap.label_map_string)
+                        check_output_nodes(labelmap.dict, num_output_nodes)
+                        model_upload.create_new_model_pipeline(
+                            label_map_string=labelmap.label_map_string)
                         success = True
 
-                elif session_state.model_upload.compatibility_flag == ModelCompatibility.Compatible:
+                elif model_upload.compatibility_flag == ModelCompatibility.Compatible:
                     # IF ALL REQUIREMENTS ARE MET
-                    session_state.model_upload.file_upload = session_state.model_upload_widget
+                    check_output_nodes(labelmap.dict, num_output_nodes)
+                    model_upload.file_upload = uploaded_file
 
-                    session_state.model_upload.create_new_model_pipeline()
+                    model_upload.create_new_model_pipeline()
                     success = True
                 else:
                     st.error(f"Failed to create new model")
@@ -480,19 +504,19 @@ def user_model_upload_page():
                     # clear out submit button if upload was successful
                     submit_btn_place.empty()
 
-        submit_button_name = 'Submit' if session_state.model_upload.has_submitted == False else 'Update'
+        submit_button_name = 'Submit' if model_upload.has_submitted == False else 'Update'
         # # TODO #72 Change to 'Update' when 'has_submitted' == True
         submit_button = submit_btn_place.button(
             label=submit_button_name, key="submit")
         if submit_button:
             model_upload_submit()
 
-    st.write("vars(session_state.model_upload)")
-    st.write(vars(session_state.model_upload))
+    st.write("vars(model_upload)")
+    st.write(vars(model_upload))
     st.write("session_state.generate_labelmap_flag")
     st.write(session_state.generate_labelmap_flag)
-    st.write("vars(session_state.labelmap)")
-    st.write(vars(session_state.labelmap))
+    st.write("vars(labelmap)")
+    st.write(vars(labelmap))
 
 
 if __name__ == "__main__":

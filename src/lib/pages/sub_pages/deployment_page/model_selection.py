@@ -22,7 +22,10 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
+from pathlib import Path
+import shutil
 import sys
+from typing import List
 
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -48,6 +51,8 @@ from machine_learning.trainer import Trainer
 from machine_learning.command_utils import run_tensorboard
 from machine_learning.utils import load_labelmap
 from machine_learning.visuals import pretty_format_param
+from training.labelmap_generator import labelmap_generator
+from training.labelmap_management import Labels
 from user.user_management import User, UserRole
 from project.project_management import Project
 from training.training_management import Training
@@ -55,13 +60,20 @@ from training.model_management import Model, query_current_project_models, query
 from data_manager.data_table_component.data_table import data_table
 
 
-def index(RELEASE=True):
-    DEPLOYMENT_TYPE: str = session_state.project.deployment_type
-    user: User = session_state.user
-    if user.role > UserRole.Developer1:
-        st.warning("You are not allowed to deploy model.")
-        st.stop()
+def create_labelmap_file(class_names: List[str], output_dir: Path, deployment_type: str):
+    """`output_dir` is the directory to store the `labelmap.pbtxt` file"""
+    labelmap_string = Labels.generate_labelmap_string(
+        class_names,
+        framework='TensorFlow',
+        deployment_type=deployment_type)
+    Labels.generate_labelmap_file(
+        labelmap_string=labelmap_string,
+        dst=output_dir,
+        framework='TensorFlow',
+        deployment_type=deployment_type)
 
+
+def index(RELEASE=True):
     # ****************** TEST ******************************
     if not RELEASE:
         # ************************TO REMOVE************************
@@ -92,6 +104,13 @@ def index(RELEASE=True):
         new_training_progress_bar = st.progress(0)
         new_training_progress_bar.progress(2 / 4)
     # ****************** TEST END ******************************
+
+    project: Project = session_state.project
+    DEPLOYMENT_TYPE: str = project.deployment_type
+    user: User = session_state.user
+    if user.role > UserRole.Developer1:
+        st.warning("You are not allowed to deploy model.")
+        st.stop()
 
     PROJECT_DT_COLS = [
         {
@@ -191,26 +210,22 @@ def index(RELEASE=True):
         st.markdown("## All Trained Project Model for Current Project")
         # namedtuple of query from DB
         models, _ = query_current_project_models(
-            session_state.project.id,
+            project.id,
             for_data_table=True,
             return_dict=True,
             prettify_metrics=True,
             trained=True)
         if not models:
-            st.info("""No trained models available for this project yet.""")
+            st.info("""No trained models available for this project.""")
             st.stop()
     else:
         st.markdown(f"## All User-Uploaded Models for {DEPLOYMENT_TYPE}")
-        if DEPLOYMENT_TYPE != 'Object Detection with Bounding Boxes':
-            st.info("Sorry, instant deployment of user-uploaded model is currently "
-                    "only supported for Object Detection task.")
-            st.stop()
         models, _ = query_uploaded_models(
             for_data_table=True,
             return_dict=True,
             deployment_type=DEPLOYMENT_TYPE)
         if not models:
-            st.info("""No uploaded models available for your system yet.""")
+            st.info("""No uploaded models available for this deployment type.""")
             st.stop()
 
     st.markdown("Select one to display more information about the trained model")
@@ -243,14 +258,12 @@ def index(RELEASE=True):
 
     if selected_model_type == 'Project Model':
         # INITIALIZE training instance here for information with the model
-        training = Training(selected_id, session_state.project)
+        training = Training(selected_id, project)
         trained_model = training.training_model
         # store the trainer to use for training, inference and deployment
         with st.spinner("Initializing trainer ..."):
             logger.info("Initializing trainer")
-            trainer = Trainer(
-                session_state.project,
-                training)
+            trainer = Trainer(project, training)
         # get all the training_path
         training_path = trainer.training_path
 
@@ -279,21 +292,40 @@ def index(RELEASE=True):
                 logdir = training_path['tensorboard_logdir']
                 run_tensorboard(logdir)
 
+        labelmap_path = training_path['labelmap_file']
+        if not labelmap_path.exists():
+            logger.debug(
+                "Creating a new labelmap file because labelmap file was not created "
+                "during training, due to the old training pipeline")
+            create_labelmap_file(
+                trainer.class_names,
+                labelmap_path.parent, trainer.deployment_type)
+
+        category_index = load_labelmap(labelmap_path)
+        st.markdown("#### Categories loaded from labelmap file:")
+        st.json(category_index)
+
         # If debugging, consider commenting the evaluation part for faster loading times
         st.markdown("___")
         st.header("Evaluation results:")
+        labelstudio_json_path = project.get_project_json_path()
+        if not labelstudio_json_path.exists():
+            with st.spinner("Exporting labeled data for evaluation ..."):
+                logger.info("Exporting tasks for evaluation ...")
+                project.export_tasks(for_training_id=training.id)
         with st.spinner("Running evaluation ..."):
             try:
                 trainer.evaluate()
             except Exception as e:
-                if not RELEASE:
-                    st.exception(e)
+                # uncomment this line to check the Traceback
+                st.exception(e)
                 st.error("Some error has occurred. Please try "
                          "training/exporting the model again.")
                 logger.error(f"Error evaluating: {e}")
     else:
         model = Model(selected_id)
         uploaded_model_dir = model.get_path()
+        logger.debug(f"{uploaded_model_dir = }")
         labelmap_paths = list(uploaded_model_dir.rglob("*.pbtxt"))
         if labelmap_paths:
             # should have only one file
@@ -307,9 +339,29 @@ def index(RELEASE=True):
                 logger.error(f"Error loading the uploaded labelmap file: {e}")
                 st.stop()
         else:
-            st.error("This uploaded model does include 'labelmap.pbtxt' file, "
-                     "thus not compatible to be instantly deployed.")
-            st.stop()
+            st.error("This uploaded model does not include a **'labelmap.pbtxt'** file, "
+                     "thus not compatible to be instantly deployed. You can generate a "
+                     "new labelmap file if you are sure about the class labels associated "
+                     "with the uploaded model.")
+            labelmap_col, _ = st.columns(2)
+            with labelmap_col:
+                generate_labelmap_flag, label_map_string = labelmap_generator(
+                    framework='TensorFlow',
+                    deployment_type=DEPLOYMENT_TYPE)
+            if not generate_labelmap_flag:
+                st.stop()
+            else:
+                if st.button("Generate file", key='btn_generate_labelmap'):
+                    if not label_map_string:
+                        st.error("Please enter class names first!")
+                        st.stop()
+                    Labels.generate_labelmap_file(
+                        label_map_string,
+                        dst=uploaded_model_dir,
+                        framework='TensorFlow', deployment_type=DEPLOYMENT_TYPE)
+                    st.experimental_rerun()
+                else:
+                    st.stop()
         model_information = f"""
         #### Name:
         {selected_row['Name']}
@@ -318,8 +370,9 @@ def index(RELEASE=True):
         """
         with model_info_col:
             st.info(model_information)
-        st.markdown("#### Categories loaded from uploaded labelmap file:")
-        st.json(category_index)
+        if labelmap_paths:
+            st.markdown("#### Categories loaded from uploaded labelmap file:")
+            st.json(category_index)
         # Framework:
         # {selected_model.framework}
 
@@ -329,6 +382,10 @@ def index(RELEASE=True):
         st.legacy_caching.clear_cache()
 
         if selected_model_type == 'Project Model':
+            export_path = project.get_export_path()
+            if export_path.exists():
+                # not required after showing evaluation to the user
+                shutil.rmtree(export_path)
             session_state.deployment = Deployment.from_trainer(trainer)
         else:
             session_state.deployment = Deployment.from_uploaded_model(

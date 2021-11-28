@@ -57,7 +57,7 @@ from pages.sub_pages.training_page.new_training_subpages.augmentation.utils impo
 from pages.sub_pages.training_page.new_training_subpages.augmentation.visuals import (
     select_image,
     show_docstring,
-    get_transormations_params,
+    get_transformations_params,
     show_bbox_params_selection,
     show_train_size_selection
 )
@@ -230,7 +230,7 @@ def augmentation_configuration(RELEASE=True):
                 class_names, bboxes = get_bbox_label_info(xml_df, image_name)
 
         # show the widgets and get parameters for each transform
-        transforms = get_transormations_params(
+        transforms = get_transformations_params(
             transform_names, augmentations)
 
         try:
@@ -257,7 +257,7 @@ def augmentation_configuration(RELEASE=True):
                         logger.error(
                             f"Error loading mask image for {image_name}: {e}")
                         data = A.ReplayCompose(transforms)(image=image)
-            if DEPLOYMENT_TYPE == 'Image Classification':
+            if image_name == "Upload my image" or DEPLOYMENT_TYPE == 'Image Classification':
                 # apply the transformation to the image
                 data = A.ReplayCompose(transforms)(image=image)
             error = 0

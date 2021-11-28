@@ -146,7 +146,7 @@ def show_credentials():
     )
 
 
-def get_transormations_params(transform_names: list, augmentations: dict) -> list:
+def get_transformations_params(transform_names: list, augmentations: dict) -> list:
     existing_aug = session_state.new_training.augmentation_config.augmentations
 
     transforms = []

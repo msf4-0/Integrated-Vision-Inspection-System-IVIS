@@ -135,7 +135,7 @@ class Labels:
         self.label_map_string: str = None
 
     @staticmethod
-    def generate_list_of_labels(comma_separated_string: str) -> List:
+    def generate_list_of_labels(comma_separated_string: str) -> List[str]:
         """Generate a List of labels from comma-separated string
 
         Args:
@@ -145,9 +145,8 @@ class Labels:
             List: List of labels
         """
         # NOTE: `set` does not preserve the order of the labels
-        labels_list = sorted(set(split_string(
-            remove_newline_trailing_whitespace(str(comma_separated_string)),
-            separator=',')))
+        labels_list = [remove_newline_trailing_whitespace(x)
+                       for x in split_string(comma_separated_string, ',')]
 
         return labels_list
 
@@ -209,6 +208,7 @@ class Labels:
         if framework == Framework.TensorFlow:
 
             if deployment_type in COMPUTER_VISION_LIST:
+                # NOTE: this labelmap filename is closely related to Training.get_paths()
                 filepath = dst / 'labelmap.pbtxt'
                 TensorFlow.label_map_to_pbtxt(labelmap_text=labelmap_string,
                                               filepath=filepath)
@@ -375,3 +375,16 @@ class TensorFlow(object):
         _validate_label_map(label_map)
 
         return label_map
+
+
+def create_labelmap_file(class_names: List[str], output_dir: Path, deployment_type: str):
+    """`output_dir` is the directory to store the `labelmap.pbtxt` file"""
+    labelmap_string = Labels.generate_labelmap_string(
+        class_names,
+        framework=Framework.TensorFlow,
+        deployment_type=deployment_type)
+    Labels.generate_labelmap_file(
+        labelmap_string=labelmap_string,
+        dst=output_dir,
+        framework=Framework.TensorFlow,
+        deployment_type=deployment_type)

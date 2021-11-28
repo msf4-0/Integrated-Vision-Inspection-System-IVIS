@@ -412,8 +412,10 @@ def file_unarchiver(filename: Union[str, Path], extract_dir: Union[str, Path]):
     logger.info("Successfully Unarchive")
 
 
-def extract_one_to_bytes(uploaded_archive: UploadedFile, filename: str) -> bytes:
+def extract_one_to_bytes(uploaded_archive: UploadedFile, filepath: str) -> bytes:
     """Extract or read a single file from the archive, either from zipfile or tarfile.
+
+    `filepath` should be obtained from `list_files_in_archived()`.
 
     This function should only be used to extract one file, and not multiple files. If
     extracting multiple files, you should open the zipfile/tarfile and write the for loop
@@ -424,10 +426,10 @@ def extract_one_to_bytes(uploaded_archive: UploadedFile, filename: str) -> bytes
     uploaded_archive.seek(0)
     if uploaded_archive.name.endswith('.zip'):
         with ZipFile(file=uploaded_archive, mode='r') as zipObj:
-            file_content = zipObj.read(filename)
+            file_content = zipObj.read(filepath)
     else:
         with tarfile.open(fileobj=uploaded_archive) as tar:
-            f = tar.extractfile(filename)
+            f = tar.extractfile(filepath)
             file_content = f.read()
     uploaded_archive.seek(0)
     return file_content
@@ -898,11 +900,11 @@ def create_tarfile(tarfile_name: str, target_path: Path, dest_dir: Path = None):
     try:
         with tarfile.open(tarfile_name, 'w:gz') as tar:
             if target_path.is_dir():
-                logger.debug("`target_path` is a directory")
+                logger.debug(f"'{target_path}' is a directory")
                 for p in os.listdir(target_path):
                     tar.add(p)
             else:
-                logger.debug("`target_path` is a file path")
+                logger.debug(f"'{target_path}' is a file path")
                 tar.add(target_path.name)
 
         # no need to move the tarfile if it is created at the same path as the dest_dir

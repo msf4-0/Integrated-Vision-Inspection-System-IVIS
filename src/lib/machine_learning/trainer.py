@@ -89,6 +89,19 @@ from .visuals import (PrettyMetricPrinter, create_class_colors, create_color_leg
 from .callbacks import LRTensorBoard, StreamlitOutputCallback
 
 
+def create_labelmap_file(class_names: List[str], output_dir: Path, deployment_type: str):
+    """`output_dir` is the directory to store the `labelmap.pbtxt` file"""
+    labelmap_string = Labels.generate_labelmap_string(
+        class_names,
+        framework=Framework.TensorFlow,
+        deployment_type=deployment_type)
+    Labels.generate_labelmap_file(
+        labelmap_string=labelmap_string,
+        dst=output_dir,
+        framework=Framework.TensorFlow,
+        deployment_type=deployment_type)
+
+
 class Trainer:
     def __init__(self, project: Project, new_training: Training):
         """
@@ -102,6 +115,7 @@ class Trainer:
         self.is_not_pretrained: bool = new_training.attached_model.is_not_pretrained
         self.training_model_name: str = new_training.training_model.name
         self.project_path: Path = project.get_project_path(project.name)
+        # only used for segmentation to get the paths to mask images
         self.project_json_path: Path = project.get_project_json_path()
         self.deployment_type: str = project.deployment_type
         # with keys: 'train', 'eval', 'test'
@@ -123,7 +137,7 @@ class Trainer:
                 ))
         self.metrics, self.metric_names = new_training.get_training_metrics()
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
-        self.training_path: Dict[str, Path] = new_training.training_path
+        self.training_path: Dict[str, Path] = new_training.get_paths()
 
     def train(self, is_resume: bool = False, stdout_output: bool = False,
               train_one_batch: bool = False):
@@ -369,27 +383,13 @@ class Trainer:
                 logger.info(
                     f'{PRETRAINED_MODEL_DIRNAME} downloaded successfully')
 
-        # ******************** Create label_map.pbtxt *****************
+        # ****************** Create label_map.pbtxt ******************
         with st.spinner('Creating labelmap file ...'):
             CLASS_NAMES = self.class_names
-            existing_labelmap_paths = list(pt_model_dir.rglob("*.pbtxt"))
-            if existing_labelmap_paths:
-                # should only be one file after the `check_if_required_files_exist()`
-                p = existing_labelmap_paths[0]
-                # use existing labelmap file if exists, especially
-                #  if it's uploaded by user
-                logger.info(f"Using existing labelmap file at '{p}'")
-                shutil.copy2(p, files["LABELMAP"])
-            else:
-                logger.info(f"Creating labelmap file")
-                labelmap_string = Labels.generate_labelmap_string(
-                    CLASS_NAMES,
-                    framework=Framework.TensorFlow,
-                    deployment_type=self.deployment_type)
-                Labels.generate_labelmap_file(labelmap_string=labelmap_string,
-                                              dst=files["LABELMAP"].parent,
-                                              framework=Framework.TensorFlow,
-                                              deployment_type=self.deployment_type)
+            # must always generate a new one, regardless of which type of model
+            logger.info(f"Creating labelmap file")
+            create_labelmap_file(
+                CLASS_NAMES, files["LABELMAP"].parent, self.deployment_type)
 
         # ******************** Generate TFRecords ********************
         with st.spinner('Generating TFRecords ...'):
@@ -687,9 +687,9 @@ class Trainer:
                 img = draw_gt_bboxes(img, bboxes,
                                      class_names=class_names,
                                      class_colors=class_colors)
-                true_img_col.image(img, channels='BGR',
+                true_img_col.image(img, channels='RGB',
                                    caption=f'Ground Truth: {filename}')
-                pred_img_col.image(img_with_detections, channels='BGR',
+                pred_img_col.image(img_with_detections, channels='RGB',
                                    caption=f'Prediction: {filename}')
 
         prev_btn_col_2.button('⏮️ Previous samples', key='btn_prev_images_2',
@@ -872,6 +872,8 @@ class Trainer:
         return model
 
     def load_and_modify_trained_model(self):
+        """This function is used to modify the trained model to use it to continue training
+        with the current project datasets"""
         assert self.is_not_pretrained
         logger.info("Loading the trained keras model")
         model = load_trained_keras_model(
@@ -1079,7 +1081,8 @@ class Trainer:
                 logger.info(
                     f"Loading trained Keras model for {self.deployment_type}")
                 model = load_keras_model(
-                    self.training_path['output_keras_model_file'], self.metrics)
+                    self.training_path['output_keras_model_file'],
+                    self.metrics, self.training_param)
             initial_epoch = session_state.new_training.progress['Epoch']
             num_epochs = initial_epoch + self.training_param['num_epochs']
 
@@ -1195,6 +1198,13 @@ class Trainer:
         logger.debug(
             f"Test set result saved at {self.training_path['test_result_txt_file']}")
 
+        # create a labelmap_file for the user to contain the class labels
+        logger.info("Generating labelmap file to store class labels")
+        create_labelmap_file(
+            self.class_names,
+            self.training_path["labelmap_file"].parent,
+            self.deployment_type)
+
         # remove the model weights file, which is basically just used for loading
         # the best weights with the lowest val_loss. Decided to just use the
         # full model h5 file to make things easier to resume training.
@@ -1212,7 +1222,8 @@ class Trainer:
         # load back the best model
         logger.info(f"Loading trained Keras model for {self.deployment_type}")
         model = load_keras_model(self.training_path['output_keras_model_file'],
-                                 self.metrics)
+                                 self.metrics, self.training_param)
+        logger.debug(model)
 
         if self.training_path['test_result_txt_file'].exists():
             # show the evaluation results stored during training
@@ -1233,7 +1244,8 @@ class Trainer:
                 else:
                     st.info(result_txt)
 
-        if self.training_path['confusion_matrix_file'].exists():
+        if self.deployment_type == 'Image Classification' and \
+                self.training_path['confusion_matrix_file'].exists():
             logger.debug("Showing confusion matrix from "
                          f"{self.training_path['confusion_matrix_file']}")
             image = plt.imread(self.training_path['confusion_matrix_file'])
@@ -1264,6 +1276,13 @@ class Trainer:
                 self.training_path['test_set_pkl_file'],
                 self.deployment_type
             )
+
+            # the generated masks are required for evaluation
+            if not (self.dataset_export_path / 'masks').exists():
+                with st.spinner("Exporting labeled data for evaluation ..."):
+                    logger.info("Exporting tasks for evaluation ...")
+                    session_state.project.export_tasks(
+                        for_training_id=self.training_id)
 
         with options_col:
             st.header("Prediction results on test set")
@@ -1407,13 +1426,17 @@ class Trainer:
     def export_keras_model(self):
         paths = self.training_path
 
-        # os.makedirs(paths['export'], exist_ok=True)
+        os.makedirs(paths['export'], exist_ok=True)
+        for fpath in (paths['labelmap_file'], paths['output_keras_model_file']):
+            try:
+                shutil.copy2(fpath, paths['export'])
+            except Exception as e:
+                logger.error(f"Something wrong when copying the file!: {e}")
 
-        # just create a tarfile of the H5 model file for the user to download
         tarfile_path = paths['model_tarfile']
         with st.spinner("Creating model tarfile to download ..."):
             create_tarfile(tarfile_path.name,
-                           target_path=paths['output_keras_model_file'],
+                           target_path=paths['export'],
                            dest_dir=tarfile_path)
-        logger.debug("Keras model tarfile created at: "
+        logger.debug("Exported tarfile for Keras model at: "
                      f"{tarfile_path}")
