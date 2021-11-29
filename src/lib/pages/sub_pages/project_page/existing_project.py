@@ -12,6 +12,7 @@ from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
+from deployment.deployment_management import Deployment
 from pages.sub_pages.training_page import training_dashboard
 
 # DEFINE Web APP page configuration
@@ -40,6 +41,7 @@ from pages.sub_pages.labelling_page import labelling_dashboard
 
 from annotation.annotation_management import reset_editor_page
 from training.training_management import NewTraining, Training
+from pages import deployment_navigation
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
@@ -87,8 +89,8 @@ def index():
         ExistingProjectPagination.Dashboard: existing_project_dashboard.index,
         ExistingProjectPagination.Labelling: labelling_dashboard.index,
         ExistingProjectPagination.Training: training_dashboard.index,
-        ExistingProjectPagination.Models: None,
-        ExistingProjectPagination.Deployment: None,
+        # ExistingProjectPagination.Models: None,
+        ExistingProjectPagination.Deployment: deployment_navigation.index,
         ExistingProjectPagination.Settings: settings.index
     }
 
@@ -110,7 +112,7 @@ def index():
     session_state.append_project_flag = ProjectPermission.ViewOnly
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     existing_project_page_options = (
-        "Overview", "Labelling", "Training", "Models", "Deployment", "Settings")
+        "Overview", "Labelling", "Training", "Deployment", "Settings")
 
     # >>>> CALLBACK for RADIO >>>>
     def existing_project_page_navigator():
@@ -129,6 +131,11 @@ def index():
         elif navigation_selected == "Training":
             NewTraining.reset_new_training_page()
             Training.reset_training_page()
+        elif navigation_selected == "Deployment":
+            # NOTE: not resetting here to ensure the deployment keeps running
+            # even when in another page, especially for switching user
+            # Deployment.reset_deployment_page()
+            pass
         elif navigation_selected == "Settings":
             Project.reset_settings_page()
         # TODO: Add reset on other selections

@@ -83,8 +83,17 @@ def install():
         # 'posix' is for Linux (also to use in Colab Notebook)
         logger.info("Installing protobuf ...")
         run_command(f"apt-get install protobuf-compiler")
-        run_command(
-            f"cd {TFOD_DIR / 'research'} && protoc object_detection/protos/*.proto --python_out=. && cp object_detection/packages/tf2/setup.py . && python -m pip install . ")
+        cmd = (f"cd {TFOD_DIR / 'research'} "
+               "&& protoc object_detection/protos/*.proto --python_out=. "
+               "&& cp object_detection/packages/tf2/setup.py setup.py "
+               "&& python setup.py build && python setup.py install")
+        run_command(cmd)
+        # The command below does not work properly because the pip install will stuck for very long
+        # run_command(
+        #     f"cd {TFOD_DIR / 'research'} "
+        #     "&& protoc object_detection/protos/*.proto --python_out=. "
+        #     "&& cp object_detection/packages/tf2/setup.py . "
+        #     "&& python -m pip install . ")
     elif os.name == 'nt':
         # 'nt' is for Windows
         # NOTE: Windows need to install COCO API first, but there is currently an ongoing issue
@@ -94,24 +103,33 @@ def install():
         # NOTE: using this new repo created to fix Windows installation for now
         run_command(
             "pip install git+https://github.com/gautamchitnis/cocoapi.git@cocodataset-master#subdirectory=PythonAPI")
-        # - BUT Windows still has issue when trying to use the Shapely library to convert annotations to a COCO JSON file
         if not (PROTOC_PATH / "bin").exists():
             logger.info("Downloading protobuf dependencies ...")
-            url = "https://github.com/protocolbuffers/protobuf/releases/download/v3.15.6/protoc-3.15.6-win64.zip"
+            protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
+            protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
+            url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
             wget.download(url)
             # move the protoc zip file into the desired path, PROTOC_PATH
-            shutil.move("protoc-3.15.6-win64.zip", PROTOC_PATH)
+            shutil.move(protoc_zipfilename, PROTOC_PATH)
             # unzip the zip file
-            run_command(f"cd {PROTOC_PATH} && tar -xf protoc-3.15.6-win64.zip")
+            run_command(
+                f"cd {PROTOC_PATH} && tar -xf {protoc_zipfilename}")
+            os.remove(PROTOC_PATH / protoc_zipfilename)
         # add the path of $PROTOC_PATH/bin into the PATH in environment variable
         # to be able to run `protoc` as a command in terminal
         os.environ['PATH'] += os.pathsep + str((PROTOC_PATH / 'bin').resolve())
         # run the `protoc` command and install all the dependencies for TFOD API
         logger.info("Installing TFOD API ...")
-        cmd = f"cd {TFOD_DIR / 'research'} && protoc object_detection/protos/*.proto --python_out=. && copy object_detection\\packages\\tf2\\setup.py setup.py && python setup.py build && python setup.py install"
+        cmd = (f"cd {TFOD_DIR / 'research'} "
+               "&& protoc object_detection/protos/*.proto --python_out=. "
+               "&& cp object_detection\\packages\\tf2\\setup.py setup.py "
+               "&& python setup.py build "
+               "&& python setup.py install")
         logger.info(f"Running {cmd}")
         run_command(cmd)
-        run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")
+
+    # install slim dependencies
+    run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")
 
     VERIFICATION_SCRIPT = TFOD_DIR / 'research' / \
         'object_detection' / 'builders' / 'model_builder_tf2_test.py'

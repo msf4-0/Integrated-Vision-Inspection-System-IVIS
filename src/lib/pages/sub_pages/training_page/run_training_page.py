@@ -41,6 +41,11 @@ LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
+# Set to wide page layout for debugging on this page
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+
 # >>>> **************** TEMP **************** >>>
 
 # >>>> User-defined Modules >>>>
@@ -70,7 +75,8 @@ def index(RELEASE=True):
         # ************************TO REMOVE************************
         # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
         # uploaded pet segmentation: 96
-        project_id_tmp = 96
+        # uploaded face detection: 111
+        project_id_tmp = 4
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -83,7 +89,10 @@ def index(RELEASE=True):
         if 'new_training' not in session_state:
             # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
             # uploaded pet segmentation: 20
-            session_state.new_training = Training(20, session_state.project)
+            # uploaded face detection: 32
+            training_id_tmp = 2
+            session_state.new_training = Training(training_id_tmp,
+                                                  session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -435,10 +444,6 @@ def index(RELEASE=True):
 
 
 if __name__ == "__main__":
-    # Set to wide page layout for debugging on this page
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
     if st._is_running_with_streamlit:
         # This is set to False for debugging purposes
         # when running Streamlit directly from this page

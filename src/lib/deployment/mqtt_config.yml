@@ -1,0 +1,19 @@
+mqtt:
+  broker: localhost # or an ip address like 192.168.1.164
+  port: 1883
+  QOS: 1
+
+camera:
+  publish_results: homie/webcam/capture
+  start_publish_topic: homie/webcam/start
+  stop_publish_topic: homie/webcam/stop
+
+processing:
+  subscribe_topic: homie/webcam/capture
+  publish_topic: homie/webcam/capture/rotated
+
+save-captures:
+  # mqtt_topic: homie/webcam/capture
+  save_frame_topic: homie/webcam/save
+  start_record_topic: homie/webcam/start_record
+  stop_record_topic: homie/webcam/stop_record

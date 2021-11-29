@@ -127,10 +127,10 @@ class ExistingProjectPagination(IntEnum):
     Dashboard = 0
     Labelling = 1
     Training = 2
+    # Models = 3
     # show all trained project models with latest result metrics
-    Models = 3
-    Deployment = 4
-    Settings = 5
+    Deployment = 3
+    Settings = 4
 
     def __str__(self):
         return self.name

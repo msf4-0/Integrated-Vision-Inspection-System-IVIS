@@ -589,7 +589,7 @@ def list_files_in_archived(archived_filepath: Path = None, file_object=None,
                         filepaths.append(m.name)
     if check_bad_paths:
         for f in filepaths:
-            if f.startswith(('.', '/')):
+            if f.startswith(('..', '/')):
                 st.error(f'{f} is not a valid filepath. '
                          'Absolute or relative filepath is not accepted.')
                 st.stop()

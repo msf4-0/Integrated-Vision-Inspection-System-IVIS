@@ -91,6 +91,9 @@ SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
 # from https://github.com/tensorflow/models
 TFOD_DIR = Path(__file__).resolve().parent / "TFOD" / "models"
 
+MQTT_CONFIG_PATH = PROJECT_ROOT / 'src/lib/deployment/mqtt_config.yml'
+CSV_SAVEPATH = MEDIA_ROOT / 'deployment_results'
+
 
 def chdir_root():
     os.chdir(str(PROJECT_ROOT))

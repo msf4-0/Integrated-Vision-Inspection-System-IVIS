@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+from datetime import datetime
 import logging
 import mimetypes
 import sys
@@ -15,6 +16,7 @@ from inspect import signature
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+import cv2
 
 import pandas as pd
 import streamlit as st
@@ -42,20 +44,32 @@ from path_desc import chdir_root
 conn = init_connection(**st.secrets["postgres"])
 
 
+DATETIME_STR_FORMAT = "%Y-%m-%d_%H-%M-%S_%f"
+
+
+def get_now_string(dt_format=DATETIME_STR_FORMAT) -> str:
+    return datetime.now().strftime(dt_format)
+
+
+def get_today_string(dt_format="%d-%b") -> str:
+    return datetime.now().strftime(dt_format)
+
+
 class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""
 
 
 class Timer:
-    def __init__(self, description: str = '', disable: bool = None):
+    def __init__(self, description: str = '', disable: bool = None,
+                 logging_level: int = logging.DEBUG):
         self.description = description
         self._start_time = None
         if disable is not None:
-            # optionally enable/disable it
+            # optionally enable/disable it ONLY when using context manager
             self._disabled = disable
         else:
-            # disable Timer if logger level is not equal to logging.DEBUG
-            self._disabled = True if logger.getEffectiveLevel() != logging.DEBUG else False
+            # defaults to False
+            self._disabled = False
 
     def start(self):
         """Start a new timer"""
@@ -71,7 +85,7 @@ class Timer:
 
         time_elapsed = perf_counter() - self._start_time
         self._start_time = None
-        logger.debug(f"{self.description} [{time_elapsed:.4f} seconds]")
+        logger.info(f"{self.description} [{time_elapsed:.4f} seconds]")
 
     def __enter__(self):
         """Start a new timer as a context manager"""
@@ -241,6 +255,8 @@ def dataframe2dict(orient='index') -> List[Dict[str, Any]]:
 
 def datetime_formatter(data_list: Union[List[NamedTuple], List[Dict]], return_dict: bool = False) -> List:
     """Convert datetime format to %Y-%m-%d %H:%M:%S for Dict and namedtuple from DB query
+    NOTE: CAN JUST use to_char(<column_name>, 'YYYY-MM-DD HH24:MI:SS') in query instead!
+
 
     Args:
         data_list (Union[List[namedtuple], List[dict]]): Query results from DB
@@ -488,3 +504,35 @@ def find_net_change(initial_list: List, submitted_list: List) -> Tuple:
         flag = NetChange.NoChange
         logger.info(f"No Change: {flag}")
         return None, flag
+
+
+def list_available_cameras():
+    """
+    Test the ports and returns a tuple with the available ports and the ones that are working.
+    """
+    # https://stackoverflow.com/questions/57577445/list-available-cameras-opencv-python
+    dev_port = 0
+    working_ports = []
+    available_ports = []
+    while True:
+        cap = cv2.VideoCapture(dev_port)
+        if not cap.isOpened():
+            logger.debug(f"Port {dev_port} is not working.")
+            break
+        is_reading, img = cap.read()
+        w = cap.get(3)
+        h = cap.get(4)
+        if is_reading:
+            logger.debug(
+                f"Port {dev_port} is working and reads images ({h} x {w})")
+            working_ports.append(dev_port)
+            # cv2.imshow('frame', img)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+        else:
+            logger.debug(f"Port {dev_port} for camera ({h} x {w}) is present "
+                         "but does not reads.")
+            available_ports.append(dev_port)
+        cap.release()
+        dev_port += 1
+    return available_ports, working_ports

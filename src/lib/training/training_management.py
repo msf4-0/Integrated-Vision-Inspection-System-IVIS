@@ -116,10 +116,10 @@ class NewTrainingPagination(IntEnum):
 
 # NOTE KIV
 PROGRESS_TAGS = {
-    DeploymentType.Image_Classification: ['Steps'],
+    DeploymentType.Image_Classification: ['Epoch', 'Steps'],
     DeploymentType.OD: ['Checkpoint', 'Steps'],
     DeploymentType.Instance: ['Checkpoint', 'Steps'],
-    DeploymentType.Semantic: ['Checkpoint', 'Steps']
+    DeploymentType.Semantic: ['Epoch', 'Steps']
 }
 
 
@@ -873,6 +873,7 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
+
     @staticmethod
     def reset_new_training_page():
 
@@ -976,6 +977,8 @@ class Training(BaseTraining):
         # NOTE: need to exclude file paths from the `initialise_training_folder` method.
         # currently setting every filepath's key to end with "file" to easily skip them
 
+        paths['test_result_txt_file'] = paths['models'] / 'test_result.txt'
+
         if self.deployment_type == 'Object Detection with Bounding Boxes':
             # this filename is based on the `generate_labelmap_file` function
             # this file is probably only needed for TF object detection
@@ -985,6 +988,13 @@ class Training(BaseTraining):
             if self.attached_model.is_not_pretrained:
                 paths['trained_keras_model_file'] = self.attached_model.get_path(
                     return_keras_filepath=True)
+            # created this path to save all the test set related paths and encoded_labels
+            paths['test_set_pkl_file'] = paths['models'] / \
+                'test_images_and_labels.pkl'
+            if self.deployment_type == 'Image Classification':
+                paths['confusion_matrix_file'] = paths['models'] / \
+                    'confusion_matrix.png'
+
             # model weights only available for image classification and segmentation tasks
             # when using Keras
             paths['model_weights_file'] = paths['models'] / \
@@ -1142,11 +1152,11 @@ class Training(BaseTraining):
             dataset_chosen = [record.dataset_chosen for record in query_return]
             logger.info(
                 f"Training of ID {training_id} has selected datasets: {dataset_chosen}")
+            return dataset_chosen
         else:
             logger.info(
                 f"Training of ID {training_id} has not selected any training_dataset yet")
-
-        return dataset_chosen
+            return []
 
     @staticmethod
     def query_all_project_training(project_id: int,
@@ -1202,7 +1212,7 @@ class Training(BaseTraining):
                             ELSE t.progress
                         END AS "Progress",
                         /*Give empty JSONB if training progress has not start*/
-                        t.updated_at AS "Date/Time"
+                        to_char(t.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS "Date/Time"
                     FROM
                         public.project_training pro_train
                         INNER JOIN training t ON t.id = pro_train.training_id
@@ -1213,26 +1223,18 @@ class Training(BaseTraining):
         query_all_project_training_vars = [project_id]
         logger.info(
             f"Querying Training from database for Project {project_id}")
-        all_project_training = []
-        try:
+        all_project_training, column_names = db_fetchall(
+            query_all_project_training_SQL, conn,
+            query_all_project_training_vars, fetch_col_name=True, return_dict=return_dict)
 
-            all_project_training_query_return, column_names = db_fetchall(
-                query_all_project_training_SQL, conn,
-                query_all_project_training_vars, fetch_col_name=True, return_dict=return_dict)
-
-            if progress_preprocessing:
-                all_project_training = Training.datetime_progress_preprocessing(
-                    all_project_training_query_return, deployment_type, return_dict)
-
-            else:
-                all_project_training = datetime_formatter(
-                    all_project_training_query_return, return_dict=return_dict)
-
-        except TypeError as e:
-
-            logger.error(f"""{e}: Could not find any training for Project ID {project_id} / \
+        if not all_project_training:
+            logger.error(f"""Could not find any training for Project ID {project_id} / \
                             Project ID: Project ID {project_id} does not exists""")
+            return [], column_names
 
+        if progress_preprocessing:
+            all_project_training = Training.progress_preprocessing(
+                all_project_training, deployment_type, return_dict)
         return all_project_training, column_names
 
     def initialise_training_folder(self):
@@ -1366,12 +1368,13 @@ class Training(BaseTraining):
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
 
+
     @staticmethod
-    def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
-                                        deployment_type: Union[str, IntEnum],
-                                        return_dict: bool = False
-                                        ) -> Union[List[NamedTuple], List[Dict]]:
-        """Preprocess Date/Time and Progress column
+    def progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
+                               deployment_type: Union[str, IntEnum],
+                               return_dict: bool = False
+                               ) -> Union[List[NamedTuple], List[Dict]]:
+        """Preprocess Progress column
 
         Args:
             all_project_training (Union[List[namedtuple], List[Dict]]): All Project Training query results
@@ -1380,7 +1383,7 @@ class Training(BaseTraining):
         Returns:
             Union[List[namedtuple], List[Dict]]: Formatted list of all_project_training
         """
-        logger.info(f"Formatting Date/Time and Progress column......")
+        logger.info(f"Formatting Progress column......")
 
         deployment_type = Deployment.get_deployment_type(
             deployment_type)  # Make sure it is IntEnum
@@ -1390,12 +1393,7 @@ class Training(BaseTraining):
 
         formatted_all_project_training = []
         for project_training in all_project_training:
-            # convert datetime with TZ to (2021-07-30 12:12:12) format
             if return_dict:
-                converted_datetime = project_training["Date/Time"].strftime(
-                    '%Y-%m-%d %H:%M:%S')
-                project_training["Date/Time"] = converted_datetime
-
                 if project_training['Is Started'] == True:
                     # Preprocess
                     progress_value = []
@@ -1417,12 +1415,6 @@ class Training(BaseTraining):
                     project_training["Progress"] = '-'
 
             else:
-                converted_datetime = project_training.Date_Time.strftime(
-                    '%Y-%m-%d %H:%M:%S')
-
-                project_training = project_training._replace(
-                    Date_Time=converted_datetime)
-
                 if project_training.Is_Started == True:
                     # Preprocess
                     progress_value = []
