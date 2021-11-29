@@ -144,6 +144,7 @@ class Deployment(BaseDeployment):
         return project_model_list, column_names
 
     @staticmethod
+    @st.experimental_memo
     def get_deployment_type(deployment_type: Union[str, DeploymentType], string: bool = False):
 
         assert isinstance(

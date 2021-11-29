@@ -5,6 +5,7 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 
+import logging
 import mimetypes
 import sys
 from collections import namedtuple
@@ -39,6 +40,49 @@ from data_manager.database_manager import db_fetchone, init_connection
 from path_desc import chdir_root
 
 conn = init_connection(**st.secrets["postgres"])
+
+
+class TimerError(Exception):
+    """A custom exception used to report errors in use of Timer class"""
+
+
+class Timer:
+    def __init__(self, description: str = '', disable: bool = None):
+        self.description = description
+        self._start_time = None
+        if disable is not None:
+            # optionally enable/disable it
+            self._disabled = disable
+        else:
+            # disable Timer if logger level is not equal to logging.DEBUG
+            self._disabled = True if logger.getEffectiveLevel() != logging.DEBUG else False
+
+    def start(self):
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise TimerError(f"Timer is running. Use .stop() to stop it")
+
+        self._start_time = perf_counter()
+
+    def stop(self):
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise TimerError(f"Timer is not running. Use .start() to start it")
+
+        time_elapsed = perf_counter() - self._start_time
+        self._start_time = None
+        logger.debug(f"{self.description} [{time_elapsed:.4f} seconds]")
+
+    def __enter__(self):
+        """Start a new timer as a context manager"""
+        if not self._disabled:
+            self.start()
+        return self
+
+    def __exit__(self, *exc_info):
+        """Stop the context manager timer"""
+        if not self._disabled:
+            self.stop()
 
 
 class HSV(NamedTuple):
@@ -136,6 +180,10 @@ def join_string(list_string: List, separator: str = '-') -> str:
 
 
 def get_directory_name(name: str) -> str:
+    """Get the proper directory name for dataset/model/training
+
+    e.g. ' Dummy dataset 1 ' -> 'dummy-dataset-1'
+    """
     directory_name = join_string(split_string(
         remove_newline_trailing_whitespace(str(name)))).lower()
     return directory_name
@@ -146,9 +194,13 @@ def is_empty(iterable: Union[List, Dict, set]) -> bool:
 
 
 # @st.cache
-def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = None, sort: bool = False, sort_by: Optional[str] = None, asc: bool = True, date_time_format: bool = False) -> pd.DataFrame:
+def create_dataframe(data: Union[List, Dict, pd.Series],
+                     column_names: List = None,
+                     sort: bool = False,
+                     sort_by: Optional[str] = None,
+                     asc: bool = True,
+                     date_time_format: bool = False) -> pd.DataFrame:
     if data:
-
         df = pd.DataFrame(data, columns=column_names)
         df.index.name = 'No.'
         if date_time_format:
@@ -158,7 +210,6 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
             # df.sort_values(by=['Date/Time'], inplace=True,
             #                ascending=False, ignore_index=True)
         if sort:
-
             df.sort_values(by=[sort_by], inplace=True,
                            ascending=asc, ignore_index=True)
 
@@ -169,7 +220,7 @@ def create_dataframe(data: Union[List, Dict, pd.Series], column_names: List = No
         return df
 
 
-def dataframe2dict(orient='index'):
+def dataframe2dict(orient='index') -> List[Dict[str, Any]]:
 
     def inner(func):
         @wraps(func)
@@ -188,7 +239,7 @@ def dataframe2dict(orient='index'):
     return inner
 
 
-def datetime_formatter(data_list: Union[List[namedtuple], List[Dict]], return_dict: bool = False) -> List:
+def datetime_formatter(data_list: Union[List[NamedTuple], List[Dict]], return_dict: bool = False) -> List:
     """Convert datetime format to %Y-%m-%d %H:%M:%S for Dict and namedtuple from DB query
 
     Args:
@@ -250,18 +301,16 @@ def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
                                string: bool = False):
 
     if string:
-
         # Get String form if is type IntEnum class
         if isinstance(identifier, enumerator_class):
             identifier = [
                 k for k, v in identifier_dictionary.items() if v == identifier][0]
-
     else:
         # Get IntEnum class constant if is string
         if isinstance(identifier, str):
             identifier = identifier_dictionary[identifier]
 
-    logger.info(f"Type is :{identifier}")
+    logger.debug(f"Type is: {identifier!r}")
 
     return identifier
 

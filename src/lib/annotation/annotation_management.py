@@ -24,6 +24,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import json
+import os
+import shutil
 import sys
 from base64 import b64encode
 from collections import namedtuple
@@ -32,7 +34,7 @@ from enum import IntEnum
 from io import BytesIO
 from pathlib import Path
 from time import sleep
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -103,6 +105,7 @@ class LabellingPagination(IntEnum):
     Editor = 3
     Performance = 4
     EditorConfig = 5
+    Export = 6
 
     def __str__(self):
         return self.name
@@ -170,7 +173,7 @@ class Task(BaseTask):
             - ID, Name,Dataset_Size,File_Type,Date_Time
         
         """
-        self.task_row = task_row
+        # self.task_row = task_row
         self.dataset_dict = dataset_dict
         self.project_id: int = project_id
         self.annotations: List = annotations
@@ -185,12 +188,13 @@ class Task(BaseTask):
         self.skipped: bool = task_row["Skipped"]
 
         self.dataset_id: int = dataset_dict[self.dataset_name].ID
-        self.dataset_path = Dataset.get_dataset_path(self.dataset_name)
+        self.dataset_path: Path = Dataset.get_dataset_path(self.dataset_name)
 
-        self.data_path = self.dataset_path / self.name
-        self.filetype = Dataset.get_filetype_enumerator(self.name)
+        self.data_path: Path = self.dataset_path / self.name
+        # self.filetype = Dataset.get_filetype_enumerator(self.name)
+        self.filetype: FileTypes = FileTypes.Image
 
-        self.data_url = self.get_data()  # Get Data URL
+        self.data_url: str = self.get_data()  # Get Data URL
 
         # self.query_task()
 
@@ -255,8 +259,8 @@ class Task(BaseTask):
             logger.error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
-    @st.cache
-    def generate_data_url(self):
+    # @st.cache
+    def generate_data_url(self) -> str:
         """Generate data url from OpenCV numpy array
 
         Returns:
@@ -265,14 +269,15 @@ class Task(BaseTask):
 
         try:
             self.data_url = data_url_encoder(
-                self.data_object, self.filetype, self.data_path)
+                # self.data_object, self.filetype, self.data_path)
+                self.filetype, self.data_path)
 
             return self.data_url
         except Exception as e:
             logger.error(f"{e}: Failed to generate data url for {self.name}")
             return None
 
-    @st.cache
+    # @st.cache
     def load_data(self):
         if self.filetype == FileTypes.Image:
             self.data_object = load_image(self.data_path, opencv_flag=True)
@@ -286,13 +291,13 @@ class Task(BaseTask):
 
         return self.data_object
 
-    @st.cache
+    # @st.cache
     def get_data(self):
 
         # data = self.data_list.get(self.name)
 
         # if not data:
-        self.data_object = self.load_data()
+        # self.data_object = self.load_data()
         self.data_url = self.generate_data_url()
         # add encoded image into dictionary
         # self.data_list[self.name] = data
@@ -452,14 +457,61 @@ class Task(BaseTask):
         """
 
         all_task_df = Task.create_all_task_dataframe(all_task)
-        labelled_task_df = all_task_df.loc[all_task_df['Is Labelled']
-                                           == is_labelled]
+        labelled_task_df = all_task_df.loc[(all_task_df['Is Labelled'] == is_labelled)
+                                           | (all_task_df['Skipped'] == is_labelled)]
         # labelled_task_df=labelled_task_df[["id","Task Name","Created By","Dataset Name","Date/Time"]]
 
         # labelled_task_dict = list(
         #     (labelled_task_df.to_dict(orient='index')).values())
 
         return labelled_task_df
+
+    @staticmethod
+    def query_next_task(project_id: int, return_dict: bool = True,
+                        for_data_table: bool = True
+                        ) -> Union[Dict[str, Any], NamedTuple]:
+        """
+        Get the next unlabeled task row (not labeled and not skipped) for the `project_id`
+        to help the user to proceed to next task automatically, and MUCH more faster.
+
+        Returns `None` if there is no more unlabeled task.
+        """
+        # this query must follow the data from self.query_all_task
+        ID_string = "id" if for_data_table else "ID"
+        sql_query = f"""
+            SELECT
+                t.id AS \"{ID_string}\",
+                t.name AS "Task Name",
+                CASE WHEN a.users_id IS NULL THEN
+                    '-'
+                ELSE
+                    u.first_name || ' ' || u.last_name
+                END AS "Created By",
+                (
+                    SELECT
+                        d.name AS "Dataset Name"
+                    FROM
+                        public.dataset d
+                    WHERE
+                        d.id = t.dataset_id), t.is_labelled AS "Is Labelled", t.skipped AS "Skipped", t.updated_at AS "Date/Time"
+            FROM
+                public.task t
+                LEFT JOIN public.annotations a ON a.id = t.annotation_id
+                LEFT JOIN public.users u ON u.id = a.users_id
+            WHERE
+                t.project_id = %s
+                and (is_labelled = False and skipped = False)
+            ORDER BY
+                t.id
+            LIMIT 1;
+        """
+        query_vars = [project_id]
+        record = db_fetchone(sql_query, conn, query_vars,
+                             return_dict=return_dict)  # return tuple
+        if not record:
+            logger.debug(f"No more unlabeled task for project ID "
+                         f"{project_id} :)")
+        return record
 
 
 class Result:
@@ -559,15 +611,14 @@ class BaseAnnotations:
                                 public.task
                             SET
                                 annotation_id = %s,
-                                is_labelled = %s,
+                                is_labelled = True,
                                 skipped = False
                             WHERE
                                 id = %s
                             RETURNING is_labelled;
                         """
 
-        update_task_vars = [self.id,
-                            self.task.is_labelled, self.task.id]
+        update_task_vars = [self.id, self.task.id]
 
         try:
             self.task.is_labelled = db_fetchone(
@@ -575,7 +626,7 @@ class BaseAnnotations:
         except TypeError as e:
             logger.error(f"{e}: Task update for Submit failed")
 
-        sleep(1)
+        # sleep(1)
         return self.result
 
     def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:
@@ -826,10 +877,24 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> Dict:
 
 
 def reset_editor_page():
-    editor_attributes = ["labelling_interface", "new_annotation_flag", "task",
-                         "annotation", "data_labelling_table", 'labelling_prev_results', 'data_selection']
+    if session_state.get('zipfile_path'):
+        if os.path.exists(session_state['zipfile_path']):
+            logger.debug("Removing exported zipfile: "
+                         f"{session_state['zipfile_path']}")
+            # don't need it anymore
+            os.remove(session_state['zipfile_path'])
+    if 'project' in session_state:
+        dataset_export_path = session_state.project.get_export_path()
+        if dataset_export_path.exists():
+            logger.debug(
+                f"Removing dataset export path: {dataset_export_path}")
+            shutil.rmtree(dataset_export_path)
 
-    logger.info(f"Resetting Editor Page......")
+    editor_attributes = ["new_annotation_flag", "task", "show_next_unlabeled"
+                         "annotation", "data_labelling_table", "labelling_prev_result"
+                         'data_selection', 'zipfile_path', 'archive_success']
+
+    logger.debug(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)
 
 

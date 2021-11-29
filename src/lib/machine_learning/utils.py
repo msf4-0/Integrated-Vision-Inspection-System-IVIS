@@ -1,23 +1,29 @@
-import copy
-import re
-import subprocess
+import json
+import os
 import sys
-import pprint
 from pathlib import Path
 import time
-from typing import List, Optional, Tuple, Union
-import numpy as np
-import cv2
+import shutil
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
 import glob
+
+from sklearn.model_selection import train_test_split
 import pandas as pd
+import numpy as np
+import cv2
+import albumentations as A
+from pycocotools.coco import COCO
 
 import streamlit as st
 from streamlit import session_state
-from streamlit_tensorboard import st_tensorboard
+from stqdm import stqdm
 
-from object_detection.utils import label_map_util
-from .visuals import pretty_st_metric, PrettyMetricPrinter
+import tensorflow as tf
+from object_detection.utils import config_util, label_map_util
+from object_detection.builders import model_builder
+from keras_unet_collection.losses import focal_tversky, iou_seg
+from keras_unet_collection.activations import Snake, GELU
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -33,258 +39,123 @@ else:
 from core.utils.log import logger
 
 
-def run_tensorboard(logdir: Path):
-    # TODO: test whether this TensorBoard works after deployed the app
-    logger.info(f"Running TensorBoard on {logdir}")
-    # NOTE: this st_tensorboard does not work if the path passed in
-    #  is NOT in POSIX format, thus the `as_posix()` method to convert
-    #  from WindowsPath to POSIX format to work in Windows
-    st_tensorboard(logdir=logdir.as_posix(),
-                   port=6007, width=1080, scrolling=True)
+def check_unique_label_counts(labels: List[int], encoded_label_dict: Dict[int, str]):
+    """Check whether there is any class that has only 1 image, which will not work
+    when trying to split with train_test_split() with stratification."""
+    unique_values, counts = np.unique(labels, return_counts=True)
+    one_member_idxs = (counts == 1)
+    if one_member_idxs.any():
+        label_idx = int(unique_values[one_member_idxs][0])
+        label_name = encoded_label_dict[label_idx]
+        logger.error(f"""The least populated class in y: '{label_name}' has only 1 image,
+        which is too few. The minimum number of groups for any class cannot be less
+        than 2. This will not work for stratification in `train_test_split()`""")
+        return False
+    return True
 
 
-def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]]:
+def custom_train_test_split(image_paths: List[Path],
+                            test_size: float,
+                            *,
+                            no_validation: bool,
+                            labels: Union[List[str], List[Path]],
+                            val_size: Optional[float] = 0.0,
+                            train_size: Optional[float] = 0.0,
+                            stratify: Optional[bool] = False,
+                            random_seed: Optional[int] = None
+                            ) -> Tuple[List[str], ...]:
     """
-    Find the specific metric name in the command output (`cmd_output`)
-    and returns only the digits (i.e. values) of the metric.
-
-    Basically search using regex groups, then take the last match, 
-    then take the first group for the metric name, and the second group for the digits.
-    """
-    assert name in ('Step', 'Loss')
-    try:
-        if name == 'Step':
-            value = re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1]
-            return name, int(value)
-        else:
-            loss_name, value = re.findall(
-                f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
-            return loss_name, float(value)
-    except IndexError:
-        logger.error(f"Value for '{name}' not found from {cmd_output}")
-
-
-def run_command(command_line_args: str, st_output: bool = False,
-                stdout_output: bool = True,
-                filter_by: Optional[List[str]] = None,
-                pretty_print: Optional[bool] = False,
-                ) -> Union[str, None]:
-    """
-    Running commands or scripts, while getting live stdout
+    Splitting the dataset into train set, test set, and optionally validation set
+    if `no_validation` is True. Image classification will pass in label names instead
+    of label_paths for each image.
 
     Args:
-        command_line_args (str): Command line arguments to run.
-        st_output (bool, optional): Set `st_output` to True to 
-            show the console outputs LIVE on Streamlit. Defaults to False.
-        stdout_output (bool, optional): Set `stdout_output` to True to 
-            show the console outputs LIVE on terminal. Defaults to True.
-        filter_by (Optional[List[str]], optional): Provide `filter_by` to
-            filter out other strings and show the `filter_by` strings on Streamlit app. Defaults to None.
-    Returns:
-        str: The entire console output from the command after finish running.
-    """
-    if pretty_print:
-        command_line_args = pprint.pformat(command_line_args)
-    logger.info(f"Running command: '{command_line_args}'")
-    # shell=True to work on String instead of list
-    process = subprocess.Popen(command_line_args, shell=True,
-                               # stdout to capture all output
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               # text to directly decode the output
-                               text=True)
-    if filter_by:
-        output_str_list = []
-    for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if line and st_output:
-            if filter_by:
-                for filter_str in filter_by:
-                    if filter_str in line:
-                        st.markdown(line)
-                        output_str_list.append(line)
-            else:
-                st.markdown(line)
-        if line and stdout_output:
-            print(line)
-    process.wait()
-    if filter_by and not output_str_list:
-        # there is nothing obtained from the filtered stdout
-        logger.error("Error with training!")
-        st.error("Some error has occurred during training ..."
-                 " Please try again")
-        time.sleep(3)
-        st.experimental_rerun()
-    elif filter_by:
-        return '\n'.join(output_str_list)
-    return process.stdout
-
-
-def run_command_update_metrics(
-    command_line_args: str,
-    stdout_output: bool = True,
-    step_name: str = 'Step',
-    metric_names: Tuple[str] = None,
-) -> str:
-    # ! DEPRECATED, Using run_command_update_metrics_2 function
-    """
-    Running commands or scripts, while getting live stdout
-
-    Args:
-        command_line_args (str): Command line arguments to run.
-        st_output (bool, optional): Set `st_output` to True to 
-            show the console outputs LIVE on Streamlit. Defaults to False.
-        filter_by (Optional[List[str]], optional): Provide `filter_by` to
-            filter out other strings and show the `filter_by` strings on Streamlit app. Defaults to None.
-    Returns:
-        str: The entire console output from the command after finish running.
-    """
-    assert metric_names is not None, "Please pass in metric_names to use for search and updates"
-
-    logger.info(f"Running command: '{command_line_args}'")
-    process = subprocess.Popen(command_line_args, shell=True,
-                               # stdout to capture all output
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               # text to directly decode the output
-                               text=True)
-
-    prev_progress = session_state.new_training.progress
-    curr_metrics = session_state.new_training.training_model.metrics
-    curr_metrics = copy.copy(curr_metrics)
-    prev_metrics = copy.copy(curr_metrics)
-    for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if line:
-            if step_name in line:
-                step_val = find_tfod_metric(step_name, line)
-                # only update the `Step` progress if it's different
-                if step_val and step_val != prev_progress[step_name]:
-                    # update previous step value to be the current
-                    prev_progress[step_name] = step_val
-                    session_state.new_training.update_progress(
-                        prev_progress, verbose=True)
-                    st.markdown(f"**{step_name}**: {step_val}")
-            for name in metric_names:
-                if name in line:
-                    metric_val = find_tfod_metric(name, line)
-                    if metric_val:
-                        curr_metrics[name] = metric_val
-                        num_same_values = np.sum(np.isclose(
-                            list(curr_metrics.values()),
-                            list(prev_metrics.values())))
-                        print(f"{num_same_values}")
-                        # only update and show the metrics when all values
-                        #  are already updated with the latest different metrics
-                        if num_same_values == 0:
-                            session_state.new_training.update_metrics(
-                                curr_metrics, verbose=True)
-                            # show the nicely formatted metrics on Streamlit
-                            pretty_st_metric(
-                                curr_metrics,
-                                prev_metrics,
-                                float_format='.3g')
-                            # update previous metrics to be the current
-                            prev_metrics = copy.copy(curr_metrics)
-        if line and stdout_output:
-            print(line)
-    process.wait()
-    return process.stdout
-
-
-def run_command_update_metrics_2(
-    command_line_args: str,
-    stdout_output: bool = True,
-    step_name: str = 'Step',
-    pretty_print: Optional[bool] = False,
-    # metric_names: Tuple[str] = None,
-) -> str:
-    """[summary]
-
-    Args:
-        command_line_args (str): Command line arguments to run.
-        stdout_output (bool, optional): Set `stdout_output` to True to 
-            show the console outputs LIVE on terminal. Defaults to True.
-        step_name (str, optional): The key name used to store our training step progress.
-            Should be 'Step' for now. Defaults to 'Step'.
-        # ! Deprecated
-        metric_names (Tuple[str], optional): The metric names to search for and update our 
-            Model instance and database. Must be passed in. Defaults to None.
+        image_paths (Path): Directory to the images.
+        test_size (float): Size of test set in percentage
+        no_validation (bool): If True, only split into train and test sets, without validation set.
+        labels (Union[str, Path]): Pass in this parameter to split the labels or label paths.
+        val_size (Optional[float]): Size of validation split, only needed if `no_validation` is False. Defaults to 0.0.
+        train_size (Optional[float]): This is only used for logging, can be inferred, thus not required. Defaults to 0.0.
+        stratify (Optional[bool]): stratification should only be used for image classification. Defaults to False
+        random_seed (Optional[int]): random seed to use for splitting. Defaults to None.
 
     Returns:
-        str: the entire console output generated from the TFOD training script
+        Tuples of lists of image paths (str), and optionally annotation paths,
+        optionally split without validation set too.
     """
-    # assert metric_names is not None, "Please pass in metric_names to use for search and updates"
-    if pretty_print:
-        command_line_args = pprint.pformat(command_line_args)
-    logger.info(f"Running command: '{command_line_args}'")
-    process = subprocess.Popen(command_line_args, shell=True,
-                               # stdout to capture all output
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               # text to directly decode the output
-                               text=True)
+    if no_validation:
+        assert not val_size, "Set `no_validation` to True if want to split into validation set too."
+    else:
+        assert val_size, "Must pass in `val_size` if `no_validation` is False."
 
-    pretty_metric_printer = PrettyMetricPrinter()
-    # list of stored stdout lines
-    current_lines = []
-    # flag to track the 'Step' text
-    step_name_found = False
-    for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if stdout_output and line:
-            # print to console
-            print(line)
-        if line:
-            # keep storing when stored stdout lines are less than 12,
-            #  12 is the exact number of lines output by the script
-            #  that will contain all the metrics after the line
-            #  with text 'Step', e.g.:
-            """
-            INFO:tensorflow:Step 900 per-step time 0.561s
-            I0813 13:07:28.326545 139687560058752 model_lib_v2.py:700] Step 900 per-step time 0.561s
-            INFO:tensorflow:{'Loss/classification_loss': 0.34123567,
-            'Loss/localization_loss': 0.0464548,
-            'Loss/regularization_loss': 0.24863605,
-            'Loss/total_loss': 0.6363265,
-            'learning_rate': 0.025333151}
-            I0813 13:07:28.326872 139687560058752 model_lib_v2.py:701] {'Loss/classification_loss': 0.34123567,
-            'Loss/localization_loss': 0.0464548,
-            'Loss/regularization_loss': 0.24863605,
-            'Loss/total_loss': 0.6363265,
-            'learning_rate': 0.025333151}
-            """
-            if step_name in line:
-                step_name_found = True
-            if step_name_found:
-                current_lines.append(line)
-            if len(current_lines) == 12:
-                # take the first line because that's where `step_name` was found and appended first
-                _, step_val = find_tfod_metric(step_name, current_lines[0])
-                session_state.new_training.progress[step_name] = step_val
-                session_state.new_training.update_progress(
-                    session_state.new_training.progress, verbose=True)
-                st.markdown(f"**{step_name}**: {step_val}")
+    total_images = len(image_paths)
+    assert total_images == len(labels)
 
-                metrics = {}
-                # for name in metric_names:
-                for line in current_lines[2:]:
-                    metric = find_tfod_metric('Loss', line)
-                    if metric:
-                        metric_name, metric_val = metric
-                        metrics[metric_name] = metric_val
-                session_state.new_training.update_metrics(
-                    metrics, verbose=True)
+    if stratify:
+        logger.info("Using stratification for train_test_split()")
+        depl_type = session_state.new_training.deployment_type
+        assert depl_type == 'Image Classification', (
+            'Only use stratification for image classification labels. '
+            f'Current deployment type: {depl_type}'
+        )
+        stratify = labels
+    else:
+        stratify = None
 
-                # show the nicely formatted metrics on Streamlit
-                pretty_metric_printer.write(metrics)
-                st.markdown("___")
+    logger.info(f"Total images = {total_images}")
 
-                # reset the list of outputs to start storing again
-                current_lines = []
-                step_name_found = False
-    process.wait()
-    return process.stdout
+    # TODO: maybe can add stratification as an option (only works for img classification)
+    if no_validation:
+        train_size = train_size if train_size else round(1 - test_size, 2)
+        logger.info("Splitting into train:test dataset"
+                    f" with ratio of {train_size:.2f}:{test_size:.2f}")
+        X_train, X_test, y_train, y_test = train_test_split(
+            image_paths, labels,
+            test_size=test_size,
+            stratify=stratify,
+            random_state=random_seed
+        )
+        return X_train, X_test, y_train, y_test
+    else:
+        train_size = train_size if train_size else round(
+            1 - test_size - val_size, 2)
+        logger.info("Splitting into train:valid:test dataset"
+                    " with ratio of "
+                    f"{train_size:.2f}:{val_size:.2f}:{test_size:.2f}")
+        X_train, X_val_test, y_train, y_val_test = train_test_split(
+            image_paths, labels,
+            test_size=(val_size + test_size),
+            stratify=stratify,
+            random_state=random_seed
+        )
+        X_val, X_test, y_val, y_test = train_test_split(
+            X_val_test, y_val_test,
+            test_size=(test_size / (val_size + test_size)),
+            shuffle=False,
+            stratify=stratify,
+            random_state=random_seed,
+        )
+        return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def copy_images(image_paths: Path,
+                dest_dir: Path,
+                label_paths: Optional[Path] = None):
+    if dest_dir.exists():
+        # remove the existing images
+        shutil.rmtree(dest_dir, ignore_errors=False)
+
+    # create new directories
+    os.makedirs(dest_dir)
+
+    if label_paths:
+        for image_path, label_path in stqdm(zip(image_paths, label_paths), total=len(image_paths)):
+            # copy the image file and label file to the new directory
+            shutil.copy2(image_path, dest_dir)
+            shutil.copy2(label_path, dest_dir)
+    else:
+        for image_path in image_paths:
+            shutil.copy2(image_path, dest_dir)
 
 
 def load_image_into_numpy_array(path: str):
@@ -295,32 +166,182 @@ def load_image_into_numpy_array(path: str):
     Returns:
     uint8 numpy array with shape (img_height, img_width, 3)
     """
-    img = cv2.imread(path)
+    # always read in 3 channels
+    img = cv2.imread(path, cv2.IMREAD_COLOR)
     # convert from OpenCV's BGR to RGB format
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return np.asarray(img)
+    return img
 
 
-def load_labelmap(labelmap_path):
+def get_transform():
+    """Get the Albumentations' transform using the existing augmentation config stored in DB."""
+    existing_aug = session_state.new_training.augmentation_config.augmentations
+
+    transform_list = []
+    for transform_name, param_values in existing_aug.items():
+        transform_list.append(getattr(A, transform_name)(**param_values))
+
+    if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
+        min_area = session_state.new_training.augmentation_config.min_area
+        min_visibility = session_state.new_training.augmentation_config.min_visibility
+        transform = A.Compose(
+            transform_list,
+            bbox_params=A.BboxParams(
+                format='pascal_voc',
+                min_area=min_area,
+                min_visibility=min_visibility,
+                label_fields=['class_names']
+            ))
+    else:
+        transform = A.Compose(transform_list)
+    return transform
+
+
+def preprocess_image(image: np.ndarray, image_size: int) -> np.ndarray:
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.resize(image, (image_size, image_size))
+    image = image.astype(np.float32) / 255.
+    return image
+
+
+def get_all_keras_custom_objects() -> Dict[str, Callable]:
+    """Get all the Keras model's custom_objects currently used in our application."""
+    custom_objects = {"hybrid_loss": hybrid_loss, "focal_tversky": focal_tversky,
+                      "iou_seg": iou_seg, 'Snake': Snake, 'GELU': GELU}
+    return custom_objects
+
+
+def get_segmentation_model_custom_objects() -> Dict[str, Callable]:
+    """Get the custom objects required for loading the Keras segmentation model.
+
+    NOTE: these custom metrics might change depending on how you built the model
+     in `build_segmentation_model()`. Currently should only be these custom metrics:
+
+    metrics = [hybrid_loss, iou_seg, focal_tversky]
     """
-    Returns:
-    category_index = 
-    {
-        1: {'id': 1, 'name': 'category_1'},
-        2: {'id': 2, 'name': 'category_2'},
-        3: {'id': 3, 'name': 'category_3'},
-        ...
-    }
+    use_hybrid_loss: bool = session_state.new_training.training_param_dict['use_hybrid_loss']
+    activation: str = session_state.new_training.training_param_dict['activation']
+    output_activation: str = session_state.new_training.training_param_dict[
+        'output_activation']
+
+    # KIV: For now, the metric names are taken from training_model instance and the metric
+    # functions are dynamically generated using `eval`, so be sure to import the function
+    # names directly on the script that uses this function.
+    # metrics = list(
+    #     session_state.new_training.training_model.metrics.keys())
+    # custom_objects = {}
+    # for m in metrics:
+    #     if m != 'loss' and not m.startswith('val_') and m != 'categorical_crossentropy':
+    #         custom_objects[m] = eval(m)
+    #     elif m == 'loss':
+    #         if use_hybrid_loss:
+    #             custom_objects['hybrid_loss'] = hybrid_loss
+    #         else:
+    #             custom_objects['focal_tversky'] = focal_tversky
+
+    # NOTE: putting hybrid_loss as the first one just in case
+    custom_objects = {"hybrid_loss": hybrid_loss, "focal_tversky": focal_tversky,
+                      "iou_seg": iou_seg}
+    if not use_hybrid_loss:
+        del custom_objects["hybrid_loss"]
+    if activation == 'GELU':
+        custom_objects['GELU'] = GELU
+    if activation == 'Snake' or output_activation == 'Snake':
+        custom_objects['Snake'] = Snake
+    return custom_objects
+
+
+@st.cache(show_spinner=False)
+# @st.experimental_memo
+def load_keras_model(model_path: Union[str, Path], metrics: List[Callable]):
+    """Load the exported keras h5 model instead of only weights.
+
+    The `custom_objects` is dynamically extracted from `training_model` instance
+    for the segmentation model's custom loss functions or metrics.
+
+    `metrics` should be obtained from Training.get_training_metrics()
+
+    Returns the Keras model instance."""
+    if session_state.project.deployment_type == 'Semantic Segmentation with Polygons':
+        custom_objects = get_segmentation_model_custom_objects()
+    else:
+        custom_objects = None
+    model = tf.keras.models.load_model(model_path, custom_objects)
+    # https://github.com/tensorflow/tensorflow/issues/45903#issuecomment-804973541
+    model.compile(loss=model.loss, optimizer=model.optimizer, metrics=metrics)
+    return model
+
+
+def load_trained_keras_model(path: str):
+    """To load user-uploaded model or trained project model"""
+    tf.keras.backend.clear_session()
+    all_custom_objects = get_all_keras_custom_objects()
+    # load with all the custom objects used in our app
+    # will raise ValueError if unknown custom_object is found in the model
+    model = tf.keras.models.load_model(path, all_custom_objects)
+    return model
+
+
+def modify_trained_model_layers(model: tf.keras.Model, deployment_type: str,
+                                input_shape: Tuple[int, int, int], num_classes: int,
+                                compile: bool = False,
+                                metrics: List[Callable] = None):
+    """Modify the layers of the uploaded Keras model to have different input shape 
+    and output shape. Input shape depends on the image_size or input_size of the 
+    training_param, while the output shape depends on the number of classes (`num_classes`).
     """
-    category_index = label_map_util.create_category_index_from_labelmap(
-        labelmap_path,
-        use_display_name=True)
-    return category_index
+    # NOTE: do not clear_session() when modifying the model midway here
+    # https://newbedev.com/keras-replacing-input-layer
+    model_config = model.get_config()
+    # change the input shape
+    model_config['layers'][0]['config']['batch_input_shape'] = (
+        None, *(input_shape))
+
+    all_custom_objects = get_all_keras_custom_objects()
+    # if the model requires any unknown custom_objects, a ValueError will be raised
+    new_model = model.__class__.from_config(model_config,
+                                            custom_objects=all_custom_objects)
+
+    # iterate over all the layers that we want to get weights from
+    weights = [layer.get_weights() for layer in model.layers]
+    for layer, weight in zip(new_model.layers, weights):
+        layer.set_weights(weight)
+
+    # ** Change the output layer
+    # last layer's name is reused to replace the final layer to ensure unique names
+    final_layer_name = new_model.layers[-1].name
+    if deployment_type == "Image Classification":
+        # use softmax for our training pipeline
+        new_final_layer = tf.keras.layers.Dense(
+            num_classes, activation='softmax',
+            name=final_layer_name)
+    elif deployment_type == "Semantic Segmentation with Polygons":
+        # must use 'same' padding and 'softmax' activation
+        new_final_layer = tf.keras.layers.Conv2D(
+            num_classes, 1, padding='same',
+            activation='softmax',
+            name=final_layer_name)
+    new_output = new_final_layer(new_model.layers[-2].output)
+    final_model = tf.keras.Model(
+        inputs=new_model.input, outputs=new_output)
+
+    if compile or metrics:
+        final_model.compile(loss=model.loss,
+                            optimizer=model.optimizer,
+                            metrics=metrics)
+    return final_model
+
+# ******************************* TFOD funcs *******************************
 
 
-def xml_to_csv(path):
-    """Iterates through all .xml files (generated by labelImg) in a given directory and combines
-    them in a single Pandas dataframe.
+@st.experimental_memo
+def xml_to_df(path: str) -> pd.DataFrame:
+    """
+    If a path to XML file is passed in, parse it directly.
+    If directory is passed in, iterates through all .xml files (generated by our custom Label Studio) 
+    in a given directory and combines them in a single Pandas dataframe.
+    NOTE: This function will not work for the original Label Studio, because they export
+    Pascal VOC XML files without the image extensions in the <filename> tags.
 
     Parameters:
     ----------
@@ -331,9 +352,17 @@ def xml_to_csv(path):
     Pandas DataFrame
         The produced dataframe
     """
+    if isinstance(path, Path):
+        path = str(path)
 
     xml_list = []
-    for xml_file in glob.glob(path + "/*.xml"):
+
+    if os.path.isfile(path):
+        xml_files = [path]
+    else:
+        xml_files = glob.glob(path + "/*.xml")
+
+    for xml_file in xml_files:
         tree = ET.parse(xml_file)
         root = tree.getroot()
         filename = root.find("filename").text
@@ -364,3 +393,407 @@ def xml_to_csv(path):
     ]
     xml_df = pd.DataFrame(xml_list, columns=column_name)
     return xml_df
+
+
+def get_bbox_label_info(xml_df: pd.DataFrame,
+                        image_name: str) -> Tuple[List[str], Tuple[int, int, int, int]]:
+    """Get the class name and bounding box coordinates associated with the image."""
+    annot_df = xml_df.loc[xml_df['filename'] == image_name]
+    class_names = annot_df['classname'].values
+    bboxes = annot_df.loc[:, 'xmin': 'ymax'].values
+    return class_names, bboxes
+
+
+def generate_tfod_xml_csv(image_paths: List[str],
+                          xml_dir: Path,
+                          output_img_dir: Path,
+                          csv_path: Path,
+                          train_size: int):
+    """Generate TFOD's CSV file for augmented images and bounding boxes used for generating TF Records.
+    Also save the transformed images to the `output_img_dir` at the same time."""
+
+    output_img_dir.mkdir(parents=True, exist_ok=True)
+
+    transform = get_transform()
+    xml_df = xml_to_df(str(xml_dir))
+
+    if train_size > len(image_paths):
+        # randomly select the remaining paths and extend them to the original List
+        # to make sure to go through the entire dataset for at least once
+        n_remaining = train_size - len(image_paths)
+        image_paths.extend(np.random.choice(
+            image_paths, size=n_remaining, replace=True))
+
+    logger.info('Generating CSV file for augmented bounding boxes ...')
+    start = time.perf_counter()
+    xml_list = []
+    for image_path in stqdm(image_paths):
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        filename = os.path.basename(image_path)
+        class_names, bboxes = get_bbox_label_info(xml_df, filename)
+        width, height = xml_df.loc[xml_df['filename'] == filename,
+                                   'width': 'height'].values[0]
+
+        transformed = transform(image=image, bboxes=bboxes,
+                                class_names=class_names)
+        transformed_image = transformed['image']
+        # also save the transformed image at the same time to avoid doing it again later
+        cv2.imwrite(str(output_img_dir / filename), transformed_image)
+
+        transformed_bboxes = np.array(transformed['bboxes'], dtype=np.int32)
+        transformed_class_names = transformed['class_names']
+
+        for bbox, class_name in zip(transformed_bboxes, transformed_class_names):
+            value = (
+                filename,
+                width,
+                height,
+                class_name,
+                *bbox
+            )
+            xml_list.append(value)
+
+        col_names = [
+            "filename",
+            "width",
+            "height",
+            "classname",
+            "xmin",
+            "ymin",
+            "xmax",
+            "ymax",
+        ]
+
+    xml_df = pd.DataFrame(xml_list, columns=col_names)
+    xml_df.to_csv(csv_path, index=False)
+    time_elapsed = time.perf_counter() - start
+    logger.info(f"Done. {time_elapsed = :.4f} seconds")
+
+
+def load_labelmap(labelmap_path):
+    """
+    Returns:
+    category_index =
+    {
+        1: {'id': 1, 'name': 'category_1'},
+        2: {'id': 2, 'name': 'category_2'},
+        3: {'id': 3, 'name': 'category_3'},
+        ...
+    }
+    """
+    category_index = label_map_util.create_category_index_from_labelmap(
+        labelmap_path,
+        use_display_name=True)
+    return category_index
+
+
+def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
+    """Find and return the latest TFOD checkpoint path. 
+
+    The `ckpt_dir` should be `training_path['models']`.
+
+    Return None if no ckpt-*.index file found"""
+    ckpt_filepaths = glob.glob(str(ckpt_dir / 'ckpt-*.index'))
+    if not ckpt_filepaths:
+        logger.warning("""There is no checkpoint file found,
+        the TFOD model is not trained yet.""")
+        return None
+
+    def get_ckpt_cnt(path):
+        ckpt = path.split("ckpt-")[-1].split(".")[0]
+        return int(ckpt)
+
+    latest_ckpt = sorted(ckpt_filepaths, key=get_ckpt_cnt, reverse=True)[0]
+    return Path(latest_ckpt)
+
+
+@st.cache(show_spinner=False)
+# @st.experimental_memo
+def load_tfod_checkpoint(
+        ckpt_dir: Path,
+        pipeline_config_path: Path) -> Callable[[tf.Tensor], Dict[str, Any]]:
+    """
+    Loading from checkpoint instead of the exported savedmodel.
+
+    The `ckpt_dir` should be `training_path['models']`.
+
+    `pipeline_config_path` should be training_path['models'] / 'pipeline.config'
+    """
+    ckpt_path = get_tfod_last_ckpt_path(ckpt_dir)
+
+    logger.info(f'Loading TFOD checkpoint from {ckpt_path} ...')
+    start_time = time.perf_counter()
+
+    # Load pipeline config and build a detection model
+    configs = config_util.get_configs_from_pipeline_file(pipeline_config_path)
+    model_config = configs['model']
+    detection_model = model_builder.build(
+        model_config=model_config, is_training=False)
+
+    # Restore checkpoint
+    ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
+    # need to remove the .index extension at the end
+    ckpt.restore(str(ckpt_path).strip('.index')).expect_partial()
+
+    @tf.function
+    def detect_fn(image):
+        """Detect objects in image."""
+
+        image, shapes = detection_model.preprocess(image)
+        prediction_dict = detection_model.predict(image, shapes)
+        detections = detection_model.postprocess(prediction_dict, shapes)
+
+        return detections
+
+    end_time = time.perf_counter()
+    logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
+    return detect_fn
+
+
+@st.cache(show_spinner=False)
+# @st.experimental_memo
+def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, Any]]:
+    """
+    `saved_model_path` should be `training_path['export'] / 'saved_model'`
+
+    NOTE: Caching is used on this method to avoid long loading times.
+    Due to this, this method should not be used outside of training/deployment page.
+    Maybe can improve this by using st.experimental_memo or other methods. Not sure.
+    """
+    logger.info(f'Loading model from {saved_model_path} ...')
+    start_time = time.perf_counter()
+    # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
+    detect_fn = tf.saved_model.load(str(saved_model_path))
+    end_time = time.perf_counter()
+    logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
+    return detect_fn
+
+
+def tfod_detect(detect_fn: Callable[[tf.Tensor], Dict[str, Any]],
+                image_np: np.ndarray,
+                tensor_dtype=tf.uint8) -> Dict[str, Any]:
+    """
+    `detect_fn` is obtained using `load_tfod_model` or `load_tfod_checkpoint` functions. 
+    `tensor_dtype` should be `tf.uint8` for exported model; 
+    and `tf.float32` for checkpoint model to work. 
+    """
+    # Running the infernce on the image specified in the  image path
+    # The input needs to be a tensor, convert it using `tf.convert_to_tensor`.
+    # input_tensor = tf.convert_to_tensor(image_np)
+    # The model expects a batch of images, so add an axis with `tf.newaxis`.
+    # input_tensor = input_tensor[tf.newaxis, ...]
+    # input_tensor = tf.expand_dims(input_tensor, 0)
+
+    input_tensor = tf.convert_to_tensor(
+        np.expand_dims(image_np, 0), dtype=tensor_dtype)
+
+    # running detection using the loaded model: detect_fn
+    detections = detect_fn(input_tensor)
+
+    # All outputs are batches tensors.
+    # Convert to numpy arrays, and take index [0] to remove the batch dimension.
+    # We're only interested in the first num_detections.
+    num_detections = int(detections.pop('num_detections'))
+    detections = {key: value[0, :num_detections].numpy()
+                  for key, value in detections.items()}
+    detections['num_detections'] = num_detections
+
+    # detection_classes should be ints.
+    detections['detection_classes'] = detections['detection_classes'].astype(
+        np.int64)
+    return detections
+
+
+# ******************************* TFOD funcs *******************************
+
+# *********************** Classification model funcs ***********************
+
+def tf_classification_preprocess_input(imagePath, label, image_size):
+    raw = tf.io.read_file(imagePath)
+    image = tf.io.decode_image(
+        raw, channels=3, expand_animations=False)
+    image = tf.image.resize(image, (image_size, image_size))
+    image = tf.cast(image / 255.0, tf.float32)
+    label = tf.cast(label, dtype=tf.int32)
+    return image, label
+
+
+def classification_predict(preprocessed_img: np.ndarray, model: Any,
+                           return_proba: bool = True) -> Union[Tuple[int, float], int]:
+    y_proba = model.predict(np.expand_dims(preprocessed_img, axis=0))
+    y_pred = np.argmax(y_proba, axis=-1)[0]
+
+    if return_proba:
+        return y_pred, y_proba.ravel()[y_pred]
+    return y_pred
+
+# *********************** Classification model funcs ***********************
+
+# ************************ Segmentation model funcs ************************
+
+
+def load_mask_image(ori_image_name: str, mask_dir: Path) -> np.ndarray:
+    """Given the `ori_image_name` (refers to the original non-mask image),
+    parse the mask image filename and find and load it from the `mask_dir` folder."""
+    mask_image_name = os.path.splitext(ori_image_name)[0] + ".png"
+    mask_path = mask_dir / mask_image_name
+    # MUST read in GRAYSCALE format to accurately preserve all the pixel values
+    mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+    return mask
+
+
+@st.cache
+def get_coco_classes(
+    json_path: Union[str, Path],
+    return_coco: bool = True) -> Union[Tuple[COCO, List[int], bool, List[str]],
+                                       List[str]]:
+    """Get COCO classnames from the COCO JSON file.
+
+    If `return_coco` is True, will return a tuple: (coco, catIDs, classnames)
+    """
+    coco = COCO(json_path)
+    catIDs = coco.getCatIds()
+    categories = coco.loadCats(catIDs)
+    logger.debug(f"{categories = }")
+
+    classnames = [cat["name"] for cat in categories]
+    # add a background class at index 0
+    if 'background' not in classnames:
+        classnames = ["background"] + classnames
+        # this flag is required for generate_mask_images() to know
+        # whether the original COCO JSON already has a background class
+        added_background = True
+    else:
+        added_background = False
+    logger.debug(f"{classnames = }")
+
+    if return_coco:
+        return coco, catIDs, added_background, classnames
+
+    return classnames
+
+
+def generate_mask_images(coco_json_path: Union[str, Path] = None,
+                         output_dir: Path = None,
+                         n_masks: int = None,
+                         verbose: bool = False,
+                         st_container=None):
+    """Generate mask images based on a COCO JSON file and save at `output_dir`
+
+    Args:
+        coco_json_path (Union[str, Path], optional): Path to the COCO JSON file.
+            If None, infer from project export path. Defaults to None.
+        output_dir (Path, optional): Path to output mask images.
+            If None, infer from project export path. Defaults to None.
+        n_masks (int, optional): Maximum number of mask images to generate,
+            this is currently only used for the augmentation demo. If None, just 
+            generate all mask images for all images in COCO JSON. Defaults to None.
+        verbose (bool, optional): If True, will log the mask image info to console.
+            Defaults to False.
+        st_container ([type], optional): For `stqdm` progress bar. Can optionally pass
+            in `st.sidebar`. Defaults to None.
+    """
+    data_export_dir = session_state.project.get_export_path()
+    if not coco_json_path:
+        coco_json_path = data_export_dir / "result.json"
+    if not output_dir:
+        output_dir = data_export_dir / "masks"
+    os.makedirs(output_dir, exist_ok=True)
+
+    json_file = json.load(open(coco_json_path))
+    img_dict_list = json_file["images"]
+    if n_masks:
+        # optionally only generate certain number of mask images,
+        # currently using this for the augmentation demo at the config page
+        img_dict_list = img_dict_list[:n_masks]
+    total_masks = len(img_dict_list)
+
+    coco, catIDs, added_background, classnames = get_coco_classes(
+        coco_json_path)
+
+    logger.debug(f"Generating {total_masks} mask images in: {output_dir}")
+    for img_dict in stqdm(img_dict_list, total=total_masks,
+                          desc='Generating mask images', st_container=st_container):
+        filename = os.path.basename(img_dict["file_name"])
+
+        annIds = coco.getAnnIds(
+            imgIds=img_dict["id"], catIds=catIDs, iscrowd=None)
+        anns = coco.loadAnns(annIds)
+
+        mask = np.zeros((img_dict["height"], img_dict["width"]))
+        classes_found = []
+        for annot in anns:
+            current_annot_id = annot["category_id"]
+            if added_background:
+                # considering the extra added 'background' class at index 0
+                # that did not exist in the COCO JSON file
+                current_annot_id += 1
+            className = classnames[current_annot_id]
+            classes_found.append(className)
+            pixel_value = classnames.index(className)
+            # the final mask contains the pixel values for each class
+            mask = np.maximum(coco.annToMask(annot) * pixel_value, mask)
+
+        # save the mask images in PNG format to preserve the exact pixel values
+        mask_filename = os.path.splitext(filename)[0] + ".png"
+        mask_path = os.path.join(output_dir, mask_filename)
+        success = cv2.imwrite(mask_path, mask)
+        if success:
+            logger.debug(f"Generated mask image for {mask_filename}")
+
+        if verbose:
+            logger.debug(
+                f"{filename} | "
+                f"Unique pixel values = {np.unique(mask)} | "
+                f"Unique classes found = {set(classes_found)} | "
+                f"Number of annotations = {len(classes_found)}"  # or len(anns)
+            )
+
+
+def hybrid_loss(y_true, y_pred):
+    loss_focal = focal_tversky(y_true, y_pred, alpha=0.5, gamma=4 / 3)
+    loss_iou = iou_seg(y_true, y_pred)
+
+    return loss_focal + loss_iou
+
+
+def preprocess_mask(mask: np.ndarray, image_size: int, num_classes: int) -> tf.Tensor:
+    mask = cv2.resize(mask, (image_size, image_size))
+
+    # this is a very important step to one-hot encode the mask
+    # based on the number of classes, and keep in mind that
+    # this `num_classes` will be the same as the number of filters of the
+    # final output Conv2D layer in the model
+    mask = tf.one_hot(mask, depth=num_classes, dtype=tf.int32)
+    return mask
+
+
+def segmentation_read_and_preprocess(
+        imagePath: bytes, maskPath: bytes,
+        image_size: int, num_classes: int) -> Tuple[np.ndarray, tf.Tensor]:
+    # must decode the paths because they are in bytes format in TF operations
+    image = cv2.imread(imagePath.decode())
+    image = preprocess_image(image, image_size)
+
+    mask = cv2.imread(maskPath.decode(), cv2.IMREAD_GRAYSCALE)
+    mask = preprocess_mask(mask, image_size, num_classes)
+    return image, mask
+
+
+def segmentation_predict(model: Any,
+                         preprocessed_img: np.ndarray,
+                         original_width: int,
+                         original_height: int) -> np.ndarray:
+    pred_mask = model.predict(np.expand_dims(preprocessed_img, axis=0))
+    pred_mask = np.argmax(pred_mask, axis=-1)
+    # index 0 to take away the one and only extra batch dimension
+    pred_mask = pred_mask[0].astype(np.uint8)
+    # resize it to original size after making prediction
+    # take note of the order of width and height
+    pred_mask = cv2.resize(pred_mask, (original_width, original_height),
+                           interpolation=cv2.INTER_NEAREST)
+    return pred_mask
+
+# ************************ Segmentation model funcs ************************

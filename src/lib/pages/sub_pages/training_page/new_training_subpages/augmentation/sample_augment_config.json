@@ -1,0 +1,10 @@
+{
+  "interface_type": "Simple",
+  "augmentations": {
+    "CenterCrop": {
+      "p": 0.42,
+      "height": 144,
+      "width": 160
+    }
+  }
+}

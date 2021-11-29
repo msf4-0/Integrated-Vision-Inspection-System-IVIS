@@ -66,8 +66,11 @@ def data_table(
     on_change: Optional[Callable] = None,
     args: Optional[Tuple] = None,
     kwargs: Optional[Dict] = None
-) -> List:
+) -> List[int]:
     """Generate Data Table using Material UI Data Grid MIT
+
+    NOTE: data_table must have an 'id' column, not 'ID'. And this ID will be returned when
+    any row of the data_table is clicked on. Multiple rows can be selected if checkbox=True.
 
     Args:
         rows (List[Dict]): Row data
@@ -79,7 +82,7 @@ def data_table(
         kwargs (Optional[Dict], optional): Callback function **kwargs. Defaults to None.
 
     Returns:
-        List: List of selections
+        List[int]: List of selected IDs
     """
 
     component_value = _component_func(

@@ -5,34 +5,35 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 import logging
-import sys
 
 DEBUG = True
 if DEBUG:
     # added module name, function name, and also line number
     FORMAT = '[%(levelname)s] %(asctime)s - [%(module)s.%(funcName)s: %(lineno)d] %(message)s'
+    LEVEL = logging.DEBUG
 else:
     FORMAT = '[%(levelname)s] %(asctime)s - %(message)s'
+    LEVEL = logging.INFO
 DATEFMT = '%d-%b-%y %H:%M:%S'
 LOG_FILE = 'test.log'
 
 # create logger
 logger = logging.getLogger(__name__)
 # set log level for all handlers to debug
-logger.setLevel(logging.DEBUG)
+logger.setLevel(LEVEL)
 
 # create formatter
 formatter = logging.Formatter(FORMAT, datefmt=DATEFMT)
 
 # create console handler and setup level & formatter
 consoleHandler = logging.StreamHandler()
-consoleHandler.setLevel(logging.DEBUG)
+consoleHandler.setLevel(LEVEL)
 consoleHandler.setFormatter(formatter)
 logger.addHandler(consoleHandler)
 
 # create file handler and setup for logger
 # fileHandler = logging.FileHandler(LOG_FILE)
-# fileHandler.setLevel(logging.DEBUG)
+# fileHandler.setLevel(LEVEL)
 # fileHandler.setFormatter(formatter)
 # logger.addHandler(fileHandler)
 

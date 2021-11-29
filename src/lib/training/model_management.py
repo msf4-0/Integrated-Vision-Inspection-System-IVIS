@@ -25,23 +25,23 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import json
+import os
+import shutil
 import sys
 from collections import namedtuple
 from datetime import datetime
 from enum import IntEnum
-from logging import error
-from os import name
 from pathlib import Path
 from time import sleep
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 import pandas as pd
-import psycopg2
 import streamlit as st
-from PIL import Image
-from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 from streamlit.uploaded_file_manager import UploadedFile
+from object_detection.protos import pipeline_pb2
+from google.protobuf import text_format
+import tensorflow as tf
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -55,7 +55,7 @@ else:
     pass
 
 from core.utils.code_generator import get_random_string
-from core.utils.file_handler import (create_folder_if_not_exist, list_files_in_archived,
+from core.utils.file_handler import (extract_one_to_bytes, list_files_in_archived,
                                      save_uploaded_extract_files)
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
@@ -65,13 +65,13 @@ from core.utils.helper import (create_dataframe, dataframe2dict,
 from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
-from deployment.deployment_management import (COMPUTER_VISION_LIST, DEPLOYMENT_TYPE, Deployment,
+from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
                                               DeploymentType)
+from machine_learning.utils import load_trained_keras_model, modify_trained_model_layers
+
 # >>>> User-defined Modules >>>>
 from path_desc import (PRE_TRAINED_MODEL_DIR, PROJECT_DIR,
-                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, chdir_root,
-                       TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH,
-                       SEGMENT_MODELS_TABLE_PATH)
+                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, get_temp_dir)
 
 from training.labelmap_management import Labels
 
@@ -102,6 +102,7 @@ class ModelType(IntEnum):
 MODEL_TYPE = {
     "Pre-trained Models": ModelType.PreTrained,
     "Project Models": ModelType.ProjectTrained,
+    # NOTE: previously database was created with User Custom Deep Learning Model Upload
     "User Deep Learning Model Upload": ModelType.UserUpload
 }
 
@@ -145,10 +146,10 @@ FRAMEWORK = {
 
 MODEL_FILES = {
     Framework.TensorFlow: {
-        'model_extension': ('.pb', 'h5'),
+        'model_extension': ('.pb'),
         'checkpoint': 'checkpoint',
-        'config': '.config',
-        'labelmap': ('labelmap.pbtxt')
+        'config': 'pipeline.config',
+        'labelmap': 'labelmap.pbtxt'
     },
     Framework.PyTorch: {
         'model_extension': ('.pt', '.pth', '.pkl'),
@@ -254,9 +255,10 @@ class BaseModel:
         self.model_input_size: Dict = {}
         self.perf_metrics: List = []
         self.model_type: str = ''
-        self.framework: str = ''
+        self.framework: str = 'TensorFlow'
         self.training_id: int = None
-        self.model_path: Path = None
+        # model_path is removed and must always be obtained from Model.get_path()
+        # self.model_path: Path = None
         self.model_path_relative: str = ''
         self.labelmap_path: Path = None
         self.saved_model_dir: Path = None
@@ -266,8 +268,15 @@ class BaseModel:
         self.compatibility_flag = ModelCompatibility.MissingModel
         self.labelmap = None
 
-    @st.cache
+    def __repr__(self):
+        return "<{klass} {attrs}>".format(
+            klass=self.__class__.__name__,
+            attrs=" ".join("{}={!r}".format(k, v)
+                           for k, v in self.__dict__.items() if v),
+        )
+
     def get_model_path(self):
+        # NOTE: project_path does not exist in the project table anymore
         query_model_project_training_SQL = """
                 SELECT
                     p.project_path,
@@ -332,7 +341,7 @@ class BaseModel:
 
         return sorted(empty_fields)[0]
 
-    def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> bool:
+    def check_if_required_files_exist(self, uploaded_file: UploadedFile) -> Tuple[bool, List[str]]:
         # check if necessary files required included in the package
         # Load list of files
         # Check Models
@@ -341,88 +350,161 @@ class BaseModel:
         # Check labelmap
         # CHECK at submission
 
-        framework_const = Model.get_framework(self.framework, string=False)
+        # framework_const = Model.get_framework(self.framework, string=False)
         deployment_type_const = Deployment.get_deployment_type(
             self.deployment_type)
-
-        with st.spinner("Checking compatible files in uploaded model"):
+        # try:
+        if deployment_type_const == DeploymentType.OD:
             file_list = list_files_in_archived(archived_filepath=uploaded_file.name,
                                                file_object=uploaded_file)
-            try:
-                # Currently supports TensorFlow for Object Detection
-                if framework_const == Framework.TensorFlow:
-                    framework_check_list = MODEL_FILES[Framework.TensorFlow]
-                    model_files = []  # use to temporariy store detected files, raise Error if length>1!!!
-                    checkpoint_files = []
-                    config_files = []
-                    labelmap_files = []
+            # Currently supports TensorFlow for Object Detection
+            # if framework_const == Framework.TensorFlow:
+            framework_check_list = MODEL_FILES[Framework.TensorFlow]
+            model_files = []  # use to temporariy store detected files, raise Error if length>1!!!
+            checkpoint_files = []
+            config_files = []
+            labelmap_files = []
 
-                    for file in file_list:
-                        if file.endswith(framework_check_list['model_extension']):
-                            model_files.append(file)
-                            logger.info(model_files)
-                        assert len(
-                            model_files) <= 1, "There should only be one model file"
+            for file in file_list:
+                if file.endswith(framework_check_list['model_extension']):
+                    model_files.append(file)
+                    logger.debug(f"{model_files = }")
 
-                        if Path(file).name == framework_check_list['checkpoint']:
-                            checkpoint_files.append(file)
-                            logger.info(checkpoint_files)
+                elif os.path.basename(file) == framework_check_list['checkpoint']:
+                    checkpoint_files.append(file)
+                    logger.debug(f"{checkpoint_files = }")
 
-                        if deployment_type_const in [DeploymentType.Image_Classification, DeploymentType.OD,
-                                                     DeploymentType.Instance, DeploymentType.Semantic]:
+                elif deployment_type_const == DeploymentType.OD:
+                    # OPTIONAL
+                    if file == framework_check_list['config']:
+                        config_files.append(file)
+                        logger.debug(f"{config_files = }")
 
-                            # OPTIONAL
-                            if file.endswith(framework_check_list['config']):
-                                config_files.append(file)
-                                logger.info(config_files)
+                    if file == framework_check_list['labelmap']:
+                        labelmap_files.append(file)
+                        logger.debug(f"{labelmap_files = }")
 
-                            if Path(file).name == framework_check_list['labelmap']:
-                                labelmap_files.append(file)
-                                logger.info(labelmap_files)
+            self.compatibility_flag = ModelCompatibility.MissingModel
+            if not model_files:
+                st.error("Model file missing")
+                logger.error("Model file missing")
+                st.stop()
+            if len(model_files) > 1:
+                st.error("There should only be one model file")
+                logger.error("There should only be one model file")
+                st.stop()
+            if not checkpoint_files:
+                st.error("Checkpoint files missing")
+                logger.error("Checkpoint files missing")
+                st.stop()
 
-                    assert 0 < len(model_files) <= 1, "Model file missing"
-                    assert len(
-                        checkpoint_files) >= 1, "Checkpoint files missing"
-                    self.compatibility_flag = ModelCompatibility.Compatible  # Set flag as Compatible
+            if not config_files:
+                st.error(
+                    f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
+                logger.error(
+                    f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
+                st.stop()
+            else:
+                # testing whether the pipeline.config file is loadable and editable
+                try:
+                    pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
+                    proto_str = extract_one_to_bytes(
+                        uploaded_file, config_files[0])
+                    text_format.Merge(proto_str, pipeline_config)
+                    # search for the model field and try changing the num_classes
+                    Labels.set_num_classes(5, pipeline_config=pipeline_config)
+                except Exception as e:
+                    logger.error("Error reading or modifying the pipeline.config "
+                                 f"file: {e}")
+                    st.error("Error reading or modifying the pipeline.config")
+                    st.stop()
 
-                    if deployment_type_const in COMPUTER_VISION_LIST:
-                        if len(config_files) == 0:
-                            st.warning(
-                                f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
-                            logger.warning(
-                                f"**pipeline.config** file is missing, please include inside the archived folder as required by TensorFlow Object Detection API.")
-                            self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
-                        if len(labelmap_files) == 0:
-                            st.warning(
-                                f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
-                            logger.warning(
-                                f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
-                            self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
+            if len(config_files) > 1 or len(labelmap_files) > 1:
+                st.error(f"Only accept one pipeline.config file and one labelmap.pbtxt "
+                         "file. But found more than one of either each.")
+                st.stop()
 
-                    st.success(
-                        f"**{uploaded_file.name}** contains the required files for Training")
+            self.compatibility_flag = ModelCompatibility.Compatible  # Set flag as Compatible
 
-                    return True, labelmap_files
+            # if deployment_type_const in COMPUTER_VISION_LIST:
+            if not labelmap_files:
+                st.warning(
+                    f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                logger.warning(
+                    f"**labelmap.pbtxt** files not included in the uploaded folder. Please include for instant deployment. It is not required for new training")
+                self.compatibility_flag = ModelCompatibility.MissingExtraFiles_ModelExists
 
-                elif framework_const == Framework.PyTorch:
-                    pass
-                elif framework_const == Framework.Scikit_learn:
-                    pass
-                elif framework_const == Framework.Caffe:
-                    pass
-                elif framework_const == Framework.MXNet:
-                    pass
-                elif framework_const == Framework.ONNX:
-                    pass
+            st.success(
+                f"**{uploaded_file.name}** contains the required files for Training")
 
-            except Exception as e:
-                error_msg = f"{e}"
-                logger.error(error_msg)
-                st.error(error_msg)
-                self.compatibility_flag = ModelCompatibility.MissingModel
-                return False
+            return True, labelmap_files
+
+            # NOT using these frameworks for now
+            # elif framework_const == Framework.PyTorch:
+            #     pass
+            # elif framework_const == Framework.Scikit_learn:
+            #     pass
+            # elif framework_const == Framework.Caffe:
+            #     pass
+            # elif framework_const == Framework.MXNet:
+            #     pass
+            # elif framework_const == Framework.ONNX:
+            #     pass
+        elif deployment_type_const in (DeploymentType.Image_Classification,
+                                       DeploymentType.Semantic):
+            error = False
+            h5_file = uploaded_file.getvalue()
+            with get_temp_dir() as temp_dir:
+                path = os.path.join(temp_dir, uploaded_file.name)
+                with open(path, 'wb') as f:
+                    f.write(h5_file)
+                logger.debug(f"Temp h5 path: {path}")
+
+                with st.spinner("Trying to load Keras model to check ..."):
+                    try:
+                        model = load_trained_keras_model(path)
+                        # try checking whether it's possible to modify the layers
+                        # with dummy numbers
+                        model = modify_trained_model_layers(
+                            model, self.deployment_type, (224, 224, 3), 2)
+                        # model.summary(print_fn=st.text)
+                    except ValueError as e:
+                        st.error("Error occurred when trying to load the uploaded H5 "
+                                 f"file: {e}  \nThis means that an unknown custom object is "
+                                 "required to load the Keras Model, unfortunately this "
+                                 "is currently not supported in our application yet. "
+                                 "Please try uploading another model.")
+                        logger.error(f"Error loading Keras H5 file: {e}")
+                        error = True
+                    except Exception as e:
+                        st.error("Error occurred when trying to load the uploaded "
+                                 "Keras H5 file. Please ensure it's in the right format.")
+                        logger.error("Error occurred when trying to load the Keras "
+                                     f"H5 file: {e}")
+                        error = True
+            if error:
+                # must do it this way to ensure the temp_dir is properly removed
+                st.stop()
+        else:
+            st.error(f"Error with deployment type {deployment_type_const}")
+            logger.error(f"Error with deployment type {deployment_type_const}")
+            self.compatibility_flag = ModelCompatibility.MissingModel
+            st.stop()
+
+        self.compatibility_flag = ModelCompatibility.Compatible  # Set flag as Compatible
+        st.success("🎉 The uploaded Keras model is verified to be compatible!")
+
+        return True, []
+
+        # except Exception as e:
+        #     error_msg = f"{e}"
+        #     logger.error(error_msg)
+        #     st.error(error_msg)
+        #     self.compatibility_flag = ModelCompatibility.MissingModel
+        #     return False, []
 
     @staticmethod
+    @st.experimental_memo
     def get_model_type(model_type: Union[str, ModelType], string: bool = False) -> Union[str, ModelType]:
         """Get Model Type string or IntEnum constants
 
@@ -510,8 +592,9 @@ class BaseModel:
             training_name = model_row['Training Name']
 
         # Get IntEnum constant
-        model_type = BaseModel.get_model_type(
-            model_type=model_type, string=False)
+        if not isinstance(model_type, ModelType):
+            model_type = BaseModel.get_model_type(
+                model_type=model_type, string=False)
 
         framework = get_directory_name(framework)
 
@@ -519,6 +602,9 @@ class BaseModel:
             model_path) if new_model_flag else model_path  # format model_path if new model creation
 
         if model_type == ModelType.PreTrained:
+            # this path is not used for now, because TFOD pretrained model has very
+            #  specific path, while the other two tasks build Keras model from pretrained
+            #  model functions
             model_path = PRE_TRAINED_MODEL_DIR / framework / str(model_path)
 
         elif model_type == ModelType.UserUpload:
@@ -526,9 +612,10 @@ class BaseModel:
                 framework / str(model_path)
 
         elif model_type == ModelType.ProjectTrained:
+            # must follow Training.training_path
             model_path = PROJECT_DIR / \
                 get_directory_name(project_name) / 'training' / get_directory_name(
-                    training_name) / 'exported_models' / str(model_path)
+                    training_name) / 'models' / str(model_path)
 
         # assert model_path.is_dir(), f"{str(model_path)} does not exists"
 
@@ -537,6 +624,15 @@ class BaseModel:
             logger.error(error_msg)
 
         return model_path
+
+    def get_trained_keras_filepath(self, model_path: Path):
+        """Get the path to the uploaded Keras H5 model file.
+
+        NOTE: take note of this path to use to load model in Training.training_path
+        """
+        filename = f"{get_directory_name(self.name)}.h5"
+        filepath = model_path / filename
+        return filepath
 
     @staticmethod
     def query_project_model_path(model_id: int) -> Path:
@@ -569,10 +665,12 @@ class BaseModel:
         query_result = db_fetchone(query_model_project_training_SQL,
                                    conn, query_model_project_training_vars)
         if query_result:
-
+            # take note of this path to be the same in Training.training_path
+            # and also Model.model_path
             project_model_path = PROJECT_DIR / \
-                get_directory_name(query_result.Project_Name) / get_directory_name(
-                    query_result.Training_Name) / 'exported_models' / query_result.Model_Path
+                get_directory_name(query_result.Project_Name) / 'training' / \
+                get_directory_name(query_result.Training_Name) / \
+                'models' / query_result.Model_Path
             return project_model_path
 
     @staticmethod
@@ -638,7 +736,7 @@ class BaseModel:
                         id;
 
                                     """
-        # self.model_path = self.get_pt_user_model_path(model_path=self.name,
+        # model_path = self.get_pt_user_model_path(model_path=self.name,
         #                                               framework=self.framework,
         #                                               model_type=self.model_type,
         #                                               new_model_flag=True)
@@ -752,40 +850,51 @@ class BaseModel:
         Returns:
             bool: True if successful process, False otherwise
         """
+        # get destination folder
+        progress_bar = st.progress(0)
+        self.model_type = "User Deep Learning Model Upload"
 
-        with st.container():
-            # get destination folder
-            progress_bar = st.progress(0)
-            self.model_type = "User Deep Learning Model Upload"
+        model_path = self.get_pt_user_project_model_path(model_path=self.name,
+                                                         framework=self.framework,
+                                                         model_type=self.model_type,
+                                                         new_model_flag=True)
+        logger.info(f"Model Path: {model_path}")
+        os.makedirs(model_path, exist_ok=True)
 
-            self.model_path = self.get_pt_user_project_model_path(model_path=self.name,
-                                                                  framework=self.framework,
-                                                                  model_type=self.model_type,
-                                                                  new_model_flag=True)
-            logger.info(f"Model Path: {self.model_path}")
-            # unpack
-            progress_bar.progress(1 / 3)
-            with st.spinner(text='Storing uploaded model'):
-                save_uploaded_extract_files(dst=self.model_path,
+        progress_bar.progress(1 / 3)
+        with st.spinner('Storing uploaded model ...'):
+            file_extension = os.path.splitext(self.file_upload.name)[-1]
+            if file_extension == '.h5':
+                pt_keras_filepath = self.get_trained_keras_filepath(model_path)
+                logger.info(
+                    f'Saving h5 model file to: {pt_keras_filepath}')
+                with open(pt_keras_filepath, 'wb') as f:
+                    f.write(self.file_upload.getbuffer())
+            else:
+                logger.info(
+                    "Saving object detection model files to the model path")
+                save_uploaded_extract_files(dst=model_path,
                                             filename=self.file_upload.name,
                                             fileObj=self.file_upload)
-            if label_map_string:
-                # generate labelmap
-                # move labelmap to dst
-                Labels.generate_labelmap_file(labelmap_string=label_map_string,
-                                              dst=self.model_path,
-                                              framework=self.framework,
-                                              deployment_type=self.deployment_type)
+        if label_map_string:
+            # generate labelmap
+            # move labelmap to dst
+            logger.info("Generating labelmap file")
+            Labels.generate_labelmap_file(labelmap_string=label_map_string,
+                                          dst=model_path,
+                                          framework=self.framework,
+                                          deployment_type=self.deployment_type)
 
-            # Create new row in DB
-            progress_bar.progress(2 / 3)
-            with st.spinner(text='Storing uploaded model'):
-                self.insert_new_model(model_type=self.model_type)
+        # Create new row in DB
+        progress_bar.progress(2 / 3)
+        with st.spinner('Storing uploaded model ...'):
+            logger.debug("Storing uploaded model into database")
+            self.insert_new_model(model_type=self.model_type)
 
-            # Success msg
-            progress_bar.progress(3 / 3)
-            self.has_submitted = True
-            st.success(f"Successfully uploaded new model: {self.name}")
+        # Success msg
+        progress_bar.progress(3 / 3)
+        self.has_submitted = True
+        st.success(f"Successfully uploaded new model: {self.name}")
 
         return True
 
@@ -793,115 +902,91 @@ class BaseModel:
                                           attached_model,
                                           project_name: str,
                                           training_name: str,
-                                          training_id: int) -> bool:
+                                          training_id: int, **kwargs) -> bool:
+        # kwargs is required for the submission_func in models_page
+        # Ensure attached_model is type Model class
+        assert isinstance(
+            attached_model, Model), "attached_model must be type Model class"
 
-        with st.container():
+        # Get metrics, model_type, framework and deployment_type from attached_model
+        self.metrics = attached_model.metrics
+        self.framework = attached_model.framework
+        self.deployment_type = attached_model.deployment_type
+        self.training_id = training_id
 
-            # Ensure attached_model is type Model class
-            assert isinstance(
-                attached_model, Model), "attached_model must be type Model class"
+        # not taking this because we are creating a project model (aka training_model)
+        # self.model_type = attached_model.model_type
+        self.model_type = 'Project Models'
 
-            # Get metrics, model_type, framework and deployment_type from attached_model
-            self.metrics = attached_model.metrics
-            self.model_type = attached_model.model_type
-            self.framework = attached_model.framework
-            self.deployment_type = attached_model.deployment_type
-            self.training_id = training_id
+        model_path = self.get_pt_user_project_model_path(
+            model_path=self.name,
+            framework=self.framework,
+            project_name=project_name,
+            training_name=training_name,
+            model_type=self.model_type,
+            new_model_flag=True)
+        logger.info(f"Training Model Path: {str(model_path)}")
 
-            # get destination folder
-            self.model_type = 'Project Models'
+        # Create New Model Folder NOTE:KIV-> Create before training
+        # logger.info(
+        #     f"Creating Training Model folder at {str(model_path)}")
+        # create_folder_if_not_exist(model_path)
 
-            self.model_path = self.get_pt_user_project_model_path(model_path=self.name,
-                                                                  framework=self.framework,
-                                                                  project_name=project_name,
-                                                                  training_name=training_name,
-                                                                  model_type=self.model_type,
-                                                                  new_model_flag=True)
-            logger.info(f"Training Model Path: {str(self.model_path)}")
-
-            # Create New Model Folder NOTE:KIV-> Create before training
-            # logger.info(
-            #     f"Creating Training Model folder at {str(self.model_path)}")
-            # create_folder_if_not_exist(self.model_path)
-
-            # Create new row in DB
-            logger.info(f"Inserting Training Model into DB")
-            self.insert_new_model(model_type=self.model_type)
-            self.has_submitted = True
-
+        # Create new row in DB
+        logger.info(f"Inserting Training Model into DB")
+        self.insert_new_model(model_type=self.model_type)
+        self.has_submitted = True
         return True
 
     def update_new_project_model_pipeline(self, attached_model,
                                           project_name: str,
-                                          training_name: str) -> bool:
+                                          training_name: str,
+                                          new_model_name: str, **kwargs) -> bool:
+        # kwargs is required for the submission_func in models_page
+        # Ensure attached_model is type Model class
+        assert isinstance(
+            attached_model, Model), "attached_model must be type Model class"
 
-        with st.container():
+        # Get metrics, model_type, framework and deployment_type from attached_model
+        self.metrics = attached_model.metrics
+        self.framework = attached_model.framework
+        self.deployment_type = attached_model.deployment_type
 
-            # Ensure attached_model is type Model class
-            assert isinstance(
-                attached_model, Model), "attached_model must be type Model class"
+        # not taking this because we are creating a project model (aka training_model)
+        # self.model_type = attached_model.model_type
+        self.model_type = 'Project Models'
 
-            # Get metrics, model_type, framework and deployment_type from attached_model
-            self.metrics = attached_model.metrics
-            self.model_type = attached_model.model_type
-            self.framework = attached_model.framework
-            self.deployment_type = attached_model.deployment_type
+        # get the potentially existing model_path first before updating with new name
+        # and new path
+        prev_model_path = self.get_pt_user_project_model_path(
+            model_path=self.name,
+            framework=self.framework,
+            project_name=project_name,
+            training_name=training_name,
+            model_type=self.model_type,
+            new_model_flag=True)
 
-            # get destination folder
-            self.model_type = 'Project Models'
+        # update new name and get new path
+        self.name = new_model_name
+        model_path = self.get_pt_user_project_model_path(
+            model_path=self.name,
+            framework=self.framework,
+            project_name=project_name,
+            training_name=training_name,
+            model_type=self.model_type,
+            new_model_flag=True)
+        logger.info(f"Training Model Path: {str(model_path)}")
 
-            self.model_path = self.get_pt_user_project_model_path(model_path=self.name,
-                                                                  framework=self.framework,
-                                                                  project_name=project_name,
-                                                                  training_name=training_name,
-                                                                  model_type=self.model_type,
-                                                                  new_model_flag=True)
-            logger.info(f"Training Model Path: {str(self.model_path)}")
+        if prev_model_path.exists():
+            # rename the existing directory to the new name
+            logger.info("Renaming existing model path to new path:"
+                        f"{prev_model_path} -> {model_path}")
+            os.rename(prev_model_path, model_path)
 
-            # Create New Model Folder NOTE:KIV-> Create before training
-            # logger.info(
-            #     f"Creating Training Model folder at {str(self.model_path)}")
-            # create_folder_if_not_exist(self.model_path)
-
-            # Create new row in DB
-            logger.info(f"Updating Training Model into DB")
-            self.update_model_table(model_type=self.model_type)
-            self.has_submitted = True
-
+        logger.info(f"Updating Training Model into DB")
+        self.update_model_table(model_type=self.model_type)
+        self.has_submitted = True
         return True
-
-    @staticmethod
-    def get_pretrained_model_details(deployment_type: str, for_display: bool = False) -> pd.DataFrame:
-        """Get the model details from the CSV files scraped from their websites,
-        based on the `deployment_type`.
-
-        Args:
-            deployment_type (str): obtained from `Project.deployment_type` attribute
-            for_display (bool, optional): True to drop irrelevant columns for displaying to the users. Defaults to False.
-
-        Returns:
-            pd.DataFrame: DataFrame with pretrained model details such as Model Name.
-        """
-        assert deployment_type in DEPLOYMENT_TYPE, "This should be from `Project.deployment_type`."
-
-        if deployment_type == "Image Classification":
-            # this df has columns: Model Name
-            models_df = pd.read_csv(CLASSIF_MODELS_NAME_PATH)
-        elif deployment_type == "Object Detection with Bounding Boxes":
-            # this df has columns: Model Name, Speed (ms), COCO mAP, Outputs, model_links
-            models_df = pd.read_csv(TFOD_MODELS_TABLE_PATH)
-            if for_display:
-                # `model_links` will be required for downloading the pretrained models for TFOD
-                models_df.drop(columns='model_links', inplace=True)
-        elif deployment_type == "Semantic Segmentation with Polygons":
-            # this df has columns: model_func, Model Name, Reference, links
-            # The `Reference` contains names of the authors
-            # The `links` are just the paper's arXiv links
-            models_df = pd.read_csv(SEGMENT_MODELS_TABLE_PATH)
-            if for_display:
-                # `model_func` are the functions required for using the `keras_unet_collection` library
-                models_df.drop(columns='model_func', inplace=True)
-        return models_df
 
 
 class NewModel(BaseModel):
@@ -917,11 +1002,8 @@ class NewModel(BaseModel):
         """
         new_model_attributes = ["model_upload", "labelmap",
                                 "generate_labelmap_flag",
-                                "model_upload_name",
-                                "model_upload_desc",
-                                "model_upload_deployment_type",
-                                "model_upload_framework",
-                                "model_upload_widget"]
+                                # "model_upload_framework",
+                                ]
 
         reset_page_attributes(new_model_attributes)
 
@@ -936,64 +1018,81 @@ class NewModel(BaseModel):
 
 
 class Model(BaseModel):
-    def __init__(self, model_id: int = None, model_row: Dict = None) -> None:
+    def __init__(self, model_id: int = None, model_row: Dict[str, Any] = None):
         super().__init__(model_id)
 
-        # ******************************IF GIVEN DATAFRAME ROW******************************
         if model_row:
-            self.id: int = model_row['id']
-            self.name: str = model_row['Name']
-            self.desc: str = model_row['Description']
-            self.metrics: Dict = model_row['Metrics']
-            self.model_type: str = model_row['Model Type']
-            self.framework: str = model_row['Framework']
-            self.training_name: str = model_row['Training Name']
-            self.updated_at: datetime = model_row['Date/Time']
-            self.model_path_relative: str = model_row['Model Path']
-            self.deployment_type: str = model_row['Deployment Type']
-
-        # ****************************** IF GIVEN MODEL ID******************************
+            self.from_dict(model_row)
         elif model_id:
             assert (isinstance(
                 model_id, int)), f"Model ID should be type int but type {type(model_id)} obtained ({model_id})"
             self.id = model_id
-            # set up the remaining fields just like when `model_row` is being passed in
+            # set up the remaining fields just like self.from_dict()
             self.query_all_fields()
+        else:
+            raise ValueError("Please pass in `model_id` or `model_row` "
+                             "to create a Model instance")
 
         # ******************************Get model type constant******************************
-        model_type_constant: IntEnum = self.get_model_type(
+        self.model_type_constant: IntEnum = self.get_model_type(
             self.model_type, string=False)
 
-        # ****************************** Get respective model path******************************
-        if (model_type_constant == ModelType.PreTrained) or (model_type_constant == ModelType.UserUpload):
-            self.model_path = self.get_pt_user_project_model_path(model_path=self.model_path_relative,
-                                                                  framework=self.framework,
-                                                                  model_type=self.model_type)
-        elif (model_type_constant == ModelType.ProjectTrained):
-            self.model_path = self.get_project_model_path()
+        # NOTE: moved the self.model_path to get it from get_path() method if needed
 
         # ******************************Get Model Input Size******************************
         # TODO: KIV
         # self.model_input_size = self.metrics.get('metadata').get('input_size')
         self.perf_metrics = self.get_perf_metrics()
 
-    def __repr__(self):
-        # return (f"Model(model_row={{'id': {self.id}, 'Name': {self.name}, "
-        #         f"'Description': {self.desc}, "
-        #         f"'Metrics': {self.metrics}, "
-        #         f"'Model Type': {self.model_type}, "
-        #         f"'Framework': {self.framework}, "
-        #         f"'Training Name': {self.training_name}, "
-        #         f"'Date/Time': {self.updated_at}, "
-        #         f"'Model Path': {self.model_path_relative}, "
-        #         f"'Deployment Type': {self.deployment_type}"
-        #         "})"
-        #         )
-        return "<{klass} {attrs}>".format(
-            klass=self.__class__.__name__,
-            attrs=" ".join("{}={!r}".format(k, v)
-                           for k, v in self.__dict__.items()),
-        )
+    def from_dict(self, model_row: Dict[str, Any]):
+        """From dictionary generated from self.filtered_models_dataframe()"""
+        self.id: int = model_row['id']
+        self.name: str = model_row['Name']
+        self.desc: str = model_row['Description']
+        self.metrics: Dict = model_row['Metrics']
+        self.model_type: str = model_row['Model Type']
+        self.framework: str = model_row['Framework']
+        self.training_name: str = model_row['Training Name']
+        self.updated_at: datetime = model_row['Date/Time']
+        self.model_path_relative: str = model_row['Model Path']
+        self.deployment_type: str = model_row['Deployment Type']
+
+    def get_path(self, return_keras_filepath: bool = False) -> Path:
+        """Get the path to the SavedModel directory, or to the Keras H5 model file 
+        (if `return_keras_filepath` is True)
+
+        NOTE: this is an important method to get the path to all three types of model
+        """
+        if self.model_type_constant == ModelType.PreTrained or \
+                self.model_type_constant == ModelType.UserUpload:
+            model_path = self.get_pt_user_project_model_path(
+                model_path=self.model_path_relative,
+                framework=self.framework,
+                model_type=self.model_type_constant)
+        elif self.model_type_constant == ModelType.ProjectTrained:
+            # must use this method and cannot use the method below
+            # because project_name and training_name for the project model is needed
+            model_path = self.get_project_model_path()
+            # model_path = self.get_pt_user_project_model_path(
+            #     model_path=self.model_path_relative,
+            #     framework=self.framework,
+            #     project_name=project_name,
+            #     training_name=training_name,
+            #     model_type=self.model_type)
+
+        if return_keras_filepath:
+            keras_filepath = self.get_trained_keras_filepath(model_path)
+            return keras_filepath
+        return model_path
+
+    @property
+    def is_not_pretrained(self) -> bool:
+        """Checking whether the model is not pretrained, i.e. either uploaded by user, 
+        or is a trained project model. Using property decorator to ensure we get the 
+        latest info in case the model type is changed any time."""
+        if self.model_type != "Pre-trained Models":
+            return True
+        return False
 
     def query_all_fields(self) -> NamedTuple:
 
@@ -1049,20 +1148,22 @@ class Model(BaseModel):
                                   query_all_fields_vars)
 
         if model_field:
-
             self.id, self.name, self.framework, self.model_type, self.deployment_type,\
                 self.training_name, self.updated_at, self.desc, self.metrics,\
                 self.model_path_relative = model_field
         else:
             logger.error(
                 f"Model with ID {self.id} does not exists in the Database!!!")
-
             model_field = None
 
         return model_field
 
     @staticmethod
-    def query_model_table(for_data_table: bool = False, return_dict: bool = False, deployment_type: Union[str, IntEnum] = None) -> namedtuple:
+    def query_model_table(for_data_table: bool = False,
+                          return_dict: bool = False,
+                          deployment_type: Union[str, IntEnum] = None
+                          ) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
+                                     List[str]]:
         """Wrapper function to query model table
 
         Args:
@@ -1071,16 +1172,39 @@ class Model(BaseModel):
             deployment_type (IntEnum, optional): Deployment type. Defaults to None.
 
         Returns:
-            namedtuple: [description]
+            Tuple[NamedTuple, List[str]]: NamedTuple fetched from database, with 
+                list of column names.
         """
         if deployment_type:
-            models, column_names = query_model_ref_deployment_type(deployment_type=deployment_type,
-                                                                   for_data_table=for_data_table,
-                                                                   return_dict=return_dict)
-
+            models, column_names = query_model_by_deployment_type(deployment_type=deployment_type,
+                                                                  for_data_table=for_data_table,
+                                                                  return_dict=return_dict)
         else:
             models, column_names = query_all_models(
                 for_data_table=for_data_table, return_dict=return_dict)
+
+        return models, column_names
+
+    def query_uploaded_models(for_data_table: bool = False,
+                              return_dict: bool = False,
+                              deployment_type: Union[str, IntEnum] = None
+                              ) -> Tuple[Union[NamedTuple,
+                                               List[Dict[str, Any]]], List[str]]:
+        """Wrapper function to query model table
+
+        Args:
+            for_data_table (bool, optional): True if query for data table. Defaults to False.
+            return_dict (bool, optional): True if query results of type Dict. Defaults to False.
+            deployment_type (IntEnum, optional): Deployment type. Defaults to None.
+
+        Returns:
+            Tuple[NamedTuple, List[str]]: NamedTuple fetched from database, with 
+                list of column names.
+        """
+        models, column_names = query_model_by_deployment_type(
+            deployment_type=deployment_type,
+            for_data_table=for_data_table,
+            return_dict=return_dict)
 
         return models, column_names
 
@@ -1128,7 +1252,7 @@ class Model(BaseModel):
     def filtered_models_dataframe(models: Union[List[namedtuple], List[dict]],
                                   dataframe_col: str, filter_value: Union[str, int],
                                   column_names: List = None, sort_col: str = None
-                                  ) -> pd.DataFrame:
+                                  ) -> List[Dict[str, Any]]:
         """Get a List of filtered Models Dict using pandas.DataFrame.loc[]
 
         Args:
@@ -1148,8 +1272,8 @@ class Model(BaseModel):
         return filtered_models_df
 
     def get_project_model_path(self):
-        self.model_path = BaseModel.query_project_model_path(self.id)
-        return self.model_path
+        model_path = BaseModel.query_project_model_path(self.id)
+        return model_path
 
     def get_labelmap_path(self):
         model_path = self.get_model_path()
@@ -1177,7 +1301,7 @@ class Model(BaseModel):
 
         return model_row
 
-    def get_perf_metrics(self):
+    def get_perf_metrics(self) -> List[Dict[str, Any]]:
         perf_metrics = []
         deployment_type = Deployment.get_deployment_type(
             self.deployment_type, string=False)
@@ -1190,7 +1314,7 @@ class Model(BaseModel):
         return perf_metrics
 
     @staticmethod
-    def create_perf_metrics_table(data: List) -> pd.DataFrame:
+    def create_perf_metrics_table(data: List[Dict[str, Any]]) -> pd.DataFrame:
         df_metrics = pd.DataFrame(
             data, columns=['metrics', 'name', 'value', 'unit'])
         df_metrics['value'].map(
@@ -1198,6 +1322,83 @@ class Model(BaseModel):
         df_metrics = df_metrics.set_index(['metrics'])
 
         return df_metrics
+
+    @staticmethod
+    def reset_training_model_info(training_id: int):
+        """Reset training_model (aka project model) info in database"""
+        sql_update = """
+            UPDATE
+                public.training
+            SET
+                training_model_id = NULL,
+                attached_model_id = NULL,
+                training_param = NULL,
+                augmentation = NULL,
+                is_started = False,
+                progress = NULL
+            WHERE
+                id = %s;
+        """
+        update_vars = [training_id]
+        try:
+            db_no_fetch(sql_update, conn, update_vars)
+            return True
+        except Exception as e:
+            logger.error(f"At update training_attached: {e}")
+            return False
+
+    @staticmethod
+    def delete_model(model_id: int = None, training_id: int = None):
+        """Delete model directories, delete model row from 'models' table, and
+        reset the training_model's info at 'training' table"""
+        # """Can provide either training_id or model_id because each training session
+        # only has one associated model"""
+        # assert (training_id, model_id) != (
+        #     None, None), "Must provide either training_id or model_id"
+        # if training_id is not None:
+        #     # this will also return model id
+        #     sql_delete = """
+        #         DELETE
+        #         FROM public.models
+        #         WHERE training_id = %s
+        #         RETURNING id, name;
+        #     """
+        #     delete_vars = [training_id]
+        #     label = f"Model with Training ID {training_id}"
+        # else:
+
+        # need model_id to get the project_model path from DB to delete the directories
+        # first before deleting its info from DB
+        logger.info("Checking if model directory exists")
+        model_path = Model.query_project_model_path(model_id)
+        if model_path and model_path.exists():
+            shutil.rmtree(model_path)
+            logger.info("Deleted existing model directories")
+        else:
+            logger.info("Model directory does not exist")
+
+        sql_delete = """
+            DELETE
+            FROM public.models
+            WHERE id = %s
+            RETURNING training_id, name;
+        """
+        delete_vars = [model_id]
+        label = f"Model with ID {model_id}"
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.error(f"Error occurred when deleting model, "
+                         f"cannot find {label}")
+            return
+        model_name = record.name
+        # if training_id is not None:
+        #     model_id = record.id
+        # else:
+        training_id = record.training_id
+        logger.info(f"Deleted Model of ID {model_id} and name '{model_name}' "
+                    f"associated with Training ID {training_id}")
+
+        Model.reset_training_model_info(training_id)
 
 
 # ********************************** DEPRECATED ********************************
@@ -1227,8 +1428,12 @@ class PreTrainedModel(BaseModel):
         return PT_model_list, column_names
 
 
-@st.cache(ttl=60)
-def query_all_models(for_data_table: bool = False, return_dict: bool = False):
+# @st.cache(ttl=60)
+def query_all_models(
+    for_data_table: bool = False,
+    return_dict: bool = False) -> Tuple[Union[List[NamedTuple],
+                                              List[Dict[str, Any]]],
+                                        List[str]]:
 
     ID_string = "id" if for_data_table else "ID"
 
@@ -1300,8 +1505,12 @@ def query_all_models(for_data_table: bool = False, return_dict: bool = False):
     return models_tmp, column_names
 
 
-@st.cache(ttl=60)
-def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None, for_data_table: bool = False, return_dict: bool = False):
+# @st.cache(ttl=60)
+def query_model_by_deployment_type(
+    deployment_type: Union[str, IntEnum] = None,
+    for_data_table: bool = False,
+    return_dict: bool = False) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
+                                        List[str]]:
     """Query rows of models filtered by Deployment Type from 'models' table
 
     Args:
@@ -1358,9 +1567,10 @@ def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None,
             dt.name AS "Deployment Type"
         FROM
             public.models m
-            INNER JOIN public.deployment_type dt ON dt.name = %s
+            INNER JOIN public.deployment_type dt ON m.deployment_id = dt.id
+        WHERE dt.name = %s
         ORDER BY
-            m.id ASC;        
+            m.id;        
                 """.format(ID_string=ID_string)
 
     model_dt_vars = [deployment_type]
@@ -1379,3 +1589,55 @@ def query_model_ref_deployment_type(deployment_type: Union[str, IntEnum] = None,
         models_tmp = []
 
     return models_tmp, column_names
+
+
+def query_current_project_models(
+    project_id: int,
+    for_data_table: bool = False,
+    return_dict: bool = False) -> Tuple[Union[List[NamedTuple], List[Dict[str, Any]]],
+                                        List[str]]:
+    """Query rows of project models filtered by current project_id from 'models' table"""
+    ID_string = "id" if for_data_table else "ID"
+
+    sql_query = f"""
+        SELECT  m.id          AS \"{ID_string}\",
+                m.name        AS "Name",
+                f.name        AS "Framework",
+                t.name        AS "Training Name",
+                m.description AS "Description",
+                m.metrics     AS "Metrics",
+                m.updated_at  AS "Date/Time"
+        FROM public.models m
+                LEFT JOIN public.training t ON m.training_id = t.id
+                LEFT JOIN public.framework f ON f.id = m.framework_id
+        WHERE m.model_type_id = 2
+            AND t.project_id = %s
+        ORDER BY m.id;
+    """
+    query_vars = [project_id]
+    models, column_names = db_fetchall(
+        sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
+    logger.info(f"Queried current project's models from database")
+
+    models_tmp = []
+    if models:
+        models_tmp = datetime_formatter(models, return_dict)
+
+    return models_tmp, column_names
+
+
+def get_trained_models_df(models: List[NamedTuple],
+                          column_names: List[str],
+                          model_type: Union[str, ModelType],) -> pd.DataFrame:
+    """Create the DataFrame for uploaded models filtered from existing_models
+    queried from Model.query_model_table()"""
+    assert model_type in (*MODEL_TYPE, *MODEL_TYPE.values())
+    df = Model.create_models_dataframe(models, column_names)
+
+    model_type_str = Model.get_model_type(model_type, string=True)
+    df = df[df['Model Type'] == model_type_str]
+
+    id_col_name = df.columns[0]
+    df = df[[id_col_name, 'Name', 'Metrics',
+             'Description', 'Date/Time']].reset_index(drop=True)
+    return df

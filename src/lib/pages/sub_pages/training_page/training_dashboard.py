@@ -102,14 +102,20 @@ def dashboard():
 
     # ****************************** CREATE NEW PROJECT BUTTON ****************************************
 
-    def to_new_training_page():
+    existing_annotations, _ = session_state.project.query_annotations()
+    if len(existing_annotations) >= 10:
+        def to_new_training_page():
+            session_state.training_pagination = TrainingPagination.New
+            NewTraining.reset_new_training_page()
 
-        session_state.training_pagination = TrainingPagination.New
-        NewTraining.reset_new_training_page()
-
-    create_new_training_button_col1.button(
-        "Create New Training Session", key='create_new_training_from_training_dashboard',
-        on_click=to_new_training_page, help="Create a new training session")
+        create_new_training_button_col1.button(
+            "Create New Training Session", key='create_new_training_from_training_dashboard',
+            on_click=to_new_training_page, help="Create a new training session")
+    else:
+        st.warning("""Not enough annotations found for this project yet. Please go to the
+        **Labelling** page and label for at least 10 images first before entering here.
+        But note that 10 is only the minimum number of data to be used for a test run 😆""")
+        st.stop()
 
     # **************** DATA TABLE COLUMN CONFIG *********************************************************
 
@@ -228,7 +234,7 @@ def dashboard():
 
 def index():
     RELEASE = True
-    logger.debug("[NAVIGATOR] At training_dashboard.py INDEX")
+    logger.debug("Navigator: At training_dashboard.py INDEX")
     # ****************** TEST ******************************
     if not RELEASE:
 
@@ -258,7 +264,9 @@ def index():
         st.write(f"{project_description}")
 
         st.markdown("""___""")
-        # ****************************** HEADER **********************************************
+    # ****************** TEST ******************************
+
+    # ****************************** HEADER **********************************************
     st.write(f"## **Training Section:**")
     # ************************ TRAINING PAGINATION *************************
     training_page = {
@@ -276,7 +284,7 @@ def index():
 
     # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    training_dashboard_back_button_place = st.empty()
+    training_dashboard_back_button_place = st.sidebar.empty()
 
     if session_state.training_pagination != TrainingPagination.Dashboard:
 
@@ -293,7 +301,7 @@ def index():
         training_dashboard_back_button_place.empty()
 
     # >>>> RETURN TO TRAINING PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    training_page_back_place = st.empty()
+    training_page_back_place = st.sidebar.empty()
 
     # show btn if all forms are submitted and currently not in training page
     if 'new_training' in session_state and \
@@ -309,12 +317,8 @@ def index():
     else:
         training_page_back_place.empty()
 
-    # ! DEBUGGING PURPOSE, REMOVE LATER
-    st.write("session_state = ")
-    st.write(session_state)
-
     logger.debug(
-        f"Entering Training Page:{session_state.training_pagination}")
+        f"Entering Training Page: {session_state.training_pagination = }")
 
     # TODO #132 Add reset to training session state
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

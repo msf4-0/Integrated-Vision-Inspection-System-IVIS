@@ -44,12 +44,13 @@ if str(LIB_PATH) not in sys.path:
 from core.utils.file_handler import get_member
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from core.utils.helper import get_identifier_str_IntEnum, split_string
-from core.utils.log import log_error, log_info  # logger
+from core.utils.log import logger
 from data_manager.database_manager import init_connection
 from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
                                               DeploymentType)
 # ************** TensorFLow ***************************
 from google.protobuf import text_format
+from object_detection.protos import pipeline_pb2
 from object_detection.protos.string_int_label_map_pb2 import (
     StringIntLabelMap, StringIntLabelMapItem)
 from object_detection.utils.label_map_util import (
@@ -254,6 +255,40 @@ class Labels:
                 label_map_string=label_map_string)
 
         return label_map_dict
+
+    @staticmethod
+    def set_num_classes(num_classes: int, config_path: Path = None,
+                        pipeline_config: pipeline_pb2.TrainEvalPipelineConfig = None
+                        ) -> pipeline_pb2.TrainEvalPipelineConfig:
+        """Search for the model field in the pipeline config and set the number of classes."""
+
+        assert any((config_path, pipeline_config)), (
+            "Must provide either path or pipeline_config")
+
+        if not pipeline_config:
+            pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
+            import tensorflow as tf
+            with tf.io.gfile.GFile(config_path, "r") as f:
+                proto_str = f.read()
+                text_format.Merge(proto_str, pipeline_config)
+
+        # search for the model field
+        model_fields = ('ssd', 'faster_rcnn', 'center_net')
+        for field in model_fields:
+            if pipeline_config.model.HasField(field):
+                found_model_field = field
+                break
+        else:
+            logger.error(
+                "Cannot find the correct model from the pipeline.config file")
+            st.error("Cannot find the correct model from the pipeline.config file. "
+                     f"The model field should be one of {model_fields}")
+            st.stop()
+        logger.info(f"The found model field is '{found_model_field}'")
+
+        getattr(pipeline_config.model,
+                found_model_field).num_classes = num_classes
+        return pipeline_config
 
 
 class TensorFlow(object):

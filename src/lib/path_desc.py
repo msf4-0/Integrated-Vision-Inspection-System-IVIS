@@ -53,7 +53,7 @@ def get_data_dir():
 
 
 @contextmanager
-def get_temp_dir():
+def get_temp_dir() -> str:
     dirpath = mkdtemp()
     yield dirpath
     shutil.rmtree(dirpath)
@@ -72,7 +72,8 @@ PRE_TRAINED_MODEL_DIR = MEDIA_ROOT / 'models' / 'pre-trained-models'
 USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
     'models' / 'user-deep-learning-model-upload'
 # PROJECT_MODELS=PROJECT_DIR/<PROJECT-NAME>/<TRAINING-NAME>/'exported-models'/<MODEL-NAME>
-
+# named temporary directory
+TEMP_DIR = BASE_DATA_DIR / 'temp'
 
 # Pretrained model details
 # assuming this file is in "utils" directory

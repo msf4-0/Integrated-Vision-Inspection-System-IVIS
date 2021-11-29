@@ -10,23 +10,17 @@ from typing import Union, List, Dict
 from time import sleep
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as session_state
-from annotation.annotation_management import LabellingPagination
-# DEFINE Web APP page configuration
+from streamlit import session_state
 
-# NOTE
+# DEFINE Web APP page configuration
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 # >>>> User-defined Modules >>>>
 from data_editor.label_studio_editor_component.label_studio_editor import labelstudio_editor
@@ -45,7 +39,7 @@ place = {}
 
 
 def editor_config(project: Union[NewProject, Project]):
-    logger.info("Entered editor config")
+    logger.debug("Entered editor config")
 
     # project_id: int, deployment_type: str
     chdir_root()  # change to root directory
@@ -75,7 +69,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-            }
+        }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -124,14 +118,13 @@ def editor_config(project: Union[NewProject, Project]):
         def add_label(place):
 
             if session_state.add_label and session_state.add_label not in project.editor.labels:
-
+                logger.debug(f"{session_state.add_label = }")
                 newChild = project.editor.create_label(
                     'value', session_state.add_label)
+                logger.debug(f"newChild: {newChild.attributes.items()}")
 
-                logger.info(f"newChild: {newChild.attributes.items()}")
-
-                logger.info(f"New label added {project.editor.labels}")
                 project.editor.labels = project.editor.get_labels()
+                logger.info(f"New label added: {project.editor.labels}")
 
             elif session_state.add_label in project.editor.labels:
                 label_exist_msg = f"Label '{session_state.add_label}' already exists in {project.editor.labels}"
@@ -147,13 +140,12 @@ def editor_config(project: Union[NewProject, Project]):
             diff_21 = set(session_state.labels_select).difference(
                 project.editor.labels)  # set 2 - set 1 ADDITION
             if diff_12:
-                logger.info("Removal")
+                logger.debug("Removal")
                 removed_label = list(diff_12).pop()
 
                 # to avoid removing existing labels used for annotating!
                 if isinstance(project, Project):
-                    existing_annotations = project.get_existing_unique_labels(
-                        project.id)
+                    existing_annotations = project.get_existing_unique_labels()
                     if removed_label in existing_annotations:
                         place["warning_label_removal"].error(
                             f"WARNING: You are trying to remove a label '{removed_label}' "
@@ -163,14 +155,14 @@ def editor_config(project: Union[NewProject, Project]):
                         return
 
                 try:
+                    logger.debug(f"Removing: {removed_label}")
                     project.editor.labels.remove(
                         removed_label)
-                    project.editor.labels = sorted(
-                        project.editor.labels)
+                    project.editor.labels.sort()
                     # TODO: function to remove DOM
                     removedChild = project.editor.remove_label(
                         'value', removed_label)
-                    logger.info(f"removedChild: {removedChild}")
+                    logger.debug(f"removedChild: {removedChild}")
                     logger.info(f"Label removed {project.editor.labels}")
 
                 except ValueError as e:
@@ -185,7 +177,6 @@ def editor_config(project: Union[NewProject, Project]):
 
             else:
                 print("No Change")
-                pass
             project.editor.labels = project.editor.get_labels()
 
             # if len(project.editor.labels) > len(session_state.labels_select):
@@ -200,7 +191,7 @@ def editor_config(project: Union[NewProject, Project]):
         place["add_label"].info(
             '''Please enter desired labels and choose the labels to be used from the multi-select widget below''')
         # # labels_chosen = ['Hello', 'World', 'Bye']
-        logger.info(f"Before multi {project.editor.labels}")
+        logger.debug(f"Before multi {project.editor.labels}")
         # >>>>>>> REMOVE LABEL >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
         st.multiselect('Labels', options=project.editor.labels, default=project.editor.labels,
@@ -212,19 +203,10 @@ def editor_config(project: Union[NewProject, Project]):
             logger.info("Updating Editor Config......")
 
             if project.editor.update_editor_config():
+                st.success(f"Successfully updated editor configuration")
 
-                # >>>> Display success message
-                update_success_place = st.empty()
-                update_success_place.success(
-                    f"Successfully updated editor configurations")
-                sleep(0.7)
-                update_success_place.empty()
-
-                if 'editor' in session_state:
-                    del project.editor
-
-        st.button('Save', key='save_editor_config',
-                  on_click=save_editor_config)
+        if st.button('Save', key='save_editor_config'):
+            save_editor_config()
 
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
     # with lowercol1:
@@ -252,12 +234,10 @@ def editor_config(project: Union[NewProject, Project]):
                            task, key='editor_config')
 
 
-def main():
-    RELEASE = True
-
+def main(RELEASE=True):
     # ****************** TEST ******************************
     if not RELEASE:
-        logger.info("At main")
+        logger.debug("At main")
         # ************************TO REMOVE************************
         with st.sidebar.container():
             st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -270,17 +250,18 @@ def main():
         # # get enum ->2
         # deployment_type = DEPLOYMENT_TYPE["Object Detection with Bounding Boxes"]
         if 'project' not in session_state:
-            session_state.project = Project(43)
+            session_state.project = Project(103)
         # project = Project(7)
         # project.refresh_project_details()
-        # st.write(vars(session_state.project))
         editor_config(session_state.project)
-        logger.info("At main bottom")
+        # st.write(vars(session_state.project))
+        st.write(vars(session_state.project.editor))
 
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        main()
+        # False for debugging on this page
+        main(RELEASE=False)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

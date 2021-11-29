@@ -161,90 +161,14 @@ def index():
                  f" {NewTrainingPagination(session_state.new_training_pagination)}")
     new_training_page[session_state.new_training_pagination]()
 
-# TODO REMOVE
-# # ************************* NEW TRAINING SECTION SUBMISSION HANDLERS **********************
-#     if 'new_training_submission_handlers' not in session_state:
-#         session_state.new_training_submission_handlers = {
-#             NewTrainingPagination.InfoDataset: {
-#                 'insert': session_state.new_training.insert_training_info,
-#                 'update': None,
-#                 'context': {
-#                     'new_training_name': session_state.new_training_name
-#                 },
-#                 'name_key': 'new_training_name'
-#             },
-#             NewTrainingPagination.Model: {
-#                 'insert': None,
-#                 'update': None,
-#                 'context': {
-#                     # 'new_model_name': session_state.new_model_name TODO
-#                 },
-#                 'name_key': 'new_model_name'
-#             },
-#             NewTrainingPagination.TrainingConfig: {
-#                 'insert': None,
-#                 'update': None,
-#                 'context': {
-#                     'training_param': {}
-#                 },
-#                 'name_key': None
-#             },
-#             NewTrainingPagination.AugmentationConfig: {
-#                 'insert': None,
-#                 'update': None,
-#                 'context': {
-#                     # 'augmentation_param': session_state.new_training_name TODO
-#                 },
-#                 'name_key': 'new_training_name'
-#             },
-#         }
-
-# ************************* NEW TRAINING SECTION PAGINATION BUTTONS **********************
-    # Placeholder for Back and Next button for page navigation
-    # new_training_section_back_button_place, _,\
-    #     new_training_section_next_button_place = st.columns([1, 3, 1])
-
-    # def insert_handler() -> bool:
-    #     # return Boolean to proceed page change
-    #     # run insert script for current page
-    #     field_placeholder = session_state.new_training_place
-    #     context = session_state.new_training_submission_handlers[session_state.new_training_pagination].get(
-    #         'context')
-    #     name_key = session_state.new_training_submission_handlers[session_state.new_training_pagination].get(
-    #         'name_key')
-    #     insert_flag = session_state.new_training.check_if_field_empty()
-
-    #     # >>>> BACK BUTTON >>>>
-    # if session_state.new_training_pagination > NewTrainingPagination.InfoDataset:
-
-    #     def to_new_training_back_page():
-    #         if session_state.new_training_pagination > NewTrainingPagination.InfoDataset:
-
-    #             # Run submission according to current page
-    #             # BACK page if constraints are met
-    #             if session_state.new_training_submission_handlers[session_state.new_training_pagination]():
-    #                 session_state.new_training_pagination -= 1
-
-    #     with new_training_section_back_button_place:
-    #         st.button("back", key="new_training_back_button",
-    #                   on_click=to_new_training_back_page)
-
-    # # >>>> NEXT BUTTON >>>>
-    # if session_state.new_training_pagination < NewTrainingPagination.AugmentationConfig:
-    #     def to_new_training_next_page():
-    #         if session_state.new_training_pagination < NewTrainingPagination.AugmentationConfig:
-
-    #             # Run submission according to current page
-    #             # NEXT page if constraints are met
-    #             if new_training_submission_handlers[session_state.new_training_pagination]():
-    #                 session_state.new_training_pagination += 1
-
-    #     with new_training_section_next_button_place:
-    #         st.button("next", key="new_training_next_button",
-    #                   on_click=to_new_training_next_page)
     # ! DEBUGGING PURPOSE, REMOVE LATER
     st.write("vars(session_state.new_training) = ")
     st.write(vars(session_state.new_training))
+    # st.write("vars(session_state.new_training.attached_model)")
+    # st.write(vars(session_state.new_training.attached_model))
+    # st.write("session_state.new_training.attached_model.get_path()")
+    # st.write(session_state.new_training.attached_model.get_path())
+    # st.write("Exists:", session_state.new_training.attached_model.get_path().exists())
 
 
 if __name__ == "__main__":

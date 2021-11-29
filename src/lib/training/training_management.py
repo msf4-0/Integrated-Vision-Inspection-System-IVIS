@@ -16,7 +16,7 @@ Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
-limitations under the License. 
+limitations under the License.
 
 Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
@@ -25,6 +25,8 @@ SPDX-License-Identifier: Apache-2.0
 
 from copy import deepcopy
 import json
+import os
+import shutil
 import sys
 import traceback
 from collections import namedtuple
@@ -33,7 +35,7 @@ from math import ceil, floor
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 
 import pandas as pd
 import project
@@ -64,7 +66,8 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
 from project.project_management import Project
-from training.model_management import BaseModel, Model, NewModel
+from training.model_management import BaseModel, Model, ModelType, NewModel
+from training.utils import get_segmentation_model_func2params, get_segmentation_model_name2func
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -131,10 +134,11 @@ class DatasetPath(NamedTuple):
     train: Path
     eval: Path
     test: Path
-    # <<<< Variable Declaration <<<<
+
+# <<<< Variable Declaration <<<<
 
 
-    # >>>> TODO >>>>
+# >>>> TODO >>>>
 ACTIVATION_FUNCTION = ['RELU_6', 'sigmoid']
 OPTIMIZER = []
 CLASSIFICATION_LOSS = []
@@ -155,12 +159,37 @@ class TrainingParam:
         self.training_param_optional: List = []
 
 
-# >>>> TODO >>>>
+@dataclass(eq=False, order=False)
+class AugmentationConfig:
+    # the interface mode used in the augmentation config page (either "Simple" or "Professional")
+    interface_type: str = "Simple"
+    # These three attributes are used only for object detection
+    min_area: int = None
+    min_visibility: float = None
+    train_size: int = None
+    # this augmentations dictionary is directly used for Albumentations for creating transforms
+    # Putting this augmentations attribute at the bottom to display the
+    #  augmentation config nicely in the run_training_page
+    augmentations: Dict[str, Any] = field(default_factory=dict)
 
+    def __len__(self):
+        return len(self.augmentations)
 
-class Augmentation:
-    def __init__(self) -> None:
-        pass
+    def exists(self) -> bool:
+        """Check if any augmentations have been chosen and submitted for this instance."""
+        if len(self.augmentations) > 0:
+            return True
+        return False
+
+    def reset(self):
+        self.augmentations = {}
+        self.min_area = None
+        self.min_visibility = None
+        self.train_size = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        # return asdict(self)
+        return deepcopy(self.__dict__)  # this is faster than asdict
 
 
 class BaseTraining:
@@ -170,7 +199,8 @@ class BaseTraining:
         self.desc: str = ''
         # NOTE: Might use this, depends
         # self.training_param: Optional[TrainingParam] = TrainingParam()
-        self.augmentation: Optional[Augmentation] = Augmentation()  # TODO
+        # TODO
+        # self.augmentation: Optional[AugmentationConfig] = AugmentationConfig()
         self.project_id: int = project.id
         self.project_path = project.project_path
         self.model_id: int = None
@@ -178,7 +208,6 @@ class BaseTraining:
         self.project_model: Model = None
         self.pre_trained_model_id: Optional[int] = None
         self.deployment_type: str = project.deployment_type
-        self.model_path: str = ''
         self.framework: str = ''
         self.partition_ratio: Dict = {
             'train': 0.8,
@@ -190,13 +219,15 @@ class BaseTraining:
             'eval': 0,
             'test': 0
         }
-        # self.dataset_chosen: List = []
-        # automatically get the list of dataset names from project
-        self.dataset_chosen: List[str] = list(project.dataset_dict.keys())
+        # list of dataset names
+        self.dataset_chosen: List[str] = []
         self.training_param_dict: Dict = {}
-        self.augmentation_dict: Dict = {}
+        # note that for object detection, this will also have the following keys:
+        #  `min_area`, `min_visibility` and `train_size`
+        self.augmentation_config: AugmentationConfig()
         self.is_started: bool = False
         self.progress: Dict = {}
+        # currently training_path is created using `property` in the Training class
         # self.training_path: Dict[str, Path] = {
         #     'ROOT': None,
         #     'annotations': None,
@@ -280,7 +311,7 @@ class BaseTraining:
                 self.partition_size['train']
 
     def update_dataset_chosen(self, submitted_dataset_chosen: List, dataset_dict: Dict):
-        """ Update the training_dataset table in the Database 
+        """ Update the training_dataset table in the Database
 
         Args:
             submitted_dataset_chosen (List): List of updated Dataset chosen for Training
@@ -369,12 +400,29 @@ class BaseTraining:
 
             logger.info(f"Inserted Training Dataset {dataset}")
 
-    def update_training_info(self) -> bool:
-        """Update Training Name, Description, and Partition Size into the database
+    def update_training_info(self, name: Optional[str] = None,
+                             desc: Optional[str] = None) -> bool:
+        """Update Training Name, Description, and Partition Ratio in the database
 
         Returns:
             bool: True is successful, otherwise False
         """
+        if name is not None:
+            current_training_path = self.get_training_path(
+                self.project_path, self.name)
+            if current_training_path.exists():
+                # rename the existing training directory if it already exists
+                new_path = self.get_training_path(
+                    self.project_path, name)
+
+                logger.info("Renaming existing training path to new path:"
+                            f"{current_training_path} -> {self.project_path}")
+                os.rename(current_training_path, new_path)
+            self.name = name
+
+        if desc is not None:
+            self.desc = desc
+
         update_training_info_SQL = """
             UPDATE
                 public.training
@@ -386,9 +434,8 @@ class BaseTraining:
                 id = %s
             RETURNING
                 id;
-        
-                                """
-        partition_ratio_json = json.dumps(self.partition_ratio, indent=4)
+        """
+        partition_ratio_json = json.dumps(self.partition_ratio)
         update_training_info_vars = [self.name,
                                      self.desc, partition_ratio_json, self.id]
 
@@ -407,12 +454,14 @@ class BaseTraining:
                 f"{e}: Failed to update New Training Name, Desc and Partition Size for {self.id}")
             return False
 
-    def insert_training_info(self) -> bool:
+    def insert_training_info(self, name: str, desc: str) -> bool:
         """Insert Training Name, Description and Partition Size into Training table
 
         Returns:
             bool: True if successfully inserted into the database
         """
+        self.name = name
+        self.desc = desc
 
         insert_training_info_SQL = """
                 INSERT INTO public.training (
@@ -432,9 +481,8 @@ class BaseTraining:
                         , partition_ratio = %s::JSONB
                     RETURNING
                         id;
-                                    """
-
-        partition_ratio_json = json.dumps(self.partition_ratio, indent=4)
+        """
+        partition_ratio_json = json.dumps(self.partition_ratio)
         insert_training_info_vars = [self.name, self.desc, partition_ratio_json,
                                      self.project_id, self.desc, partition_ratio_json]
 
@@ -462,16 +510,19 @@ class BaseTraining:
                 , %s)
             ON CONFLICT ON CONSTRAINT project_training_pkey
                 DO NOTHING;
-        
+
             """
         insert_project_training_vars = [self.project_id, self.id]
         db_no_fetch(insert_project_training_SQL, conn,
                     insert_project_training_vars)
 
-    def update_training_info_dataset(self,
-                                     submitted_dataset_chosen: List,
-                                     dataset_dict: Dict) -> bool:
-        """Update Training Info and Dataset 
+    def update_training_info_dataset(
+            self,
+            submitted_dataset_chosen: List,
+            dataset_dict: Dict,
+            name: Optional[str] = None,
+            desc: Optional[str] = None) -> bool:
+        """Update Training Info and Dataset
 
         Args:
             submitted_dataset_chosen (List): Modified List of Dataset Chosen
@@ -485,7 +536,7 @@ class BaseTraining:
 
             assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
 
-            self.update_training_info()
+            self.update_training_info(name, desc)
 
             self.update_dataset_chosen(submitted_dataset_chosen=submitted_dataset_chosen,
                                        dataset_dict=dataset_dict)
@@ -541,14 +592,84 @@ class BaseTraining:
         query_vars = [training_param_json, self.id]
         try:
             db_no_fetch(sql_query, conn, query_vars)
+            logger.debug(
+                f"Updated training_param successfully {training_param}")
             return True
         except Exception as e:
             logger.error(f"Update training param failed: {e}")
             return False
 
-    def update_augment_config(self):
-        # TODO: update augmentation config
-        pass
+    def update_augment_config(self, augmentation_config: AugmentationConfig) -> bool:
+        self.augmentation_config = augmentation_config
+
+        # required for storing JSONB format
+        augmentation_json = json.dumps(augmentation_config.to_dict())
+        sql_query = """
+        UPDATE
+            public.training
+        SET
+            augmentation = %s::JSONB
+        WHERE
+            id = %s
+        """
+        query_vars = [augmentation_json, self.id]
+        try:
+            db_no_fetch(sql_query, conn, query_vars)
+            return True
+        except Exception as e:
+            logger.error(f"Update training param failed: {e}")
+            return False
+
+    def has_augmentation(self) -> bool:
+        """Check if any augmentations have been chosen and submitted for this instance."""
+        return self.augmentation_config.exists()
+
+    @staticmethod
+    def delete_training(id: int):
+        """This will delete both training and the project model associated with the training.
+
+        Currently will also delete the model because the model files are situated within
+        the training directory with the training name. So without the training name,
+        it's impossible to access to the project model files to reuse them anyway."""
+        sql_delete = """
+            DELETE
+            FROM public.models
+            WHERE training_id = %s
+            RETURNING name;
+        """
+        delete_vars = [id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.info(f"No model is deleted because there is no model associated "
+                        f"with the Training ID: {id}")
+        else:
+            model_name = record.name
+            logger.info(f"Deleted model of ID {id} "
+                        f"of name: {model_name}")
+
+        sql_delete = """
+            DELETE
+            FROM public.training
+            WHERE id = %s
+            RETURNING name;
+        """
+        delete_vars = [id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.error(f"Error occurred when deleting training session, "
+                         f"cannot find Training ID: {id}")
+            return
+        training_name = record.name
+        logger.info(f"Deleted training session of ID {id} "
+                    f"of name: {training_name}")
+
+        project_name = session_state.project.name
+        project_path = session_state.project.get_project_path(project_name)
+        training_path = Training.get_training_path(project_path,
+                                                   training_name)
+        if training_path.exists():
+            shutil.rmtree(training_path)
+            logger.info("Deleted existing training directories")
 
 
 class NewTraining(BaseTraining):
@@ -581,12 +702,12 @@ class NewTraining(BaseTraining):
                              field_placeholder: Dict,
                              name_key: str
                              ) -> bool:
-        """Check if Compulsory fields are filled and Unique information not 
+        """Check if Compulsory fields are filled and Unique information not
         duplicated in the database
 
         Args:
             context (Dict): Dictionary with widget name as key and widget value as value
-            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value. 
+            field_placeholder (Dict): Dictionary with st.empty() key as key and st.empty() object as value.
             *Key has same name as its respective widget
 
             name_key (str): Key of Database row name. Used to obtain value from 'context' Dictionary.
@@ -602,7 +723,7 @@ class NewTraining(BaseTraining):
         # True if not empty, False otherwise
         return empty_fields
 
-    def insert_training_info_dataset(self) -> bool:
+    def insert_training_info_dataset(self, name: str, desc: str) -> bool:
         """Create New Training submission
 
         Returns:
@@ -614,7 +735,7 @@ class NewTraining(BaseTraining):
             assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
 
             # insert Name, Desc, Partition Size
-            self.insert_training_info()
+            self.insert_training_info(name, desc)
             assert isinstance(
                 self.id, int), f"Training ID should be type Int but obtained {type(self.id)} ({self.id})"
 
@@ -755,7 +876,7 @@ class NewTraining(BaseTraining):
     @staticmethod
     def reset_new_training_page():
 
-        new_training_attributes = ["new_training", "new_training_name", "new_training_pagination",
+        new_training_attributes = ["new_training_name", "new_training_pagination",
                                    "new_training_desc"]
 
         reset_page_attributes(new_training_attributes)
@@ -767,9 +888,12 @@ class Training(BaseTraining):
         super().__init__(training_id, project)
 
         # `query_all_fields` creates self.name, self.desc, self.training_param_dict,
-        # self.augmentation_dict, self.progress, self.partition_ratio
+        # self.augmentation_config, self.progress, self.partition_ratio
         # self.training_model_id, self.attached_model_id, self.is_started
+        # from `training` table
         self.query_all_fields()
+        # creates from `training_dataset` table; could have multiple datasets
+        self.dataset_chosen = self.query_dataset_chosen(self.id)
         # creates self.attached_model and self.training_model
         self.get_training_details()
         # NOTE: self.training_path is now created with `property` decorator below
@@ -808,6 +932,12 @@ class Training(BaseTraining):
 
     @property
     def training_path(self) -> Dict[str, Path]:
+        """Using property decorator to make sure these paths are dynamically generated
+        based on latest info of the training session or the model.
+
+        Optionally can also change this to a function to avoid computing all the paths
+        every time you try to access this property attribute.
+        """
         # modified from get_all_training_path
         # >>>> TRAINING PATH
         paths = {}
@@ -820,26 +950,56 @@ class Training(BaseTraining):
         else:
             # MUST use this to get a nicely formatted directory name
             model_dirname = get_directory_name(self.training_model.name)
+        # same with BaseModel.query_project_model_path()
         paths['models'] = root / 'models' / model_dirname
+
+        if self.deployment_type == 'Object Detection with Bounding Boxes' \
+                and self.attached_model.is_not_pretrained:
+            # otherwise if is pretrained, we will create the path during TFOD training
+            paths['trained_model'] = self.attached_model.get_path()
+
+        # the tensorboard logdir is the same with models path but just to be explicit
+        # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
+        #  folders and store the logs inside this folder, so don't accidentally
+        #  delete this entire folder
+        paths['tensorboard_logdir'] = paths['models']
         # PARTITIONED DATASET PATH
         paths['images'] = root / 'images'
         # EXPORTED MODEL PATH
         # paths['exported_models'] = root / \
         #     'exported_models'
         paths['export'] = paths['models'] / 'export'
-        paths['model_tarfile'] = paths['models'] / \
-            f'{model_dirname}.tar.gz'
         # ANNOTATIONS PATH
         paths['annotations'] = root / 'annotations'
-        # this filename is based on the `generate_labelmap_file` function
-        # NOTE: this file is probably only needed for TF object detection
-        paths['labelmap'] = paths['export'] / 'labelmap.pbtxt'
-        # the tensorboard logdir is the same with models path but just to be explicit
-        paths['tensorboard_logdir'] = paths['models']
+
+        # ************************** FILE paths **************************
+        # NOTE: need to exclude file paths from the `initialise_training_folder` method.
+        # currently setting every filepath's key to end with "file" to easily skip them
+
+        if self.deployment_type == 'Object Detection with Bounding Boxes':
+            # this filename is based on the `generate_labelmap_file` function
+            # this file is probably only needed for TF object detection
+            paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
+            paths['config_file'] = paths['models'] / 'pipeline.config'
+        else:
+            if self.attached_model.is_not_pretrained:
+                paths['trained_keras_model_file'] = self.attached_model.get_path(
+                    return_keras_filepath=True)
+            # model weights only available for image classification and segmentation tasks
+            # when using Keras
+            paths['model_weights_file'] = paths['models'] / \
+                f"keras-model-weights.h5"
+            paths['output_keras_model_file'] = paths['models'] / \
+                f"{model_dirname}.h5"
+        # model_tarfile should be in the same folder with 'export' folder,
+        # because we are tarring the 'export' folder
+        paths['model_tarfile'] = paths['models'] / \
+            f'{model_dirname}.tar.gz'
+
         return paths
 
     @staticmethod
-    def query_progress(training_id: int) -> Union[bool, None]:
+    def query_progress(training_id: int) -> bool:
         # NOTE: this method is not being used for now
         sql_query = """
                 SELECT
@@ -858,7 +1018,7 @@ class Training(BaseTraining):
         else:
             logger.error(
                 f"Training with ID {training_id} does not exists in the Database!!!")
-            return None
+            return False
 
     def update_progress(self,
                         progress: Dict[str, int],
@@ -947,9 +1107,15 @@ class Training(BaseTraining):
 
         if training_field:
             self.name, self.desc,\
-                self.training_param_dict, self.augmentation_dict,\
+                self.training_param_dict, augmentation_config,\
                 self.is_started, self.progress, self.partition_ratio, \
                 self.training_model_id, self.attached_model_id = training_field
+            # need to convert from Dictionary to the dataclass
+            if augmentation_config is not None:
+                self.augmentation_config = AugmentationConfig(
+                    **augmentation_config)
+            else:
+                self.augmentation_config = AugmentationConfig()
         else:
             logger.error(
                 f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")
@@ -959,12 +1125,36 @@ class Training(BaseTraining):
         return training_field
 
     @staticmethod
+    def query_dataset_chosen(training_id: int) -> NamedTuple:
+        sql_query = """
+                SELECT  d.id   AS id,
+                        d.name AS dataset_chosen
+                FROM training_dataset t
+                        JOIN dataset d ON t.dataset_id = d.id
+                WHERE training_id = %s;
+        """
+        query_vars = [training_id]
+
+        # return List[namedtuple]
+        query_return = db_fetchall(sql_query, conn, query_vars)
+
+        if query_return:
+            dataset_chosen = [record.dataset_chosen for record in query_return]
+            logger.info(
+                f"Training of ID {training_id} has selected datasets: {dataset_chosen}")
+        else:
+            logger.info(
+                f"Training of ID {training_id} has not selected any training_dataset yet")
+
+        return dataset_chosen
+
+    @staticmethod
     def query_all_project_training(project_id: int,
                                    deployment_type: Union[str, IntEnum],
                                    return_dict: bool = False,
                                    for_data_table: bool = False,
                                    progress_preprocessing: bool = False
-                                   ) -> Union[List[namedtuple], List[dict]]:
+                                   ) -> Union[List[NamedTuple], List[Dict]]:
         """Query All Trainings bounded to current Project ID
 
         Args:
@@ -983,6 +1173,7 @@ class Training(BaseTraining):
                     SELECT
                         t.id AS \"{ID_string}\",
                         t.name AS "Training Name",
+                        t.training_model_id AS "Model ID",
                         (
                             SELECT
                                 CASE
@@ -1051,13 +1242,15 @@ class Training(BaseTraining):
         training_dir
         |
         |-annotations/
+        | |-<CSV files>
+        | |-<JSON files>
         | |-labelmap
         | |-TFRecords*
         |
-        |-exported_models/
-        |-dataset
+        |-images
         | |-train/
-        | |-evaluation/
+        | |-validation/
+        | |-test/
         |
         |-models/
 
@@ -1066,9 +1259,10 @@ class Training(BaseTraining):
         training_paths = self.training_path
 
         # >>>> CREATE Training directory recursively
-        filepath_keys = ('model_tarfile', 'labelmap')
+        # filepath_keys = ('model_tarfile', 'labelmap', 'keras_model', 'model_weights')
         for key, path in training_paths.items():
-            if key in filepath_keys:
+            # if key in filepath_keys:
+            if key.endswith('file'):
                 # this is a file path and not a directory, thus skipping
                 continue
             create_folder_if_not_exist(path)
@@ -1172,7 +1366,6 @@ class Training(BaseTraining):
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
 
-
     @staticmethod
     def datetime_progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
                                         deployment_type: Union[str, IntEnum],
@@ -1268,7 +1461,7 @@ class Training(BaseTraining):
         Clone the current training session to allow users to have faster access to training,
         while retaining all the configuration selected for the current training session.
         After this, the user should be moved to the training info page for modification.
-        Also, do not forget to reset all the `has_submmitted` values to False to allow 
+        Also, do not forget to reset all the `has_submmitted` values to True to allow 
         the user to seamlessly navigate through the training & model selection forms.
         """
         # creating a temporary training session's name
@@ -1324,7 +1517,7 @@ class Training(BaseTraining):
 
         partition_ratio_json = json.dumps(self.partition_ratio)
         training_param_json = json.dumps(self.training_param_dict)
-        augment_param_json = json.dumps(self.augmentation_dict)
+        augment_param_json = json.dumps(self.augmentation_config.to_dict())
         progress_json = json.dumps(self.progress)
         # CARE self.training_model.id is NOT THE NEW ONE YET
         insert_training_info_vars = [self.name, self.desc, self.attached_model.id,
@@ -1351,6 +1544,9 @@ class Training(BaseTraining):
         # Insert as a new Project Training
         self.insert_project_training()
 
+        # Insert Training Dataset
+        self.insert_training_dataset(added_dataset=self.dataset_chosen)
+
         # insert as a new training model and
         # update the model ID with the ID returned from DB
         self.training_model.insert_new_model(
@@ -1365,12 +1561,78 @@ class Training(BaseTraining):
         # as we allow the user to use it to train a new model
         self.reset_training_progress()
 
+    def get_segmentation_model_params(
+        self,
+        training_param_dict: Optional[Dict[str, Any]] = None,
+        return_model_func: Optional[bool] = False
+    ) -> Union[Dict[str, Any], Tuple[Dict[str, Any], str]]:
+        """Get the appropriate segmentation model parameters that can be directly
+        feed to the `keras_unet_collection` models. These model parameters are extracted
+        from `self.training_param_dict` submitted in the training_config page.
+
+        If `return_model_func` is True, will return tuple(model param Dict, model function name)
+        """
+        model_func2params = get_segmentation_model_func2params()
+        model_name2func = get_segmentation_model_name2func()
+        model_func = model_name2func[self.attached_model.name]
+        suitable_params = model_func2params[model_func]
+
+        if not training_param_dict:
+            param_dict = self.training_param_dict
+            assert param_dict, ("""This training instance has no 
+            training_param submitted yet""")
+        else:
+            param_dict = training_param_dict
+        model_param_dict = {k: v for k, v in param_dict.items()
+                            if k in suitable_params}
+        if return_model_func:
+            return model_param_dict, model_func
+        return model_param_dict
+
+    def get_training_metrics(self) -> Tuple[List[Callable], List[str]]:
+        if self.deployment_type == 'Semantic Segmentation with Polygons':
+            from keras_unet_collection.losses import focal_tversky, iou_seg
+            from keras.losses import categorical_crossentropy
+
+            metrics = [focal_tversky, categorical_crossentropy, iou_seg]
+            use_hybrid_loss = self.training_param_dict.get('use_hybrid_loss')
+            # no need to take focal_tversky as a metric since we are using it as loss func
+            metrics = metrics if use_hybrid_loss else metrics[1:]
+
+            # take note of the order of the metrics, the loss function used for the
+            #  training must be the first one in the metric_names
+            metric_names = ['Hybrid Loss (IoU + Tversky)', 'Focal Tversky Loss',
+                            'Categorical Cross-entropy', 'Intersection Over Union (IoU) Loss']
+            # metric_names to use for the display purpose during evaluation
+            metric_names = metric_names if use_hybrid_loss else metric_names[1:]
+        else:
+            metrics = ['accuracy']
+            # metric_names to use for the display purpose during evaluation
+            metric_names = ["Categorical Cross-entropy Loss", "Accuracy"]
+        return metrics, metric_names
+
     @staticmethod
     def reset_training_page():
+        # remove unwanted files to save space, only files needed
+        # for continue training, or test set evaluation are kept
+        if 'new_training' in session_state:
+            paths = session_state.new_training.training_path
+            dataset_export_path = session_state.project.get_export_path()
+            paths_to_del = (paths['model_tarfile'], dataset_export_path)
+            for p in paths_to_del:
+                if p.exists():
+                    if p.is_file():
+                        logger.debug(
+                            f"Removing unnecessary existing training related path: {p}")
+                        os.remove(p)
+                    else:
+                        shutil.rmtree(p)
+
         training_attributes = ["training", "training_pagination", "labelling_pagination",
-                               "training_param_dict", "new_training", "trainer", "start_idx",
+                               "new_training", "trainer", "start_idx",
+                               "augmentation_config"
                                ]
-        # this is required to avoid issues with caching model-related variables
+        # this might be required to avoid issues with caching model-related variables
         # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89
         # https://discuss.streamlit.io/t/button-to-clear-cache-and-rerun/3928/12
         logger.debug("Clearing all existing Streamlit cache")

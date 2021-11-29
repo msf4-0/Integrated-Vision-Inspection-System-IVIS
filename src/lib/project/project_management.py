@@ -29,19 +29,22 @@ import sys
 import json
 from pathlib import Path
 from collections import namedtuple
-from typing import NamedTuple, Tuple, Union, List, Dict
+from typing import NamedTuple, Optional, Tuple, Union, List, Dict
 from time import sleep, perf_counter
 from enum import IntEnum
 from glob import glob, iglob
+from itertools import chain
+
 import cv2
 import numpy as np
 import pandas as pd
 from stqdm import stqdm
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state
 import streamlit.components.v1 as components
 from data_export.label_studio_converter.converter import Converter, Format, FormatNotSupportedError
+from machine_learning.utils import generate_mask_images, get_coco_classes
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -124,8 +127,9 @@ class ExistingProjectPagination(IntEnum):
     Dashboard = 0
     Labelling = 1
     Training = 2
+    # show all trained project models with latest result metrics
     Models = 3
-    Export = 4
+    Deployment = 4
     Settings = 5
 
     def __str__(self):
@@ -137,6 +141,47 @@ class ExistingProjectPagination(IntEnum):
             return ExistingProjectPagination[s]
         except KeyError:
             raise ValueError()
+
+
+class ProjectDashboardPagination(IntEnum):
+    """For existing_project_dashboard.py pagination"""
+    ExistingProjectDashboard = 0
+    # add images to project_dataset
+    AddExistingDataset = 1
+    CreateNewDataset = 2
+    UploadLabeledDataset = 3
+    # add more existing dataset to project_dataset, similar to the dataset_chosen
+    #  in new_project.py
+    AddImageToProjectDataset = 4
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return ProjectDashboardPagination[s]
+        except KeyError:
+            raise ValueError()
+
+
+class SettingsPagination(IntEnum):
+    """Mostly to check existing info to allow deletion"""
+    TrainingAndModel = 0
+    Dataset = 1
+    Project = 2
+    # Models = 3
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def from_string(cls, s):
+        try:
+            return SettingsPagination[s]
+        except KeyError:
+            raise ValueError()
+
 # <<<< Variable Declaration <<<<
 
 
@@ -151,7 +196,6 @@ class BaseProject:
         self.training_id: int = None
         self.editor: str = None
         self.deployment_type: str = None
-        self.dataset_chosen: List = []
         self.project = []  # keep?
         self.project_size: int = None  # Number of files
         self.dataset_list: Dict = {}
@@ -212,7 +256,7 @@ class BaseProject:
             project_name)  # change name to lowercase
         # join directory name with '-' dash
         project_path = PROJECT_DIR / str(directory_name)
-        logger.info(f"Project Path: {str(project_path)}")
+        logger.debug(f"Project Path: {str(project_path)}")
 
         return project_path
 
@@ -232,27 +276,100 @@ class BaseProject:
             context, field_placeholder, name_key, check_if_exists)
         return empty_fields
 
+    def insert_new_project_task(self, dataset_name: str, dataset_id: int, image_names: List[str] = None):
+        """Create New Task for Project
+            - Insert into 'task' table
+
+        Args:
+            dataset_name (str): Dataset Name
+            dataset_id (int): Dataset ID
+            image_names (Optional[List[str]]): Optionally pass in the filenames of the images. 
+                Especially for updating existing dataset. 
+        """
+        if image_names:
+            # particularly for updating existing project dataset, but can also use this
+            # instead for inserting an entirely new dataset
+            data_name_list = image_names
+        else:
+            data_name_list = get_single_data_name_list(dataset_name)
+
+        if len(data_name_list):
+            logger.info(f"Inserting task into DB........")
+            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
+
+                # >>>> Insert new task from NewTask class method
+                task_id = NewTask.insert_new_task(
+                    data, self.id, dataset_id)
+                # logger.debug(f"Loaded task {task_id} into DB for data: {data}")
+
+    def update_project_task(self, dataset_name: str, dataset_id: int):
+        """Create New Task for Project
+            - Insert into 'task' table
+
+        Args:
+            dataset_name (str): Dataset Name
+            dataset_id (int): Dataset ID
+        """
+        data_name_list = get_single_data_name_list(dataset_name)
+        if len(data_name_list):
+            logger.info(f"Inserting task into DB........")
+            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
+
+                # >>>> Insert new task from NewTask class method
+                task_id = NewTask.insert_new_task(
+                    data, self.id, dataset_id)
+                # logger.debug(f"Loaded task {task_id} into DB for data: {data}")
+
+    def insert_project_dataset(self, dataset_chosen: List[str], dataset_dict: Dict[str, namedtuple]):
+        insert_project_dataset_SQL = """
+                                        INSERT INTO public.project_dataset (
+                                            project_id,
+                                            dataset_id)
+                                        VALUES (
+                                            %s,
+                                            %s);"""
+
+        for dataset in stqdm(dataset_chosen,
+                             unit='dataset',
+                             st_container=st.sidebar,
+                             desc="Attaching dataset to project"):
+            dataset_id = dataset_dict[dataset].ID
+            dataset_name = dataset_dict[dataset].Name
+
+            insert_project_dataset_vars = [self.id, dataset_id]
+            db_no_fetch(insert_project_dataset_SQL, conn,
+                        insert_project_dataset_vars)
+
+            # NEED TO ADD INSERT TASK
+            # get data name list
+            # loop data and add task
+            self.insert_new_project_task(dataset_name, dataset_id)
+
 
 class Project(BaseProject):
     def __init__(self, project_id: int) -> None:
         super().__init__(project_id)
         self.project_status = ProjectPagination.Existing  # flag for pagination
         self.datasets, self.column_names = self.query_project_dataset_list()
-        self.dataset_dict = self.get_dataset_name_list()
-        self.data_name_list = self.get_data_name_list()
+        self.dataset_dict: Dict[str, NamedTuple] = self.get_dataset_name_list()
+        self.data_name_list: Dict[str, List[str]] = self.get_data_name_list()
         # `query_all_fields` creates `self.name`, `self.desc`, `self.deployment_type`, `self.deployment_id`
         self.query_all_fields()
         self.project_path = self.get_project_path(self.name)
         # Instantiate Editor class object
-        self.editor: str = Editor(self.id, self.deployment_type)
+        self.editor: Editor = Editor(self.id, self.deployment_type)
 
-    def download_tasks(self, *, target_path: Path = None, return_original_path: bool = False, return_target_path: bool = True) -> Union[None, Path]:
+    def download_tasks(self, *,
+                       converter: Converter = None, export_format: str = None,
+                       target_path: Path = None, return_original_path: bool = False,
+                       return_target_path: bool = True) -> Union[None, Path]:
         """
         Download all the labeled tasks by archiving and moving them into the user's `Downloads` folder.
         Or you may also pass in a directory to the `target_path` parameter to move the file there.
-        If `return_original_path` is passed, this will only return the path to where the zipfile is created. 
+        NOTE: If `return_original_path` is passed, this will only return the path to where the zipfile is created,
+        and the zipfile will not be moved to the "Downloads" folder.
         """
-        self.export_tasks()
+        self.export_tasks(converter=converter, export_format=export_format)
         export_path = self.get_export_path()
         filename_no_ext = export_path.parent.name
         file_archive_handler(filename_no_ext, export_path, ".zip")
@@ -273,68 +390,137 @@ class Project(BaseProject):
         if return_target_path:
             return target_path
 
-    def export_tasks(self):
+    def export_tasks(self, converter: Optional[Converter] = None,
+                     export_format: Optional[str] = None,
+                     for_training_id: Optional[int] = 0,
+                     download_resources: Optional[bool] = True,
+                     generate_mask: Optional[bool] = True):
         """
-        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to a directory.
-        Allow download images and annotations if necessary.
+        Export all annotated tasks into a specific format (e.g. Pascal VOC) and save to the dataset export directory.
+
+        `converter` and `export_format` are optional as they can be inferred.
+
+        If `for_training_id` > 0, this will only export the annotated dataset associated
+        with the `training_id`, to use for training.
+
+        `download_resources` is True to also copy the images to the dataset output_dir
+            when exporting/converting in YOLO/VOC/COCO JSON format. Defaults to True.
+
+        If `generate_mask` is True, will generate mask images for segmentation task. 
+            Required for training. Defaults to True.
         """
-        logger.info(
+        logger.debug(
             f"Exporting labeled tasks for Project ID: {session_state.project.id}")
 
-        json_path = self.generate_label_json()
         output_dir = self.get_export_path()
 
         # - beware here I added removing the entire existing directory before proceeding
         if output_dir.exists():
-            logger.warning(
-                f"[INFO] Removing existing exported directory: {output_dir}")
+            logger.debug(
+                f"Removing existing exported directory: {output_dir}")
             shutil.rmtree(output_dir)
+        os.makedirs(output_dir)
 
-        # initialize a Label Studio Converter to convert to specific output formats
-        # the `editor.editor_config` contains the current project's config in XML string format
-        #  but need to replace the remove this line of encoding description text to work
-        config_xml = self.editor.editor_config.replace(
-            r'<?xml version="1.0" encoding="utf-8"?>', '')
-        converter = Converter(config=config_xml)
+        json_path = self.generate_label_json(
+            for_training_id=for_training_id, output_dir=output_dir,
+            return_dataset_names=False)
+
+        if converter is None:
+            # NOTE: If `download_resources` is True, when in YOLO/VOC/COCO format,
+            #  the converter will also copy the images to the output_dir when converting
+            converter = self.editor.get_labelstudio_converter(
+                download_resources=download_resources)
+
+        if export_format:
+            export_format = Format.from_string(export_format)
 
         if self.deployment_type == "Image Classification":
-            converter.convert_to_csv(
-                json_path,
-                output_dir=output_dir,
-                is_dir=False,
-            )
+            if for_training_id != 0 or export_format is None:
+                # using CSV format to get our image_paths for training
+                export_format = Format.CSV
+                # training must use CSV file format for our implementation
+                logger.info("Exporting in CSV format for training")
+                converter.convert_to_csv(
+                    json_path,
+                    output_dir=output_dir,
+                    is_dir=False,
+                )
 
-            csv_path = output_dir / 'result.csv'
-            df = pd.read_csv(csv_path)
+            # if it's not for training but using CSV format, then we copy the images
+            #  into class folders to let the user download them
+            if for_training_id == 0 and export_format == Format.CSV:
+                logger.info("Exporting in CSV format for the user")
+                converter.convert_to_csv(
+                    json_path,
+                    output_dir=output_dir,
+                    is_dir=False,
+                )
+                # the CSV file generated has these columns:
+                # image, id, label, annotator, annotation_id, created_at, updated_at, lead_time.
+                # The first col `image` contains the absolute paths to the images
+                csv_path = output_dir / 'result.csv'
+                df = pd.read_csv(csv_path, dtype=str)
 
-            project_img_path = output_dir / "images"
-            unique_labels = df['label'].unique()
-            for label in unique_labels:
-                class_path = project_img_path / label
-                os.makedirs(class_path)
+                project_img_path = output_dir / "images"
+                unique_labels = df['label'].unique().astype(str)
+                for label in unique_labels:
+                    class_path = project_img_path / label
+                    logger.debug(
+                        f"Creating folder for class '{label}' at {class_path}")
+                    os.makedirs(class_path)
 
-            def copy_images(image_path: Path, label: str):
-                class_path = project_img_path / label
-                shutil.copy2(image_path, class_path)
+                def get_full_image_path(image_path: str) -> str:
+                    # the image_path from CSV file is relative to the DATASET_DIR
+                    return str(DATASET_DIR / image_path)
 
-            for row in df.values:
-                image_path = Path(row[0])   # first row for image_path
-                label = str(row[2])         # third row for label name
-                copy_images(image_path, label)
+                def get_class_path(label: str) -> str:
+                    return str(project_img_path / label)
+
+                df['image'] = df['image'].apply(get_full_image_path)
+                df['class_path'] = df['label'].apply(get_class_path)
+
+                logger.info(
+                    f"Copying images into each class folder in {project_img_path}")
+                for row in stqdm(df.values, desc='Copying images into class folder'):
+                    image_path = row[0]    # first row for image_path
+                    class_path = row[-1]  # last row for class_path
+                    shutil.copy2(image_path, class_path)
+                logger.info(
+                    f"Image folders for each class {unique_labels} created successfully for Project ID {self.id}")
+                # done and directly return back
+                return
 
         elif self.deployment_type == "Object Detection with Bounding Boxes":
-            # using Pascal VOC XML format for TensorFlow Object Detection API
-            logger.info(
-                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
-            converter.convert_to_voc(
-                json_path, output_dir=output_dir, is_dir=False)
+            if for_training_id != 0 or export_format is None:
+                # using Pascal VOC XML format for TensorFlow Object Detection API
+                export_format = Format.VOC
+
+            # NOTE: If `download_resources` is True, this will also copy the images to output_dir
+            converter.convert(json_path, output_dir,
+                              export_format, is_dir=False)
 
         elif self.deployment_type == "Semantic Segmentation with Polygons":
-            logger.info(
-                f"Exporting for {self.deployment_type} for Project ID: {self.id}")
-            # using COCO JSON format for segmentation
-            converter.convert_to_coco(
-                json_path, output_dir=output_dir, is_dir=False)
+            if for_training_id != 0 or export_format is None:
+                # using COCO JSON format for segmentation
+                export_format = Format.COCO
+
+            # NOTE: If `download_resources` is True, this will also copy the images to output_dir
+            converter.convert(json_path, output_dir,
+                              export_format, is_dir=False)
+            if export_format == Format.COCO:
+                coco_json_path = output_dir / 'result.json'
+                if coco_json_path.exists():
+                    logger.debug(
+                        f"Generated COCO 'result.json' file at {output_dir}")
+                else:
+                    logger.error('Error generating COCO JSON file')
+
+            if generate_mask:
+                mask_folder = output_dir / "masks"
+                generate_mask_images(coco_json_path, mask_folder)
+
+        logger.info(f"Exported tasks in {export_format} format for "
+                    f"{self.deployment_type} for Project ID: {self.id}")
 
     def get_export_path(self) -> Path:
         """Get the path to the exported images and annotations"""
@@ -342,102 +528,195 @@ class Project(BaseProject):
         output_dir = project_path / "export"
         return output_dir
 
-    def generate_label_json(self) -> Path:
+    def get_project_json_path(self) -> Path:
+        export_dir = self.get_export_path()
+        json_path = export_dir / f"project-{self.id}-labelstudio.json"
+        return json_path
+
+    def generate_label_json(
+            self,
+            for_training_id: int = 0,
+            output_dir: Optional[Path] = None,
+            return_dataset_names: Optional[bool] = False) -> Union[Path, Tuple[Path, List[str]]]:
         """
         Generate the output JSON with the format following Label Studio and returns the path to the file.
         Refer to 'resources/LS_annotations/bbox/labelstud_output.json' file as reference.
+
+        If `for_training_id` is provided, then the JSON file is based on the annotations
+        associated with the dataset used for the `training_id`.
+
+        If `output_dir` is not provided, the project export_path will be used.
+
+        If `return_dataset_names` is True, also return the unique dataset names for the
+        project or just for the training_id.
         """
-        all_annots, col_names = self.query_annotations(self.id)
+        all_annots, col_names = self.query_annotations(for_training_id)
         # the col_names can be changed if necessary
         df = pd.DataFrame(all_annots, columns=col_names)
 
-        def get_dataset_path(image_path):
-            full_image_path = str((DATASET_DIR / image_path).resolve())
-            return {"image": full_image_path}
+        def get_image_path(image_path):
+            # not using this for now because wants to use relative path instead
+            # full_image_path = str((DATASET_DIR / image_path).resolve())
+            return {"image": image_path}
 
         def create_annotations(result):
             return [{"result": result}]
 
         # create the format required to use Label Studio converter to export
-        df['data'] = df['image_path'].apply(get_dataset_path)
+        df['data'] = df['image_path'].apply(get_image_path)
         df['annotations'] = df['result'].apply(create_annotations)
         # drop the columns not necessary for converting
         df.drop(columns=['image_path', 'result'], inplace=True)
 
         # convert to json format to export to the project_path and use for conversion
         result = df.to_json(orient="records")
-        project_path = self.get_project_path(self.name)
-        json_path = project_path / f"project-{self.id}.json"
+        if not output_dir:
+            json_path = self.get_project_json_path()
+        else:
+            os.makedirs(output_dir, exist_ok=True)
+            json_path = output_dir / f"project-{self.id}-labelstudio.json"
         with open(json_path, "w") as f:
             parsed = json.loads(result)
             logger.debug(f"DUMPING TASK JSON to {json_path}")
             json.dump(parsed, f, indent=2)
+
+        if return_dataset_names:
+            dataset_names = df['dataset_name'].unique().astype(
+                str).tolist()
+            return json_path, dataset_names
         return json_path
 
-    @staticmethod
-    def get_existing_unique_labels(project_id: int) -> np.ndarray:
+    def get_existing_unique_labels(self,
+                                   return_counts: bool = False) -> Union[List[str],
+                                                                         Dict[str, int]]:
+        """Extracting the unique label names used in existing annotations.
+        Note that segmentation task will add a 'background' class later when building
+        mask images for training.
+
+        Args:
+            return_counts (bool, optional): If True, returns Dict with counts as values. 
+                Defaults to False.
+
+        Returns:
+            Union[List[str], Dict[str, int]]: Returns List of unique label names, 
+                or Dict of label name -> count if `return_counts` is True.
         """
-        Extracting the unique label names used in existing annotations.
-        Each 'result' value from the 'all_annots' is a list like this:
+        """
+        Each `result` value from the `all_annots` is a list like this:
+        ```
         "result": [
           {
             ...
             "value": {
               ...
-              "label_key": ["Airplane", "Truck"]
+              <label_key>: ["Airplane", "Truck"]
             },
             ...
-            "type": "label_key"
+            "type": <label_key>
           }
+        ]
+        ```
         """
-        # 'all_annots' is a list of dictionaries for each annotation
-        all_annots, col_names = Project.query_annotations(
-            project_id, return_dict=True)
+        # `all_annots` is a list of dictionaries for each annotation
+        all_annots, col_names = self.query_annotations(return_dict=True)
         if not all_annots:
             # there is no existing annotation
-            logger.error(f"No existing annotations for Project {project_id}")
+            logger.error(f"No existing annotations for Project {self.id}")
+            if return_counts:
+                return {}
             return []
 
-        # the 'label_key' is different depending on the 'deployment_type'
+        # the `label_key` is different depending on the `deployment_type`
         label_key = all_annots[0]['result'][0]['type']
 
         def get_label_names(result):
-            return result[0]['value'][label_key]
+            label_list = [r['value'][label_key] for r in result]
+            # itertools.chain() to chain all the lists together
+            # this is faster than np.concatenate
+            return list(chain(*label_list))
 
         df = pd.DataFrame(all_annots, columns=col_names)
         df['label'] = df["result"].apply(get_label_names)
 
         # need to use `explode` method to turn each list of labels into individual rows
-        unique_labels = df['label'].explode().unique()
+        # unique_labels = sorted(df['label'].explode().unique())
+        # or fastest method with itertools.chain()
+        if not return_counts:
+            # fastest method to get the sorted unique labels
+            unique_labels = sorted(set(chain(*df['label'])))
+        else:
+            # np.unique auto sorted by labels
+            unique_labels, counts = np.unique(list(chain(*df['label'])),
+                                              return_counts=True)
+            # convert to Python int instead of numpy int
+            counts = counts.tolist()
+            unique_labels = dict(zip(unique_labels, counts))
 
         logger.info(
-            f"Unique labels for Project ID {project_id}: {unique_labels}")
+            f"Unique labels for Project ID {self.id}: {unique_labels}")
+
         return unique_labels
 
-    @staticmethod
-    def query_annotations(project_id: int, return_dict: bool = True) -> Tuple[List[Dict], List]:
-        sql_query = """
-                SELECT 
-                    a.id AS id,
+    def get_num_classes(self) -> int:
+        """This method is required for take into account the potential addition of 
+        `'background'` class for semantic segmentation, as shown in `get_coco_classes()`"""
+        labels = self.get_existing_unique_labels()
+        num_classes = len(labels)
+        if self.deployment_type == 'Semantic Segmentation with Polygons':
+            if 'background' not in labels:
+                # need to +1 for adding the background class later if it's not present
+                num_classes += 1
+        return num_classes
+
+    def query_annotations(self, for_training_id: int = 0, return_dict: bool = True) -> Tuple[List[Dict], List]:
+        """Query annotations for this project. If `for_training_id` is provided,
+        then only the annotations associated with the `training_id` is queried.
+
+        Note that the `image_path` queried from the database is generated in the same way
+        as the `helper.get_directory_name` function.
+        """
+        if for_training_id > 0:
+            sql_query = """
+                SELECT a.id AS id,
                     a.result AS result,
+                    d.name AS dataset_name,
                     -- flag of 'g' to match every pattern instead of only the first
-                    CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
+                    CONCAT_WS('/', regexp_replace(trim(both from d.name), '\s+', '-', 'g'), t.name) AS image_path
                 FROM annotations a
                         LEFT JOIN task t on a.id = t.annotation_id
-                        LEFT JOIN dataset d on t.dataset_id = d.id
-                WHERE a.project_id = %s
+                        LEFT JOIN training_dataset td on t.dataset_id = td.dataset_id
+                        LEFT JOIN dataset d on td.dataset_id = d.id
+                WHERE td.training_id = %s and a.project_id = %s
                 ORDER BY id;
-        """
-        query_vars = [project_id]
-        logger.info(
-            f"Querying annotations from database for Project ID: {project_id}")
+            """
+            query_vars = [for_training_id, self.id]
+            logger.info(f"""Querying annotations from database for Project ID: {self.id}
+                        and Training ID: {for_training_id}""")
+        else:
+            sql_query = """
+                    SELECT 
+                        a.id AS id,
+                        a.result AS result,
+                        d.name AS dataset_name,
+                        -- flag of 'g' to match every pattern instead of only the first
+                        CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
+                    FROM annotations a
+                            LEFT JOIN task t on a.id = t.annotation_id
+                            LEFT JOIN dataset d on t.dataset_id = d.id
+                    WHERE a.project_id = %s
+                    ORDER BY id;
+            """
+            query_vars = [self.id]
+            logger.info(
+                f"Querying annotations from database for Project ID: {self.id}")
 
         try:
             all_annots, column_names = db_fetchall(
                 sql_query, conn, query_vars, fetch_col_name=True, return_dict=return_dict)
+            logger.debug(f"Total annotations: {len(all_annots)}")
 
         except Exception as e:
-            logger.error(f"{e}: No annotation found for Project {project_id} ")
+            logger.error(f"{e}: No annotation found for Project {self.id} ")
             all_annots = []
             column_names = []
 
@@ -468,12 +747,13 @@ class Project(BaseProject):
                 f"Project with ID: {self.id} does not exists in the database!!!")
         return project_field
 
-    @st.cache(ttl=60)
-    def query_project_dataset_list(self) -> List:
+    # @st.cache(ttl=60)
+    def query_project_dataset_list(self) -> Tuple[List[NamedTuple], List[str]]:
         query_project_dataset_SQL = """
                                 SELECT
                                     d.id AS "ID",
                                     d.name AS "Name",
+                                    d.description AS "Description",
                                     d.dataset_size AS "Dataset Size",
                                     (SELECT ft.name AS "File Type" from public.filetype ft where ft.id = d.filetype_id),
                                     pd.updated_at AS "Date/Time"                                    
@@ -506,14 +786,11 @@ class Project(BaseProject):
 
         return project_dataset_tmp, column_names
 
-    def get_dataset_name_list(self):
+    def get_dataset_name_list(self) -> Dict[str, List[NamedTuple]]:
         """Generate Dictionary of namedtuple
 
-        Args:
-            project_dataset_list (List[namedtuple]): Query from database
-
         Returns:
-            Dict: Dictionary of namedtuple
+            Dict[str, List[NamedTuple]]: Dataset name -> List[NamedTuple] of dataset info queried from database
         """
         project_dataset_dict = {}
         # if self.datasets:
@@ -575,14 +852,14 @@ class Project(BaseProject):
 
             return dataset_list
 
-    @st.cache
-    def get_data_name_list(self):
+    # @st.cache(show_spinner=False)
+    def get_data_name_list(self) -> Dict[str, List[str]]:
         """Obtain list of data in the dataset 
             - Iterative glob through the dataset directory
             - Obtain filename using pathlib.Path(<'filepath/*'>).name
 
         Returns:
-            Dict[dict]: Dataset name as key to a List of data in the dataset directory
+            Dict[str, List[str]]: Dataset name -> a List of images in the dataset directory
         """
         if self.datasets:
             data_name_list = {}
@@ -602,6 +879,29 @@ class Project(BaseProject):
 
             return data_name_list
 
+    @staticmethod
+    def delete_project(id: int):
+        sql_delete = """
+            DELETE
+            FROM public.project
+            WHERE id = %s
+            RETURNING name;
+        """
+        delete_vars = [id]
+        record = db_fetchone(sql_delete, conn, delete_vars)
+        if not record:
+            logger.error(f"Error occurred when deleting project, "
+                         f"cannot find project ID: {id}")
+            return
+        else:
+            project_name = record.name
+        logger.info(f"Deleted Project ID {id} of name: {project_name}")
+
+        project_path = Project.get_project_path(project_name)
+        if project_path.exists():
+            shutil.rmtree(project_path)
+            logger.info("Deleted existing project directories")
+
     # *************************************************************************************************************************
     # TODO #81 Add reset to project page *************************************************************************************
 
@@ -610,14 +910,24 @@ class Project(BaseProject):
         """Method to reset all widgets and attributes in the Project Page when changing pages
         """
 
-        project_attributes = ["all_project_table", "project", "editor", "project_name",
-                              "project_desc", "annotation_type", "project_dataset_page",
-                              "project_dataset", "existing_project_page_navigator_radio",
+        project_attributes = ["all_project_table", "project", "editor",
                               "labelling_pagination", "existing_project_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
     # *************************************************************************************************************************
+
+    @staticmethod
+    def reset_dashboard_page():
+        project_attributes = ["project_dashboard_pagination", "is_labeled"]
+
+        reset_page_attributes(project_attributes)
+
+    @staticmethod
+    def reset_settings_page():
+        project_attributes = ["settings_pagination"]
+
+        reset_page_attributes(project_attributes)
 
 
 class NewProject(BaseProject):
@@ -644,25 +954,9 @@ class NewProject(BaseProject):
         else:
             self.deployment_id = None
 
-    def insert_new_project_task(self, dataset_name: str, dataset_id: int):
-        """Create New Task for Project
-            - Insert into 'task' table
-
-        Args:
-            dataset_name (str): Dataset Name
-            dataset_id (int): Dataset ID
-        """
-        data_name_list = get_single_data_name_list(dataset_name)
-        if len(data_name_list):
-            logger.info(f"Inserting task into DB........")
-            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
-
-                # >>>> Insert new task from NewTask class method
-                task_id = NewTask.insert_new_task(
-                    data, self.id, dataset_id)
-                logger.info(f"Loaded task {task_id} into DB for data: {data}")
-
-    def insert_project(self, dataset_dict: Dict):
+    def insert_project(self, dataset_chosen: List[str] = None, dataset_dict: Dict[str, NamedTuple] = None):
+        """Insert project into database. If `dataset_dict` is provied,
+        then also insert the project_dataset based on `dataset_chosen`."""
         insert_project_SQL = """
                                 INSERT INTO public.project (
                                     name,
@@ -681,33 +975,16 @@ class NewProject(BaseProject):
         self.id = db_fetchone(
             insert_project_SQL, conn, insert_project_vars).id
 
-        insert_project_dataset_SQL = """
-                                        INSERT INTO public.project_dataset (
-                                            project_id,
-                                            dataset_id)
-                                        VALUES (
-                                            %s,
-                                            %s);"""
-
-        for dataset in stqdm(self.dataset_chosen,
-                             unit='dataset',
-                             st_container=st.sidebar,
-                             desc="Attaching dataset to project"):
-            dataset_id = dataset_dict[dataset].ID
-            dataset_name = dataset_dict[dataset].Name
-
-            insert_project_dataset_vars = [self.id, dataset_id]
-            db_no_fetch(insert_project_dataset_SQL, conn,
-                        insert_project_dataset_vars)
-
-            # NEED TO ADD INSERT TASK
-            # get data name list
-            # loop data and add task
-            self.insert_new_project_task(dataset_name, dataset_id)
+        if all((dataset_chosen, dataset_dict)):
+            # only insert project_dataset when it is provided
+            self.insert_project_dataset(dataset_chosen, dataset_dict)
+        else:
+            logger.info(f"""Either `dataset_chosen` or `dataset_dict` is not provided.
+            Thus, not inserting project dataset for Project ID {self.id}""")
 
         return self.id
 
-    def initialise_project(self, dataset_dict):
+    def initialise_project(self, dataset_chosen: List[str] = None, dataset_dict: Dict[str, namedtuple] = None):
 
         # directory_name = get_directory_name(self.name)
         # self.project_path = PROJECT_DIR / str(directory_name)
@@ -719,7 +996,7 @@ class NewProject(BaseProject):
         logger.info(
             f"Successfully created **{self.name}** project at {str(self.project_path)}")
 
-        if self.insert_project(dataset_dict):
+        if self.insert_project(dataset_chosen, dataset_dict):
 
             logger.info(
                 f"Successfully stored **{self.name}** project information in database")
@@ -796,7 +1073,52 @@ def query_all_projects(return_dict: bool = False, for_data_table: bool = False) 
     return project_tmp, column_names
 
 
+def query_project_datasets(dataset_ids: List[int]):
+    """Get all projects associated with the dataset_ids"""
+    sql_query = """
+        SELECT  d.id   AS "Dataset ID",
+                p.id   AS "Project ID",
+                d.name AS "Dataset Name",
+                p.name AS "Associated Project Name"
+        FROM public.project_dataset pd
+                LEFT JOIN public.dataset d ON d.id = pd.dataset_id
+                LEFT JOIN public.project p ON p.id = pd.project_id
+        WHERE pd.dataset_id in %s
+        ORDER BY d.id;
+    """
+    dataset_ids = tuple(dataset_ids)
+    query_project_dataset_vars = [dataset_ids]
+    logger.debug(
+        "Querying list of projects attached to the dataset from database......")
+    project_datasets, column_names = db_fetchall(
+        sql_query, conn, query_project_dataset_vars,
+        fetch_col_name=True, return_dict=True)
+
+    return project_datasets, column_names
+
+
+def remove_project_dataset(project_id: int, dataset_id: int):
+    """Remove the project dataset from the project ID, and also remove the 
+    associated annotations."""
+    sql_query = """
+        DELETE
+        FROM project_dataset
+        WHERE project_id = %s
+        AND dataset_id = %s;
+
+        DELETE
+        FROM task
+        WHERE project_id = %s
+        AND dataset_id = %s;
+    """
+    query_vars = (project_id, dataset_id, project_id, dataset_id)
+    db_no_fetch(sql_query, conn, query_vars)
+    logger.info(f"Removed project dataset ID {dataset_id} "
+                f"from Project ID {project_id}")
+
 # *********************NEW PROJECT PAGE NAVIGATOR ********************************************
+
+
 def new_project_nav(color, textColor):
     textColor = textColor
     html_string = f'''

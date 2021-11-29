@@ -21,18 +21,18 @@ limitations under the License.
 Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
- """
-import json
+"""
 import os
 import shutil
 import sys
 from pathlib import Path
 import time
-from typing import Any, Dict
+
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state
-from streamlit_tensorboard import st_tensorboard
+
+import tensorflow as tf
 
 # >>>> **************** TEMP (for debugging) **************** >>>
 # add the paths to be able to import them to this file
@@ -41,19 +41,14 @@ LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-# Set to wide page layout (only uncomment this when debugging)
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 # >>>> **************** TEMP **************** >>>
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
-with st.spinner("Loading TensorFlow environment ..."):
-    from machine_learning.trainer import Trainer
-    from machine_learning.utils import run_tensorboard
-    from machine_learning.visuals import pretty_format_param
-from project.project_management import Project  # logger
+from machine_learning.trainer import Trainer
+from machine_learning.command_utils import run_tensorboard
+from machine_learning.visuals import pretty_format_param
+from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training
 from user.user_management import User
 
@@ -73,7 +68,9 @@ def index(RELEASE=True):
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 4
+        # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
+        # uploaded pet segmentation: 96
+        project_id_tmp = 96
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -84,7 +81,9 @@ def index(RELEASE=True):
         if 'user' not in session_state:
             session_state.user = User(1)
         if 'new_training' not in session_state:
-            session_state.new_training = Training(2, session_state.project)
+            # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
+            # uploaded pet segmentation: 20
+            session_state.new_training = Training(20, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -92,6 +91,7 @@ def index(RELEASE=True):
         st.write(f"{project_description}")
 
         st.markdown("""___""")
+    # ****************** TEST END ******************************
 
     def initialize_trainer():
         if 'trainer' not in session_state:
@@ -110,8 +110,8 @@ def index(RELEASE=True):
     else:
         dataset_chosen_str = []
         for idx, data in enumerate(dataset_chosen):
-            dataset_chosen_str.append(f"{idx+1}. {data}")
-        dataset_chosen_str = '  \n'.join(dataset_chosen_str)
+            dataset_chosen_str.append(f"**{idx+1}**. {data}")
+        dataset_chosen_str = '; '.join(dataset_chosen_str)
     partition_ratio = session_state.new_training.partition_ratio
     st.info(f"""
     **Training Session Name**: {session_state.new_training.name}  \n
@@ -119,7 +119,7 @@ def index(RELEASE=True):
     **Dataset List**: {dataset_chosen_str}  \n
     **Partition Ratio**: training : validation : test -> 
     {partition_ratio['train']} : {partition_ratio['eval']} : {partition_ratio['test']}  \n
-    **Pretrained Model Name**: {session_state.new_training.attached_model.name}  \n
+    **Selected Model Name**: {session_state.new_training.attached_model.name}  \n
     **Model Name**: {session_state.new_training.training_model.name}  \n
     **Model Description**: {session_state.new_training.training_model.desc}
     """)
@@ -142,8 +142,8 @@ def index(RELEASE=True):
 
     if session_state.new_training.is_started:
         st.warning("✏️ **NOTE**: Only edit the model selection"
-                   " if you haven't started training your model! Otherwise the information"
-                   " stored in database would not be correct.")
+                   " if you want to re-train your model! Otherwise the information"
+                   " stored in database would not be correct for the current trained model.")
 
     # ******************************** CONFIG INFO ********************************
     train_config_col, aug_config_col = st.columns([1, 1])
@@ -160,31 +160,37 @@ def index(RELEASE=True):
         st.button('⚙️ Edit Training Config', key='btn_edit_config',
                   on_click=back_config_page)
 
-        if session_state.new_training.is_started:
-            st.warning(
-                "✏️ **NOTE**: Only edit this if you want to re-train or continue training!")
-
     with aug_config_col:
-        # TODO: do this for image classification and segmentation, TFOD API does not need this
-        if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
-            pass
+        # TODO: confirm that this works for image classification and segmentation
+        st.markdown('### Augmentation Config:')
+        augmentation_config = session_state.new_training.augmentation_config
+        if augmentation_config.exists():
+            aug_config_info = pretty_format_param(
+                augmentation_config.to_dict())
+            st.info(aug_config_info)
+        else:
+            st.info("No augmentation config selected.")
+
+        def back_aug_config_page():
+            session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig
+
+        st.button('⚙️ Edit Augmentation Config', key='btn_edit_aug_config',
+                  on_click=back_aug_config_page)
+
+    if session_state.new_training.is_started:
+        st.warning(
+            "✏️ **NOTE**: Only edit training/augmentation config if you want to "
+            "re-train or continue training!")
 
     st.markdown("___")
 
     # ******************************* START TRAINING *******************************
     train_btn_place = st.empty()
     retrain_place = st.empty()
-    warning_place = st.empty()  # for warning messages
+    message_place = st.empty()  # for warning messages
     result_place = st.empty()
 
-    def start_training_callback(is_resume=False):
-        # if not RELEASE:
-        #     # debugging the afterimage problem after clicking re-train button
-        #     for _ in range(5):
-        #         st.markdown("testing 123")
-        #         time.sleep(2)
-        #     st.experimental_rerun()
-
+    def start_training_callback(is_resume=False, train_one_batch=False):
         if not is_resume:
             root = session_state.new_training.training_path['ROOT']
             if root.exists():
@@ -196,9 +202,9 @@ def index(RELEASE=True):
 
         def stop_run_training():
             # BEWARE that this will just refresh the page
-            warning_place.warning("Training stopped!")
+            message_place.warning("Training stopped!")
             time.sleep(2)
-            warning_place.empty()
+            message_place.empty()
 
         # moved stop button into callback function to only show when training is started
         btn_stop_col, _ = st.columns([1, 1])
@@ -208,44 +214,73 @@ def index(RELEASE=True):
             st.warning('✏️ **NOTE**: If you click this button, '
                        'the latest progress might not be saved.')
 
-        with st.spinner("Loading TensorBoard ..."):
-            st.markdown("Refresh the Tensorboard by clicking the refresh "
-                        "icon during training to see the progress:")
-            logdir = session_state.new_training.training_path['tensorboard_logdir']
+        logdir = session_state.new_training.training_path['tensorboard_logdir']
+
+        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+            # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
+            #  folders and store the logs inside this folder, so don't accidentally
+            #  delete this entire folder
             logdir_folders = (logdir / 'train', logdir / 'validation')
             for p in logdir_folders:
                 if p.exists():
                     # this is to avoid the problem with Tensorboard displaying
                     # overlapping graphs when continue training, probably because the
-                    # 'Step' or 'Epoch' always starts from 0 even though we are continue
+                    # TFOD 'Step' always starts from 0 even though we are continue
                     # training from an existing checkpoint
                     logger.debug("Removing existing TensorBoard logdir "
                                  f"before training: {p}")
                     shutil.rmtree(p)
-            # moved tensorboard into callback function to make sure it stays visible
-            run_tensorboard(logdir)
+
+        # with st.spinner("Loading TensorBoard ..."):
+        #     st.markdown("Refresh the Tensorboard by clicking the refresh "
+        #                 "icon during training to see the progress:")
+        #     # need to sleep for 3 seconds, otherwise the TensorBoard might accidentally
+        #     #  load the previous checkpoints
+        #     time.sleep(3)
+        #     run_tensorboard(logdir)
 
         with st.spinner("Exporting tasks for training ..."):
-            session_state.project.export_tasks()
+            session_state.project.export_tasks(
+                for_training_id=session_state.new_training.id)
 
         initialize_trainer()
         # start training, set `stdout_output` to True to print the logging outputs generated
         #  from the TFOD scripts; set to False to avoid clutterring the console outputs
-        session_state.trainer.train(is_resume, stdout_output=False)
+        session_state.trainer.train(
+            is_resume, stdout_output=False, train_one_batch=train_one_batch)
 
-        # rerun to remove all these progress and refresh the page to show results
-        st.experimental_rerun()
+        def refresh_page():
+            time.sleep(1)
+            st.experimental_rerun()
+
+        st.button("Refresh Training Page", key='btn_refresh_page',
+                  help="Refresh this page to show all the results",
+                  on_click=refresh_page)
 
     if not session_state.new_training.is_started:
         with train_btn_place.container():
+            if session_state.project.deployment_type != 'Object Detection with Bounding Boxes':
+                st.button(
+                    "⚡ Test training one batch", key='btn_train_one_batch',
+                    help="""This is just a test run to see whether the model can 
+                    perform well on only one batch of data (more specifically,
+                    whether it's capable enough to overfit one batch of data).
+                    This is also a good way to check whether there is any problem
+                    with the dataset, the model, or the training pipeline.""")
+                if session_state.btn_train_one_batch:
+                    start_training_callback(train_one_batch=True)
+
             st.button("⚡ Start training", key='btn_start_training')
+            if not tf.config.list_physical_devices('GPU'):
+                st.warning("""WARNING: You don't have access to GPU. Training will
+                take much longer time to complete without GPU.""")
             if session_state.btn_start_training:
                 # must do it this way instead of using callback on button
                 #  to properly show the training progress below the rendered widgets
                 start_training_callback()
     else:
         with train_btn_place.container():
-            st.markdown("### Training results:")
+            st.header("Training results:")
             st.button("📈 Show TensorBoard", key='btn_show_tensorboard')
             if session_state.btn_show_tensorboard:
                 with st.spinner("Loading Tensorboard ..."):
@@ -273,12 +308,24 @@ def index(RELEASE=True):
                            'to allow you to quickly train another model for benchmarking.')
 
             with download_col:
-                model_tarfile_path = session_state.new_training.training_path['model_tarfile']
-                if model_tarfile_path.exists():
+                initialize_trainer()
+                exist_dict = session_state.trainer.check_model_exists()
+
+                if exist_dict['model_tarfile']:
                     def show_download_msg():
-                        warning_place.warning("Downloading Model ...")
+                        place = st.empty()
+                        place.warning("Downloading Model ...")
                         time.sleep(2)
-                        warning_place.empty()
+                        place.empty()
+                        # remove exported directory after downloaded
+                        export_dir = session_state.trainer.training_path['export']
+                        if export_dir.exists():
+                            shutil.rmtree(export_dir)
+                        # remove the tarfile after downloaded
+                        if model_tarfile_path.exists():
+                            os.remove(model_tarfile_path)
+
+                    model_tarfile_path = session_state.trainer.training_path['model_tarfile']
                     with st.spinner("Preparing model to be downloaded ..."):
                         with model_tarfile_path.open(mode="rb") as fp:
                             st.download_button(
@@ -289,8 +336,38 @@ def index(RELEASE=True):
                                 key="btn_download_model",
                                 on_click=show_download_msg,
                             )
-                        st.warning('✏️ **NOTE**: This may take awhile to download, '
-                                   'depending on the file size of the trained model.')
+                        st.success('✏️ Model is successfully archived! This may take awhile'
+                                   ' to download, depending on the file size of the trained '
+                                   'model.')
+                        if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                            st.warning("""The exported object detection model will also be
+                            removed after you have downloaded it. You can try checking the
+                            evaluation result below after exporting, because it will load
+                            from the exported SavedModel format instead of checkpoint, the
+                            results could be different.""")
+                # only show Export button if model checkpoint/weights file is found
+                elif exist_dict['ckpt']:
+                    def export_callback():
+                        # with message_place.container():
+                        try:
+                            session_state.trainer.export_model()
+                            st.experimental_rerun()
+                        except Exception as e:
+                            st.error("""Some error has occurred when exporting,
+                                please try re-training again""")
+                            logger.error(f"Error exporting model: {e}")
+                            if not RELEASE:
+                                st.exception(e)
+                            st.stop()
+                    if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                        label = "📁 Export TensorFlow SavedModel"
+                    else:
+                        label = "📁 Export TensorFlow Keras Model"
+                    export = st.button(label, key='btn_export_model')
+                    st.warning('✏️ **NOTE**: This may take awhile to export, '
+                               'depending on the size of the trained model.')
+                    if export:
+                        export_callback()
 
         with retrain_place.container():
             retrain_col_1, resume_train_col = st.columns([1, 1])
@@ -311,27 +388,31 @@ def index(RELEASE=True):
                     session_state.new_training.training_model.metrics)
                 st.markdown("#### Final Metrics:")
                 st.info(metrics)
-                st.markdown(
-                    "From [TFOD docs](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html#training-the-model):  \n")
-                st.markdown("""Following what people have said online,
-                it seems that it is advisable to allow your model to reach a `Total loss`
-                of **at least 2** (ideally 1 and lower) if you want to achieve “fair” 
-                detection results. Obviously, lower `Total loss` is better, however very 
-                low `Total loss` should be avoided, as the model may end up overfitting 
-                the dataset, meaning that it will perform poorly when applied to images
-                outside the dataset it has been trained on. To monitor `Total loss`, as well
-                as a number of other metrics even while your model is training, have a look at 
-                the **TensorBoard** above.""")
 
-            if session_state.new_training.training_path['model_tarfile'].exists():
+                if session_state.new_training.deployment_type == 'Object Detection with Bounding Boxes':
+                    with st.expander("Notions about the metrics"):
+                        st.markdown(
+                            "From [TFOD docs](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html#training-the-model):  \n")
+                        st.markdown("""Following what people have said online,
+                        it seems that it is advisable to allow your model to reach a `Total loss`
+                        of **at least 2** (ideally 1 and lower) if you want to achieve “fair” 
+                        detection results. Obviously, lower `Total loss` is better, however very 
+                        low `Total loss` should be avoided, as the model may end up overfitting 
+                        the dataset, meaning that it will perform poorly when applied to images
+                        outside the dataset it has been trained on. To monitor `Total loss`, as well
+                        as a number of other metrics even while your model is training, have a look at 
+                        the **TensorBoard** above.""")
+
+            if session_state.new_training.training_path['models'].exists():
                 initialize_trainer()
                 st.markdown("___")
-                st.markdown("### Evaluation results:")
-                # show evaluation results
+                st.header("Evaluation results:")
                 with st.spinner("Running evaluation ..."):
                     try:
                         session_state.trainer.evaluate()
                     except Exception as e:
+                        if not RELEASE:
+                            st.exception(e)
                         st.error("Some error has occurred. Please try "
                                  "training/exporting the model again.")
                         logger.error(f"Error evaluating: {e}")
@@ -349,8 +430,15 @@ def index(RELEASE=True):
             with retrain_place.container():
                 start_training_callback(is_resume)
 
+    # st.write("vars(session_state.new_training)")
+    # st.write(vars(session_state.new_training))
+
 
 if __name__ == "__main__":
+    # Set to wide page layout for debugging on this page
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
     if st._is_running_with_streamlit:
         # This is set to False for debugging purposes
         # when running Streamlit directly from this page

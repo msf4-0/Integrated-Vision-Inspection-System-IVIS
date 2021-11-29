@@ -32,11 +32,6 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
 
-# DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
@@ -62,8 +57,6 @@ from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
-# initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
@@ -76,7 +69,9 @@ DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding B
 chdir_root()  # change to root directory
 
 
-def new_project_entry_page():
+def new_project_entry_page(conn=None):
+    if not conn:
+        conn = init_connection(**st.secrets["postgres"])
 
     # >>>> INIT >>>>
     # ********* QUERY DATASET ********************************************
@@ -98,13 +93,17 @@ def new_project_entry_page():
     else:
         session_state.project_status = ProjectPagination.New
 
+    if 'is_labeled' not in session_state:
+        # to check whether user choose to upload a labeled dataset
+        session_state.is_labeled = False
+
     # ******** SESSION STATE *********************************************************
     if session_state.new_project.has_submitted:
 
         def to_editor_config():
             session_state.new_project_pagination = NewProjectPagination.EditorConfig
 
-        st.button(
+        st.sidebar.button(
             "Next", key="new_project_to_editor", on_click=to_editor_config)
     # Page title
     st.write("# __Add New Project__")
@@ -203,8 +202,7 @@ def new_project_entry_page():
     # ******************************* Right Column to select dataset *******************************
 
     with datasetcol3:
-
-        session_state.new_project.dataset_chosen = st.multiselect(
+        dataset_chosen = st.multiselect(
             "Dataset List", key="new_project_dataset_chosen",
             options=dataset_dict, help="Assign dataset to the project")
         place["new_project_dataset_chosen"] = st.empty()
@@ -217,13 +215,14 @@ def new_project_entry_page():
         st.button("Create New Dataset", key="create_new_dataset_from_new_project",
                   on_click=to_new_dataset_page, help="Create new dataset")
 
-        # >>>> DISPLAY CHOSEN DATASET>>>>
-        st.write("### Dataset choosen:")
-        if len(session_state.new_project.dataset_chosen) > 0:
-            for idx, data in enumerate(session_state.new_project.dataset_chosen):
-                st.write(f"{idx+1}. {data}")
+        upload_place = st.empty()
 
-        elif len(session_state.new_project.dataset_chosen) == 0:
+        # >>>> DISPLAY CHOSEN DATASET>>>>
+        st.write("### Dataset chosen:")
+        if dataset_chosen:
+            for idx, data in enumerate(dataset_chosen):
+                st.write(f"{idx+1}. {data}")
+        else:
             st.info("No dataset selected")
 
     # ******************************* Right Column to select dataset *******************************
@@ -302,18 +301,29 @@ def new_project_entry_page():
     context = {
         'new_project_name': session_state.new_project.name,
         'new_project_deployment_type': session_state.new_project.deployment_type,
-        'new_project_dataset_chosen': session_state.new_project.dataset_chosen
+        'new_project_dataset_chosen': dataset_chosen
     }
 
-    submit_col1, submit_col2 = st.columns([3, 0.5])
+    submit_col1, _, submit_col2 = st.columns([2.5, 0.5, 0.5])
 
-    def new_project_submit():
+    def new_project_submit(dataset_chosen=dataset_chosen, dataset_dict=dataset_dict, labeled=False):
+        # if this is True, we will send to New Dataset page for uploading
+        session_state.is_labeled = labeled
+
+        if labeled:
+            # if uploading labeled dataset, then no need to check the dataset_chosen field
+            del context['new_project_dataset_chosen']
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
             context, field_placeholder=place, name_key='new_project_name')
 
         if session_state.new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
-            if session_state.new_project.initialise_project(dataset_dict):
+            # NOTE: dataset_dict is None when user choose to upload labeled dataset,
+            #  this is to skip inserting project dataset that has not been chosen
+            if labeled:
+                dataset_dict = None
+                dataset_chosen = None
+            if session_state.new_project.initialise_project(dataset_chosen, dataset_dict):
                 # Updated with Actual Project ID from DB
                 session_state.new_editor.project_id = session_state.new_project.id
                 # deployment type now IntEnum
@@ -324,8 +334,12 @@ def new_project_entry_page():
                         f"Successfully stored **{session_state.new_project.name}** project information in database")
                     sleep(1)
                     success_place.empty()
-
-                    session_state.new_project_pagination = NewProjectPagination.EditorConfig  # TODO
+                    if labeled:
+                        # send to the NewDataset page to upload labeled dataset
+                        session_state.new_project_pagination = NewProjectPagination.NewDataset
+                    else:
+                        # if not uploading new labeled dataset then go to Editor
+                        session_state.new_project_pagination = NewProjectPagination.EditorConfig
                 else:
                     success_place.error(
                         f"Failed to stored **{session_state.new_editor.name}** editor config in database")
@@ -335,33 +349,45 @@ def new_project_entry_page():
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
     # TODO #72 Change to 'Update' when 'has_submitted' == True
     submit_button = submit_col2.button(
-        "Submit", key="submit", on_click=new_project_submit)
+        "Submit", key="submit", on_click=new_project_submit,
+        kwargs={'labeled': False})
+
+    with upload_place.container():
+        st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
+                  on_click=new_project_submit,
+                  kwargs={'labeled': True})
+        with st.expander("NOTES about uploading a labeled dataset"):
+            st.info("""If you choose to upload a labeled dataset, you must first fill
+            up the project title and select a template for the deployment type of the
+            computer vision task.""")
 
     # >>>> Removed
     # session_state.new_project.has_submitted = False
 
-    col1, col2 = st.columns(2)
-    col1.write(vars(session_state.new_project))
+    # col1, col2 = st.columns(2)
+    # col1.write(vars(session_state.new_project))
     # col2.write(vars(session_state.new_editor))
-    col2.write(context)
+    # col2.write(context)
     # col2.write(dataset_dict)
 
 
-def index():
+def index(RELEASE=True, conn=None):
+    if not conn:
+        conn = init_connection(**st.secrets["postgres"])
 
     new_project_page = {
         NewProjectPagination.Entry: new_project_entry_page,
         NewProjectPagination.EditorConfig: editor_config,
         NewProjectPagination.NewDataset: new_dataset
-
     }
-    if 'new_project_pagination' not in session_state:
 
+    if 'new_project_pagination' not in session_state:
         session_state.new_project_pagination = NewProjectPagination.Entry
 
-    new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
+    # new_project_home_col1, new_project_home_col2 = st.columns([3, 0.5])
+    editor_config_submit_place = st.sidebar.empty()
     logger.debug(
-        f" New Project Pagination: {session_state.new_project_pagination}")
+        f"Navigator: {session_state.new_project_pagination = }")
     # ******************** TOP PAGE NAV *******************************************************************************************************
     if (session_state.new_project_pagination == NewProjectPagination.Entry) or (session_state.new_project_pagination == NewProjectPagination.NewDataset):
         color = [current_page, non_current_page]
@@ -386,8 +412,9 @@ def index():
             session_state.project_pagination = ProjectPagination.Dashboard
             session_state.new_project_pagination = NewProjectPagination.Entry
 
-        new_project_home_col2.button(
-            "Done", key='back_to_project_dashboard', on_click=to_project_dashboard)
+        editor_config_submit_place.button(
+            "Back to Project Dashboard", key='back_to_project_dashboard',
+            on_click=to_project_dashboard)
         logger.debug(
             f"Project ID before editor config: {session_state.new_project.id},{session_state.new_project.editor}")
         new_project_page[session_state.new_project_pagination](
@@ -395,10 +422,14 @@ def index():
     else:
         new_project_page[session_state.new_project_pagination]()
 
-    new_project_back_button_place = st.empty()
+    new_project_back_button_place = st.sidebar.empty()
 
     # >>>> RETURN TO ENTRY PAGE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    if session_state.new_project_pagination != NewProjectPagination.Entry:
+    # NOTE: not showing this "Back" button for uploading labeled dataset because
+    # the project has already been submitted there to associate with the uploaded labeled dataset
+    # and it's not necessary to come back to new_project page here
+    if session_state.new_project_pagination == NewProjectPagination.NewDataset \
+            and not session_state.is_labeled:
 
         def to_new_project_entry_page():
             NewDataset.reset_new_dataset_page()
@@ -410,13 +441,19 @@ def index():
     else:
         new_project_back_button_place.empty()
 
-    st.write(session_state.new_project_pagination)
+    # st.write(session_state.new_project_pagination)
 
 
 if __name__ == "__main__":
-    if st._is_running_with_streamlit:
+    # DEFINE wide page layout for debugging on this page directly
+    layout = 'wide'
+    st.set_page_config(page_title="Integrated Vision Inspection System",
+                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-        index()
+    if st._is_running_with_streamlit:
+        # initialise connection to Database
+        conn = init_connection(**st.secrets["postgres"])
+        index(RELEASE=False, conn=conn)
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())
