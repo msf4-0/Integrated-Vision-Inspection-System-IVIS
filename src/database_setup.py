@@ -130,30 +130,14 @@ def modify_secrets_toml(**context: Dict):
                 context)
 
         if database_status == DatabaseStatus.Exist:
-            if st._is_running_with_streamlit:
-                # taking from user input
-                database_name = session_state.get(
-                    'input_database_name',
-                    "integrated_vision_inspection_system")
-                if 'input_database_name' in session_state:
-                    # delete it as we don't use it anymore
-                    del session_state['input_database_name']
-            else:
-                database_name = os.environ.get(
-                    'POSTGRES_DB', "integrated_vision_inspection_system")
+            database_name = os.environ.get(
+                'POSTGRES_DB', "integrated_vision_inspection_system")
             # Write to secrets.toml file if database configuration is valid
             context['dbname'] = database_name
             secrets = {'postgres': context}
             with open(str(SECRETS_PATH), 'w+') as f:
                 new_toml = toml.dump(secrets, f)
                 logger.info(f"Created secrets.toml file:\n{new_toml}")
-
-            # also scrape model details online and setup the `models` table if not exists
-            if not check_if_pretrained_models_exist(conn):
-                logger.info("Scraping all details of pretrained models")
-                scrape_setup_model_details(conn)
-            else:
-                logger.info("Pretrained model data already exists")
             return
 
     if st._is_running_with_streamlit:
@@ -178,13 +162,10 @@ def db_config_form():
             'password': session_state.password
         }
 
-        # store this to check with other functions later in case the user
-        # uses a different database name
-        session_state.input_database_name = session_state.dbname
-
         if check_if_field_empty(context):
 
-            # Modify secrets.toml file
+            # Modify secrets.toml file, and create a new database if not exists,
+            #  based on the given db name
             modify_secrets_toml(**context)
 
             st.experimental_rerun()
@@ -206,15 +187,21 @@ def db_config_form():
 
         # Port
         st.text_input(label='Port', value='5432', key='port',
-                      help="By default, our PostgreSQL database uses port 5432. "
+                      help="By default, PostgreSQL database uses port 5432. "
                       "Please do not change this if you are not sure about it.")
 
         # dbname
         st.text_input(
-            label='Database Name', value='integrated_vision_inspection_system',
-            key='dbname', help="This database will be used to store all our app's information, "
-            "NOTE that your PostgreSQL should also have this database with the same name "
-            "created. Please check your PostgreSQL to create a database first if not yet.")
+            label='Existing Database Name', value='postgres',
+            key='dbname', help="""This **postgres** database should exist by default when
+            you installed PostgreSQL, unless you have deleted this default database,
+            for which you will have to specify another database name in order for our
+            application to connect to, as this is required to create a new database for
+            our application. """)
+        st.markdown("""Our new database will be named as **integrated_vision_inspection_system**.
+            If this database already exists in your system, we will just assume that it's 
+            the same database that we have created previously, and directly use it to query
+            and also store the data for our application.""")
 
         st.markdown("**Notes about user and password:**")
         st.markdown("""This should be based on the user and password used during 
@@ -222,7 +209,7 @@ def db_config_form():
         # user
         st.text_input(
             label='User', value='postgres', key='user',
-            help="The default admin user should be 'postgres', change this if it is not.")
+            help="The default admin user should be **postgres**, change this if it is not.")
 
         # password
         st.text_input(label='Password',
@@ -250,7 +237,7 @@ def database_setup():
 
     else:
         # If connection to wrong database
-        if st.secrets['postgres']['dbname'] != session_state.get('input_database_name') or os.environ.get(
+        if st.secrets['postgres']['dbname'] != os.environ.get(
                 'POSTGRES_DB', "integrated_vision_inspection_system"):
 
             if test_database_connection(**st.secrets['postgres']):
@@ -288,10 +275,10 @@ def main():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        print('[INFO] Setting up database using Streamlit ...')
+        logger.info('[INFO] Setting up database using Streamlit ...')
         database_setup()
     elif os.environ.get('DOCKERCONTAINER'):
-        print('[INFO] Setting up database for Docker container ...')
+        logger.info('[INFO] Setting up database for Docker container ...')
         database_direct_setup()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]

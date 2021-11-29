@@ -34,7 +34,6 @@ from psycopg2 import sql, extensions
 from collections import namedtuple
 import traceback
 from enum import IntEnum
-from core.utils.model_details_db_setup import connect_db
 from passlib.hash import argon2
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 import streamlit as st
@@ -60,6 +59,7 @@ for path in sys.path:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import logger  # logger
+from core.utils.model_details_db_setup import check_if_pretrained_models_exist, connect_db, scrape_setup_model_details
 
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -1031,14 +1031,8 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
     """
 
     # check if database exists
-    if st._is_running_with_streamlit:
-        # taking from user input
-        database_name = session_state.get(
-            'input_database_name',
-            "integrated_vision_inspection_system")
-    else:
-        database_name = os.environ.get(
-            'POSTGRES_DB', "integrated_vision_inspection_system")
+    database_name = os.environ.get(
+        'POSTGRES_DB', "integrated_vision_inspection_system")
     try:
         if not check_if_database_exist(datname=database_name,
                                        conn=conn):
@@ -1046,17 +1040,32 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
             # if not,create database with the name
             create_database(database_name=database_name,
                             conn=conn)
+            # closing the old connection to the existing database, before creating
+            # a new connection to the new database
             conn.close()
+        else:
+            logger.info(f"Database '{database_name}' already exists")
+
+        # create new DSN for the new database name
+        dsn['dbname'] = database_name
+        # NOTE: this is the FIRST ever connection to the new database
+        # not using init_connection as this decorated function would cache even on error
+        # conn = init_connection(**dsn)
+        conn = connect_db(**dsn)
+
         if not check_if_table_exist('project', conn=conn):
-            # create new DSN
-            dsn['dbname'] = database_name
-            if st._is_running_with_streamlit:
-                conn = init_connection(**dsn)
-            else:
-                conn = connect_db(**dsn)
             # then create relation in the database
             logger.info('Creating relation database ...')
             create_relation_database(conn=conn)
+        else:
+            logger.info(f"Tables already exist in database '{database_name}'")
+
+        # also scrape model details online and setup the `models` table if not exists
+        if not check_if_pretrained_models_exist(conn):
+            logger.info("Scraping all details of pretrained models")
+            scrape_setup_model_details(conn)
+        else:
+            logger.info("Pretrained model data already exists in database")
 
         return DatabaseStatus.Exist
     except Exception as e:
