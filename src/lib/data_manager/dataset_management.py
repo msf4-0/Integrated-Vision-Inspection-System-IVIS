@@ -1205,6 +1205,26 @@ def data_url_encoder(filetype: IntEnum, data_path: Union[str, Path]) -> str:
         pass
 
 
+def get_latest_captured_image_path() -> Tuple[Path, int]:
+    """Returns the latest image path and image number based on existing 
+    images in the directory."""
+    CAPTURED_IMAGES_DIR = MEDIA_ROOT / 'captured_images'
+
+    def get_image_num(image_path: Path):
+        return int(image_path.stem)
+    existing_captured = sorted(
+        CAPTURED_IMAGES_DIR.rglob('*png'),
+        key=get_image_num,
+        reverse=True)
+    if not existing_captured:
+        image_num = 1
+    else:
+        image_num = get_image_num(existing_captured[0])
+    filename = f'{image_num}.png'
+    save_path = CAPTURED_IMAGES_DIR / filename
+    return save_path, image_num
+
+
 def main():
     print("Hi")
 

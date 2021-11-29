@@ -804,7 +804,7 @@ class Project(BaseProject):
         return project_dataset_dict
 
     def refresh_project_details(self):
-        """Redundant function to update project attributes
+        """Redundant function to update project attributes queried from database
         """
         self.datasets, self.column_names = self.query_project_dataset_list()
         self.dataset_dict = self.get_dataset_name_list()

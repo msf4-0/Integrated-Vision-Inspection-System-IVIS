@@ -27,13 +27,11 @@ SPDX-License-Identifier: Apache-2.0
 import os
 import sys
 import shutil
-from copy import deepcopy
-from enum import IntEnum
 from pathlib import Path
-import tarfile
 from time import perf_counter, sleep
-from typing import Dict, Union
-from zipfile import ZipFile
+
+import cv2
+from imutils.video.webcamvideostream import WebcamVideoStream
 from humanize import naturalsize
 import streamlit as st
 from stqdm import stqdm
@@ -43,26 +41,28 @@ from streamlit import session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
+# # DEFINE wide page layout for debugging on this page directly
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 from core.utils.code_generator import get_random_string
-from core.utils.helper import Timer, check_filetype
+from core.utils.helper import Timer, check_filetype, list_available_cameras
 from core.utils.file_handler import extract_archive, list_files_in_archived, check_image_files
 from core.utils.log import logger
 from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset, get_dataset_name_list, query_dataset_list
-from path_desc import TEMP_DIR, chdir_root
+from data_manager.dataset_management import NewDataset, get_dataset_name_list, get_latest_captured_image_path, query_dataset_list
+from path_desc import DATASET_DIR, TEMP_DIR, chdir_root
 from project.project_management import NewProject, NewProjectPagination, Project, ProjectPagination
 from annotation.annotation_management import NewAnnotations, Task
 from user.user_management import User
+from deployment.utils import reset_camera, reset_camera_ports
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -224,8 +224,107 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     # TODO: #15 Webcam integration
     # >>>> WEBCAM >>>>
     if data_source == 0:
+        # NOTE: not using streamlit-webrtc for now
+        # webcam_webrtc.app_loopback()
+
+        if 'working_ports' not in session_state:
+            session_state.working_ports = []
+        if 'camera' not in session_state:
+            session_state.camera = None
+
         with outercol2:
-            webcam_webrtc.app_loopback()
+
+            camera_type = st.radio("Select type of camera", ('USB Camera', 'IP Camera'),
+                                   key='camera_type')
+            if camera_type == 'USB Camera':
+                if not session_state.working_ports:
+                    with st.spinner("Checking available camera ports ..."):
+                        _, working_ports = list_available_cameras()
+                        session_state.working_ports = working_ports.copy()
+                st.button("Refresh camera ports",
+                          key='btn_refresh_camera_port', on_click=reset_camera_ports)
+                camera_port = st.radio("Select a camera port", session_state.working_ports,
+                                       key='camera_port')
+                video_source = camera_port
+            else:
+                ip_cam_address = st.text_input(
+                    "Enter the IP address", key='ip_cam_address')
+                video_source = ip_cam_address
+
+            if not session_state.camera:
+                if st.button("Start camera", key='btn_start_cam',
+                             help='Start camera before start capturing images'):
+                    with st.spinner("Loading up camera ..."):
+                        try:
+                            session_state.camera = WebcamVideoStream(
+                                src=video_source).start()
+                        except Exception as e:
+                            st.error(
+                                f"Unable to read from video source {video_source}")
+                            logger.error(
+                                f"Unable to read from video source {video_source}: {e}")
+                            st.stop()
+                        else:
+                            sleep(1)  # give the camera some time to sink in
+                        # rerun just to avoid displaying unnecessary buttons
+                        st.experimental_rerun()
+                st.stop()
+
+            st.button("Stop camera", key='btn_stop_cam', on_click=reset_camera)
+
+        stream = session_state.camera.stream
+        width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps_input = int(stream.get(cv2.CAP_PROP_FPS))
+        logger.info(
+            f"Webcam properties: {width = }, {height = }, {fps_input = }")
+
+        with outercol1:
+            st.markdown(f"### Webcam info:  \n**Width**: {width}, "
+                        f"**Height**: {height}, **FPS**: {fps_input}")
+
+            save_path, image_num = get_latest_captured_image_path()
+            save_dir = save_path.parent
+            if not save_dir.exists():
+                os.makedirs(save_dir)
+            st.markdown(
+                f"Images will be saved in this directory: *{save_dir}*")
+            display_width = st.slider(
+                "Select width of image to resize for display",
+                35, 1000, 500, 5, key='display_width',
+                help="This does not affect the size of the captured image as it depends on the camera.")
+
+            is_limiting = st.checkbox("Limit images captured per second")
+            if is_limiting:
+                img_per_sec = st.slider(
+                    "Max images per second",
+                    0.1, 30.0, 2.0, 0.1, format='%.1f', key='cps',
+                    help="Note that this is not exactly precise but very close.")
+
+        with outercol2:
+            video_place = st.empty()
+            start_capture = st.checkbox("Start capturing", key='start_capture')
+
+        start_time = perf_counter()
+        total_new_imgs = 0
+        while True:
+            frame = session_state.camera.read()
+            video_place.image(frame, channels='BGR', width=display_width)
+
+            # if img_per_sec > 0:
+            #     sleep(1 / img_per_sec)
+
+            if start_capture:
+                elapsed_secs = perf_counter() - start_time
+                if is_limiting and (total_new_imgs / elapsed_secs) > img_per_sec:
+                    continue
+                # note that opencv only accepts str and not Path
+                cv2.imwrite(str(save_path), frame)
+                total_new_imgs += 1
+                image_num += 1
+                save_path = save_path.with_name(f'{image_num}.png')
+                # sleep to limit save rate a little bit
+                sleep(1 / 10)
 
     # >>>> FILE UPLOAD >>>>
     # TODO #24 Add other filetypes based on filetype table
@@ -601,12 +700,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
 
 if __name__ == "__main__":
-    # DEFINE wide page layout for debugging on this page directly
-    # layout = 'wide'
-    # st.set_page_config(page_title="Integrated Vision Inspection System",
-    #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
     if st._is_running_with_streamlit:
+        st.sidebar.markdown("Dummy sidebar")
         # initialise connection to Database
         conn = init_connection(**st.secrets["postgres"])
 
