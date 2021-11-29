@@ -45,15 +45,15 @@ if str(LIB_PATH) not in sys.path:
 
 
 from core.utils.log import logger  # logger
-from core.utils.model_details_db_setup import connect_db, scrape_setup_model_details
+from core.utils.model_details_db_setup import check_if_pretrained_models_exist, connect_db, scrape_setup_model_details
 from data_manager.database_manager import db_no_fetch, init_connection, initialise_database_pipeline, test_db_conn, DatabaseStatus
-from path_desc import DATABASE_DIR, PROJECT_ROOT
+from path_desc import (DATABASE_DIR, SECRETS_PATH, TFOD_MODELS_TABLE_PATH,
+                       CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH)
 
 # initialise connection to Database
 # conn = init_connection(**st.secrets["postgres"])
 place = {}
-SECRETS_DIR = PROJECT_ROOT / ".streamlit/secrets.toml"
-# st.write(SECRETS_DIR)
+# st.write(SECRETS_PATH)
 
 # **********************************SESSION STATE ******************************
 
@@ -87,7 +87,7 @@ def check_if_field_empty(context: Dict) -> bool:
 
         if not v and v == "":
             empty_fields.append(k)
-    logger.info(empty_fields)
+    logger.debug(empty_fields)
 
     # if empty_fields not empty -> return True, else -> return False (Negative Logic)
     return not empty_fields  # Negative logic
@@ -100,7 +100,7 @@ def test_database_connection(**dsn: Dict):
         psycopg2.connection: Connection object for the Database
     """
     conn = test_db_conn(**dsn)
-    if conn != None:
+    if conn is not None:
 
         success_msg = f"Successfully connected to Database {dsn['dbname']}"
         logger.info(success_msg)
@@ -110,6 +110,7 @@ def test_database_connection(**dsn: Dict):
         success_place.empty()
     else:
         st.error(f"Failed to connect to the Database")
+        logger.error(f"Failed to connect to the Database")
     return conn
 
 
@@ -129,17 +130,38 @@ def modify_secrets_toml(**context: Dict):
                 context)
 
         if database_status == DatabaseStatus.Exist:
+            if st._is_running_with_streamlit:
+                # taking from user input
+                database_name = session_state.get(
+                    'input_database_name',
+                    "integrated_vision_inspection_system")
+                if 'input_database_name' in session_state:
+                    # delete it as we don't use it anymore
+                    del session_state['input_database_name']
+            else:
+                database_name = os.environ.get(
+                    'POSTGRES_DB', "integrated_vision_inspection_system")
             # Write to secrets.toml file if database configuration is valid
-            context['dbname'] = "integrated_vision_inspection_system"
-            secrets = {
-                'postgres': context
-            }
-            with open(str(SECRETS_DIR), 'w+') as f:
+            context['dbname'] = database_name
+            secrets = {'postgres': context}
+            with open(str(SECRETS_PATH), 'w+') as f:
                 new_toml = toml.dump(secrets, f)
-                logger.info(new_toml)
+                logger.info(f"Created secrets.toml file:\n{new_toml}")
 
-            # also scrape model details online and setup the `models` table
-            scrape_setup_model_details(conn)
+            # also scrape model details online and setup the `models` table if not exists
+            if not check_if_pretrained_models_exist(conn):
+                logger.info("Scraping all details of pretrained models")
+                scrape_setup_model_details(conn)
+            else:
+                logger.info("Pretrained model data already exists")
+            return
+
+    if st._is_running_with_streamlit:
+        st.error("""There were some error creating the database config, the database 
+            information seems to be incorrect.""")
+    logger.error("There were some error creating the database config or "
+                 "connecting to database")
+    st.stop()
 
 
 def db_config_form():
@@ -156,6 +178,10 @@ def db_config_form():
             'password': session_state.password
         }
 
+        # store this to check with other functions later in case the user
+        # uses a different database name
+        session_state.input_database_name = session_state.dbname
+
         if check_if_field_empty(context):
 
             # Modify secrets.toml file
@@ -167,29 +193,43 @@ def db_config_form():
             error_place.error("Please fill in all fields")
             sleep(0.7)
             error_place.empty()
+    st.title("Creating Database Configuration")
+    st.markdown("___")
     st.info(f"""
     #### Please make sure the User has Create DB permission
     """)
-    with st.form(key='db_setup', clear_on_submit=True):
+    with st.form(key='db_setup', clear_on_submit=False):
 
         # Host
-        st.text_input(label='Host', key='host')
+        st.text_input(label='Host', value='localhost', key='host',
+                      help="This must be `localhost` if installing our application on a local machine.")
 
         # Port
-        st.text_input(label='Port', key='port')
+        st.text_input(label='Port', value='5432', key='port',
+                      help="By default, our PostgreSQL database uses port 5432. "
+                      "Please do not change this if you are not sure about it.")
 
         # dbname
-        st.text_input(label='Database Name', key='dbname')
+        st.text_input(
+            label='Database Name', value='integrated_vision_inspection_system',
+            key='dbname', help="This database will be used to store all our app's information, "
+            "NOTE that your PostgreSQL should also have this database with the same name "
+            "created. Please check your PostgreSQL to create a database first if not yet.")
 
+        st.markdown("**Notes about user and password:**")
+        st.markdown("""This should be based on the user and password used during 
+            your PostgreSQL installation.""")
         # user
-        st.text_input(label='User', key='user')
+        st.text_input(
+            label='User', value='postgres', key='user',
+            help="The default admin user should be 'postgres', change this if it is not.")
 
         # password
         st.text_input(label='Password',
                       key='password', type='password')
 
-        st.form_submit_button(label='Submit',
-                              on_click=create_secrets_toml)
+        if st.form_submit_button(label='Submit'):
+            create_secrets_toml()
 
 
 def database_setup():
@@ -200,17 +240,18 @@ def database_setup():
     """
 
     # If secretes.toml does not exists
-    if not SECRETS_DIR.exists():
+    if not SECRETS_PATH.exists():
 
         # Ask user to enter Database details
 
-        if not session_state.db_connect_flag:
+        if not session_state.get('db_connect_flag'):
 
             db_config_form()
 
     else:
         # If connection to wrong database
-        if st.secrets['postgres']['dbname'] != 'integrated_vision_inspection_system':
+        if st.secrets['postgres']['dbname'] != session_state.get('input_database_name') or os.environ.get(
+                'POSTGRES_DB', "integrated_vision_inspection_system"):
 
             if test_database_connection(**st.secrets['postgres']):
                 session_state.db_connect_flag = True
@@ -219,7 +260,7 @@ def database_setup():
 
             else:
                 db_config_form()
-        elif not session_state.db_connect_flag:
+        elif not session_state.get('db_connect_flag'):
             if test_database_connection(**st.secrets['postgres']):
                 session_state.db_connect_flag = True
                 conn = init_connection(**st.secrets['postgres'])
@@ -227,15 +268,16 @@ def database_setup():
                 db_config_form()
 
 
-def database_docker_setup():
+def database_direct_setup():
     db_config = {
         "host": "localhost",
         "port": "5432",
         # the rest are obtained from the environment variables
         # defined in docker-compose.yml
-        "dbname": os.environ['POSTGRES_DB'],
-        "user": os.environ['POSTGRES_USER'],
-        "password": os.environ['POSTGRES_PASSWORD']
+        "dbname": os.environ.get('POSTGRES_DB',
+                                 "integrated_vision_inspection_system"),
+        "user": os.environ.get('POSTGRES_USER', 'postgres'),
+        "password": os.environ.get('POSTGRES_PASSWORD', 'shrdc')
     }
     modify_secrets_toml(**db_config)
 
@@ -250,7 +292,7 @@ if __name__ == "__main__":
         database_setup()
     elif os.environ.get('DOCKERCONTAINER'):
         print('[INFO] Setting up database for Docker container ...')
-        database_docker_setup()
+        database_direct_setup()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

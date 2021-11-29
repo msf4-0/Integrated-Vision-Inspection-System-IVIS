@@ -59,8 +59,10 @@ def main():
     info_col1, _, info_col2 = st.columns([1, 0.1, 1])
     cols = cycle((info_col1, info_col2))
     for (attr, fullname), col in zip(attr2fullname.items(), cols):
+        value = user_info[attr]
+        value = '' if value is None else value
         with col:
-            st.markdown(f"**{fullname}**: {user_info[attr]}")
+            st.markdown(f"**{fullname}**: {value}")
 
     def to_edit_user_cb():
         # session_state.current_user is required to modify existing user info

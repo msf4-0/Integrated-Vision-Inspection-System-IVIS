@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 # Initialise Connection Snippet
+import os
 import sys
 from pathlib import Path
 import psycopg2
@@ -37,6 +38,7 @@ from core.utils.model_details_db_setup import connect_db
 from passlib.hash import argon2
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 import streamlit as st
+from streamlit import session_state
 
 # from config import config
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1029,18 +1031,25 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
     """
 
     # check if database exists
-    database_name = "integrated_vision_inspection_system"
+    if st._is_running_with_streamlit:
+        # taking from user input
+        database_name = session_state.get(
+            'input_database_name',
+            "integrated_vision_inspection_system")
+    else:
+        database_name = os.environ.get(
+            'POSTGRES_DB', "integrated_vision_inspection_system")
     try:
         if not check_if_database_exist(datname=database_name,
                                        conn=conn):
 
-            # if not,create database "integrated_vision_inspection_system"
+            # if not,create database with the name
             create_database(database_name=database_name,
                             conn=conn)
             conn.close()
         if not check_if_table_exist('project', conn=conn):
             # create new DSN
-            dsn['dbname'] = "integrated_vision_inspection_system"
+            dsn['dbname'] = database_name
             if st._is_running_with_streamlit:
                 conn = init_connection(**dsn)
             else:

@@ -44,10 +44,10 @@ from machine_learning.visuals import pretty_format_param
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 
 # >>>> User-defined Modules >>>>

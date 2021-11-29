@@ -7,6 +7,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
+import re
 from enum import IntEnum
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 import psycopg2
@@ -400,8 +401,6 @@ class User(BaseUser):
 
     def update_info(self, new_info: Dict[str, Any]):
         logger.info("Updating user information")
-        hashed_psd = argon2.hash(new_info["psd"])
-        logger.debug(f'password: {new_info["psd"]}')
 
         role = UserRole.get_enum_from_fullname(new_info['role'])
 
@@ -433,7 +432,16 @@ class User(BaseUser):
         update_vars = [
             new_info["emp_id"], new_info["username"], new_info["first_name"],
             new_info["last_name"], new_info["email"], new_info["department"],
-            new_info["position"], roles_id, hashed_psd, self.id]
+            new_info["position"], roles_id, self.id]
+        # only update psd if given
+        if new_info['psd']:
+            hashed_psd = argon2.hash(new_info["psd"])
+            logger.debug(f'password: {new_info["psd"]}')
+            # negative 1 will insert before self.id
+            update_vars.insert(-1, hashed_psd)
+        else:
+            # remove the 'psd' part including the comma
+            sql_update = re.sub(r",\s+psd = %s", "", sql_update)
         db_no_fetch(sql_update, conn, update_vars)
 
     @staticmethod
@@ -485,7 +493,7 @@ def check_if_other_user_exists(
     return False, columns_with_used_values
 
 
-def verify_password(user: User, input_password: str) -> bool:
+def verify_user_password(user: User, input_password: str) -> bool:
     sql_query = """
         SELECT psd FROM users WHERE id = %s;
     """

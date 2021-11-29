@@ -19,7 +19,7 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 from data_manager.database_manager import init_connection
-from user.user_management import USER_ROLES, User, UserRole, check_if_other_user_exists, check_if_user_exists, create_user, check_if_field_empty, get_default_user_info, verify_password
+from user.user_management import USER_ROLES, User, UserRole, check_if_other_user_exists, check_if_user_exists, create_user, check_if_field_empty, get_default_user_info, verify_user_password
 from core.utils.code_generator import make_random_password
 from core.utils.log import logger
 
@@ -119,22 +119,39 @@ def show(layout='wide'):
             value=current_user.username, help="Enter your username")
         place["username"] = st.empty()
 
-        if existing_user:
-            role_name = current_user.role.fullname
-            if session_state.user.role != UserRole.Administrator:
-                # skip admin if current session's user is not Admin
-                role_options = USER_ROLES[1:]
-            else:
-                role_options = USER_ROLES
+        # this is obtained from app.py in case no admin user has been created yet
+        if session_state.get('no_admin'):
+            new_user["role"] = UserRole.Administrator.fullname
+            st.info("""This is the first user to be created for the application. 
+                So the user role will be **Administrator**. Please do not 
+                forget your password as only the admin users can access to 
+                the user management and creation section.""")
         else:
-            # new user defaults to Admin role on first render as only the Admin
-            # can create new user
-            role_name = UserRole.Administrator.fullname
-            role_options = USER_ROLES
-        role_idx = role_options.index(role_name)
-        new_user["role"] = st.selectbox(
-            "Role", options=role_options, key="role",
-            index=role_idx, help="""Enter the role of the Employee in this project""")
+            if existing_user:
+                user_role = session_state.user.role
+                if user_role != UserRole.Administrator:
+                    # prohibit from editing user role if current session's user is not Admin
+                    st.markdown("**User Role**")
+                    st.info(
+                        f"Your user role is **{user_role}**. You are not an Administrator. "
+                        "Therefore, you are not allowed to change your user role.")
+                    new_user["role"] = user_role
+                else:
+                    role_name = current_user.role.fullname
+                    role_idx = USER_ROLES.index(role_name)
+                    new_user["role"] = st.selectbox(
+                        "Role", options=USER_ROLES, key="role",
+                        index=role_idx, help="""Enter the role of the Employee in this project""")
+            else:
+                # new user defaults to Admin role on first render as only the Admin
+                # can create new user
+                role_name = UserRole.Administrator.fullname
+                role_idx = USER_ROLES.index(role_name)
+                new_user["role"] = st.selectbox(
+                    "Role", options=USER_ROLES, key="role",
+                    index=role_idx, help="""Enter the role of the Employee in this project""")
+        place["role"] = st.empty()
+
         with st.expander("Details of Role", expanded=False):
             role_details = """
             ### __Roles__: \n
@@ -149,11 +166,11 @@ def show(layout='wide'):
                 """NOTE: If you are creating for a non-administrator user, you will
                 need to provide the temporary password here to the user to activate 
                 the account first before the user can use the account to login.""")
-        place["role"] = st.empty()
 
         if existing_user:
             new_user["existing_psd"] = st.text_input(
-                "Current Password", key="existing_psd", type="password")
+                "Current Password", key="existing_psd", type="password",
+                help="Leave the password fields blank if you do not wish to update your password.")
             place['existing_psd'] = st.empty()
             psd_label = "New Password"
         else:
@@ -169,14 +186,15 @@ def show(layout='wide'):
         if not existing_user:
             psd_gen_flag = st.checkbox(
                 "Or Use Auto-generated Password (Set as default when checked)",
-                key="auto_gen_psd_checkbox")
+                key="auto_gen_psd_checkbox",
+                help="This password will be shown after form submission.")
             random_psd = make_random_password(22)
-            st.write(
-                """
-                    | {0} |
-                    |--------|
+            # st.write(
+            #     """
+            #         | {0} |
+            #         |--------|
 
-                    """.format(random_psd))
+            #         """.format(random_psd))
             if psd_gen_flag:
                 new_user["psd"] = random_psd
                 new_user["confirm_psd"] = random_psd
@@ -189,7 +207,9 @@ def show(layout='wide'):
         if submit_create_user_form:  # IF all fields are populated -> RETURN True
             if existing_user:
                 all_fields = FIELDS.copy()
-                all_fields['existing_psd'] = "Current Password"
+                # 'psd' fields can be empty to skip updating password
+                # all_fields['existing_psd'] = "Current Password"
+                del all_fields['psd']
             else:
                 all_fields = FIELDS
             has_submitted = check_if_field_empty(new_user, place, all_fields)
@@ -205,13 +225,18 @@ def show(layout='wide'):
                 exists_flag, columns_with_used_values = check_if_user_exists(
                     unique_field2value, conn)
             else:
-                psd_correct = verify_password(
-                    current_user, new_user['existing_psd'])
-                if not psd_correct:
-                    place['existing_psd'].error("Incorrect password!")
-                    logger.error(f"Incorrect password for username: "
-                                 f"{current_user.username}")
-                    st.stop()
+                # only check if 'psd' is provided to update psd
+                if new_user["existing_psd"] or new_user["psd"] or new_user["confirm_psd"]:
+                    if not new_user["psd"]:
+                        place["psd"].error("Blank password is not allowed.")
+                        st.stop()
+                    psd_correct = verify_user_password(
+                        current_user, new_user["existing_psd"])
+                    if not psd_correct:
+                        place["existing_psd"].error("Incorrect password!")
+                        logger.error(f"Incorrect password for username: "
+                                     f"{current_user.username}")
+                        st.stop()
 
                 exists_flag, columns_with_used_values = check_if_other_user_exists(
                     new_user["emp_id"], new_user["username"], current_user, conn)
@@ -249,14 +274,19 @@ def show(layout='wide'):
             logger.info(f"Successfully created new user: '{new_user['username']}' "
                         f"with the role of '{new_user['role']}'")
 
-            if new_user['role'] != "Administrator":
-                st.warning(
-                    f"""Please advice the user to login with the temporary password used
-                    here to activate the account.  \n__Employee Temporary Password: 
-                    {new_user["psd"]}__
-                    """)
-            else:
+            if session_state.get('no_admin'):
+                # remove this from session_state if exists as this is only required once
+                # during the first launch of the app
+                del session_state['no_admin']
+
+            st.warning(
+                f"""Please advice the user to login with the temporary password
+                used here to activate the account.  \n__User Temporary Password: 
+                {new_user["psd"]}__
+                """)
+            if new_user['role'] == "Administrator":
                 # need to clear cache to allow query_all_admins() to rerun
+                logger.debug("Clearing Streamlit cache")
                 st.legacy_caching.clear_cache()
 
     return new_user, has_submitted

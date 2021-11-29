@@ -198,16 +198,24 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
 
     # >>>> All task table placeholders
-    all_task_table_col1, all_task_table_col2, all_task_table_col3, all_task_table_col4 = st.columns([
-                                                                                                    2, 0.3, 0.5, 0.5])
+    (all_task_table_col1, all_task_table_col2,
+     all_task_table_col3, all_task_table_col4,
+     all_task_table_col5) = st.columns([2, 0.3, 0.5, 0.5, 0.5])
     _, all_task_table_bottom_col1, all_task_table_bottom_col2 = st.columns([
                                                                            3, 0.75, 0.75])
 
     all_task_table_col1.write(f"### All Task")
     all_task_table_col2.write(f"### Total data: {len(all_task)}")
+    n_skipped_data = 0
+    for task in labelled_task_dict:
+        if task['Skipped']:
+            n_skipped_data += 1
+
     all_task_table_col3.write(
         f"### Total labelled data: {len(labelled_task_dict)}")
     all_task_table_col4.write(
+        f"### Total skipped data: {n_skipped_data}")
+    all_task_table_col5.write(
         f"### Total remaining data: {len(task_queue_dict)}")
 
     data_table(all_task, all_task_columns,

@@ -41,6 +41,7 @@ from path_desc import TFOD_DIR, chdir_root
 
 
 def run_command(command_line_args):
+    logger.info(f"Running command: '{command_line_args}'")
     # shell=True to work on String instead of list
     process = subprocess.Popen(command_line_args, shell=True,
                                # stdout to capture all output
@@ -66,7 +67,7 @@ def install():
         logger.info(
             "Cloning TFOD API from https://github.com/tensorflow/models...")
         run_command(
-            f"git clone https://github.com/tensorflow/models {TFOD_DIR}")
+            f"git clone https://github.com/tensorflow/models {str(TFOD_DIR)}")
 
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
     # NOTE: Install COCO API ONLY if you want to perform evaluation
@@ -125,19 +126,20 @@ def install():
                "&& cp object_detection\\packages\\tf2\\setup.py setup.py "
                "&& python setup.py build "
                "&& python setup.py install")
-        logger.info(f"Running {cmd}")
         run_command(cmd)
 
     # install slim dependencies
     run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")
 
-    VERIFICATION_SCRIPT = TFOD_DIR / 'research' / \
-        'object_detection' / 'builders' / 'model_builder_tf2_test.py'
-    # Verify all the installation above works for TFOD API
-    logger.info("Verifying all works ...")
-    run_command(f"python {VERIFICATION_SCRIPT}")
-    logger.info(
-        "If the last line above returns 'OK' then TFOD API is installed successfully.")
+    # NOTE: not running verification script for now as the environment might not be updated
+    #   with the latest packages yet
+    # VERIFICATION_SCRIPT = TFOD_DIR / 'research' / \
+    #     'object_detection' / 'builders' / 'model_builder_tf2_test.py'
+    # # Verify all the installation above works for TFOD API
+    # logger.info("Verifying all works ...")
+    # run_command(f"python {VERIFICATION_SCRIPT}")
+    # logger.info(
+    #     "If the last line above returns 'OK' then TFOD API is installed successfully.")
 
     chdir_root()
 

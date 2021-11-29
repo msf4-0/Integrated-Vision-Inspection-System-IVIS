@@ -428,20 +428,27 @@ class Task(BaseTask):
 
     @staticmethod
     @dataframe2dict(orient='index')
-    def get_labelled_task(all_task: Union[List[namedtuple], List[dict]], is_labelled: bool = True) -> List[Dict]:
+    def get_labelled_task(all_task: Union[List[namedtuple], List[dict]],
+                          is_labelled: bool = True) -> List[Dict]:
         """Get a List of Task-Annotations Dict where is_labelled is True
 
         Args:
             all_task (Union[List[namedtuple], List[dict]]): all_task query from 'get_all_task()'
-            is_labelled (bool, optional): [description]. Defaults to True.
+            is_labelled (bool, optional): Labelled data means either 'Is Labelled' or 'Skipped. Defaults to True.
+            is_skipped_only (bool, optional): If True, only return skipped data. Defaults to False
 
         Returns:
             List[Dict]: List of dictionaries based on Material UI Data Grid format
         """
 
         all_task_df = Task.create_all_task_dataframe(all_task)
-        labelled_task_df = all_task_df.loc[(all_task_df['Is Labelled'] == is_labelled)
-                                           | (all_task_df['Skipped'] == is_labelled)]
+        if is_labelled:
+            filt = ((all_task_df['Is Labelled'] == True)
+                    | (all_task_df['Skipped'] == True))
+        else:
+            filt = ((all_task_df['Is Labelled'] == False)
+                    & (all_task_df['Skipped'] == False))
+        labelled_task_df = all_task_df.loc[filt]
         # labelled_task_df=labelled_task_df[["id","Task Name","Created By","Dataset Name","Date/Time"]]
 
         # labelled_task_dict = list(

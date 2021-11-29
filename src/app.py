@@ -5,6 +5,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 # ----------Add sys path for modules----------------#
 
+import os
 import sys
 from pathlib import Path
 from time import sleep
@@ -25,8 +26,44 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # user-defined modules
-from path_desc import chdir_root
+from path_desc import chdir_root, SECRETS_PATH
 from core.utils.log import logger
+from database_setup import database_setup, test_database_connection
+
+# ********************** Connection to db **********************
+if 'db_connect_success' not in session_state:
+    # use this to check connection for only one time
+    session_state['db_connect_success'] = False
+
+# setup database if Streamlit's secrets.toml file is not generated yet
+if not SECRETS_PATH.exists():
+    # to set it to the middle of the page
+    _, mid_col, _ = st.columns([1, 2, 1])
+    with mid_col:
+        database_setup()
+    st.stop()
+else:
+    if not session_state.db_connect_success:
+        try:
+            logger.debug(f"{st.secrets = }")
+            conn_success = test_database_connection(
+                **st.secrets["postgres"])
+        except Exception as e:
+            logger.error(f"Error reading the secrets.toml file: {e}")
+            # remove the secrets.toml file to create again in case the file is invalid
+            os.remove(SECRETS_PATH)
+            st.experimental_rerun()
+        if not conn_success:
+            st.error("Error connecting to the database! You will be redirected to create "
+                     "the database configuration shortly.")
+            logger.error("Error connecting to the database!")
+            os.remove(SECRETS_PATH)
+            sleep(1)
+            st.experimental_rerun()
+        # set to success at the end to avoid checking again for this session
+        session_state.db_connect_success = conn_success
+# **********************************************************
+
 from data_manager.database_manager import init_connection
 from main_page_management import MainPagination, reset_user_management_page
 from user.user_management import AccountStatus, User, UserRole, query_all_admins, reset_login_page
@@ -37,9 +74,8 @@ from data_manager.dataset_management import NewDataset
 from deployment.deployment_management import Deployment
 from pages.sub_pages.user_page import create_new_user, user_management_page, user_info
 
-# ******************* Connection to db *******************
+# run cached database connection
 conn = init_connection(**st.secrets["postgres"])
-# ********************************************************
 
 # ******************* IMPORT for PAGES *******************
 from pages import login_page, project_page
@@ -53,8 +89,6 @@ chdir_root()  # change to root directory
 PAGES = {
     MainPagination.CreateUser: create_new_user.show,
     MainPagination.Login: login_page.index,
-    # TODO: SHORT LOGOUT PAGE
-    # MainPagination.Logout: login_page.logout_page,
     MainPagination.Projects: project_page.index,
     MainPagination.UserManagement: user_management_page.main,
     MainPagination.UserInfo: user_info.main,
@@ -146,8 +180,10 @@ def main():
         # nobody is logged in
         admins = query_all_admins()
         if not admins:
+            # to tell the create_new_user.py page that there is no Admin user yet
+            session_state.no_admin = True
             # straight away proceed to Create User page to allow the user
-            # to create an Admin user if this is the first launch of the app
+            # to create an Admin user if this is the first time launching the app
             session_state.main_pagination = MainPagination.CreateUser
         else:
             # only show a Login button

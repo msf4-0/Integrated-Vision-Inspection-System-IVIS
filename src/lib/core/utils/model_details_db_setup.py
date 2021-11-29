@@ -13,14 +13,11 @@ from psycopg2.extras import NamedTupleCursor
 
 SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 from path_desc import TFOD_MODELS_TABLE_PATH, CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH
+from core.utils.log import logger
 
 
 def connect_db(**context):
@@ -28,7 +25,7 @@ def connect_db(**context):
     if not context:
         # assuming you run this script from the root directory of this project
         toml_filepath = ".streamlit/secrets.toml"
-        parsed = toml.loads(open(toml_filepath).read())
+        parsed = toml.load(open(toml_filepath))
 
         # # Connect to PostgreSQL db
         conn = psycopg2.connect(**parsed['postgres'])
@@ -66,20 +63,34 @@ def db_fetchone(sql_message, query_vars=None, conn=None, return_output=False, fe
             if not return_output:
                 return
             return_one = cur.fetchone()  # return tuple
-            # Obtain Column names from query
-            column_names = [desc[0] for desc in cur.description]
 
             if return_dict:
                 # Convert results to pure Python dictionary
-                return_one = [dict(row) for row in return_one]
+                return_one = dict(return_one)
 
             if fetch_col_name:
+                # Obtain Column names from query
+                column_names = [desc[0] for desc in cur.description]
                 return return_one, column_names
             else:
                 return return_one
         except psycopg2.Error as e:
             conn.rollback()
             print(e)
+
+
+def check_if_pretrained_models_exist(conn):
+    """Check whether the CSV files exists, and also whether data is stored in database"""
+    sql_query = """
+        SELECT id FROM models WHERE model_type_id = 1;
+    """
+    record = db_fetchone(sql_query, conn=conn, return_output=True)
+    if TFOD_MODELS_TABLE_PATH.exists() and \
+            CLASSIF_MODELS_NAME_PATH.exists() and \
+            SEGMENT_MODELS_TABLE_PATH.exists() and \
+            record:
+        return True
+    return False
 
 
 def insert_to_db(new_df, conn):
@@ -112,12 +123,14 @@ def scrape_setup_model_details(conn):
 
     # Delete existing pretrained models before inserting
     # `model_type_id` = 1 for pretrained_models type
+    # NOTE: This is actually only needed for debugging, real installation only needs
+    # to run this once, hence does not require deleting previously stored pretrained_models
     sql_query = """
     DELETE FROM public.models WHERE model_type_id = 1
     """
     db_fetchone(sql_query, conn=conn)
 
-    # create a sequence so that the primary key `ud` would start at 1
+    # create a sequence so that the primary key `id` would start at 1
     sql_query = """
     DROP SEQUENCE IF EXISTS models_sequence;
 
@@ -127,8 +140,8 @@ def scrape_setup_model_details(conn):
     """
     db_fetchone(sql_query, conn=conn)
 
-    # # Scraping TFOD Model Zoo
-
+    # ************************ Scraping TFOD Model Zoo ************************
+    logger.info("Scraping TensorFlow Models information")
     link = "https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md"
     df = pd.read_html(link)[0]
 
@@ -155,8 +168,9 @@ def scrape_setup_model_details(conn):
     # ## Insert to DB
     insert_to_db(new_df, conn)
 
-    # # Scraping Keras pretrained model functions
+    # *************** Scraping Keras pretrained model functions ***************
 
+    logger.info("Scraping TensorFlow Models information")
     URL = "https://www.tensorflow.org/api_docs/python/tf/keras/applications"
     data = requests.get(URL)
     soup = BeautifulSoup(data.text, 'html.parser')
@@ -182,7 +196,7 @@ def scrape_setup_model_details(conn):
     # ## Insert to DB
     insert_to_db(df, conn)
 
-    # # Scraping keras-unet-collections models
+    # *************** Scraping keras-unet-collections models ***************
 
     URL = "https://github.com/yingkaisha/keras-unet-collection"
     data = requests.get(URL)

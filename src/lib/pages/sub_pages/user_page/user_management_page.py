@@ -36,9 +36,14 @@ from streamlit import session_state
 from path_desc import chdir_root
 from core.utils.log import logger
 from core.utils.code_generator import make_random_password
-from user.user_management import AccountStatus, User, query_all_users
+from project.project_management import NewProject, Project
+from training.training_management import NewTraining, Training
+from user.user_management import AccountStatus, User, query_all_users, reset_login_page
 from main_page_management import MainPagination, UserManagementPagination, reset_user_management_page
 from data_manager.data_table_component.data_table import data_table
+from annotation.annotation_management import reset_editor_page
+from data_manager.dataset_management import NewDataset
+from deployment.deployment_management import Deployment
 from pages.sub_pages.user_page import create_new_user
 
 
@@ -139,8 +144,10 @@ def dashboard():
     info_col1, _, info_col2 = st.columns([1, 0.1, 1])
     cols = cycle((info_col1, info_col2))
     for field, col in zip(USER_FIELDS, cols):
+        value = selected_user_row[field]
+        value = '' if value is None else value
         with col:
-            st.markdown(f"**{field}**: {selected_user_row[field]}")
+            st.markdown(f"**{field}**: {value}")
 
     session_state.current_user = User(selected_user_ids[0])
 
@@ -195,8 +202,22 @@ def dashboard():
         del session_state['current_user']
         st.success("User deleted successfully")
         sleep(1)
+
+        # clean up the session's user if he decided to delete himself
         if selected_user_id == session_state.user.id:
+            # need to reset everything just like when logout
+            del session_state['user']
+
+            reset_login_page()
             reset_user_management_page()
+            NewProject.reset_new_project_page()
+            reset_editor_page()
+            NewDataset.reset_new_dataset_page()
+            NewTraining.reset_new_training_page()
+            Training.reset_training_page()
+            Project.reset_project_page()
+            Project.reset_settings_page()
+            Deployment.reset_deployment_page()
             session_state.main_pagination = MainPagination.Login
         st.experimental_rerun()
 
