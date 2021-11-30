@@ -1004,7 +1004,7 @@ class Trainer:
             col, _ = st.columns([1, 1])
             with col:
                 st.code(f"Total training images = {len(X_train)}  \n"
-                        f"Total validation images = {len(X_val)}"
+                        f"Total validation images = {len(X_val)}  \n"
                         f"Total testing images = {len(X_test)}")
         else:
             # the user did not select a test size, i.e. only using validation set for testing,
@@ -1048,8 +1048,8 @@ class Trainer:
                         X_train[:batch_size], y_train[:batch_size], X_test[:batch_size],
                         y_test[:batch_size], X_val[:batch_size], y_val[:batch_size]
                     )
-                    train_ds, val_ds, test_ds = self.create_tf_dataset(
-                        X_train, y_train, X_test, y_test, X_val, y_val)
+                train_ds, val_ds, test_ds = self.create_tf_dataset(
+                    X_train, y_train, X_test, y_test, X_val, y_val)
             else:
                 if train_one_batch:
                     # take only one batch for test run
@@ -1084,6 +1084,7 @@ class Trainer:
                     self.training_path['output_keras_model_file'],
                     self.metrics, self.training_param)
             initial_epoch = session_state.new_training.progress['Epoch']
+            logger.debug(f"{initial_epoch = }")
             num_epochs = initial_epoch + self.training_param['num_epochs']
 
         progress_placeholder = {}
@@ -1223,7 +1224,6 @@ class Trainer:
         logger.info(f"Loading trained Keras model for {self.deployment_type}")
         model = load_keras_model(self.training_path['output_keras_model_file'],
                                  self.metrics, self.training_param)
-        logger.debug(model)
 
         if self.training_path['test_result_txt_file'].exists():
             # show the evaluation results stored during training

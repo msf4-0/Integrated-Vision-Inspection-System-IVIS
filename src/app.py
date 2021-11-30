@@ -14,6 +14,7 @@ import streamlit as st
 from streamlit import session_state
 # Add CLI so can run Python script directly
 from streamlit import cli as stcli
+import tensorflow as tf
 
 SRC = Path(__file__).parent.resolve()  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -132,6 +133,8 @@ def logout_cb():
     del session_state['user']
     st.success("You have logged out successfully!")
     logger.info("Logged out successfully")
+
+    tf.keras.backend.clear_session()
 
     # only need to reset everything on logout
     reset_login_page()

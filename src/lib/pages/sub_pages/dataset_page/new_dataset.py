@@ -95,7 +95,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     #  an existing project_id
     if not RELEASE:
         # debugging upload dataset
-        session_state.is_labeled = False
+        session_state.is_labeled = True
 
         if not session_state.is_labeled and ("new_project" not in session_state):
             session_state.new_project = NewProject(get_random_string(length=8))
@@ -103,7 +103,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             # session_state.new_project.deployment_type = "Image Classification"
             session_state.new_project.deployment_type = "Semantic Segmentation with Polygons"
         if session_state.is_labeled and ('project' not in session_state):
-            project_id = 4
+            project_id = 30
             logger.debug(f"""Entering Project ID {project_id} for debugging
             uploading labeled dataset""")
             session_state.project = Project(project_id)
@@ -620,8 +620,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         with st.spinner("Updating project labels and editor configuration ..."):
                             # get existing labels from editor_config to use to
                             # compare and update editor_config with new labels
-                            existing_config_labels = list(
-                                session_state.project.editor.get_labels())
+                            existing_config_labels = session_state.project.editor.get_labels()
                             logger.debug("Existing labels found in "
                                          f"editor config: {existing_config_labels}")
                             # now the annotations will include new labels from the
@@ -660,9 +659,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                         'value', label)
                                     logger.debug(
                                         f"removedChild: {removedChild}")
-                                session_state.project.editor.labels.sort()
                                 logger.debug(f"After removing default labels: "
                                              f"{session_state.project.editor.labels}")
+                            session_state.project.editor.labels.sort()
                             logger.info("All labels after updating: "
                                         f"{session_state.project.editor.labels}")
 
@@ -695,8 +694,24 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 logger.info(
                     "Removed temporary directory for extracted contents")
 
+    # FOR DEBUGGING:
     # st.write("vars(session_state.new_dataset)")
     # st.write(vars(session_state.new_dataset))
+    # from copy import deepcopy
+
+    # project: Project = session_state.project
+    # editor = deepcopy(project.editor)
+    # existing_config_labels = editor.get_labels()
+    # st.write("existing_config_labels")
+    # st.write(existing_config_labels)
+    # st.write(type(editor))
+    # st.write("vars(editor)")
+    # st.write(vars(editor))
+    # st.write(editor.editor_config)
+    # # st.write(editor.xml_doc.getElementsByTagName(
+    # #     editor.parent_tagname))
+    # st.write(editor.create_label('value', 'haha'))
+    # st.write(editor.get_labels())
 
 
 if __name__ == "__main__":

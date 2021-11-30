@@ -562,12 +562,12 @@ def index(RELEASE=True):
         if "new_training_pagination" not in session_state:
             session_state.new_training_pagination = NewTrainingPagination.Model
 
-        if 'training' not in session_state:
+        if 'new_training' not in session_state:
 
-            training = NewTraining(training_id_tmp,
-                                   project=session_state.project)
-            training.name = "My Tenth Training"
-            training.deployment_type = "Object Detection with Bounding Boxes"
+            session_state.new_training = NewTraining(training_id_tmp,
+                                                     project=session_state.project)
+            session_state.new_training.name = "My Tenth Training"
+            session_state.new_training.deployment_type = "Object Detection with Bounding Boxes"
 
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
@@ -631,12 +631,12 @@ def index(RELEASE=True):
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     models_page[session_state.models_pagination]()
 
-    # st.write("vars(training)")
-    # st.write(vars(training))
-    # st.write("vars(training.training_model)")
-    # st.write(vars(training.training_model))
-    # st.write("vars(training.attached_model)")
-    # st.write(vars(training.attached_model))
+    # st.write("vars(session_state.new_training)")
+    # st.write(vars(session_state.new_training))
+    # st.write("vars(session_state.new_training.training_model)")
+    # st.write(vars(session_state.new_training.training_model))
+    # st.write("vars(session_state.new_training.attached_model)")
+    # st.write(vars(session_state.new_training.attached_model))
 
 
 if __name__ == "__main__":

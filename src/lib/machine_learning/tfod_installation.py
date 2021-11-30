@@ -89,6 +89,9 @@ def install():
                "&& cp object_detection/packages/tf2/setup.py setup.py "
                "&& python setup.py build && python setup.py install")
         run_command(cmd)
+        # installing pycocotools here instead of in requirements.txt
+        # because Windows NEED to install pycocotools-windows instead
+        run_command('pip install pycocotools')
         # The command below does not work properly because the pip install will stuck for very long
         # run_command(
         #     f"cd {TFOD_DIR / 'research'} "
@@ -127,6 +130,8 @@ def install():
                "&& python setup.py build "
                "&& python setup.py install")
         run_command(cmd)
+        # reason explained above under Linux part
+        run_command('pip install pycocotools-windows')
 
     # install slim dependencies
     run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")

@@ -149,6 +149,9 @@ class BaseDeployment:
 
 
 class Deployment(BaseDeployment):
+
+    CSV_DATETIME_FMT = "%d-%b-%Y"
+
     def __init__(self,
                  project_path: Path,
                  deployment_type: str,
@@ -187,6 +190,7 @@ class Deployment(BaseDeployment):
         # not needed for now
         # self.deployment_list: List = self.query_deployment_list()
         self.model: tf.keras.Model = None
+        self.csv_save_dir: Path = self.project_path / 'deployment_results'
 
     @classmethod
     def from_trainer(cls, trainer: Trainer):
@@ -238,7 +242,6 @@ class Deployment(BaseDeployment):
         deployment_list = db_fetchall(query_deployment_list_sql, conn)
         return deployment_list if deployment_list else None
 
-    @st.cache
     def query_model_table(self, model_table) -> NamedTuple:
         schema, table = [x for x in model_table.split('.')]
         query_model_table_SQL = sql.SQL("""SELECT
@@ -261,7 +264,6 @@ class Deployment(BaseDeployment):
         return project_model_list, column_names
 
     @staticmethod
-    @st.experimental_memo
     def get_deployment_type(deployment_type: Union[str, DeploymentType], string: bool = False):
 
         assert isinstance(
@@ -346,7 +348,11 @@ class Deployment(BaseDeployment):
                 Tuple[np.ndarray, np.ndarray],
                 np.ndarray]:
         orig_H, orig_W = img.shape[:2]
-        preprocessed_img = preprocess_image(img, self.image_size)
+        # converting here instead of inside preprocess_image() to pass RGB image to
+        # get_colored_mask_image() to avoid converting back and forth
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        preprocessed_img = preprocess_image(
+            img, self.image_size, bgr2rgb=False)
         pred_mask = segmentation_predict(
             self.model, preprocessed_img, orig_W, orig_H)
         if draw_result:
@@ -364,7 +370,7 @@ class Deployment(BaseDeployment):
         elif self.deployment_type == 'Object Detection with Bounding Boxes':
             return partial(self.tfod_inference_pipeline, **kwargs)
         elif self.deployment_type == 'Semantic Segmentation with Polygons':
-            return partial(self.classification_inference_pipeline, **kwargs)
+            return partial(self.segment_inference_pipeline, **kwargs)
 
     def get_classification_results(self, pred_classname: str, probability: float):
         results = [{'class_found': pred_classname,
@@ -396,14 +402,13 @@ class Deployment(BaseDeployment):
 
     def get_segmentation_results(self, prediction_mask: np.ndarray) -> List[Dict[str, Any]]:
         class_names = self.class_names_arr[np.unique(prediction_mask)]
-        results = [{'classes_found': class_names,
+        results = [{'classes_found': class_names.tolist(),
                    'time': get_now_string()}]
         return results
 
     def get_csv_path(self, now: datetime) -> Path:
-        full_date = now.strftime("%d-%b-%Y")
-        csv_path = self.project_path / 'deployment_results' \
-            / full_date / f"{full_date}.csv"
+        full_date = now.strftime(self.CSV_DATETIME_FMT)
+        csv_path = self.csv_save_dir / full_date / f"{full_date}.csv"
         return csv_path
 
     def get_frame_save_dir(self, save_type: str = 'video') -> Path:
@@ -419,19 +424,15 @@ class Deployment(BaseDeployment):
 
     @staticmethod
     def get_datetime_from_csv_path(csv_path: Path) -> datetime:
-        # year_and_month = csv_path.parent.name
-        # date_today = csv_path.stem
-        # file_date = f"{year_and_month}_{date_today}"
+        """`csv_path` can be the folder name or the filename"""
         full_date = csv_path.stem
-        dt_format = "%d-%b-%Y"  # based on get_csv_path()
+        dt_format = Deployment.CSV_DATETIME_FMT
         dt = datetime.strptime(full_date, dt_format)
         return dt
 
     def delete_old_csv_files(self, retention_period: int):
         """Delete CSV files older than `retention_period` (in `days`)."""
-        # directory based on get_csv_path()
-        csv_dir = self.project_path / 'deployment_results'
-        csv_paths = csv_dir.iterdir()
+        csv_paths = self.csv_save_dir.iterdir()
         sorted_csv_paths = sorted(
             csv_paths, key=self.get_datetime_from_csv_path, reverse=True)
         now = datetime.now()
@@ -460,7 +461,7 @@ class Deployment(BaseDeployment):
         reset_csv_file_and_writer()
         reset_client()
 
-        project_attributes = ["deployment_pagination", "trainer", "publishing",
+        project_attributes = ["deployment_pagination", "deployment", "trainer", "publishing",
                               "refresh", "deployment_conf", "today"]
 
         reset_page_attributes(project_attributes)

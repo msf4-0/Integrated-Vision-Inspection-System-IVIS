@@ -286,7 +286,7 @@ def user_model_upload_page():
                                                  field_placeholder=place,
                                                  name_key='model_upload_name',
                                                  deployment_type_constant=deployment_type_constant):
-                with st.spinner("Checking compatible files in uploaded model"):
+                with st.spinner("Checking compatible files in uploaded model ..."):
                     num_output_nodes, label_map_files = model_upload.check_if_required_files_exist(
                         uploaded_file=uploaded_file)
 
@@ -511,12 +511,12 @@ def user_model_upload_page():
         if submit_button:
             model_upload_submit()
 
-    st.write("vars(model_upload)")
-    st.write(vars(model_upload))
-    st.write("session_state.generate_labelmap_flag")
-    st.write(session_state.generate_labelmap_flag)
-    st.write("vars(labelmap)")
-    st.write(vars(labelmap))
+    # st.write("vars(model_upload)")
+    # st.write(vars(model_upload))
+    # st.write("session_state.generate_labelmap_flag")
+    # st.write(session_state.generate_labelmap_flag)
+    # st.write("vars(labelmap)")
+    # st.write(vars(labelmap))
 
 
 if __name__ == "__main__":

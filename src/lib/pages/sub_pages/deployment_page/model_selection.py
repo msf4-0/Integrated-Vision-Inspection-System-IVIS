@@ -308,20 +308,27 @@ def index(RELEASE=True):
         # If debugging, consider commenting the evaluation part for faster loading times
         st.markdown("___")
         st.header("Evaluation results:")
-        labelstudio_json_path = project.get_project_json_path()
-        if not labelstudio_json_path.exists():
-            with st.spinner("Exporting labeled data for evaluation ..."):
-                logger.info("Exporting tasks for evaluation ...")
-                project.export_tasks(for_training_id=training.id)
-        with st.spinner("Running evaluation ..."):
-            try:
-                trainer.evaluate()
-            except Exception as e:
-                # uncomment this line to check the Traceback
-                st.exception(e)
-                st.error("Some error has occurred. Please try "
-                         "training/exporting the model again.")
-                logger.error(f"Error evaluating: {e}")
+        st.markdown("""WARNING: If you have just deployed a model and it's not ended yet, 
+        clicking this will reset the deployment process because evaluation on this model
+        requires loading a new model and it requires resources.""")
+        if st.checkbox("Show evaluation results", key='show_eval_res'):
+            if 'deployment' in session_state:
+                Deployment.reset_deployment_page()
+                st.experimental_rerun()
+            labelstudio_json_path = project.get_project_json_path()
+            if not labelstudio_json_path.exists():
+                with st.spinner("Exporting labeled data for evaluation ..."):
+                    logger.info("Exporting tasks for evaluation ...")
+                    project.export_tasks(for_training_id=training.id)
+            with st.spinner("Running evaluation ..."):
+                try:
+                    trainer.evaluate()
+                except Exception as e:
+                    # uncomment this line to check the Traceback
+                    # st.exception(e)
+                    st.error("Some error has occurred. Please try "
+                             "training/exporting the model again.")
+                    logger.error(f"Error evaluating: {e}")
     else:
         model = Model(selected_id)
         uploaded_model_dir = model.get_path()

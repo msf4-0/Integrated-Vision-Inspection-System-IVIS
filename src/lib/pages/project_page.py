@@ -28,6 +28,7 @@ from pathlib import Path
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
+import tensorflow as tf
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
@@ -230,6 +231,7 @@ def index():
     #              index=session_state.project_pagination, on_change=project_page_navigator, key="project_page_navigator_radio")
 
     def to_project_dashboard():
+        tf.keras.backend.clear_session()
 
         # reset all pages
         NewProject.reset_new_project_page()

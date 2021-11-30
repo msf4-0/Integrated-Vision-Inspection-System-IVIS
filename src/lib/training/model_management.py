@@ -494,10 +494,10 @@ class BaseModel:
             if not h5_filepaths:
                 st.error("Keras H5 file is not found")
                 st.stop()
-            if h5_filepaths > 1:
+            if len(h5_filepaths) > 1:
                 st.error("Two Keras H5 model files are found")
                 st.stop()
-            if labelmap_files > 1:
+            if len(labelmap_files) > 1:
                 st.error("Two labelmap files are found")
                 st.stop()
 
@@ -518,7 +518,10 @@ class BaseModel:
 
                         # also check input_shape, our implementation uses image_size of
                         # equal height and width in `preprocess_image()`
-                        height, width = model.input_shape
+                        input_shape = list(model.input_shape)
+                        if None in input_shape:
+                            input_shape.remove(None)
+                        height, width = input_shape[:2]
                         assert height == width, "Model input shape's height should be equal to width"
 
                         # get output_nodes to check with labelmap file's num_classes
@@ -885,6 +888,7 @@ class BaseModel:
         else:
             metrics_json = self.metrics
 
+        logger.debug(f"{vars(self) = }")
         update_model_table_vars = [self.name, self.desc, metrics_json, str(self.model_path_relative),
                                    self.model_type, self.framework, self.deployment_type, self.training_id, self.id]
 
@@ -1194,20 +1198,16 @@ class Model(BaseModel):
                             CASE WHEN m.training_id IS NULL THEN
                                 '-'
                             ELSE
-                                (
-                                    SELECT
-                                        t.name
-                                    FROM
-                                        public.training t
-                                    WHERE
-                                        t.id = m.training_id)
+                                t.name
                             END AS "Training Name")
+                    , m.training_id AS "Training ID"
                     , m.updated_at AS "Date/Time"
                     , m.description AS "Description"
                     , m.metrics AS "Metrics"
                     , m.model_path AS "Model Path"
                 FROM
                     public.models m
+                        LEFT JOIN training t ON t.id = m.training_id
                 WHERE
                     m.id = %s;
                 """
@@ -1219,7 +1219,7 @@ class Model(BaseModel):
 
         if model_field:
             self.id, self.name, self.framework, self.model_type, self.deployment_type,\
-                self.training_name, self.updated_at, self.desc, self.metrics,\
+                self.training_name, self.training_id, self.updated_at, self.desc, self.metrics,\
                 self.model_path_relative = model_field
         else:
             logger.error(

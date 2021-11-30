@@ -924,11 +924,11 @@ class Training(BaseTraining):
 
     def get_training_details(self):
         if self.attached_model_id and self.training_model_id:
-            self.attached_model = Model(model_id=self.attached_model_id)
-            self.training_model = Model(model_id=self.training_model_id)
+            self.attached_model: Model = Model(model_id=self.attached_model_id)
+            self.training_model: Model = Model(model_id=self.training_model_id)
         else:
-            self.attached_model = None
-            self.training_model = NewModel()
+            self.attached_model: Model = None
+            self.training_model: NewModel = NewModel()
 
     def get_paths(self) -> Dict[str, Path]:
         """Using a method to make sure these paths are always dynamically generated
@@ -1601,7 +1601,7 @@ class Training(BaseTraining):
     def reset_training_page():
         # remove unwanted files to save space, only files needed
         # for continue training, or test set evaluation are kept
-        if 'new_training' in session_state:
+        if isinstance(session_state.get('new_training'), Training):
             paths = session_state.new_training.get_paths()
             dataset_export_path = session_state.project.get_export_path()
             paths_to_del = (paths['model_tarfile'], dataset_export_path)

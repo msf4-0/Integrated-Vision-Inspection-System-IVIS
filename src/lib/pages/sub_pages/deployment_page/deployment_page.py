@@ -108,7 +108,6 @@ def index(RELEASE=True):
     def stop_deployment():
         Deployment.reset_deployment_page()
         session_state.deployment_pagination = DeploymentPagination.Models
-        st.experimental_rerun()
 
     def update_deploy_conf(conf_attr: str):
         """Update deployment config on any change of the widgets.
@@ -257,7 +256,8 @@ def index(RELEASE=True):
                 except Exception as e:
                     # uncomment the following line to see the traceback
                     # st.exception(e)
-                    logger.error("Error running inference with the model")
+                    logger.error(
+                        f"Error running inference with the model: {e}")
                     st.error("""Error when trying to run inference with the model,
                         please check with Admin/Developer for debugging.""")
                     st.stop()
@@ -268,15 +268,15 @@ def index(RELEASE=True):
                        f"Score: {y_proba * 100:.1f}")
             st.image(img, channels='BGR', width=display_width, caption=caption)
         elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-            drawn_mask_output, pred_mask = result
+            drawn_mask_output, _ = result
             # convert to RGB for visualizing with Matplotlib
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
             st.subheader(filename)
             fig = plt.figure()
             plt.subplot(121)
             plt.title("Original Image")
-            plt.imshow(img)
+            plt.imshow(rgb_img)
             plt.axis('off')
 
             plt.subplot(122)
@@ -502,17 +502,18 @@ def index(RELEASE=True):
         if 'client' not in session_state:
             session_state.client = get_mqtt_client()
             session_state.client_connected = False
-
-        if 'publishing' not in session_state:
             session_state.publishing = True
+
+        if 'csv_writer' not in session_state:
             session_state.csv_writer = None
             session_state.csv_file = None
 
-            session_state.record = False
-            session_state.vid_writer = None
-
             # use this to refresh the page once to show widget changes
             session_state.refresh = False
+
+        if 'record' not in session_state:
+            session_state.record = False
+            session_state.vid_writer = None
 
         def create_video_writer_if_not_exists():
             if not session_state.vid_writer:
@@ -595,11 +596,11 @@ def index(RELEASE=True):
         with st.sidebar.expander("Notes"):
             st.markdown(
                 f"""NOTE: Just publish an arbitrary message to any of the subscribed
-                MQTT topics to trigger the functionality. For the saved frames or recorded
-                video, they will be saved in your project's folder at *{saved_frame_dir}*.
-                Please **do not simply delete this folder during deployment**, otherwise
-                error will occur. You can delete it after pausing/ending the deployment
-                if you wish.""")
+                MQTT topics to trigger the functionality. For the saved frames, they will 
+                be saved in your project's folder at *{saved_frame_dir}*, while recorded 
+                video will be saved at *{recording_dir}*. Please **do not simply delete 
+                these folders during deployment**, otherwise error will occur. You can 
+                delete them after pausing/ending the deployment if you wish.""")
 
         if not session_state.client_connected:
             with st.spinner("Connecting to MQTT broker ..."):
@@ -642,7 +643,6 @@ def index(RELEASE=True):
         record_text_place = st.empty()
         output_video_place = st.empty()
         publish_place = st.sidebar.empty()
-        stop_deploy_col = st.sidebar.container()
         fps_col, width_col, height_col = st.columns(3)
 
         with show_video_col:
@@ -653,12 +653,10 @@ def index(RELEASE=True):
 
             def update_record(is_recording: bool):
                 session_state.record = is_recording
-                # refresh page to show the widget change
-                st.experimental_rerun()
 
             if not session_state.record:
                 st.button('Start recording', key='btn_start_record',
-                          help="The video will be saved in your user 'Downloads' folder.",
+                          help=f"The video will be saved in *{recording_dir}*",
                           on_click=update_record, args=(True,))
             else:
                 st.button("Stop recording and save the video",
@@ -669,8 +667,6 @@ def index(RELEASE=True):
             def update_publishing_conf(is_publishing: bool):
                 deploy_conf.publishing = is_publishing
                 session_state.publishing = is_publishing
-                # refresh page to show the widget change
-                st.experimental_rerun()
 
             if session_state.publishing:
                 # using buttons to allow the widget to change after rerun

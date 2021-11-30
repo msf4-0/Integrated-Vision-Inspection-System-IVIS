@@ -61,6 +61,10 @@ from path_desc import chdir_root
 from core.utils.log import logger  # logger
 from core.utils.model_details_db_setup import check_if_pretrained_models_exist, connect_db, scrape_setup_model_details
 
+# POSTGRES_DB env variable could be used by Docker for a different name
+APP_DATABASE_NAME = os.environ.get(
+    "POSTGRES_DB", "integrated_vision_inspection_system")
+
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 class DatabaseStatus(IntEnum):
@@ -1030,24 +1034,22 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
         conn (psycopg2.connection): Connection object for PostgreSQL
     """
 
-    # check if database exists
-    database_name = os.environ.get(
-        'POSTGRES_DB', "integrated_vision_inspection_system")
     try:
-        if not check_if_database_exist(datname=database_name,
+        # check if database exists
+        if not check_if_database_exist(datname=APP_DATABASE_NAME,
                                        conn=conn):
 
             # if not,create database with the name
-            create_database(database_name=database_name,
+            create_database(database_name=APP_DATABASE_NAME,
                             conn=conn)
             # closing the old connection to the existing database, before creating
             # a new connection to the new database
             conn.close()
         else:
-            logger.info(f"Database '{database_name}' already exists")
+            logger.info(f"Database '{APP_DATABASE_NAME}' already exists")
 
         # create new DSN for the new database name
-        dsn['dbname'] = database_name
+        dsn['dbname'] = APP_DATABASE_NAME
         # NOTE: this is the FIRST ever connection to the new database
         # not using init_connection as this decorated function would cache even on error
         # conn = init_connection(**dsn)
@@ -1058,7 +1060,8 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
             logger.info('Creating relation database ...')
             create_relation_database(conn=conn)
         else:
-            logger.info(f"Tables already exist in database '{database_name}'")
+            logger.info(
+                f"Tables already exist in database '{APP_DATABASE_NAME}'")
 
         # also scrape model details online and setup the `models` table if not exists
         if not check_if_pretrained_models_exist(conn):

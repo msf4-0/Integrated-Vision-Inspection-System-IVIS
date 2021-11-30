@@ -2,7 +2,7 @@ import json
 import os
 import pickle
 from pathlib import Path
-import time
+from time import perf_counter
 import shutil
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import xml.etree.ElementTree as ET
@@ -193,8 +193,9 @@ def get_transform():
     return transform
 
 
-def preprocess_image(image: np.ndarray, image_size: int) -> np.ndarray:
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+def preprocess_image(image: np.ndarray, image_size: int, bgr2rgb: bool = True) -> np.ndarray:
+    if bgr2rgb:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = cv2.resize(image, (image_size, image_size))
     image = image.astype(np.float32) / 255.
     return image
@@ -266,7 +267,7 @@ def get_test_images_labels(
             return X_test, y_test
 
 
-@st.cache(show_spinner=False)
+@st.cache(allow_output_mutation=True, show_spinner=False)
 # @st.experimental_memo
 def load_keras_model(model_path: Union[str, Path], metrics: List[Callable],
                      training_param: Dict[str, Any] = None):
@@ -445,7 +446,7 @@ def generate_tfod_xml_csv(image_paths: List[str],
             image_paths, size=n_remaining, replace=True))
 
     logger.info('Generating CSV file for augmented bounding boxes ...')
-    start = time.perf_counter()
+    start = perf_counter()
     xml_list = []
     for image_path in stqdm(image_paths):
         image = cv2.imread(image_path)
@@ -488,7 +489,7 @@ def generate_tfod_xml_csv(image_paths: List[str],
 
     xml_df = pd.DataFrame(xml_list, columns=col_names)
     xml_df.to_csv(csv_path, index=False)
-    time_elapsed = time.perf_counter() - start
+    time_elapsed = perf_counter() - start
     logger.info(f"Done. {time_elapsed = :.4f} seconds")
 
 
@@ -539,7 +540,7 @@ def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
     return Path(latest_ckpt)
 
 
-@st.cache(show_spinner=False)
+@st.cache(allow_output_mutation=True, show_spinner=False)
 # @st.experimental_memo
 def load_tfod_checkpoint(
         ckpt_dir: Path,
@@ -555,7 +556,7 @@ def load_tfod_checkpoint(
     ckpt_path = get_tfod_last_ckpt_path(ckpt_dir)
 
     logger.info(f'Loading TFOD checkpoint from {ckpt_path} ...')
-    start_time = time.perf_counter()
+    start_time = perf_counter()
 
     # Load pipeline config and build a detection model
     configs = config_util.get_configs_from_pipeline_file(pipeline_config_path)
@@ -578,12 +579,12 @@ def load_tfod_checkpoint(
 
         return detections
 
-    end_time = time.perf_counter()
+    end_time = perf_counter()
     logger.info(f'Done! Took {end_time - start_time:.2f} seconds')
     return detect_fn
 
 
-@st.cache(show_spinner=False)
+@st.cache(allow_output_mutation=True, show_spinner=False)
 # @st.experimental_memo
 def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, Any]]:
     """
@@ -595,10 +596,10 @@ def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, A
     """
     tf.keras.backend.clear_session()
     logger.info(f'Loading model from {saved_model_path} ...')
-    start_time = time.perf_counter()
+    start_time = perf_counter()
     # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
     detect_fn = tf.saved_model.load(str(saved_model_path))
-    end_time = time.perf_counter()
+    end_time = perf_counter()
     logger.info(
         f'Done Loading TFOD model! Took {end_time - start_time:.2f} seconds')
     return detect_fn
@@ -691,7 +692,7 @@ def load_mask_image(ori_image_name: str, mask_dir: Path) -> np.ndarray:
     return mask
 
 
-@st.cache
+@st.cache(show_spinner=False)
 def get_coco_classes(
     json_path: Union[str, Path],
     return_coco: bool = True) -> Union[Tuple[COCO, List[int], bool, List[str]],

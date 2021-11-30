@@ -9,15 +9,15 @@ from datetime import datetime
 import logging
 import mimetypes
 import sys
-from collections import namedtuple
 from enum import IntEnum
 from functools import wraps
 from inspect import signature
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
-import cv2
+import re
 
+import cv2
 import pandas as pd
 import streamlit as st
 
@@ -200,6 +200,8 @@ def get_directory_name(name: str) -> str:
     """
     directory_name = join_string(split_string(
         remove_newline_trailing_whitespace(str(name)))).lower()
+    # replace symbols that are unwanted in file/folder names
+    directory_name = re.sub(r'[?/\\*"><|\s]+', '-', directory_name)
     return directory_name
 
 

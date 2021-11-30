@@ -36,19 +36,16 @@ from streamlit import session_state
 
 
 # ***************** Add src/lib to path ***************************
-SRC = Path(__file__).resolve().parent  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
+# SRC = Path(__file__).resolve().parent  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # ***************** Add src/lib to path ***************************
 
 
-from core.utils.log import logger  # logger
-from core.utils.model_details_db_setup import check_if_pretrained_models_exist, connect_db, scrape_setup_model_details
-from data_manager.database_manager import db_no_fetch, init_connection, initialise_database_pipeline, test_db_conn, DatabaseStatus
-from path_desc import (DATABASE_DIR, SECRETS_PATH, TFOD_MODELS_TABLE_PATH,
-                       CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH)
+from core.utils.log import logger
+from data_manager.database_manager import APP_DATABASE_NAME, init_connection, initialise_database_pipeline, test_db_conn, DatabaseStatus
+from path_desc import SECRETS_PATH
 
 # initialise connection to Database
 # conn = init_connection(**st.secrets["postgres"])
@@ -116,24 +113,14 @@ def test_database_connection(**dsn: Dict):
 
 def modify_secrets_toml(**context: Dict):
     if test_database_connection(**context):
-        if st._is_running_with_streamlit:
-            conn = init_connection(**context)
-            database_status = initialise_database_pipeline(
-                conn,
-                context)
-            session_state.database_status = database_status
-        else:
-            # connect to DB without using streamlit cache
-            conn = connect_db(**context)
-            database_status = initialise_database_pipeline(
-                conn,
-                context)
+        # connect to DB without using streamlit cache
+        conn = test_db_conn(**context)
+        database_status = initialise_database_pipeline(
+            conn, context)
 
         if database_status == DatabaseStatus.Exist:
-            database_name = os.environ.get(
-                'POSTGRES_DB', "integrated_vision_inspection_system")
             # Write to secrets.toml file if database configuration is valid
-            context['dbname'] = database_name
+            context['dbname'] = APP_DATABASE_NAME
             secrets = {'postgres': context}
             with open(str(SECRETS_PATH), 'w+') as f:
                 new_toml = toml.dump(secrets, f)
@@ -237,12 +224,11 @@ def database_setup():
 
     else:
         # If connection to wrong database
-        if st.secrets['postgres']['dbname'] != os.environ.get(
-                'POSTGRES_DB', "integrated_vision_inspection_system"):
+        if st.secrets['postgres']['dbname'] != APP_DATABASE_NAME:
 
             if test_database_connection(**st.secrets['postgres']):
                 session_state.db_connect_flag = True
-                conn = init_connection(**st.secrets['postgres'])
+                conn = test_db_conn(**st.secrets['postgres'])
                 modify_secrets_toml(**st.secrets['postgres'])
 
             else:
@@ -250,7 +236,7 @@ def database_setup():
         elif not session_state.get('db_connect_flag'):
             if test_database_connection(**st.secrets['postgres']):
                 session_state.db_connect_flag = True
-                conn = init_connection(**st.secrets['postgres'])
+                conn = test_db_conn(**st.secrets['postgres'])
             else:
                 db_config_form()
 
@@ -261,8 +247,7 @@ def database_direct_setup():
         "port": "5432",
         # the rest are obtained from the environment variables
         # defined in docker-compose.yml
-        "dbname": os.environ.get('POSTGRES_DB',
-                                 "integrated_vision_inspection_system"),
+        "dbname": APP_DATABASE_NAME,
         "user": os.environ.get('POSTGRES_USER', 'postgres'),
         "password": os.environ.get('POSTGRES_PASSWORD', 'shrdc')
     }

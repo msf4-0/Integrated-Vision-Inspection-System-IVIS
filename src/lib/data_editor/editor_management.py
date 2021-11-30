@@ -77,8 +77,8 @@ class EditorFlag(IntEnum):
 TAGNAMES = {
     DeploymentType.Image_Classification: {"type": "Choices", "tag": "Choice"},
     DeploymentType.OD: {"type": "RectangleLabels", "tag": "Label"},
-    DeploymentType.Instance: {"type": "PolygonLabels", "tag": "Label"},
-    DeploymentType.Semantic: {"type": "BrushLabels", "tag": "Label"},
+    DeploymentType.Instance: {"type": "BrushLabels", "tag": "Label"},
+    DeploymentType.Semantic: {"type": "PolygonLabels", "tag": "Label"},
 }
 
 
