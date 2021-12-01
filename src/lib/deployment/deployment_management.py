@@ -140,6 +140,8 @@ COMPUTER_VISION_LIST = [DeploymentType.Image_Classification, DeploymentType.OD,
                         DeploymentType.Instance, DeploymentType.Semantic]
 # <<<< Variable Declaration <<<<
 
+CSV_DATETIME_FMT = "%d-%b-%Y"
+
 
 class BaseDeployment:
     def __init__(self) -> None:
@@ -149,8 +151,6 @@ class BaseDeployment:
 
 
 class Deployment(BaseDeployment):
-
-    CSV_DATETIME_FMT = "%d-%b-%Y"
 
     def __init__(self,
                  project_path: Path,
@@ -407,7 +407,7 @@ class Deployment(BaseDeployment):
         return results
 
     def get_csv_path(self, now: datetime) -> Path:
-        full_date = now.strftime(self.CSV_DATETIME_FMT)
+        full_date = now.strftime(CSV_DATETIME_FMT)
         csv_path = self.csv_save_dir / full_date / f"{full_date}.csv"
         return csv_path
 
@@ -426,7 +426,7 @@ class Deployment(BaseDeployment):
     def get_datetime_from_csv_path(csv_path: Path) -> datetime:
         """`csv_path` can be the folder name or the filename"""
         full_date = csv_path.stem
-        dt_format = Deployment.CSV_DATETIME_FMT
+        dt_format = CSV_DATETIME_FMT
         dt = datetime.strptime(full_date, dt_format)
         return dt
 
@@ -452,8 +452,6 @@ class Deployment(BaseDeployment):
         """Method to reset all widgets and attributes in the Deployment Pages when changing pages
         """
         tf.keras.backend.clear_session()
-        if 'csv_file' in session_state and not session_state.csv_file.closed:
-            session_state.csv_file.close()
 
         reset_camera()
         reset_camera_ports()

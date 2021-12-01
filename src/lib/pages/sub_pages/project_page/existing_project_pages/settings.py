@@ -47,7 +47,7 @@ from core.utils.log import logger  # logger
 from core.utils.helper import create_dataframe
 from data_manager.data_table_component.data_table import data_table
 from data_manager.dataset_management import Dataset
-from training.model_management import Model, query_current_project_models
+from training.model_management import Model, query_current_project_models, query_uploaded_models
 from user.user_management import UserRole
 from project.project_management import (ExistingProjectPagination, SettingsPagination,
                                         ProjectPermission, Project,
@@ -284,64 +284,136 @@ def training():
         },
     ]
 
-    # namedtuple of query from DB
-    all_project_training, project_training_column_names = \
-        Training.query_all_project_training(session_state.project.id,
-                                            deployment_type=DEPLOYMENT_TYPE,
-                                            return_dict=True,
-                                            for_data_table=True,
-                                            progress_preprocessing=True)
-    if not all_project_training:
-        st.info("""No training sessions created for this project yet.""")
-        st.stop()
+    UPLOADED_DT_COLS = [
+        {
+            'field': "id",
+            'headerName': "Model ID",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 5,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Name",
+            'headerName': "Name",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 15,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Description",
+            'headerName': "Description",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 15,
+            'hideSortIcons': True,
+        },
+        {
+            'field': "Date/Time",
+            'headerAlign': "center",
+            'align': "center",
+            'flex': 10,
+            'hideSortIcons': True,
+            'type': 'date',
+        },
+    ]
 
-    st.markdown("## All Training Sessions for Current Project")
-    selected_ids = data_table(all_project_training, DATA_TABLE_COLS,
-                              checkbox=True, key='data_table_training')
+    # similar stuff with deployment's model_selection page
+    options = ('Project Training Sessions & Models', 'User-Uploaded Models')
+    selected_type = st.radio(
+        'Select the type of data to check', options,
+        key='selected_type',
+        help='Project Model is a model trained in our application.')
+
+    if selected_type == 'Project Training Sessions & Models':
+        st.markdown("## All Training Sessions for Current Project")
+        all_project_training, project_training_column_names = \
+            Training.query_all_project_training(session_state.project.id,
+                                                deployment_type=DEPLOYMENT_TYPE,
+                                                return_dict=True,
+                                                for_data_table=True,
+                                                progress_preprocessing=True)
+        if not all_project_training:
+            st.info("""No training sessions created for this project yet.""")
+            st.stop()
+
+        data = all_project_training
+        # need this to get the IDs and names later
+        model_id_col_name = "Model ID"
+        model_name_col_name = "Model Name"
+    else:
+        st.markdown(f"## All User-Uploaded Models for {DEPLOYMENT_TYPE}")
+        models, _ = query_uploaded_models(
+            for_data_table=True,
+            return_dict=True,
+            deployment_type=DEPLOYMENT_TYPE)
+        if not models:
+            st.info("""No uploaded models available for this deployment type.""")
+            st.stop()
+
+        data = models
+        model_id_col_name = "id"
+        model_name_col_name = "Name"
+
+    unique_key = selected_type.split()[0]
+    columns = DATA_TABLE_COLS if selected_type == 'Project Training Sessions & Models' else UPLOADED_DT_COLS
+    # this ID is Training ID for Project Model, but Model ID for User-uploaded Model
+    selected_ids = data_table(
+        data, columns, checkbox=True, key=f'data_table_model_selection_{unique_key}')
 
     st.markdown("___")
     danger_zone_header()
-    st.markdown("## Select training sessions from the table above to delete")
-    if st.checkbox("Delete selected training sessions", key='cbox_delete_training',
-                   help="""This will delete both the selected training sessions
-                   **and also the associated models**"""):
-        if not selected_ids:
-            st.warning("Please select at least a training session first")
-            st.stop()
-        st.warning("""**WARNING**: This will **also delete** the models associated 
-            with the training sessions.""")
-        # use set for faster membership filtering
-        selected_ids = set(selected_ids)
-        selected_records = filter(lambda x: x['id'] in selected_ids,
-                                  all_project_training)
-        st.markdown("**Selected training sessions:**")
-        for i, rec in enumerate(selected_records, start=1):
-            training_name = rec['Training Name']
-            st.markdown(f"{i}. {training_name}")
 
-        if st.button("Confirm deletion of selected training sessions and associated models?",
-                     key='btn_confirm_delete_training'):
-            for t_id in selected_ids:
-                Training.delete_training(t_id)
-            st.experimental_rerun()
+    if selected_type == 'Project Training Sessions & Models':
+        st.markdown(
+            "## Select training sessions from the table above to delete")
+        if st.checkbox("Delete selected training sessions", key='cbox_delete_training',
+                       help="""This will delete both the selected training sessions
+                    **and also the associated models**"""):
+            if not selected_ids:
+                st.warning("Please select at least a training session first")
+                st.stop()
+            st.warning("""**WARNING**: This will **also delete** the models associated 
+                with the training sessions.""")
+            # use set for faster membership filtering
+            selected_ids = set(selected_ids)
+            selected_records = filter(lambda x: x['id'] in selected_ids,
+                                      all_project_training)
+            st.markdown("**Selected training sessions:**")
+            for i, rec in enumerate(selected_records, start=1):
+                training_name = rec['Training Name']
+                st.markdown(f"{i}. {training_name}")
 
-    st.markdown("___")
-    st.markdown("### Or just delete the selected models")
-    st.markdown("""**NOTE**: This will delete the project models together with
-        all the associated information.""")
+            if st.button("Confirm deletion of selected training sessions and associated models?",
+                         key='btn_confirm_delete_training'):
+                for t_id in selected_ids:
+                    Training.delete_training(t_id)
+                st.experimental_rerun()
+
+        st.markdown("___")
+        st.markdown("### Or just delete the selected models")
+        st.markdown("""**NOTE**: This will delete the project models together with
+            all the associated information.""")
+    else:
+        st.markdown("### Delete user-uploaded models")
+        st.markdown("This will delete all the data related to the selected user-uploaded "
+                    "models, including both the database data and the saved model files.")
+
     if st.checkbox("Delete selected models", key='cbox_delete_model',
                    help="""This will delete the selected models"""):
         if not selected_ids:
             st.warning("Please select at least a model first")
             st.stop()
+
         selected_ids = set(selected_ids)
-        selected_records = filter(lambda x: x['id'] in selected_ids,
-                                  all_project_training)
+        selected_records = filter(lambda x: x['id'] in selected_ids, data)
+
         st.markdown("**Selected models:**")
         model_ids = []
         for i, rec in enumerate(selected_records, start=1):
-            model_ids.append(rec['Model ID'])
-            model_name = rec['Model Name']
+            model_ids.append(rec[model_id_col_name])
+            model_name = rec[model_name_col_name]
             st.markdown(f"{i}. {model_name}")
 
         if st.button("Confirm deletion of selected models?",

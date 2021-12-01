@@ -207,7 +207,7 @@ def index(RELEASE=True):
         help='Project Model is a model trained in our application.')
 
     if selected_model_type == 'Project Model':
-        st.markdown("## All Trained Project Model for Current Project")
+        st.markdown("## All Trained Project Models for Current Project")
         # namedtuple of query from DB
         models, _ = query_current_project_models(
             project.id,

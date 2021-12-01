@@ -1377,29 +1377,17 @@ class Model(BaseModel):
             return False
 
     @staticmethod
-    def delete_model(model_id: int = None, training_id: int = None):
+    def delete_model(model_id: int = None):
         """Delete model directories, delete model row from 'models' table, and
         reset the training_model's info at 'training' table"""
-        # """Can provide either training_id or model_id because each training session
-        # only has one associated model"""
-        # assert (training_id, model_id) != (
-        #     None, None), "Must provide either training_id or model_id"
-        # if training_id is not None:
-        #     # this will also return model id
-        #     sql_delete = """
-        #         DELETE
-        #         FROM public.models
-        #         WHERE training_id = %s
-        #         RETURNING id, name;
-        #     """
-        #     delete_vars = [training_id]
-        #     label = f"Model with Training ID {training_id}"
-        # else:
-
         # need model_id to get the project_model path from DB to delete the directories
         # first before deleting its info from DB
+        model = Model(model_id)
+        logger.info(
+            f"The model to be deleted is of type: '{model.model_type}'")
+
         logger.info("Checking if model directory exists")
-        model_path = Model.query_project_model_path(model_id)
+        model_path = model.get_path()
         if model_path and model_path.exists():
             shutil.rmtree(model_path)
             logger.info("Deleted existing model directories")
@@ -1420,14 +1408,17 @@ class Model(BaseModel):
                          f"cannot find {label}")
             return
         model_name = record.name
-        # if training_id is not None:
-        #     model_id = record.id
-        # else:
-        training_id = record.training_id
-        logger.info(f"Deleted Model of ID {model_id} and name '{model_name}' "
-                    f"associated with Training ID {training_id}")
 
-        Model.reset_training_model_info(training_id)
+        logger.info(f"Deleted Model of ID {model_id} and name '{model_name}'")
+
+        # user-uploaded model will not have training_id
+        training_id = record.training_id
+        if training_id is not None:
+
+            Model.reset_training_model_info(training_id)
+
+            logger.info("Successfully reset the training model info in the training data "
+                        f" as the model is associated with the Training ID {training_id}")
 
 
 # ********************************** DEPRECATED ********************************
