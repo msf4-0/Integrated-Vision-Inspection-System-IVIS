@@ -91,7 +91,7 @@ def install():
         run_command(cmd)
         # installing pycocotools here instead of in requirements.txt
         # because Windows NEED to install pycocotools-windows instead
-        run_command('pip install pycocotools')
+        run_command('pip install pycocotools==2.0.2')
         # The command below does not work properly because the pip install will stuck for very long
         # run_command(
         #     f"cd {TFOD_DIR / 'research'} "
@@ -126,15 +126,29 @@ def install():
         logger.info("Installing TFOD API ...")
         cmd = (f"cd {TFOD_DIR / 'research'} "
                "&& protoc object_detection/protos/*.proto --python_out=. "
-               "&& cp object_detection\\packages\\tf2\\setup.py setup.py "
+               "&& copy object_detection\\packages\\tf2\\setup.py setup.py "
                "&& python setup.py build "
                "&& python setup.py install")
         run_command(cmd)
         # reason explained above under Linux part
-        run_command('pip install pycocotools-windows')
+        run_command('pip install pycocotools-windows==2.0.0.2')
 
     # install slim dependencies
     run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")
+
+    # remove unnecessary files
+    folders_to_del = ((TFOD_DIR / 'models'),
+                      (TFOD_DIR / 'models' / 'research'))
+    for folder in folders_to_del:
+        for path in folder.iterdir():
+            if path.is_dir():
+                # these folders should not be removed
+                if path.name == 'research' or 'object_detection':
+                    continue
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+            shutil.rmtree()
 
     # NOTE: not running verification script for now as the environment might not be updated
     #   with the latest packages yet

@@ -29,12 +29,20 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 # user-defined modules
 from path_desc import chdir_root, SECRETS_PATH
 from core.utils.log import logger
-from database_setup import database_setup, test_database_connection
+from database_setup import database_setup, database_direct_setup, test_database_connection
 
 # ********************** Connection to db **********************
 if 'db_connect_success' not in session_state:
     # use this to check connection for only one time
     session_state['db_connect_success'] = False
+
+if os.environ.get("DOCKERCOMPOSE"):
+    logger.debug(f"{os.environ.get('DOCKERCOMPOSE') = }")
+    if not SECRETS_PATH.exists():
+        # setup entire database for the first time
+        database_direct_setup()
+    session_state.db_connect_success = True
+    logger.debug(f"{st.secrets = }")
 
 # setup database if Streamlit's secrets.toml file is not generated yet
 if not SECRETS_PATH.exists():
@@ -52,12 +60,14 @@ else:
         except Exception as e:
             logger.error(f"Error reading the secrets.toml file: {e}")
             # remove the secrets.toml file to create again in case the file is invalid
+            logger.debug("Removing the secrets.toml file")
             os.remove(SECRETS_PATH)
             st.experimental_rerun()
         if not conn_success:
             st.error("Error connecting to the database! You will be redirected to create "
                      "the database configuration shortly.")
             logger.error("Error connecting to the database!")
+            logger.debug("Removing the secrets.toml file")
             os.remove(SECRETS_PATH)
             sleep(1)
             st.experimental_rerun()

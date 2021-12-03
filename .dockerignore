@@ -24,3 +24,16 @@
 **/secrets.dev.yaml
 **/values.dev.yaml
 README.md
+
+.env.sample
+**/secrets.sample.toml
+**/secrets.toml
+
+**/postgres
+**/TFOD
+**/notworking
+**/tasks
+**/test
+**/session_state\(deprecated\)
+**/*.ipynb
+**/*.sql

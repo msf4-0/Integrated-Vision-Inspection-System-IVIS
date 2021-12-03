@@ -170,7 +170,7 @@ def scrape_setup_model_details(conn):
 
     # *************** Scraping Keras pretrained model functions ***************
 
-    logger.info("Scraping TensorFlow Models information")
+    logger.info("Scraping Keras Pretrained Classification Models information")
     URL = "https://www.tensorflow.org/api_docs/python/tf/keras/applications"
     data = requests.get(URL)
     soup = BeautifulSoup(data.text, 'html.parser')
@@ -198,6 +198,7 @@ def scrape_setup_model_details(conn):
 
     # *************** Scraping keras-unet-collections models ***************
 
+    logger.info("Scraping Keras U-net Models information")
     URL = "https://github.com/yingkaisha/keras-unet-collection"
     data = requests.get(URL)
     soup = BeautifulSoup(data.text, 'html.parser')

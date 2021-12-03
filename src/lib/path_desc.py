@@ -61,7 +61,7 @@ def get_temp_dir() -> str:
 
 # ./image_labelling_shrdc
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SECRETS_PATH = PROJECT_ROOT / ".streamlit/secrets.toml"
+SECRETS_PATH = PROJECT_ROOT / ".streamlit" / "secrets.toml"
 
 # DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 BASE_DATA_DIR = Path(get_data_dir())

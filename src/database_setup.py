@@ -36,10 +36,10 @@ from streamlit import session_state
 
 
 # ***************** Add src/lib to path ***************************
-# SRC = Path(__file__).resolve().parent  # ROOT folder -> ./src
-# LIB_PATH = SRC / "lib"
-# if str(LIB_PATH) not in sys.path:
-#     sys.path.insert(0, str(LIB_PATH))  # ./lib
+SRC = Path(__file__).resolve().parent  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
 # ***************** Add src/lib to path ***************************
 
 
@@ -125,14 +125,17 @@ def modify_secrets_toml(**context: Dict):
             with open(str(SECRETS_PATH), 'w+') as f:
                 new_toml = toml.dump(secrets, f)
                 logger.info(f"Created secrets.toml file:\n{new_toml}")
+                logger.debug(f"{SECRETS_PATH = }")
+                logger.debug(f"{SECRETS_PATH.exists() = }")
             return
+
+    logger.error("There were some error creating the database config or "
+                 "connecting to database")
 
     if st._is_running_with_streamlit:
         st.error("""There were some error creating the database config, the database 
             information seems to be incorrect.""")
-    logger.error("There were some error creating the database config or "
-                 "connecting to database")
-    st.stop()
+        st.stop()
 
 
 def db_config_form():
@@ -242,11 +245,12 @@ def database_setup():
 
 
 def database_direct_setup():
+    host = "db" if os.environ.get("DOCKERCOMPOSE") else "localhost"
     db_config = {
-        "host": "localhost",
-        "port": "5432",
+        "host": host,
         # the rest are obtained from the environment variables
         # defined in docker-compose.yml
+        "port": os.environ.get('POSTGRES_PORT', '5432'),
         "dbname": APP_DATABASE_NAME,
         "user": os.environ.get('POSTGRES_USER', 'postgres'),
         "password": os.environ.get('POSTGRES_PASSWORD', 'shrdc')
