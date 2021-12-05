@@ -7,13 +7,20 @@ import cv2
 from yaml import full_load
 from pathlib import Path
 
+import numpy as np
 from paho.mqtt.client import Client
 from imutils.video.webcamvideostream import WebcamVideoStream
-import streamlit as st
 from streamlit import session_state
 
 from core.utils.log import logger
 from path_desc import MQTT_CONFIG_PATH
+
+
+def encode_frame(frame: np.ndarray) -> bytes:
+    """Encode a frame from OpenCV into bytes"""
+    _, encoded_image = cv2.imencode('.png', frame)
+    bytes_array = encoded_image.tobytes()
+    return bytes_array
 
 
 def load_mqtt_config() -> Dict[str, str]:
@@ -25,6 +32,7 @@ def load_mqtt_config() -> Dict[str, str]:
 
 class MQTTTopics(NamedTuple):
     publish_results: str
+    publish_frame: str
     start_publish: str
     stop_publish: str
     save_frame: str
@@ -37,10 +45,16 @@ CONFIG = load_mqtt_config()
 
 @dataclass(init=False, frozen=True, eq=False)
 class MQTTConfig:
-    broker: str = CONFIG["mqtt"]["broker"]
-    port: str = CONFIG["mqtt"]["port"]
+    # 'mosquitto' is the service name defined in docker-compose.yml
+    broker: str = 'mosquitto' if os.environ.get(
+        "DOCKERCOMPOSE") else CONFIG["mqtt"]["broker"]
+    # port 8883 instead of 1883 is used to avoid potential issues with local mosquitto broker,
+    # this port is defined in mosquitto.conf
+    port: str = 8883 if os.environ.get(
+        "DOCKERCOMPOSE") else CONFIG["mqtt"]["port"]
     qos: str = CONFIG["mqtt"]["QOS"]
-    topics = MQTTTopics(
+    topics: MQTTTopics = MQTTTopics(
+        publish_frame=CONFIG["camera"]["publish_frame"],
         publish_results=CONFIG["camera"]["publish_results"],
         start_publish=CONFIG["camera"]["start_publish_topic"],
         stop_publish=CONFIG["camera"]["stop_publish_topic"],
@@ -79,12 +93,8 @@ def on_publish(client, userdata, mid):
 
 
 def get_mqtt_client(client_id=''):
-    """Return the MQTT session_state.client object."""
-    if client_id:
-        clean_session = False
-    else:
-        clean_session = True
-    client = Client(client_id, clean_session)
+    """Return the MQTT client object."""
+    client = Client(client_id, clean_session=True)
     # client.connected_flag = False  # set flag
     client.on_connect = on_connect
     client.on_publish = on_publish

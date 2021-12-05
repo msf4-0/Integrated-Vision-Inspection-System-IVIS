@@ -96,7 +96,6 @@ def check_if_pretrained_models_exist(conn):
 def insert_to_db(new_df, conn):
     sql_query = """
                 INSERT INTO public.models (
-                    id,
                     name,
                     metrics,
                     model_type_id,
@@ -105,7 +104,6 @@ def insert_to_db(new_df, conn):
                     )
                 OVERRIDING SYSTEM VALUE
                 VALUES (
-                    nextval('models_sequence'),
                     %s,
                     %s,
                     %s,
@@ -130,15 +128,14 @@ def scrape_setup_model_details(conn):
     """
     db_fetchone(sql_query, conn=conn)
 
-    # create a sequence so that the primary key `id` would start at 1
-    sql_query = """
-    DROP SEQUENCE IF EXISTS models_sequence;
-
-    CREATE SEQUENCE models_sequence
-    start 1
-    increment 1;
+    # reset the ID to start from latest ID + 1
+    table_name = 'models'
+    # use this or use ALTER SEQUENCE. False to ensure to take next value
+    # https://coderedirect.com/questions/335605/postgresql-using-subqueries-with-alter-sequence-expressions
+    sql_msg = f"""
+        SELECT SETVAL('{table_name}_id_seq', (SELECT MAX(id) + 1 FROM {table_name}), false)
     """
-    db_fetchone(sql_query, conn=conn)
+    db_fetchone(sql_msg, conn=conn)
 
     # ************************ Scraping TFOD Model Zoo ************************
     logger.info("Scraping TensorFlow Models information")

@@ -4,6 +4,7 @@ mqtt:
   QOS: 1
 
 camera:
+  publish_frame: homie/webcam/output_frame
   publish_results: homie/webcam/capture
   start_publish_topic: homie/webcam/start
   stop_publish_topic: homie/webcam/stop

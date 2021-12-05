@@ -163,9 +163,9 @@ def create_folder_if_not_exist(path: Path) -> None:
             path.mkdir(parents=True)
             logger.info(f"Created Directory at {str(path)}")
         except FileExistsError as e:
-            logger.info(f"Directory already exists: {e}")
+            logger.debug(f"Directory already exists: {e}")
     else:
-        logger.info(f"Directory already exist")
+        logger.debug(f"Directory already exist")
         pass
 
 
@@ -191,6 +191,12 @@ def move_file(src: Union[str, Path], dst: Union[str, Path]) -> bool:
         dest_path = dst / os.path.basename(file)  # get destination file path
 
         # returns file path to destination for each file moved
+        if dest_path.exists():
+            # delete it if exists
+            if dest_path.is_file():
+                dest_path.unlink()
+            else:
+                shutil.rmtree(dest_path)
         dst_return = shutil.move(str(file), str(dest_path))
         logger.debug(f"Moved {file.name} to {dst_return}")
 
@@ -671,7 +677,7 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
         if file_object:
             fileobj = deepcopy(file_object)
             filename = None
-        logger.info(file_object)
+        logger.debug(file_object)
         with tarfile.open(name=filename,
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:

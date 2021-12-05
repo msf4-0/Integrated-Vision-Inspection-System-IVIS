@@ -118,6 +118,7 @@ class DeploymentConfig:
     retention_period: int = 7
     mqtt_qos: int = 1
     publishing: bool = True
+    publish_frame: bool = False
 
     # not always used
     ip_cam_address: str = ''

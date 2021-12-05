@@ -36,13 +36,15 @@ if 'db_connect_success' not in session_state:
     # use this to check connection for only one time
     session_state['db_connect_success'] = False
 
-if os.environ.get("DOCKERCOMPOSE"):
+# for Docker Compose installation
+if os.environ.get("DOCKERCOMPOSE") and not session_state.db_connect_success:
     logger.debug(f"{os.environ.get('DOCKERCOMPOSE') = }")
     if not SECRETS_PATH.exists():
-        # setup entire database for the first time
+        # setup entire database for the first time and generate the secrets.toml file
         database_direct_setup()
-    session_state.db_connect_success = True
-    logger.debug(f"{st.secrets = }")
+    if test_database_connection(**st.secrets['postgres']):
+        session_state.db_connect_success = True
+        logger.debug(f"Connected with: {st.secrets = }")
 
 # setup database if Streamlit's secrets.toml file is not generated yet
 if not SECRETS_PATH.exists():
