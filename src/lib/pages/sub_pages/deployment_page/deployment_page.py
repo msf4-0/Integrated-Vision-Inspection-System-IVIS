@@ -24,15 +24,13 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import partial
 import json
 import os
 import shutil
 import sys
-from pathlib import Path
 from time import perf_counter, sleep
-from typing import Any, Dict
 
 import cv2
 from imutils.video.webcamvideostream import WebcamVideoStream
@@ -42,40 +40,33 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
 from streamlit.report_thread import add_report_ctx
+from project.project_management import Project
 
 from user.user_management import User, UserRole
 
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-
-from path_desc import TEMP_DIR, chdir_root, MEDIA_ROOT, get_temp_dir
+from path_desc import TEMP_DIR, chdir_root
 from core.utils.log import logger
-from data_manager.database_manager import init_connection, db_fetchone
-from machine_learning.utils import get_test_images_labels, get_tfod_test_set_data
+from data_manager.database_manager import init_connection
 from machine_learning.visuals import create_class_colors, create_color_legend
 from data_manager.dataset_management import Dataset
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
 from deployment.utils import MQTTConfig, create_csv_file_and_writer, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
-from core.utils.helper import Timer, get_directory_name, get_now_string, get_today_string, list_available_cameras
+from core.utils.helper import Timer, get_now_string, list_available_cameras
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
 conn = init_connection(**st.secrets["postgres"])
-
-# >>>> Variable Declaration >>>>
-new_project = {}  # store
-place = {}
-# DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
-#                    "Semantic Segmentation with Polygons", "Semantic Segmentation with Masks")
 
 
 def kpi_format(text: str):
@@ -97,10 +88,9 @@ def index(RELEASE=True):
         # to store the config in case the user needs to go to another page during deployment
         session_state.deployment_conf = DeploymentConfig()
 
-    deploy_conf = session_state.deployment_conf
-    # st.write("deploy_conf")
-    # st.write(deploy_conf)
+    deploy_conf: DeploymentConfig = session_state.deployment_conf
 
+    project: Project = session_state.project
     deployment: Deployment = session_state.deployment
     user: User = session_state.user
     DEPLOYMENT_TYPE = deployment.deployment_type
@@ -118,18 +108,24 @@ def index(RELEASE=True):
         logger.debug(f"Updated deploy_conf: {conf_attr} = {val}")
         setattr(deploy_conf, conf_attr, val)
 
+    deploy_status_col = st.sidebar.container()
     pause_deploy_place = st.sidebar.empty()
+
+    with deploy_status_col:
+        st.subheader("Deployment Status")
+        st.warning("NOTE: Please do not simply refresh the page without ending "
+                   "deployment or errors could occur.")
 
     st.sidebar.button(
         "End Deployment", key='btn_stop_image_deploy',
         on_click=stop_deployment,
         help="This will stop the deployment and reset the entire  \n"
-        "deployment configuration. Please make sure to use this  \n"
+        "deployment configuration. Please **make sure** to use this  \n"
         "button to stop deployment before proceeding to any other  \n"
-        "page! Or use the pause button if you want to pause the  \n"
-        "deployment to do any other things without resetting,  \n"
-        "such as switching user, or viewing the latest saved  \n"
-        "CSV file (only for video camera deployment).")
+        "page! Or use the **pause button** (only available for camera  \n"
+        "input) if you want to pause the deployment to do any other  \n"
+        "things without resetting, such as switching user, or viewing  \n"
+        "the latest saved CSV file (only for video camera deployment).")
     st.sidebar.markdown("___")
 
     if user.role <= UserRole.Developer1:
@@ -157,7 +153,7 @@ def index(RELEASE=True):
             "Ignore background", value=deploy_conf.ignore_background,
             key='ignore_background',
             help="Ignore background class for visualization purposes.  \n"
-            "Note that turning this on will significantly reduce the FPS.",
+            "Note that turning this on could significantly reduce the FPS.",
             on_change=update_deploy_conf, args=('ignore_background',))
         legend = create_color_legend(
             class_colors, bgr2rgb=False, ignore_background=ignore_background)
@@ -241,6 +237,9 @@ def index(RELEASE=True):
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
 
+        with deploy_status_col:
+            st.info("Deployment started for input images")
+
         if DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
             with st.expander("Notes about deployment for semantic segmentation"):
                 st.markdown(
@@ -250,17 +249,17 @@ def index(RELEASE=True):
                     If there is anything wrong, please do not proceed to video deployment.""")
 
         with st.spinner("Running inference ..."):
-            with Timer("Inference on image"):
-                try:
+            try:
+                with Timer("Inference on image"):
                     result = inference_pipeline(img)
-                except Exception as e:
-                    # uncomment the following line to see the traceback
-                    # st.exception(e)
-                    logger.error(
-                        f"Error running inference with the model: {e}")
-                    st.error("""Error when trying to run inference with the model,
-                        please check with Admin/Developer for debugging.""")
-                    st.stop()
+            except Exception as e:
+                # uncomment the following line to see the traceback
+                # st.exception(e)
+                logger.error(
+                    f"Error running inference with the model: {e}")
+                st.error("""Error when trying to run inference with the model,
+                    please check with Admin/Developer for debugging.""")
+                st.stop()
         if DEPLOYMENT_TYPE == 'Image Classification':
             pred_classname, y_proba = result
             caption = (f"{filename}; "
@@ -305,7 +304,7 @@ def index(RELEASE=True):
         #         videostream will run at.""")
         if has_access:
             st.sidebar.slider(
-                'Width of video', 320, 1200, deploy_conf.video_width, 10,
+                'Width of video', 320, 1920, deploy_conf.video_width, 10,
                 key='video_width',
                 help="This is the width of video for visualization purpose.",
                 on_change=update_deploy_conf, args=('video_width',)
@@ -336,13 +335,20 @@ def index(RELEASE=True):
                         args=('camera_type',))
                 if deploy_conf.camera_type == 'USB Camera':
                     if has_access:
+                        st.button("Refresh camera ports", key='btn_refresh',
+                                  on_click=reset_camera_ports)
+
                         if not session_state.working_ports:
                             with st.spinner("Checking available camera ports ..."):
                                 _, working_ports = list_available_cameras()
                                 session_state.working_ports = working_ports.copy()
-                        st.button("Refresh camera ports", key='btn_refresh',
-                                  on_click=reset_camera_ports,
-                                  args=('use_camera',))
+                            # stop if no camera port found
+                            if not working_ports:
+                                st.error(
+                                    "No working camera source/port found.")
+                                logger.error("No working camera port found")
+                                st.stop()
+
                         st.radio(
                             "Select a camera port",
                             options=session_state.working_ports,
@@ -359,7 +365,13 @@ def index(RELEASE=True):
                         st.text_input(
                             "Enter the IP address", value=deploy_conf.ip_cam_address,
                             key='ip_cam_address',
-                            on_change=update_deploy_conf, args=('ip_cam_address',))
+                            on_change=update_deploy_conf, args=(
+                                'ip_cam_address',),
+                            help="""This address could start with *http* or *rtsp*.
+                            Most of the IP cameras  \nhave a username and password to access
+                            the video. In such case,  \nthe credentials have to be provided
+                            in the streaming URL as follow:  \n
+                            **rtsp://username:password@192.168.1.64/1**""")
                     else:
                         st.markdown("IP Camera with address: "
                                     f"**{deploy_conf.ip_cam_address}** ")
@@ -424,6 +436,8 @@ def index(RELEASE=True):
                         try:
                             session_state.camera = WebcamVideoStream(
                                 src=video_source).start()
+                            if session_state.camera.read() is None:
+                                raise Exception("Video source is not valid")
                         except Exception as e:
                             st.error(
                                 f"Unable to read from video source {video_source}")
@@ -467,8 +481,13 @@ def index(RELEASE=True):
         if session_state.camera:
             if isinstance(session_state.camera, WebcamVideoStream):
                 stream = session_state.camera.stream
+                with deploy_status_col:
+                    st.markdown("Deployment started for video camera")
             else:
                 stream = session_state.camera
+                with deploy_status_col:
+                    st.markdown("Deployment started for uploaded video")
+
             width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps_input = int(stream.get(cv2.CAP_PROP_FPS))
@@ -500,7 +519,8 @@ def index(RELEASE=True):
                 os.makedirs(save_dir)
 
         if 'client' not in session_state:
-            session_state.client = get_mqtt_client()
+            # NOTE: using project ID as the client ID for now
+            session_state.client = get_mqtt_client(str(project.id))
             session_state.client_connected = False
             session_state.publishing = True
 
@@ -582,6 +602,10 @@ def index(RELEASE=True):
         else:
             st.sidebar.markdown(
                 f"MQTT QoS is set to level **{deploy_conf.mqtt_qos}**")
+        # NOTE: Docker needs to use service name instead to connect to broker,
+        # but user should always connect to 'localhost'
+        st.sidebar.info(
+            f"Connected to MQTT broker **localhost** at port **{conf.port}**")
         st.sidebar.info(
             "#### Publishing Results to MQTT Topic:  \n"
             f"{conf.topics.publish_results}"
@@ -595,7 +619,8 @@ def index(RELEASE=True):
             f"**Stop recording frames**: {conf.topics.stop_record}")
         with st.sidebar.expander("Notes"):
             st.markdown(
-                f"""NOTE: Just publish an arbitrary message to any of the subscribed
+                f"""Make sure to connect to **'localhost'** broker server with the correct
+                port. Then just publish an arbitrary message to any of the subscribed
                 MQTT topics to trigger the functionality. For the saved frames, they will 
                 be saved in your project's folder at *{saved_frame_dir}*, while recorded 
                 video will be saved at *{recording_dir}*. Please **do not simply delete 
@@ -603,11 +628,14 @@ def index(RELEASE=True):
                 delete them after pausing/ending the deployment if you wish.""")
 
         if not session_state.client_connected:
+            logger.debug(f"{conf = }")
+            logger.debug(f"{conf.topics = }")
             with st.spinner("Connecting to MQTT broker ..."):
                 try:
                     session_state.client.connect(conf.broker, port=conf.port)
                 except Exception as e:
                     st.error("Error connecting to MQTT broker")
+                    # st.exception(e)
                     logger.error(
                         f"Error connecting to MQTT broker {conf.broker}: {e}")
                     # return
@@ -845,6 +873,8 @@ def index(RELEASE=True):
         if TEMP_DIR.exists():
             logger.debug("Removing temporary directory")
             shutil.rmtree(TEMP_DIR)
+
+        st.info("Inference done for uploaded video.")
 
 
 def main():

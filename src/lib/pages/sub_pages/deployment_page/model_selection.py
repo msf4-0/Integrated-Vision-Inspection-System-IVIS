@@ -284,6 +284,9 @@ def index(RELEASE=True):
         with metric_col:
             metrics = pretty_format_param(trained_model.metrics)
             st.subheader("Final Metrics:")
+            progress_text = pretty_format_param(
+                training.progress, st_newlines=False, bold_name=True)
+            st.markdown(f"Latest progress at {progress_text}")
             st.info(metrics)
 
         show_tb = st.button("📈 Show TensorBoard", key='btn_show_tensorboard')

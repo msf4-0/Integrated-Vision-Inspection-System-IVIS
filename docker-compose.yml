@@ -1,4 +1,4 @@
-version: '0.1'
+version: "0.1"
 
 services:
   db:
@@ -18,6 +18,20 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shrdc}
     ports:
       - 5432:${POSTGRES_PORT:-5432}
+    networks:
+      - app_network
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.14
+    restart: unless-stopped
+    ports:
+      - 8883:8883
+      - 9001:9001
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data/
+    networks:
+      - app_network
 
   app:
     image: integrated_vision_inspection_system
@@ -30,20 +44,27 @@ services:
         reservations:
           devices:
             - capabilities: [gpu]
+    ipc: host
     environment:
       DEBUG: ${DEBUG:-False}
     # care that the `myuser` name is used in the Dockerfile
-    # this volume directly binds to the directory obtained by `appdirs` library 
+    # this volume directly binds to the directory obtained by `appdirs` library
     # in Python in path_desc.py
     volumes:
-      - app-data:/home/myuser/.local/share/integrated_vision_inspection_system
+      - app-data:/home/myuser/.local/share/integrated-vision-inspection-system
     # Note that this port is based on the .streamlit/config.toml file
     ports:
       - 8502:8502
     # use this to create/start the database first before creating/booting up this image
     depends_on:
       - db
+    networks:
+      - app_network
 
 volumes:
   postgres-data:
+  mosquitto-data:
   app-data:
+
+networks:
+  app_network:
