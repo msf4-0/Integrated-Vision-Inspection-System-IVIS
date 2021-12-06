@@ -151,6 +151,9 @@ def augmentation_configuration(RELEASE=True):
                          f"{exported_dataset_dir}")
             # shutil.rmtree(exported_dataset_dir)
     if not exported_dataset_dir.exists():
+        # clear cache for `load_xml_df()`
+        st.legacy_caching.clear_cache()
+
         # export the dataset with the correct structure if not done yet
         # mask images will be generated later for a sample amount
         with st.spinner("Exporting tasks for augmentation demo ..."):
@@ -160,6 +163,16 @@ def augmentation_configuration(RELEASE=True):
     elif DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
         image_folder = exported_dataset_dir / "images"
         bbox_label_folder = exported_dataset_dir / "Annotations"
+
+        # NOTE: Only cache for augmentation demo for fast loading,
+        # MUST REMEMBER to clear cache later!
+        @st.cache
+        def load_xml_df():
+            xml_df = xml_to_df(bbox_label_folder)
+            return xml_df
+
+        with st.spinner("Loading bounding box data ..."):
+            xml_df = load_xml_df()
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
         image_folder = exported_dataset_dir / "images"
         coco_json_path = exported_dataset_dir / "result.json"
@@ -226,7 +239,6 @@ def augmentation_configuration(RELEASE=True):
             st.sidebar.markdown("___")
 
             if image_name != "Upload my image":
-                xml_df = xml_to_df(bbox_label_folder)
                 class_names, bboxes = get_bbox_label_info(xml_df, image_name)
 
         # show the widgets and get parameters for each transform

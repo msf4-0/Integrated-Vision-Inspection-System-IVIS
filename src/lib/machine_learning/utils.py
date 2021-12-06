@@ -1,14 +1,16 @@
+from __future__ import annotations
 import json
 import os
 import pickle
 from pathlib import Path
 from time import perf_counter
 import shutil
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import xml.etree.ElementTree as ET
 import glob
-from imutils.paths import list_images
+from operator import attrgetter
 
+from imutils.paths import list_images
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
@@ -28,6 +30,8 @@ from keras_unet_collection.activations import Snake, GELU
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
+if TYPE_CHECKING:
+    from training.training_management import AugmentationConfig
 
 
 def check_unique_label_counts(labels: List[int], encoded_label_dict: Dict[int, str]):
@@ -38,10 +42,11 @@ def check_unique_label_counts(labels: List[int], encoded_label_dict: Dict[int, s
     if one_member_idxs.any():
         label_idx = int(unique_values[one_member_idxs][0])
         label_name = encoded_label_dict[label_idx]
-        logger.error(
+        logger.warning(
             f"The least populated class in y: '{label_name}' has only 1 image, "
             "which is too few. The minimum number of groups for any class cannot be less "
-            "than 2. This will not work for stratification in `train_test_split()`")
+            "than 2. This will not work for stratification in `train_test_split()`, "
+            "therefore, changing to no stratification.")
         return False
     return True
 
@@ -96,7 +101,6 @@ def custom_train_test_split(image_paths: List[Path],
 
     logger.info(f"Total images = {total_images}")
 
-    # TODO: maybe can add stratification as an option (only works for img classification)
     if no_validation:
         train_size = train_size if train_size else round(1 - test_size, 2)
         logger.info("Splitting into train:test dataset"
@@ -120,10 +124,15 @@ def custom_train_test_split(image_paths: List[Path],
             stratify=stratify,
             random_state=random_seed
         )
+        logger.debug(f"{len(X_train) = }, {len(y_train) = }, "
+                     f"{len(X_val_test) = }, {len(y_val_test) = }")
+
+        stratify = y_val_test if stratify else None
         X_val, X_test, y_val, y_test = train_test_split(
             X_val_test, y_val_test,
             test_size=(test_size / (val_size + test_size)),
-            shuffle=False,
+            # shuffle must be True if stratify is True
+            shuffle=True if stratify else False,
             stratify=stratify,
             random_state=random_seed,
         )
@@ -169,17 +178,17 @@ def load_image_into_numpy_array(path: str, bgr2rgb: bool = True):
     return img
 
 
-def get_transform():
+def get_transform(augmentation_config: AugmentationConfig, deployment_type: str) -> A.Compose:
     """Get the Albumentations' transform using the existing augmentation config stored in DB."""
-    existing_aug = session_state.new_training.augmentation_config.augmentations
+    existing_aug = augmentation_config.augmentations
 
     transform_list = []
     for transform_name, param_values in existing_aug.items():
         transform_list.append(getattr(A, transform_name)(**param_values))
 
-    if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
-        min_area = session_state.new_training.augmentation_config.min_area
-        min_visibility = session_state.new_training.augmentation_config.min_visibility
+    if deployment_type == 'Object Detection with Bounding Boxes':
+        min_area = augmentation_config.min_area
+        min_visibility = augmentation_config.min_visibility
         transform = A.Compose(
             transform_list,
             bbox_params=A.BboxParams(
@@ -355,7 +364,6 @@ def modify_trained_model_layers(model: tf.keras.Model, deployment_type: str,
 # ******************************* TFOD funcs *******************************
 
 
-@st.experimental_memo
 def xml_to_df(path: str) -> pd.DataFrame:
     """
     If a path to XML file is passed in, parse it directly.
@@ -429,13 +437,16 @@ def generate_tfod_xml_csv(image_paths: List[str],
                           xml_dir: Path,
                           output_img_dir: Path,
                           csv_path: Path,
-                          train_size: int):
+                          train_size: int,
+                          transform: A.Compose):
     """Generate TFOD's CSV file for augmented images and bounding boxes used for generating TF Records.
-    Also save the transformed images to the `output_img_dir` at the same time."""
+    Also save the transformed images to the `output_img_dir` at the same time.
+
+    `transform` is obtained from `get_transform()`.
+    """
 
     output_img_dir.mkdir(parents=True, exist_ok=True)
 
-    transform = get_transform()
     xml_df = xml_to_df(str(xml_dir))
 
     if train_size > len(image_paths):
@@ -464,6 +475,8 @@ def generate_tfod_xml_csv(image_paths: List[str],
         cv2.imwrite(str(output_img_dir / filename), transformed_image)
 
         transformed_bboxes = np.array(transformed['bboxes'], dtype=np.int32)
+        # this 'class_names' key is based on the 'label_fields' in A.BboxParams()
+        # used in get_transform()
         transformed_class_names = transformed['class_names']
 
         for bbox, class_name in zip(transformed_bboxes, transformed_class_names):
@@ -658,12 +671,73 @@ def get_tfod_test_set_data(test_data_dir: Path, return_xml_df: bool = True):
 # *********************** Classification model funcs ***********************
 
 
-def tf_classification_preprocess_input(imagePath, label, image_size):
+# Specific input shapes for NasNet models when using "imagenet" weights
+# https://www.tensorflow.org/api_docs/python/tf/keras/applications/nasnet/NASNetLarge
+# https://www.tensorflow.org/api_docs/python/tf/keras/applications/nasnet/NASNetMobile
+NASNET_IMAGENET_INPUT_SHAPES: Dict[str, Tuple[int, int, int]] = {
+    'NASNetLarge': (331, 331, 3),
+    'NASNetMobile': (224, 224, 3)
+}
+
+# to get the architecture's module name to obtain preprocess_input func
+# for image classification models
+ARCHITECTURE2MODULE_NAME: Dict[str, str] = {
+    "DenseNet121": "densenet",
+    "DenseNet169": "densenet",
+    "DenseNet201": "densenet",
+    "EfficientNetB0": "efficientnet",
+    "EfficientNetB1": "efficientnet",
+    "EfficientNetB2": "efficientnet",
+    "EfficientNetB3": "efficientnet",
+    "EfficientNetB4": "efficientnet",
+    "EfficientNetB5": "efficientnet",
+    "EfficientNetB6": "efficientnet",
+    "EfficientNetB7": "efficientnet",
+    "InceptionResNetV2": "inception_resnet_v2",
+    "InceptionV3": "inception_v3",
+    "MobileNet": "mobilenet",
+    "MobileNetV2": "mobilenet_v2",
+    "MobileNetV3Large": "mobilenet_v3",
+    "MobileNetV3Small": "mobilenet_v3",
+    "NASNetLarge": "nasnet",
+    "NASNetMobile": "nasnet",
+    "ResNet101": "resnet",
+    "ResNet101V2": "resnet_v2",
+    "ResNet152": "resnet",
+    "ResNet152V2": "resnet_v2",
+    "ResNet50": "resnet",
+    "ResNet50V2": "resnet_v2",
+    "VGG16": "vgg16",
+    "VGG19": "vgg19",
+    "Xception": "xception"
+}
+
+
+def get_classif_model_preprocess_func(arch_name: str) -> Callable:
+    """Get the preprocess_input function for the Keras pretrained classification model
+
+    e.g. Architecture name (or `attached_model_name`) = `arch_name` = `"ResNet50"`
+    """
+    preprocess_module = ARCHITECTURE2MODULE_NAME.get(arch_name)
+    if not preprocess_module:
+        logger.warning(f'Could not obtain preprocess_input function for "{arch_name}". '
+                       'Defaulting to preprocessing with "resnet" module')
+        preprocess_module = "resnet"
+    preprocess_input = attrgetter(
+        f'{preprocess_module}.preprocess_input')(tf.keras.applications)
+    return preprocess_input
+
+
+def tf_classification_preprocess_input(imagePath: str, label: int,
+                                       image_size: int, preprocess_fn: Callable):
+    """Using the `preprocess_fn` function obtained from
+    `get_classif_model_preprocess_func()`"""
     raw = tf.io.read_file(imagePath)
     image = tf.io.decode_image(
         raw, channels=3, expand_animations=False)
     image = tf.image.resize(image, (image_size, image_size))
-    image = tf.cast(image / 255.0, tf.float32)
+    image = preprocess_fn(image)
+    # image = tf.cast(image / 255.0, tf.float32)
     label = tf.cast(label, dtype=tf.int32)
     return image, label
 

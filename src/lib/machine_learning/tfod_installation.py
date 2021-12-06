@@ -137,18 +137,17 @@ def install():
     run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")
 
     # remove unnecessary files
-    folders_to_del = ((TFOD_DIR / 'models'),
-                      (TFOD_DIR / 'models' / 'research'))
+    folders_to_del = (TFOD_DIR, (TFOD_DIR / 'research'))
+    folders_to_keep = set(('research', 'object_detection', 'pycocotools'))
     for folder in folders_to_del:
         for path in folder.iterdir():
             if path.is_dir():
                 # these folders should not be removed
-                if path.name == 'research' or 'object_detection':
+                if path.name in folders_to_keep:
                     continue
                 shutil.rmtree(path)
             else:
                 os.remove(path)
-            shutil.rmtree()
 
     # NOTE: not running verification script for now as the environment might not be updated
     #   with the latest packages yet

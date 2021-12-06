@@ -167,6 +167,7 @@ def infodataset():
         # >>>> Store SELECTED DATASET >>>>
         st.multiselect(
             "Dataset List", key="new_training_dataset_chosen",
+            default=session_state.new_training.dataset_chosen,
             options=session_state.project.dataset_dict, help="Assign dataset to the training")
         session_state.new_training_place["new_training_dataset_chosen"] = st.empty(
         )

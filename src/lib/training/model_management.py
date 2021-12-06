@@ -327,7 +327,7 @@ class BaseModel:
             *Key has same name as its respective widget
 
             name_key (str): Key of Database row name. Used to obtain value from 'context' Dictionary.
-            *Pass 'None' is not required to check row exists
+            *Pass 'None' = not required to check row exists
 
             deployment_type_constant (DeploymentType, optional): DeploymentType IntEnum class constant. Defaults to None.
             input_size_context (Dict, optional): Context to check Model Input Size depending on Deployment Type (refer to `context` args ** above). Defaults to {}.
@@ -1278,7 +1278,7 @@ class Model(BaseModel):
 
     @staticmethod
     @dataframe2dict(orient='index')
-    def filtered_models_dataframe(models: Union[List[namedtuple], List[dict]],
+    def filtered_models_dataframe(models: Union[List[NamedTuple], List[dict]],
                                   dataframe_col: str, filter_value: Union[str, int],
                                   column_names: List = None, sort_col: str = None
                                   ) -> List[Dict[str, Any]]:

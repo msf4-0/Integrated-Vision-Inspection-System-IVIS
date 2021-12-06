@@ -49,7 +49,7 @@ from streamlit import session_state
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.layers import AveragePooling2D, Flatten, Dense, Dropout, Dense
+from tensorflow.keras.layers import AveragePooling2D, Flatten, Dense, Dropout, Dense, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
@@ -78,14 +78,16 @@ from path_desc import (DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR,
                        CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
 from .command_utils import (export_tfod_savedmodel, find_tfod_eval_metrics, run_command,
                             run_command_update_metrics, find_tfod_metric)
-from .utils import (check_unique_label_counts, classification_predict, copy_images, custom_train_test_split, generate_tfod_xml_csv, get_bbox_label_info,
-                    get_coco_classes, get_test_images_labels, get_tfod_last_ckpt_path, get_tfod_test_set_data, get_transform,
+from .utils import (NASNET_IMAGENET_INPUT_SHAPES, check_unique_label_counts, classification_predict, copy_images,
+                    custom_train_test_split, generate_tfod_xml_csv, get_bbox_label_info,
+                    get_classif_model_preprocess_func, get_test_images_labels,
+                    get_tfod_last_ckpt_path, get_tfod_test_set_data, get_transform,
                     load_image_into_numpy_array, load_keras_model, load_labelmap,
                     load_tfod_checkpoint, load_tfod_model, load_trained_keras_model, modify_trained_model_layers, preprocess_image,
                     segmentation_predict, segmentation_read_and_preprocess,
-                    tf_classification_preprocess_input, tfod_detect, xml_to_df, hybrid_loss)
+                    tf_classification_preprocess_input, tfod_detect, hybrid_loss)
 from .visuals import (PrettyMetricPrinter, create_class_colors, create_color_legend, draw_gt_bboxes,
-                      draw_tfod_bboxes, get_colored_mask_image, pretty_format_param)
+                      draw_tfod_bboxes, get_colored_mask_image)
 from .callbacks import LRTensorBoard, StreamlitOutputCallback
 
 
@@ -341,6 +343,8 @@ class Trainer:
                 train_size = self.augmentation_config.train_size
             else:
                 train_size = len(y_train)
+            st.info("TensorFlow Object Detection only uses a dedicated testing set "
+                    "without validation set.")
             st.code(f"Total training images = {train_size}  \n"
                     f"Total testing images = {len(y_test)}")
 
@@ -350,6 +354,10 @@ class Trainer:
             logger.info('Copying images to train test folder')
             if self.augmentation_config.exists():
                 with st.spinner("Generating augmented training images ..."):
+                    # get the transform from augmentation_config
+                    transform = get_transform(self.augmentation_config,
+                                              self.deployment_type)
+
                     # these csv files are temporarily generated to use for generating TF Records, should be removed later
                     train_xml_csv_path = paths['ANNOTATION_PATH'] / 'train.csv'
                     generate_tfod_xml_csv(
@@ -357,7 +365,8 @@ class Trainer:
                         xml_dir=self.dataset_export_path / "Annotations",
                         output_img_dir=paths['IMAGE_PATH'] / 'train',
                         csv_path=train_xml_csv_path,
-                        train_size=self.augmentation_config.train_size
+                        train_size=self.augmentation_config.train_size,
+                        transform=transform
                     )
             else:
                 # if not augmenting data, directly copy the train images to the folder
@@ -707,8 +716,11 @@ class Trainer:
         logger.debug(f"Creating TF dataset for {self.deployment_type}")
         image_size = self.training_param['image_size']
         if self.deployment_type == 'Image Classification':
+            preprocess_fn = get_classif_model_preprocess_func(
+                self.attached_model_name)
             tf_preprocess_data = partial(tf_classification_preprocess_input,
-                                         image_size=image_size)
+                                         image_size=image_size,
+                                         preprocess_fn=preprocess_fn)
         else:
             num_classes = len(self.class_names)
             logger.debug(f"{num_classes = }")
@@ -728,7 +740,8 @@ class Trainer:
                 return image, mask
 
         # get the Albumentations transform
-        transform = get_transform()
+        transform = get_transform(self.augmentation_config,
+                                  self.deployment_type)
 
         if self.deployment_type == 'Image Classification':
             # https://albumentations.ai/docs/examples/tensorflow-example/
@@ -810,21 +823,69 @@ class Trainer:
         # do not run this in the middle of building the model
         keras.backend.clear_session()
         # e.g. ResNet50
-        pretrained_model_func = getattr(tf.keras.applications,
-                                        self.attached_model_name)
-
+        model_name = self.attached_model_name
         image_size = self.training_param['image_size']
+        input_shape = (image_size, image_size, 3)
+
+        if 'nasnet' in model_name.lower():
+            # nasnet only supports a specific input_shape for "imagenet" weights,
+            # check NASNetLarge and NASNetMobile docs for details
+            # https://www.tensorflow.org/api_docs/python/tf/keras/applications/nasnet/NASNetLarge
+            required_input_shape = NASNET_IMAGENET_INPUT_SHAPES.get(model_name)
+            logger.debug(f"{model_name = }, {required_input_shape = }")
+            if input_shape == required_input_shape:
+                weights = "imagenet"
+            else:
+                logger.info(f"Not using pretrained imagenet weights for '{model_name}' "
+                            "due to the requirement of a specific input_shape: "
+                            f"{required_input_shape}")
+                weights = None
+        else:
+            weights = "imagenet"
+
+        pretrained_model_func = getattr(tf.keras.applications,
+                                        model_name)
         baseModel = pretrained_model_func(
-            weights="imagenet", include_top=False,
-            input_tensor=keras.Input(shape=(image_size, image_size, 3))
+            weights=weights, include_top=False,
+            input_shape=input_shape
         )
 
-        # construct the head of the model that will be placed on top of the
-        # the base model
-        headModel = baseModel.output
+        # freeze the pretrained model
+        baseModel.trainable = False
+
+        # referring https://www.tensorflow.org/guide/keras/transfer_learning
+        inputs = keras.Input(shape=input_shape)
+        # We make sure that the base_model is running in inference mode here,
+        # by passing `training=False`. This is important for fine-tuning, especially
+        # for BatchNormalization layer, which acts differently in inference mode.
+        headModel = baseModel(inputs, training=False)
+
         # then add extra layers to suit our choice
-        headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
-        headModel = Flatten(name="flatten")(headModel)
+        # AveragePooling2D layer might need lower pool_size depending on the
+        # the different input sizes due to different pretrained models and dataset size
+        error = True
+        pool_sizes = (7, 5)
+        for pool_size in pool_sizes:
+            try:
+                pooled = AveragePooling2D(pool_size=pool_size)(headModel)
+            except Exception as e:
+                msg = e
+                logger.debug(msg)
+            else:
+                error = False
+                logger.info(
+                    f"[INFO] Using AveragePooling2D with pool_size = {pool_size}")
+                headModel = pooled
+
+                headModel = Flatten(name="flatten")(headModel)
+                break
+        if error:
+            logger.info(
+                "Skipping AveragePooling2D layer due to small layer's input_size")
+            logger.info("Using GlobalAveragePooling2D layer")
+            # GlobalAveragePooling2D does not need Flatten layer
+            headModel = GlobalAveragePooling2D()(headModel)
+
         headModel = Dense(256, activation="relu")(headModel)
         headModel = Dropout(0.5)(headModel)
         # the last layer is the most important to ensure the model outputs
@@ -834,10 +895,8 @@ class Trainer:
 
         # place the head FC model on top of the base model (this will become
         # the actual model we will train)
-        model = keras.Model(inputs=baseModel.input, outputs=headModel)
-
-        # freeze the pretrained model
-        baseModel.trainable = False
+        # model = keras.Model(inputs=baseModel.input, outputs=headModel)
+        model = keras.Model(inputs=inputs, outputs=headModel)
 
         optimizer_func = getattr(tf.keras.optimizers,
                                  self.training_param['optimizer'])
@@ -1155,7 +1214,7 @@ class Trainer:
 
         if classification:
             # show a nicely formatted classification report
-            with st.spinner("Making predictions of the test set ..."):
+            with st.spinner("Making predictions on the test set ..."):
                 pred_proba = model.predict(test_ds)
                 preds = np.argmax(pred_proba, axis=-1)
                 y_true = np.concatenate([y for _, y in test_ds], axis=0)
@@ -1173,7 +1232,7 @@ class Trainer:
 
                 # append to the test results
                 header_txt = "Classification report:"
-                result_txt += "  \n".join(
+                result_txt = "  \n".join(
                     [result_txt, header_txt, classif_report])
 
             with st.spinner("Creating confusion matrix ..."):

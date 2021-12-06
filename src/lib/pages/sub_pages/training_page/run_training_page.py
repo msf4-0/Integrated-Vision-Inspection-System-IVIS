@@ -34,16 +34,13 @@ from streamlit import session_state
 
 import tensorflow as tf
 
-from deployment.deployment_management import Deployment
-
 # >>>> **************** TEMP (for debugging) **************** >>>
-# add the paths to be able to import them to this file
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-# Set to wide page layout for debugging on this page
+# # Set to wide page layout for debugging on this page
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
@@ -58,6 +55,7 @@ from machine_learning.visuals import pretty_format_param
 from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training
 from user.user_management import User
+from deployment.deployment_management import Deployment
 
 
 def index(RELEASE=True):
@@ -78,7 +76,8 @@ def index(RELEASE=True):
         # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
         # uploaded pet segmentation: 96
         # uploaded face detection: 111
-        project_id_tmp = 4
+        # dogs vs cats classification - small (uploaded): 98
+        project_id_tmp = 97
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -92,7 +91,8 @@ def index(RELEASE=True):
             # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
             # uploaded pet segmentation: 20
             # uploaded face detection: 32
-            training_id_tmp = 2
+            # dogs vs cats classification - small (uploaded): 42
+            training_id_tmp = 22
             session_state.new_training = Training(training_id_tmp,
                                                   session_state.project)
         # ****************************** HEADER **********************************************
@@ -262,13 +262,13 @@ def index(RELEASE=True):
                                  f"before training: {p}")
                     shutil.rmtree(p)
 
-        # with st.spinner("Loading TensorBoard ..."):
-        #     st.markdown("Refresh the Tensorboard by clicking the refresh "
-        #                 "icon during training to see the progress:")
-        #     # need to sleep for 3 seconds, otherwise the TensorBoard might accidentally
-        #     #  load the previous checkpoints
-        #     time.sleep(3)
-        #     run_tensorboard(logdir)
+        with st.spinner("Loading TensorBoard ..."):
+            st.markdown("Refresh the Tensorboard by clicking the refresh "
+                        "icon during training to see the progress:")
+            # need to sleep for 3 seconds, otherwise the TensorBoard might accidentally
+            #  load the previous checkpoints
+            time.sleep(3)
+            run_tensorboard(logdir)
 
         with st.spinner("Exporting tasks for training ..."):
             logger.info("Exporting tasks for training ...")
@@ -413,7 +413,8 @@ def index(RELEASE=True):
                            'all the existing model data will be overwritten.')
 
             with resume_train_col:
-                resume_train = st.button("⚡ Continue training", key='btn_resume_train')
+                resume_train = st.button(
+                    "⚡ Continue training", key='btn_resume_train')
                 st.warning('✏️ If you think your model needs more training, '
                            'This will continue training your model from the latest progress.')
 
@@ -451,8 +452,8 @@ def index(RELEASE=True):
                     try:
                         trainer.evaluate()
                     except Exception as e:
-                        if not RELEASE:
-                            st.exception(e)
+                        # uncomment this to check Traceback
+                        # st.exception(e)
                         st.error("Some error has occurred. Please try "
                                  "training/exporting the model again.")
                         logger.error(f"Error evaluating: {e}")

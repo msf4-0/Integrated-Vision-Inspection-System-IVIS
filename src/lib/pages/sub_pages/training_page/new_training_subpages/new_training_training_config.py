@@ -34,18 +34,17 @@ from streamlit import session_state
 
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
+# SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger  # logger
 from training.training_management import NewTrainingPagination, Training
 from project.project_management import Project
 from user.user_management import User
+from machine_learning.utils import NASNET_IMAGENET_INPUT_SHAPES
 from training.utils import get_segmentation_model_name2func, get_training_param_from_session_state
 
 
@@ -65,7 +64,7 @@ def training_configuration(RELEASE=True):
 
         # ************************TO REMOVE************************
         # for Anson: 4 for TFOD, 9 for img classif, 30 for segmentation
-        project_id_tmp = 30
+        project_id_tmp = 9
         logger.debug(f"Entering Project {project_id_tmp}")
 
         # session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -77,7 +76,7 @@ def training_configuration(RELEASE=True):
             session_state.user = User(1)
         if 'new_training' not in session_state:
             # for Anson: 2 for TFOD, 17 for img classif, 18 for segmentation
-            training = Training(18, session_state.project)
+            session_state.new_training = Training(17, session_state.project)
         # ****************************** HEADER **********************************************
         st.write(f"# {session_state.project.name}")
 
@@ -162,7 +161,18 @@ def training_configuration(RELEASE=True):
             #  to be able to extract them and send them over to the Trainer for training
             # e.g. param_batch_size -> batch_size at the Trainer later
             if DEPLOYMENT_TYPE == "Image Classification":
-                inp_choices = (32, 64, 128, 224, 256, 512)
+                inp_choices = (32, 64, 128, 224, 256, 331, 512)
+                model_name = training.attached_model.name
+                if model_name in NASNET_IMAGENET_INPUT_SHAPES:
+                    required_img_size = NASNET_IMAGENET_INPUT_SHAPES[model_name][0]
+                    st.info(
+                        f"Your pretrained model architecture '**{model_name}**' "
+                        f"requires the input size of **{required_img_size}** to make use "
+                        "of pretrained **ImageNet** weights. You should choose this size "
+                        "if you want to utilize pretrained weights.")
+                    if not param_dict:
+                        # default to this size if it's new submission
+                        image_size = required_img_size
             else:
                 inp_choices = (128, 224, 256, 512)
             image_size = st.select_slider(
@@ -178,12 +188,14 @@ def training_configuration(RELEASE=True):
                 # this is required as the first parameter to the keras_unet_collection model
                 session_state['param_input_size'] = (image_size, image_size, 3)
 
-            lr_choices = (1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.1)
+            lr_choices = (1e-6, 5e-6, 1e-5, 5e-5, 1e-4, 5e-4,
+                          1e-3, 5e-3, 1e-2, 5e-2, 0.1)
             st.select_slider(
                 "Learning rate", lr_choices,
                 value=learning_rate,
                 # show scientific notation
                 format_func=lambda x: f"{x:.0e}",
+                # format='%.0e',
                 key="param_learning_rate",
                 help="""This controls how much we want to update our model parameters
                 during each training step. If too low, the model will not even be able to learn,
@@ -191,6 +203,7 @@ def training_configuration(RELEASE=True):
                 and will not be able to learn too. Thus, this is a very important parameter to choose wisely.
                 Recommeded to select **1e-4** as it is the middle ground. FYI: 1e-4 = 0.0001"""
             )
+
             optimizer_opts = ("Adadelta", "Adagrad", "Adam", "Adamax",
                               "Nadam", "RMSprop", "SGD")
             st.selectbox(

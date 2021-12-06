@@ -42,7 +42,7 @@ RUN cd /home/myuser/TFOD/models/research && \
     cp object_detection/packages/tf2/setup.py setup.py && \
     python setup.py build && python setup.py install
 
-
+# main builder image, to save space from unnecessary files
 FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04 AS runner-image
 # libpq-dev is required for psycopg2 library
 # libgl1-mesa-glx and the rest are required for OpenCV library

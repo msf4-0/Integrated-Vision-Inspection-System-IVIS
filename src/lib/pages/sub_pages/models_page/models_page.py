@@ -443,7 +443,16 @@ def existing_models():
 
     # *************************************CALLBACK: NEXT BUTTON *************************************
     def to_training_configuration_page():
-        check_if_name_exist(session_state.new_training_place, conn)
+        # check_if_name_exist(session_state.new_training_place, conn)
+
+        if training.has_submitted[NewTrainingPagination.Model] and \
+                training.training_model.name == session_state.training_model_name:
+            # no need to check whether the name exists if the user is using the same
+            # existing submitted name
+            logger.info("Existing model name is not changed")
+            name_key = None
+        else:
+            name_key = 'training_model_name'
 
         new_training_model_submission_dict = NewTrainingSubmissionHandlers(
             insert=training.training_model.create_new_project_model_pipeline,
@@ -452,7 +461,7 @@ def existing_models():
                 'training_model_name': session_state.training_model_name,
                 # 'attached_model_selection': session_state.existing_models_table
             },
-            name_key='training_model_name'
+            name_key=name_key
         )
 
         # run submission according to current page

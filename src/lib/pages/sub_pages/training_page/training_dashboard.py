@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
+from pathlib import Path
 
 import streamlit as st
 from streamlit import cli as stcli
@@ -220,18 +221,11 @@ def dashboard():
     st.markdown('___')
 
 
-def index():
-    RELEASE = True
+def index(RELEASE=True):
     logger.debug("Navigator: At training_dashboard.py INDEX")
-
-    if session_state.user.role == UserRole.Annotator:
-        st.warning(
-            "You are not allowed to access to the training page.")
-        st.stop()
 
     # ****************** TEST ******************************
     if not RELEASE:
-
         # ************************TO REMOVE************************
         with st.sidebar.container():
             st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -241,7 +235,8 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 4
+        # dogs vs cats classification - small (uploaded): 98
+        project_id_tmp = 98
         logger.debug(f"Entering Project {project_id_tmp}")
 
         session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -259,6 +254,11 @@ def index():
 
         st.markdown("""___""")
     # ****************** TEST ******************************
+
+    if session_state.user.role == UserRole.Annotator:
+        st.warning(
+            "You are not allowed to access to the training page.")
+        st.stop()
 
     # ****************************** HEADER **********************************************
     st.write(f"## **Training Section:**")
@@ -321,7 +321,7 @@ def index():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        index()
+        index(RELEASE=False)
 
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
