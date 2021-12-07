@@ -1,4 +1,4 @@
-version: "0.1"
+version: "3.8"
 
 services:
   db:
@@ -8,22 +8,24 @@ services:
       - postgres-data:/var/lib/postgresql/data
     # you must create a '.env' file similar to the format in '.env.sample'
     env_file: .env
+    # the default values set here are just placeholder to show the default values
+    # used in `database_setup.database_direct_setup()`,
+    # '.env' file is still compulsory as we specified it above
     environment:
-      # this is used for database_setup to use "db" as the host instead of "localhost"
-      DOCKERCOMPOSE: 1
-      # NOTE: in production, change these to use environment variables for credentials
-      # stored in a .env file
+      # must be loaded from a .env file
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-integrated_vision_inspection_system}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shrdc}
     ports:
-      - 5432:${POSTGRES_PORT:-5432}
+      - 5432:5432
     networks:
       - app_network
 
   mosquitto:
     image: eclipse-mosquitto:2.0.14
     restart: unless-stopped
+    # 8883 is used instead of 1883 to avoid conflict with local broker,
+    # this port is defined in ./mosquitto.conf
     ports:
       - 8883:8883
       - 9001:9001
@@ -39,14 +41,23 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
+    # GPU support
     deploy:
       resources:
         reservations:
           devices:
             - capabilities: [gpu]
     ipc: host
+
+    env_file: .env
+    # Currently, DEBUG True will only set the logging level to DEBUG
     environment:
       DEBUG: ${DEBUG:-False}
+      # must be loaded from a .env file
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-integrated_vision_inspection_system}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shrdc}
+
     # care that the `myuser` name is used in the Dockerfile
     # this volume directly binds to the directory obtained by `appdirs` library
     # in Python in path_desc.py
@@ -66,5 +77,7 @@ volumes:
   mosquitto-data:
   app-data:
 
+# this network is to allow connection to the mosquitto-broker
+# from our app container
 networks:
   app_network:

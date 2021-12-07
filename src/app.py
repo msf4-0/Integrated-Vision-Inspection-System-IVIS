@@ -42,9 +42,15 @@ if os.environ.get("DOCKERCOMPOSE") and not session_state.db_connect_success:
     if not SECRETS_PATH.exists():
         # setup entire database for the first time and generate the secrets.toml file
         database_direct_setup()
-    if test_database_connection(**st.secrets['postgres']):
+    if SECRETS_PATH.exists() and test_database_connection(**st.secrets['postgres']):
         session_state.db_connect_success = True
         logger.debug(f"Connected with: {st.secrets = }")
+    else:
+        logger.error("There were some error creating the database config or "
+                     "connecting to database")
+        st.error("""There were some error creating the database config, the database 
+            information seems to be incorrect. Please change them in your ".env" file.""")
+        st.stop()
 
 # setup database if Streamlit's secrets.toml file is not generated yet
 if not SECRETS_PATH.exists():

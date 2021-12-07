@@ -132,11 +132,6 @@ def modify_secrets_toml(**context: Dict):
     logger.error("There were some error creating the database config or "
                  "connecting to database")
 
-    if st._is_running_with_streamlit:
-        st.error("""There were some error creating the database config, the database 
-            information seems to be incorrect.""")
-        st.stop()
-
 
 def db_config_form():
     """Database Configuration Form
@@ -248,13 +243,15 @@ def database_direct_setup():
     host = "db" if os.environ.get("DOCKERCOMPOSE") else "localhost"
     db_config = {
         "host": host,
+        # this port MUST be 5432 for PostgreSQL as default in Docker
+        "port": '5432',
         # the rest are obtained from the environment variables
         # defined in docker-compose.yml
-        "port": os.environ.get('POSTGRES_PORT', '5432'),
         "dbname": APP_DATABASE_NAME,
         "user": os.environ.get('POSTGRES_USER', 'postgres'),
         "password": os.environ.get('POSTGRES_PASSWORD', 'shrdc')
     }
+    logger.debug(f"{db_config = }")
     modify_secrets_toml(**db_config)
 
 
