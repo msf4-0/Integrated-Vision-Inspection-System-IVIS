@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
  """
 import os
 import shutil
+import stat
 import sys
 import wget
 import subprocess
@@ -55,6 +56,12 @@ def run_command(command_line_args):
             print(line)
     process.wait()
     return process.stdout
+
+
+def del_rw(action, name, exc):
+    """To delete .git directory in TFOD"""
+    os.chmod(name, stat.S_IWRITE)
+    os.remove(name)
 
 
 def install():
@@ -145,7 +152,11 @@ def install():
                 # these folders should not be removed
                 if path.name in folders_to_keep:
                     continue
-                shutil.rmtree(path)
+                if path.name == '.git':
+                    # .git folder needs special permission
+                    shutil.rmtree(path, onerror=del_rw)
+                else:
+                    shutil.rmtree(path)
             else:
                 os.remove(path)
 
