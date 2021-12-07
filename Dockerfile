@@ -33,14 +33,16 @@ RUN pip install --no-cache-dir -r requirements_no_hash.txt
 RUN mkdir /home/myuser/TFOD && git clone https://github.com/tensorflow/models /home/myuser/TFOD/models && \
     git clone https://github.com/cocodataset/cocoapi.git && \
     cd cocoapi/PythonAPI && make && cp -r pycocotools /home/myuser/TFOD/models/research
-RUN pip install pycocotools==2.0.2
+# need to upgrade pip to be able to use the '--use-feature' option later to install TFOD
+RUN pip install pycocotools==2.0.2 && \
+    pip install --upgrade pip
 
 # TFOD installation
 # these are same with the tfod_installation.py script
 RUN cd /home/myuser/TFOD/models/research && \
     protoc object_detection/protos/*.proto --python_out=. && \
     cp object_detection/packages/tf2/setup.py setup.py && \
-    python setup.py build && python setup.py install
+    pip install --use-feature=2020-resolver .
 
 # main builder image, to save space from unnecessary files
 FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04 AS runner-image

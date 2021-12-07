@@ -91,20 +91,16 @@ def install():
         # 'posix' is for Linux (also to use in Colab Notebook)
         logger.info("Installing protobuf ...")
         run_command(f"apt-get install protobuf-compiler")
+        logger.info("Installing TFOD API ...")
+        # NEW: --use-feature=2020-resolver
         cmd = (f"cd {TFOD_DIR / 'research'} "
                "&& protoc object_detection/protos/*.proto --python_out=. "
                "&& cp object_detection/packages/tf2/setup.py setup.py "
-               "&& python setup.py build && python setup.py install")
+               "&& python -m pip install --use-feature=2020-resolver .")
         run_command(cmd)
         # installing pycocotools here instead of in requirements.txt
         # because Windows NEED to install pycocotools-windows instead
         run_command('pip install pycocotools==2.0.2')
-        # The command below does not work properly because the pip install will stuck for very long
-        # run_command(
-        #     f"cd {TFOD_DIR / 'research'} "
-        #     "&& protoc object_detection/protos/*.proto --python_out=. "
-        #     "&& cp object_detection/packages/tf2/setup.py . "
-        #     "&& python -m pip install . ")
     elif os.name == 'nt':
         # 'nt' is for Windows
         # NOTE: Windows need to install COCO API first, but there is currently an ongoing issue
@@ -131,17 +127,14 @@ def install():
         os.environ['PATH'] += os.pathsep + str((PROTOC_PATH / 'bin').resolve())
         # run the `protoc` command and install all the dependencies for TFOD API
         logger.info("Installing TFOD API ...")
+        # NEW: --use-feature=2020-resolver
         cmd = (f"cd {TFOD_DIR / 'research'} "
                "&& protoc object_detection/protos/*.proto --python_out=. "
                "&& copy object_detection\\packages\\tf2\\setup.py setup.py "
-               "&& python setup.py build "
-               "&& python setup.py install")
+               "&& python -m pip install --use-feature=2020-resolver .")
         run_command(cmd)
         # reason explained above under Linux part
         run_command('pip install pycocotools-windows==2.0.0.2')
-
-    # install slim dependencies
-    run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")
 
     # remove unnecessary files
     folders_to_del = (TFOD_DIR, (TFOD_DIR / 'research'))

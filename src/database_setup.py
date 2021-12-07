@@ -245,10 +245,12 @@ def database_direct_setup():
         "host": host,
         # this port MUST be 5432 for PostgreSQL as default in Docker
         "port": '5432',
+        # user should be 'postgres' as this is the default superuser
+        # that has access to create database
+        "user": 'postgres',
         # the rest are obtained from the environment variables
         # defined in docker-compose.yml
         "dbname": APP_DATABASE_NAME,
-        "user": os.environ.get('POSTGRES_USER', 'postgres'),
         "password": os.environ.get('POSTGRES_PASSWORD', 'shrdc')
     }
     logger.debug(f"{db_config = }")

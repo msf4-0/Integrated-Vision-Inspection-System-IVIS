@@ -1,3 +1,5 @@
+# exactly the same with docker-compose.yml except for the removal of
+# "deploy" and "ipc" values from the "app"
 version: "3.8"
 
 services:
@@ -37,13 +39,6 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    # GPU support
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-    ipc: host
 
     # Currently, DEBUG True will only set the logging level to DEBUG
     # Set DEBUG to True to show all the logging messages for developers
