@@ -521,7 +521,7 @@ class Trainer:
             logger.debug("Saved evaluation script results at: "
                          f"{self.training_path['test_result_txt_file']}")
         else:
-            st.error("There was some error occurred with COCO evaluation.")
+            st.warning("There was some error occurred with COCO evaluation.")
             logger.error("There was some error occurred with COCO evaluation.")
 
         # Delete unwanted files excluding those needed for evaluation and exporting
@@ -622,7 +622,8 @@ class Trainer:
                       "then it will be displayed, otherwise discarded."),
             )
 
-            st.info(f"**Total test set images**: {len(image_paths)}")
+            total_samples = len(image_paths)
+            st.info(f"**Total test set images**: {total_samples}")
             if not exist_dict['model_tarfile']:
                 with st.expander("NOTES about inference with non-exported model:"):
                     st.markdown("""You are using the model loaded from a
@@ -641,12 +642,19 @@ class Trainer:
         start_idx = session_state['start_idx']
         current_image_paths = image_paths[start_idx: start_idx + n_samples]
 
+        end = start_idx + n_samples
+        end = end if end <= total_samples else total_samples
+        logger.info(f"Detecting from the test set images: {start_idx + 1}"
+                    f" to {end} ...")
+        options_col.info(
+            f"Showing sample images: **{start_idx + 1}** to **{end}**")
+
         def previous_samples():
             if session_state['start_idx'] > 0:
                 session_state['start_idx'] -= n_samples
 
         def next_samples():
-            max_start = len(image_paths) - n_samples
+            max_start = total_samples - n_samples
             if session_state['start_idx'] < max_start:
                 session_state['start_idx'] += n_samples
 
@@ -655,8 +663,6 @@ class Trainer:
         next_btn_col_1.button('Next samples ⏭️', key='btn_next_images_1',
                               on_click=next_samples)
 
-        logger.info(f"Detecting from the test set images: {start_idx}"
-                    f" to {start_idx + n_samples} ...")
         with st.spinner("Running detections ..."):
             # create the colors for each class to draw the bboxes nicely
             class_colors = create_class_colors(self.class_names)
@@ -697,7 +703,7 @@ class Trainer:
                                      class_names=class_names,
                                      class_colors=class_colors)
                 true_img_col.image(img, channels='RGB',
-                                   caption=f'Ground Truth: {filename}')
+                                   caption=f'{i + 1}. Ground Truth: {filename}')
                 pred_img_col.image(img_with_detections, channels='RGB',
                                    caption=f'Prediction: {filename}')
 
@@ -1357,11 +1363,12 @@ class Trainer:
                 step=1,
                 format='%d',
                 key='n_samples',
-                help="Number of samples to run detection and display results.",
+                help="Number of samples to run inference and display results.",
                 on_change=reset_start_idx
             )
 
-            st.info(f"**Total test set images**: {len(X_test)}")
+            total_samples = len(y_test)
+            st.info(f"**Total test set images**: {total_samples}")
 
         n_samples = int(session_state['n_samples'])
         start_idx = session_state['start_idx']
@@ -1371,12 +1378,19 @@ class Trainer:
         # NOTE: these are mask_paths for segmentation task
         current_labels = y_test[start_idx: start_idx + n_samples]
 
+        end = start_idx + n_samples
+        end = end if end <= total_samples else total_samples
+        logger.info(f"Detecting from the test set images: {start_idx + 1}"
+                    f" to {end} ...")
+        options_col.info(
+            f"Showing sample images: **{start_idx + 1}** to **{end}**")
+
         def previous_samples():
             if session_state['start_idx'] > 0:
                 session_state['start_idx'] -= n_samples
 
         def next_samples():
-            max_start = len(X_test) - n_samples
+            max_start = total_samples - n_samples
             if session_state['start_idx'] < max_start:
                 session_state['start_idx'] += n_samples
 
@@ -1385,14 +1399,12 @@ class Trainer:
         next_btn_col_1.button('Next samples ⏭️', key='btn_next_images_1',
                               on_click=next_samples)
 
-        logger.info(f"Detecting from the test set images: {start_idx}"
-                    f" to {start_idx + n_samples} ...")
-
         image_size = self.training_param["image_size"]
         if self.deployment_type == 'Image Classification':
             image_cols = cycle((image_col, image_col_2))
             with st.spinner("Running classifications ..."):
-                for p, label, col in zip(current_image_paths, current_labels, image_cols):
+                for i, (p, label, col) in enumerate(zip(
+                        current_image_paths, current_labels, image_cols)):
                     logger.debug(f"Image path: {p}")
                     filename = os.path.basename(p)
 
@@ -1408,7 +1420,7 @@ class Trainer:
                     pred_classname = encoded_label_dict[y_pred]
                     true_classname = encoded_label_dict[label]
 
-                    caption = (f"{filename}; "
+                    caption = (f"{i + 1}. {filename}; "
                                f"Actual: {true_classname}; "
                                f"Predicted: {pred_classname}; "
                                f"Score: {y_proba * 100:.1f}")

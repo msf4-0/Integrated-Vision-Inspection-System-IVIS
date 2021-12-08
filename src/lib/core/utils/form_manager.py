@@ -51,7 +51,20 @@ def check_if_field_empty(context: Dict, field_placeholder, name_key: str = 'name
     # if not all_field_filled:  # IF there are blank fields, iterate and produce error message
     for k, v in context.items():
         if v and v != "":
+            # also check whether the specific name exists in the database
+            # or if the name is too long to be used for directory name
             if (k == name_key):
+                # after some testing, 21 should be the maximum length
+                # to avoid reaching the 255 (or 260?) limit for Windows path
+                if len(v) > 21:
+                    logger.error("Name should be less than 21 characters long, "
+                                 "please use a shorter name")
+                    field_placeholder[k].error(
+                        "Name should be less than 21 characters long, "
+                        "please use a shorter name")
+                    empty_fields.append(k)
+                    continue
+
                 context = {'column_name': 'name', 'value': v}
 
                 if check_if_exists(context, conn):

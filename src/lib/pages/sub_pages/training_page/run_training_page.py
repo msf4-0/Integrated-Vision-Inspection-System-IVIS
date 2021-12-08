@@ -282,8 +282,7 @@ def index(RELEASE=True):
             is_resume, stdout_output=False, train_one_batch=train_one_batch)
 
         def refresh_page():
-            time.sleep(1)
-            st.experimental_rerun()
+            time.sleep(0.5)
 
         st.button("Refresh Training Page", key='btn_refresh_page',
                   help="Refresh this page to show all the results",
@@ -387,7 +386,6 @@ def index(RELEASE=True):
                         # with message_place.container():
                         try:
                             trainer.export_model()
-                            st.experimental_rerun()
                         except Exception as e:
                             st.error("""Some error has occurred when exporting,
                                 please try re-training again""")
@@ -404,6 +402,7 @@ def index(RELEASE=True):
                                'depending on the size of the trained model.')
                     if export:
                         export_callback()
+                        st.experimental_rerun()
 
         with retrain_place.container():
             retrain_col_1, resume_train_col = st.columns([1, 1])

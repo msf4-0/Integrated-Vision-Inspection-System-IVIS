@@ -285,7 +285,7 @@ def draw_gt_bboxes(
                 image_with_gt_box,
                 (xmin - 1, y),
                 (
-                    int(xmin + label_width + label_width * 0.05),
+                    int(xmin + label_width * 1.02),
                     int(y + label_height + label_height * 1),
                 ),
                 color=color,
@@ -296,7 +296,7 @@ def draw_gt_bboxes(
                 image_with_gt_box,
                 class_name,
                 (
-                    int(xmin + label_width * 0.08),
+                    int(xmin + label_width * 0.02),
                     int(y + label_height + label_height * 0.5),
                 ),  # bottom left
                 fontFace=cv2.FONT_HERSHEY_PLAIN,

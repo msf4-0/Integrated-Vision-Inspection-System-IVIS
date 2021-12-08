@@ -36,18 +36,23 @@ from appdirs import user_config_dir, user_data_dir
 from core.utils.log import logger
 
 _DIR_APP_NAME = "integrated-vision-inspection-system"
+_DIR_AUTHOR_NAME = "SHRDC"
 
 # REFERENCED LS
 
 
 def get_config_dir():
-    config_dir = user_config_dir(appname=_DIR_APP_NAME)
+    config_dir = user_config_dir(
+        appname=_DIR_APP_NAME,
+        appauthor=_DIR_AUTHOR_NAME)
     os.makedirs(config_dir, exist_ok=True)
     return config_dir
 
 
 def get_data_dir():
-    data_dir = user_data_dir(appname=_DIR_APP_NAME)
+    data_dir = user_data_dir(
+        appname=_DIR_APP_NAME,
+        appauthor=_DIR_AUTHOR_NAME)
     os.makedirs(data_dir, exist_ok=True)
     return data_dir
 

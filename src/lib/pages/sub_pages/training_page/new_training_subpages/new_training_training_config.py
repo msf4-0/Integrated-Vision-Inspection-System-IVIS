@@ -144,7 +144,6 @@ def training_configuration(RELEASE=True):
                 session_state.new_training_pagination = NewTrainingPagination.Training
             logger.debug('New Training Pagination: '
                          f'{session_state.new_training_pagination}')
-            st.experimental_rerun()
 
         if DEPLOYMENT_TYPE != "Object Detection with Bounding Boxes":
             # NOTE: these params will also be used for Semantic Segmentation for Keras training
@@ -446,6 +445,7 @@ def training_configuration(RELEASE=True):
                 check_segmentation_model()
             elif session_state.btn_training_config_submit:
                 update_training_param()
+                st.experimental_rerun()
 
     # ******************************BACK BUTTON******************************
 

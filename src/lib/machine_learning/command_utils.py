@@ -29,10 +29,10 @@ def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
                    port=port, width=width, scrolling=True)
 
 
-def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]]:
+def find_tfod_metric(name: str, cmd_output_line: str) -> Tuple[str, Union[int, float]]:
     """
-    Find the specific metric name in the command output (`cmd_output`)
-    and returns only the digits (i.e. values) of the metric.
+    Find the specific metric name in ONE LINE of command output (`cmd_output_line`)
+    and returns both the full name and the digits (i.e. values) of the metric.
 
     Basically search using regex groups, then take the last match,
     then take the first group for the metric name, and the second group for the digits.
@@ -40,14 +40,19 @@ def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]
     assert name in ('Step', 'Loss')
     try:
         if name == 'Step':
-            value = re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1]
+            value = re.findall(f'Step\s+(\d+)', cmd_output_line)[-1]
             return name, int(value)
         else:
+            if 'learning_rate' in cmd_output_line:
+                # skip showing/storing learning_rate for now
+                return
+            # take the entire loss name, e.g. "Loss/box/scale"
+            pattern = f'(Loss[/\w]*).+(\d+\.\d+)'
             loss_name, value = re.findall(
-                f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
+                pattern, cmd_output_line)[-1]
             return loss_name, float(value)
     except IndexError:
-        logger.debug(f"Value for '{name}' not found from {cmd_output}")
+        logger.debug(f"Value for '{name}' not found from {cmd_output_line}")
 
 
 def find_tfod_eval_metrics(cmd_output) -> str:

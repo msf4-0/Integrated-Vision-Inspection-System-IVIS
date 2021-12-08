@@ -159,7 +159,7 @@ def new_project_entry_page(conn=None):
         # **** PROJECT TITLE****
         st.text_input(
             "Project Title", key="new_project_name",
-            help="Enter the name of the project",
+            help="Enter the name of the project. Name should be less than 30 characters long",
             on_change=check_if_name_exist, args=(place, conn,))
         place["new_project_name"] = st.empty()
 
@@ -347,6 +347,8 @@ def new_project_entry_page(conn=None):
             else:
                 success_place.error(
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
+        else:
+            st.stop()
     # TODO #72 Change to 'Update' when 'has_submitted' == True
     submit_button = submit_col2.button(
         "Submit", key="submit", on_click=new_project_submit,
