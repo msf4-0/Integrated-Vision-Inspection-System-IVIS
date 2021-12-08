@@ -483,9 +483,20 @@ class Trainer:
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
             logger.info('Start training')
-            run_command_update_metrics(
+            traceback = run_command_update_metrics(
                 command, stdout_output=stdout_output,
                 step_name='Step')
+        if traceback:
+            st.error(
+                "Some error occurred while training, it could be due to insufficient "
+                "memory (`ResourceExhaustedError`). You can check your console output for "
+                "the error Traceback message.")
+            if 'ResourceExhaustedError' in traceback:
+                st.error(
+                    f"There is not enough memory to perform the training with the batch "
+                    f"size of **{self.training_param['batch_size']}**. Please try lowering "
+                    "the batch size and train again.")
+            return
         time_elapsed = perf_counter() - start
         m, s = divmod(time_elapsed, 60)
         m, s = int(m), int(s)

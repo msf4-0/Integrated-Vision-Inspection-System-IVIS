@@ -193,7 +193,7 @@ def run_command(command_line_args: str, st_output: bool = False,
                      "from the command outputs!")
         st.error("Some error has occurred during training ..."
                  " Please try again")
-        time.sleep(3)
+        time.sleep(2)
         st.experimental_rerun()
     elif filter_by:
         return '\n'.join(output_str_list)
@@ -278,7 +278,8 @@ def run_command_update_metrics(
     step_name: str = 'Step',
     pretty_print: Optional[bool] = False
 ) -> str:
-    """[summary]
+    """Run the command for TFOD training script and update the metrics by extracting them
+    from the script output in real time.
 
     Args:
         command_line_args (str): Command line arguments to run.
@@ -288,7 +289,7 @@ def run_command_update_metrics(
             Should be 'Step' for now. Defaults to 'Step'.
 
     Returns:
-        str: the entire console output generated from the TFOD training script
+        str: Traceback message (empty string if no error)
     """
     # assert metric_names is not None, "Please pass in metric_names to use for search and updates"
     if pretty_print:
@@ -369,7 +370,8 @@ def run_command_update_metrics(
     # wait for the process to terminate and check for any error
     returncode = process.wait()
     traceback = check_process_returncode(returncode, traceback)
-    return process.stdout.read()
+    if traceback:
+        return traceback
 
 
 def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
