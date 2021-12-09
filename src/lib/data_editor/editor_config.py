@@ -69,7 +69,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-        }
+                }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -200,6 +200,11 @@ def editor_config(project: Union[NewProject, Project]):
         place["warning_label_removal"] = st.empty()
 
         def save_editor_config():
+            if not session_state.labels_select:
+                place["warning_label_removal"].error(
+                    "Please provide at least one label")
+                st.stop()
+
             logger.info("Updating Editor Config......")
 
             if project.editor.update_editor_config():

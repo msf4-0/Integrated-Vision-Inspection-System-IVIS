@@ -885,7 +885,7 @@ def reset_editor_page():
 
     editor_attributes = ["new_annotation_flag", "task", "show_next_unlabeled"
                          "annotation", "data_labelling_table", "labelling_prev_result"
-                         'data_selection', 'zipfile_path', 'archive_success']
+                         'data_selection', 'zipfile_path']
 
     logger.debug(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)

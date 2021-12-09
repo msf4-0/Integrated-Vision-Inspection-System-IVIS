@@ -408,28 +408,28 @@ class Trainer:
                 # using the CSV file generated during the augmentation process above
                 # Must provide both image_dir and csv_path to skip the `xml_to_df` conversion step
                 run_command(
-                    f'python {files["GENERATE_TF_RECORD"]} '
+                    f'python "{files["GENERATE_TF_RECORD"]} "'
                     f'-e {image_extensions} '
-                    f'-i {paths["IMAGE_PATH"] / "train"} '
-                    f'-l {files["LABELMAP"]} '
-                    f'-d {train_xml_csv_path} '
-                    f'-o {paths["ANNOTATION_PATH"] / "train.record"} '
+                    f'-i "{paths["IMAGE_PATH"] / "train"} "'
+                    f'-l "{files["LABELMAP"]} "'
+                    f'-d "{train_xml_csv_path} "'
+                    f'-o "{paths["ANNOTATION_PATH"] / "train.record"}"'
                 )
             else:
                 run_command(
-                    f'python {files["GENERATE_TF_RECORD"]} '
+                    f'python "{files["GENERATE_TF_RECORD"]} "'
                     f'-e {image_extensions} '
-                    f'-x {paths["IMAGE_PATH"] / "train"} '
-                    f'-l {files["LABELMAP"]} '
-                    f'-o {paths["ANNOTATION_PATH"] / "train.record"}'
+                    f'-x "{paths["IMAGE_PATH"] / "train"} "'
+                    f'-l "{files["LABELMAP"]} "'
+                    f'-o "{paths["ANNOTATION_PATH"] / "train.record"}"'
                 )
             # test set images are not augmented
             run_command(
-                f'python {files["GENERATE_TF_RECORD"]} '
+                f'python "{files["GENERATE_TF_RECORD"]} "'
                 f'-e {image_extensions} '
-                f'-x {paths["IMAGE_PATH"] / "test"} '
-                f'-l {files["LABELMAP"]} '
-                f'-o {paths["ANNOTATION_PATH"] / "test.record"}'
+                f'-x "{paths["IMAGE_PATH"] / "test"} "'
+                f'-l "{files["LABELMAP"]} "'
+                f'-o "{paths["ANNOTATION_PATH"] / "test.record"}"'
             )
 
         # ********************* pipeline.config *********************
@@ -476,10 +476,10 @@ class Trainer:
         NUM_TRAIN_STEPS = self.training_param['num_train_steps']
 
         start = perf_counter()
-        command = (f"python {TRAINING_SCRIPT} "
-                   f"--model_dir={paths['MODELS']} "
-                   f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
-                   f"--num_train_steps={NUM_TRAIN_STEPS}")
+        command = (f'python "{TRAINING_SCRIPT}" '
+                   f'--model_dir "{paths["MODELS"]}" '
+                   f'--pipeline_config_path "{files["PIPELINE_CONFIG"]}" '
+                   f'--num_train_steps {NUM_TRAIN_STEPS}')
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
             logger.info('Start training')
@@ -497,6 +497,10 @@ class Trainer:
                     f"size of **{self.training_param['batch_size']}**. Please try lowering "
                     "the batch size and train again.")
             return
+        if not get_tfod_last_ckpt_path(self.training_path['models']):
+            st.error("Unknown error occurred while training, please check the terminal "
+                     "output, or contact the admin.")
+            return
         time_elapsed = perf_counter() - start
         m, s = divmod(time_elapsed, 60)
         m, s = int(m), int(s)
@@ -507,10 +511,10 @@ class Trainer:
         start = perf_counter()
         with st.spinner("Running object detection evaluation ..."):
             logger.info('Running object detection evaluation')
-            command = (f"python {TRAINING_SCRIPT} "
-                       f"--model_dir={paths['MODELS']} "
-                       f"--pipeline_config_path={files['PIPELINE_CONFIG']} "
-                       f"--checkpoint_dir={paths['MODELS']}")
+            command = (f'python "{TRAINING_SCRIPT}" '
+                       f'--model_dir "{paths["MODELS"]}" '
+                       f'--pipeline_config_path "{files["PIPELINE_CONFIG"]}" '
+                       f'--checkpoint_dir "{paths["MODELS"]}"')
             filtered_outputs = run_command(
                 command, stdout_output=stdout_output, st_output=False,
                 filter_by=['DetectionBoxes_', 'Loss/'], is_cocoeval=True)
@@ -539,9 +543,10 @@ class Trainer:
         paths_to_del = (paths['ANNOTATION_PATH'],
                         paths['IMAGE_PATH'] / 'train')
         for p in paths_to_del:
-            logger.debug("Removing unwanted directories used only "
-                         f"for TFOD training: {p}")
-            shutil.rmtree(p)
+            if p.exists():
+                logger.debug("Removing unwanted directories used only "
+                             f"for TFOD training: {p}")
+                shutil.rmtree(p)
 
     def export_tfod_model(self, stdout_output=False):
         paths = self.training_path

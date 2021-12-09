@@ -74,7 +74,7 @@ def install():
         logger.info(
             "Cloning TFOD API from https://github.com/tensorflow/models...")
         run_command(
-            f"git clone https://github.com/tensorflow/models {str(TFOD_DIR)}")
+            f'git clone https://github.com/tensorflow/models "{TFOD_DIR}"')
 
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
     # NOTE: Install COCO API ONLY if you want to perform evaluation
@@ -128,10 +128,10 @@ def install():
         # run the `protoc` command and install all the dependencies for TFOD API
         logger.info("Installing TFOD API ...")
         # NEW: --use-feature=2020-resolver
-        cmd = (f"cd {TFOD_DIR / 'research'} "
-               "&& protoc object_detection/protos/*.proto --python_out=. "
-               "&& copy object_detection\\packages\\tf2\\setup.py setup.py "
-               "&& python -m pip install --use-feature=2020-resolver .")
+        cmd = (f'cd "{TFOD_DIR / "research"}" '
+               '&& protoc object_detection/protos/*.proto --python_out=. '
+               '&& copy object_detection\\packages\\tf2\\setup.py setup.py '
+               '&& python -m pip install --use-feature=2020-resolver .')
         run_command(cmd)
         # reason explained above under Linux part
         run_command('pip install pycocotools-windows==2.0.0.2')

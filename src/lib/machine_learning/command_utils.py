@@ -24,8 +24,10 @@ def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
     logger.info(f"Running TensorBoard on {logdir}")
     # NOTE: this st_tensorboard does not work if the path passed in
     #  is NOT in POSIX format, thus the `as_posix()` method to convert
-    #  from WindowsPath to POSIX format to work in Windows
-    st_tensorboard(logdir=logdir.as_posix(),
+    #  from WindowsPath to POSIX format to work in Windows.
+    # Also adding double quotes in case there is space in the path
+    path = f'"{logdir.as_posix()}"'
+    st_tensorboard(logdir=path,
                    port=port, width=width, scrolling=True)
 
 
@@ -385,11 +387,11 @@ def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
         pipeline_conf_path = paths['config_file']
         FREEZE_SCRIPT = TFOD_DIR / 'research' / \
             'object_detection' / 'exporter_main_v2.py '
-        command = (f"python {FREEZE_SCRIPT} "
-                   "--input_type=image_tensor "
-                   f"--pipeline_config_path={pipeline_conf_path} "
-                   f"--trained_checkpoint_dir={paths['models']} "
-                   f"--output_directory={paths['export']}")
+        command = (f'python "{FREEZE_SCRIPT}" '
+                   '--input_type=image_tensor '
+                   f'--pipeline_config_path "{pipeline_conf_path}" '
+                   f'--trained_checkpoint_dir "{paths["models"]}" '
+                   f'--output_directory "{paths["export"]}"')
         run_command(command, stdout_output=False)
 
     if (paths['export'] / 'saved_model').exists():

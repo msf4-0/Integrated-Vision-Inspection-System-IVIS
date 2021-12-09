@@ -369,7 +369,7 @@ def get_colored_mask_image(image: np.ndarray,
     return output
 
 
-@st.experimental_memo
+@st.cache
 def create_color_legend(class_colors: Dict[str, Tuple[int, int, int]],
                         bgr2rgb: bool = True,
                         ignore_background: bool = True,

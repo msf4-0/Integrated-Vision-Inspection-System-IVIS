@@ -13,7 +13,7 @@ from data_manager.dataset_management import Dataset
 CONFIG_PATH = "src/lib/pages/sub_pages/training_page/new_training_subpages/augmentation/augmentations.json"
 
 
-@st.experimental_memo
+@st.cache
 def get_image_dir():
     # originally this function takes the image_folder from the sample image folder
     # image_folder = "src/lib/pages/sub_pages/training_page/new_training_subpages/images"
@@ -22,7 +22,7 @@ def get_image_dir():
     return image_folder
 
 
-@st.experimental_memo
+@st.cache
 def get_images_list(path_to_folder: str, n_images: int = 10) -> Tuple[List[str], List[str]]:
     """Return the list of images from folder
     Args:

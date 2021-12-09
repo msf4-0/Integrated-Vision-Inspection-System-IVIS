@@ -26,7 +26,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-import time
+from time import sleep
 
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -234,7 +234,7 @@ def index(RELEASE=True):
         def stop_run_training():
             # BEWARE that this will just refresh the page
             message_place.warning("Training stopped!")
-            time.sleep(2)
+            sleep(2)
             message_place.empty()
 
         # moved stop button into callback function to only show when training is started
@@ -267,7 +267,7 @@ def index(RELEASE=True):
                         "icon during training to see the progress:")
             # need to sleep for 3 seconds, otherwise the TensorBoard might accidentally
             #  load the previous checkpoints
-            time.sleep(3)
+            sleep(3)
             run_tensorboard(logdir)
 
         with st.spinner("Exporting tasks for training ..."):
@@ -282,7 +282,7 @@ def index(RELEASE=True):
             is_resume, stdout_output=False, train_one_batch=train_one_batch)
 
         def refresh_page():
-            time.sleep(0.5)
+            sleep(0.5)
 
         st.button("Refresh Training Page", key='btn_refresh_page',
                   help="Refresh this page to show all the results",
@@ -350,7 +350,7 @@ def index(RELEASE=True):
                     def show_download_msg():
                         place = st.empty()
                         place.warning("Downloading Model ...")
-                        time.sleep(2)
+                        sleep(2)
                         place.empty()
                         # remove exported directory after downloaded
                         export_dir = training_paths['export']
