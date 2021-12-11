@@ -179,20 +179,16 @@ def main():
         session_state.main_pagination = MainPagination.Login
 
     if 'user' in session_state:
-        # already logged in
-        if session_state.user.role == UserRole.Administrator:
-            # show both 'Projects', 'Create User' 'User Management' buttons
-            if session_state.main_pagination != MainPagination.Projects:
-                # only show this button if user is not in the 'Projects' page
-                st.sidebar.button("Projects", key='btn_to_projects',
-                                  on_click=to_project_cb)
+        # already logged in, show "Projects" button for navigation
+        if session_state.main_pagination != MainPagination.Projects:
+            # only show this button if user is not in the 'Projects' page
+            st.sidebar.button("Projects", key='btn_to_projects',
+                              on_click=to_project_cb)
 
+        if session_state.user.role == UserRole.Administrator:
+            # also show 'User Management' btn for navigation
             st.sidebar.button("User Management", key='btn_to_user_manage',
                               on_click=to_user_management_cb)
-        else:
-            # user should already be in the 'Projects' page after logged in,
-            # which is the only page option other than the Logout button
-            pass
 
         st.sidebar.button("User Info", key='btn_user_info',
                           on_click=to_user_info_cb)

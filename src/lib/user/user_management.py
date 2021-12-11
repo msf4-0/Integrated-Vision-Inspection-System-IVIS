@@ -56,6 +56,7 @@ USER_ROLES = ("Administrator", "Developer 1 (Deployment)",
 
 class UserRole(IntEnum):
     # must follow the order in 'users' table
+    # NOTE: these names here are not the same as `USER_ROLES`
     Administrator = 1
     Developer1 = 2
     Developer2 = 3
@@ -397,6 +398,18 @@ class User(BaseUser):
         """
         now = datetime.now()
         update_vars = [now, self.session_id, self.id]
+        db_no_fetch(sql_update, conn, update_vars)
+
+    def update_role(self, new_role: UserRole):
+        sql_update = """
+            UPDATE 
+                users
+            SET
+                roles_id = %s
+            WHERE
+                id = %s;
+        """
+        update_vars = [new_role.value, self.id]
         db_no_fetch(sql_update, conn, update_vars)
 
     def update_info(self, new_info: Dict[str, Any]):

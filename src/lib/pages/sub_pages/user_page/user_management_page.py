@@ -38,7 +38,7 @@ from core.utils.log import logger
 from core.utils.code_generator import make_random_password
 from project.project_management import NewProject, Project
 from training.training_management import NewTraining, Training
-from user.user_management import AccountStatus, User, query_all_users, reset_login_page
+from user.user_management import USER_ROLES, AccountStatus, User, UserRole, query_all_users, reset_login_page
 from main_page_management import MainPagination, UserManagementPagination, reset_user_management_page
 from data_manager.data_table_component.data_table import data_table
 from annotation.annotation_management import reset_editor_page
@@ -141,6 +141,7 @@ def dashboard():
                      "to still select the previous user and throw this error. Don't mind!")
         st.stop()
 
+    # show user info
     info_col1, _, info_col2 = st.columns([1, 0.1, 1])
     cols = cycle((info_col1, info_col2))
     for field, col in zip(USER_FIELDS, cols):
@@ -149,8 +150,11 @@ def dashboard():
         with col:
             st.markdown(f"**{field}**: {value}")
 
+    # this session_state is required in case the user wants to modify existing user info
     session_state.current_user = User(selected_user_ids[0])
+    selected_user: User = session_state.current_user
 
+    # edit user info
     def to_edit_user_cb():
         # session_state.current_user is required to modify existing user info
         session_state.user_manage_pagination = UserManagementPagination.EditUser
@@ -158,30 +162,48 @@ def dashboard():
     st.button("Edit selected user's info", key='btn_edit_selected_user',
               on_click=to_edit_user_cb)
 
+    # reset user's password
     def reset_user_psd_cb():
         random_psd = make_random_password(22)
-        session_state.current_user.update_psd(random_psd)
-        session_state.current_user.update_status(AccountStatus.NEW)
+        selected_user.update_psd(random_psd)
+        selected_user.update_status(AccountStatus.NEW)
         st.info(f"New password generated for the user: **{random_psd}**  \nPlease ask "
                 "the user to login with the temporary password to activate his account.")
 
     if st.button("Reset selected user's password", key='btn_reset_psd'):
         reset_user_psd_cb()
 
+    # edit user role
+    current_user_role_idx = USER_ROLES.index(selected_user.role.fullname)
+    st.markdown("#### Edit selected user's role")
+    with st.form("form_edit_role"):
+        selected_user_role = st.selectbox(
+            "Select a user role", options=USER_ROLES,
+            index=current_user_role_idx, key='selected_user_role')
+        if st.form_submit_button("Confirm change"):
+            new_role = UserRole.get_enum_from_fullname(selected_user_role)
+            selected_user.update_role(new_role)
+            st.success("User role updated successfully")
+            sleep(0.5)
+            st.experimental_rerun()
+
+    # edit user status
     all_status = AccountStatus.get_all_status()
     current_user_status_idx = all_status.index(
-        session_state.current_user.status.name)
+        selected_user.status.name)
     st.markdown("#### Edit selected user's status")
-    selected_user_status = st.selectbox(
-        "Select a user status", options=all_status,
-        index=current_user_status_idx, key='selected_user_status')
-    if st.button("Confirm change", key='btn_confirm_change_status'):
-        new_status = AccountStatus.from_string(selected_user_status)
-        session_state.current_user.update_status(new_status)
-        st.success("User status updated successfully")
-        sleep(1)
-        st.experimental_rerun()
+    with st.form("form_edit_status"):
+        selected_user_status = st.selectbox(
+            "Select a user status", options=all_status,
+            index=current_user_status_idx, key='selected_user_status')
+        if st.form_submit_button("Confirm change"):
+            new_status = AccountStatus.from_string(selected_user_status)
+            selected_user.update_status(new_status)
+            st.success("User status updated successfully")
+            sleep(0.5)
+            st.experimental_rerun()
 
+    # delete user
     st.markdown("___")
     danger_zone_header()
     if st.checkbox("Delete selected user", key='cbox_delete_user',
@@ -191,7 +213,7 @@ def dashboard():
         if not confirm_del:
             st.stop()
 
-        selected_user_id = session_state.current_user.id
+        selected_user_id = selected_user.id
         delete_success = User.delete_user(selected_user_id)
         if not delete_success:
             st.error(
@@ -201,7 +223,7 @@ def dashboard():
 
         del session_state['current_user']
         st.success("User deleted successfully")
-        sleep(1)
+        sleep(0.5)
 
         # clean up the session's user if he decided to delete himself
         if selected_user_id == session_state.user.id:

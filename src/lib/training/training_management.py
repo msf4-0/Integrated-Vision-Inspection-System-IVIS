@@ -873,6 +873,7 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
+
     @staticmethod
     def reset_new_training_page():
 
@@ -950,6 +951,7 @@ class Training(BaseTraining):
         paths['models'] = root / 'models' / model_dirname
 
         if self.deployment_type == 'Object Detection with Bounding Boxes' \
+            and isinstance(self.attached_model, Model) \
                 and self.attached_model.is_not_pretrained:
             # otherwise if is pretrained, we will create the path during TFOD training
             paths['trained_model'] = self.attached_model.get_path()
@@ -980,7 +982,8 @@ class Training(BaseTraining):
             # this file is probably only needed for TF object detection
             paths['config_file'] = paths['models'] / 'pipeline.config'
         else:
-            if self.attached_model.is_not_pretrained:
+            if isinstance(self.attached_model, Model) \
+                    and self.attached_model.is_not_pretrained:
                 paths['trained_keras_model_file'] = self.attached_model.get_path(
                     return_keras_filepath=True)
             # created this path to save all the test set related paths and encoded_labels
@@ -1363,6 +1366,7 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
+
 
     @staticmethod
     def progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],

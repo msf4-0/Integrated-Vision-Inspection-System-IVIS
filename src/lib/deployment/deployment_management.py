@@ -110,6 +110,7 @@ class DeploymentPagination(IntEnum):
 
 @dataclass(eq=False)
 class DeploymentConfig:
+    timezone: str = "Singapore"
     input_type: str = 'Image'
     video_width: int = 500
     use_camera: bool = False
@@ -117,7 +118,9 @@ class DeploymentConfig:
     camera_port: int = 0
     retention_period: int = 7
     mqtt_qos: int = 1
+    # whether is publishing inference results or not
     publishing: bool = True
+    # whether is publishing current output frame or not
     publish_frame: bool = False
 
     # not always used

@@ -8,6 +8,8 @@ camera:
   publish_results: homie/webcam/capture
   start_publish_topic: homie/webcam/start
   stop_publish_topic: homie/webcam/stop
+  start_publish_frame_topic: homie/webcam/start_publish_frame
+  stop_publish_frame_topic: homie/webcam/stop_publish_frame
 
 processing:
   subscribe_topic: homie/webcam/capture

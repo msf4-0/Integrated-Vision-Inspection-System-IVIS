@@ -16,7 +16,9 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 import re
+import numpy as np
 
+import pytz
 import cv2
 import pandas as pd
 import streamlit as st
@@ -47,12 +49,15 @@ conn = init_connection(**st.secrets["postgres"])
 DATETIME_STR_FORMAT = "%Y-%m-%d_%H-%M-%S_%f"
 
 
-def get_now_string(dt_format=DATETIME_STR_FORMAT) -> str:
-    return datetime.now().strftime(dt_format)
+@st.experimental_memo
+def get_all_timezones() -> Tuple[str, ...]:
+    return tuple(pytz.all_timezones)
 
 
-def get_today_string(dt_format="%d-%b") -> str:
-    return datetime.now().strftime(dt_format)
+def get_now_string(dt_format=DATETIME_STR_FORMAT, timezone="Singapore") -> str:
+    local_tz = pytz.timezone(timezone)
+    tz_now = datetime.now(tz=local_tz)
+    return tz_now.strftime(dt_format)
 
 
 class TimerError(Exception):
@@ -538,3 +543,12 @@ def list_available_cameras():
         cap.release()
         dev_port += 1
     return available_ports, working_ports
+
+
+def save_captured_frame(frame: np.ndarray, save_dir: Path):
+    now = get_now_string()
+    filename = f'image-{now}.png'
+    save_path = str(save_dir / filename)
+    logger.info(f'saving frame at: "{save_path}"')
+    cv2.imwrite(save_path,
+                cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))

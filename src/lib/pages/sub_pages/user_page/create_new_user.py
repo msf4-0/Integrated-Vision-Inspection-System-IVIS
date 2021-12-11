@@ -135,7 +135,7 @@ def show(layout='wide'):
                     st.info(
                         f"Your user role is **{user_role}**. You are not an Administrator. "
                         "Therefore, you are not allowed to change your user role.")
-                    new_user["role"] = user_role
+                    new_user["role"] = user_role.fullname
                 else:
                     role_name = current_user.role.fullname
                     role_idx = USER_ROLES.index(role_name)
@@ -200,19 +200,28 @@ def show(layout='wide'):
                 new_user["confirm_psd"] = random_psd
 
         st.markdown("___")
-        submit_create_user_form = st.form_submit_button(
-            "Submit")
+        label = "Update" if existing_user else "Submit"
+        submit_create_user_form = st.form_submit_button(label)
         # submit_create_user_form = st.button(
         #     "Submit", key="submit_create_user_form")
         if submit_create_user_form:  # IF all fields are populated -> RETURN True
             if existing_user:
                 all_fields = FIELDS.copy()
-                # 'psd' fields can be empty to skip updating password
-                # all_fields['existing_psd'] = "Current Password"
-                del all_fields['psd']
+                # add an extra field to check for confirming password
+                all_fields['confirm_psd'] = "Confirm Password"
+                user_inputs = new_user.copy()
+
+                if not (new_user["existing_psd"] or new_user["psd"]
+                        or new_user["confirm_psd"]):
+                    # All password fields can be empty to skip checking/updating password
+                    del user_inputs['psd']
+                    del user_inputs['existing_psd']
+                    del user_inputs["confirm_psd"]
             else:
+                user_inputs = new_user
                 all_fields = FIELDS
-            has_submitted = check_if_field_empty(new_user, place, all_fields)
+            has_submitted = check_if_field_empty(
+                user_inputs, place, all_fields)
             if not has_submitted:
                 st.stop()
 

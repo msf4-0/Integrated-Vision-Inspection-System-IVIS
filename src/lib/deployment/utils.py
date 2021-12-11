@@ -35,6 +35,8 @@ class MQTTTopics(NamedTuple):
     publish_frame: str
     start_publish: str
     stop_publish: str
+    start_publish_frame: str
+    stop_publish_frame: str
     save_frame: str
     start_record: str
     stop_record: str
@@ -58,6 +60,8 @@ class MQTTConfig:
         publish_results=CONFIG["camera"]["publish_results"],
         start_publish=CONFIG["camera"]["start_publish_topic"],
         stop_publish=CONFIG["camera"]["stop_publish_topic"],
+        start_publish_frame=CONFIG["camera"]["start_publish_frame_topic"],
+        stop_publish_frame=CONFIG["camera"]["stop_publish_frame_topic"],
         save_frame=CONFIG['save-captures']["save_frame_topic"],
         start_record=CONFIG['save-captures']['start_record_topic'],
         stop_record=CONFIG['save-captures']['stop_record_topic']

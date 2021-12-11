@@ -62,7 +62,7 @@ from machine_learning.visuals import create_class_colors, create_color_legend
 from data_manager.dataset_management import Dataset
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
 from deployment.utils import MQTTConfig, create_csv_file_and_writer, encode_frame, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
-from core.utils.helper import Timer, get_now_string, list_available_cameras
+from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_captured_frame
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
@@ -102,31 +102,32 @@ def index(RELEASE=True):
     def update_deploy_conf(conf_attr: str):
         """Update deployment config on any change of the widgets.
 
-        NOTE: `conf_attr` must exist in the `session_state` and must be the same
-        with the `DeploymentConfig` attribute's name."""
+        NOTE: `conf_attr` must exist in the `session_state` (usually is the widget's state)
+        and must be the same with the `DeploymentConfig` attribute's name."""
         val = session_state[conf_attr]
         logger.debug(f"Updated deploy_conf: {conf_attr} = {val}")
         setattr(deploy_conf, conf_attr, val)
 
-    deploy_status_col = st.sidebar.container()
-    pause_deploy_place = st.sidebar.empty()
+    deploy_status_col = st.container()
 
     with deploy_status_col:
         st.subheader("Deployment Status")
+        deploy_status_place = st.empty()
         st.warning("NOTE: Please do not simply refresh the page without ending "
                    "deployment or errors could occur.")
 
-    st.sidebar.button(
-        "End Deployment", key='btn_stop_image_deploy',
-        on_click=stop_deployment,
-        help="This will stop the deployment and reset the entire  \n"
-        "deployment configuration. Please **make sure** to use this  \n"
-        "button to stop deployment before proceeding to any other  \n"
-        "page! Or use the **pause button** (only available for camera  \n"
-        "input) if you want to pause the deployment to do any other  \n"
-        "things without resetting, such as switching user, or viewing  \n"
-        "the latest saved CSV file (only for video camera deployment).")
-    st.sidebar.markdown("___")
+        pause_deploy_place = st.empty()
+        st.button(
+            "End Deployment", key='btn_stop_image_deploy',
+            on_click=stop_deployment,
+            help="This will stop the deployment and reset the entire  \n"
+            "deployment configuration. Please **make sure** to use this  \n"
+            "button to stop deployment before proceeding to any other  \n"
+            "page! Or use the **pause button** (only available for camera  \n"
+            "input) if you want to pause the deployment to do any other  \n"
+            "things without resetting, such as switching user, or viewing  \n"
+            "the latest saved CSV file (only for video camera deployment).")
+        st.markdown("___")
 
     if user.role <= UserRole.Developer1:
         # use this variable to know whether the user has access to edit deployment config
@@ -144,6 +145,14 @@ def index(RELEASE=True):
         st.markdown(f"**Input type**: {deploy_conf.input_type}")
 
     options_col, _ = st.columns(2)
+
+    with options_col:
+        all_timezones = get_all_timezones()
+        tz_idx = all_timezones.index(deploy_conf.timezone)
+        st.selectbox(
+            "Local Timezone", all_timezones, index=tz_idx, key='timezone',
+            help="Select your local timezone to have the correct time output in results.",
+            on_change=update_deploy_conf, args=('timezone',))
 
     if DEPLOYMENT_TYPE == 'Image Classification':
         pipeline_kwargs = {}
@@ -237,8 +246,7 @@ def index(RELEASE=True):
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
 
-        with deploy_status_col:
-            st.info("Deployment started for input images")
+        deploy_status_place.info("Deployment started for input images")
 
         if DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
             with st.expander("Notes about deployment for semantic segmentation"):
@@ -481,12 +489,11 @@ def index(RELEASE=True):
         if session_state.camera:
             if isinstance(session_state.camera, WebcamVideoStream):
                 stream = session_state.camera.stream
-                with deploy_status_col:
-                    st.info("Deployment started for video camera")
+                deploy_status_place.info("Deployment started for video camera")
             else:
                 stream = session_state.camera
-                with deploy_status_col:
-                    st.info("Deployment started for uploaded video")
+                deploy_status_place.info(
+                    "Deployment started for uploaded video")
 
             width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -566,22 +573,29 @@ def index(RELEASE=True):
             # session_state.client_connected = False
             session_state.publishing = False
             deploy_conf.publishing = False
+            deploy_conf.publish_frame = False
             logger.info("Stopped")
             session_state.refresh = True
             # st.success("Stopped publishing")
             # cannot use this within mqtt callback
             # st.experimental_rerun()
 
+        def start_publish_frame_cb(client, userdata, msg):
+            logger.info("Start publishing frames")
+            deploy_conf.publish_frame = True
+            session_state.refresh = True
+
+        def stop_publish_frame_cb(client, userdata, msg):
+            logger.info("Stopping publishing frames...")
+            deploy_conf.publish_frame = False
+            logger.info("Stopped")
+            session_state.refresh = True
+
         def save_frame_cb(client, userdata, msg):
-            now = get_now_string()
-            filename = f'image-{now}.png'
-            save_path = str(saved_frame_dir / filename)
-            logger.debug(f'Payload received for topic "{msg.topic}", '
-                         f'saving frame at: "{save_path}"')
+            logger.debug(f'Payload received for topic "{msg.topic}"')
             # need this to access to the frame from within mqtt callback
             nonlocal output_img
-            cv2.imwrite(save_path,
-                        cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR))
+            save_captured_frame(output_img, saved_frame_dir)
 
         def start_record_cb(client, userdata, msg):
             session_state.record = True
@@ -616,18 +630,23 @@ def index(RELEASE=True):
             "#### Subscribed MQTT Topics:  \n"
             f"**Start publishing results**: {conf.topics.start_publish}  \n"
             f"**Stop publishing results**: {conf.topics.stop_publish}  \n"
+            f"**Start publishing frames**: {conf.topics.start_publish_frame}  \n"
+            f"**Stop publishing frames**: {conf.topics.stop_publish_frame}  \n"
             f"**Save current frame**: {conf.topics.save_frame}  \n"
             f"**Start recording frames**: {conf.topics.start_record}  \n"
             f"**Stop recording frames**: {conf.topics.stop_record}")
         with st.sidebar.expander("Notes"):
             st.markdown(
-                f"""Make sure to connect to **'localhost'** broker server with the correct
-                port. Then just publish an arbitrary message to any of the subscribed
-                MQTT topics to trigger the functionality. For the saved frames, they will 
-                be saved in your project's folder at *{saved_frame_dir}*, while recorded 
-                video will be saved at *{recording_dir}*. Please **do not simply delete 
-                these folders during deployment**, otherwise error will occur. You can 
-                delete them after pausing/ending the deployment if you wish.""")
+                f"Make sure to connect to **'localhost'** broker (or IP Address of this PC) "
+                f"with the correct port **{conf.port}**. "
+                "Then just publish an arbitrary message to any of "
+                "the subscribed MQTT topics to trigger the functionality.  \nFor the saved "
+                f"frames, they will be saved in your project's folder at *{saved_frame_dir}*, "
+                f"while recorded video will be saved at *{recording_dir}*. Please "
+                "**do not simply delete these folders during deployment**, "
+                "otherwise error will occur. You can delete them after pausing/ending "
+                "the deployment if you wish.  \n"
+                "For the publishing frames, they are in **bytes** format.")
 
         if not session_state.client_connected:
             logger.debug(f"{conf = }")
@@ -653,6 +672,10 @@ def index(RELEASE=True):
                     conf.topics.start_publish, start_publish_cb)
                 session_state.client.message_callback_add(
                     conf.topics.stop_publish, stop_publish_cb)
+                session_state.client.message_callback_add(
+                    conf.topics.start_publish_frame, start_publish_frame_cb)
+                session_state.client.message_callback_add(
+                    conf.topics.stop_publish_frame, stop_publish_frame_cb)
                 session_state.client.message_callback_add(
                     conf.topics.save_frame, save_frame_cb)
                 session_state.client.message_callback_add(
@@ -700,25 +723,31 @@ def index(RELEASE=True):
                 # also change whether publishing frame or not
                 deploy_conf.publish_frame = is_publishing
 
+            def update_publish_frame_conf(publish_frame: bool):
+                deploy_conf.publish_frame = publish_frame
+
             if session_state.publishing:
                 # using buttons to allow the widget to change after rerun
                 # whereas checkbox does not change after rerun
                 publish_place.button("Stop publishing results", key='btn_stop_pub',
                                      on_click=update_publishing_conf, args=(False,))
-
-                publish_frame = st.sidebar.checkbox(
-                    "Publish frames", value=deploy_conf.publish_frame,
-                    key='cbox_publish_frames',
-                    help="Publish frames as bytes to the MQTT Topic: "
-                    f"*{conf.topics.publish_frame}*.  \nNote that this could significantly "
-                    "reduce FPS.")
-                if publish_frame:
-                    deploy_conf.publish_frame = True
-                else:
-                    deploy_conf.publish_frame = False
             else:
                 publish_place.button("Start publishing results", key='btn_start_pub',
                                      on_click=update_publishing_conf, args=(True,))
+
+            if deploy_conf.publish_frame:
+                st.sidebar.button(
+                    "Stop publishing frames", key='btn_stop_pub_frame',
+                    help="Stop publishing frames as bytes to the MQTT Topic: "
+                    f"*{conf.topics.publish_frame}*.",
+                    on_click=update_publish_frame_conf, args=(False,))
+            else:
+                st.sidebar.button(
+                    "Publish frames", key='btn_start_pub_frame',
+                    help="Publish frames as bytes to the MQTT Topic: "
+                    f"*{conf.topics.publish_frame}*.  \nNote that this could significantly "
+                    "reduce FPS.", on_click=update_publish_frame_conf, args=(True,))
+
         else:
             session_state.publishing = deploy_conf.publishing
             if session_state.publishing:
@@ -727,6 +756,7 @@ def index(RELEASE=True):
             else:
                 st.markdown(
                     "Currently is not publishing any results through MQTT.")
+
             if deploy_conf.publish_frame:
                 st.markdown("Currently is publishing output frames to the topic: "
                             f"*{conf.topics.publish_frame}*")
@@ -751,6 +781,7 @@ def index(RELEASE=True):
             st.markdown(kpi_format(height), unsafe_allow_html=True)
         st.markdown("___")
 
+        # prepare variables for the video deployment loop
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=draw_result, **pipeline_kwargs)
         logger.debug(f"{DEPLOYMENT_TYPE = }")
@@ -783,6 +814,7 @@ def index(RELEASE=True):
         fps = 0
         prev_time = 0
         first_csv_save = True
+        # start the video deployment loop
         while True:
             if session_state.refresh:
                 # refresh page once to refresh the widgets
