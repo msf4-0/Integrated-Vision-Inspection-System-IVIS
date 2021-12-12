@@ -35,6 +35,7 @@ from enum import IntEnum
 from glob import glob, iglob
 from itertools import chain
 
+from natsort import os_sorted
 import cv2
 import numpy as np
 import pandas as pd
@@ -1185,8 +1186,11 @@ def get_single_data_name_list(dataset_name: str) -> List:
     #     data_name = Path(data_path).name
     #     data_name_tmp.append(data_name)
 
-    data_name_list = [Path(data_path).name
-                      for data_path in iglob(str(dataset_path))]  # UPDATED with List comprehension
+    # `os_sorted` to sort like file browser
+    # to make the order of the files make more sense to the user
+    # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
+    paths = os_sorted(glob(str(dataset_path)))
+    data_name_list = [os.path.basename(data_path) for data_path in paths]
 
     return data_name_list
 

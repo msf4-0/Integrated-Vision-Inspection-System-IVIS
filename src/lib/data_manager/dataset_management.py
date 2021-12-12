@@ -506,6 +506,7 @@ class NewDataset(BaseDataset):
             if return_annotations:
                 return self.annotation_files, img_filepaths
             return img_filepaths
+
         # ***************** Checking Image Classification and Segmentation data *****************
         elif deployment_type == 'Image Classification':
             # this is actually CSV format
@@ -1212,6 +1213,7 @@ def get_latest_captured_image_path() -> Tuple[Path, int]:
 
     def get_image_num(image_path: Path):
         return int(image_path.stem)
+
     existing_captured = sorted(
         CAPTURED_IMAGES_DIR.rglob('*png'),
         key=get_image_num,
@@ -1219,7 +1221,8 @@ def get_latest_captured_image_path() -> Tuple[Path, int]:
     if not existing_captured:
         image_num = 1
     else:
-        image_num = get_image_num(existing_captured[0])
+        image_num = get_image_num(existing_captured[0]) + 1
+
     filename = f'{image_num}.png'
     save_path = CAPTURED_IMAGES_DIR / filename
     return save_path, image_num

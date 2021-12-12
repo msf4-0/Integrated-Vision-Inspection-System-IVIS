@@ -30,6 +30,7 @@ import shutil
 from pathlib import Path
 from time import perf_counter, sleep
 
+from natsort import os_sorted
 import cv2
 from imutils.video.webcamvideostream import WebcamVideoStream
 from humanize import naturalsize
@@ -512,9 +513,12 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
 
                     if is_existing_dataset:
-                        # insert the new image info into the `task` table for existing dataset
+                        # insert the new image info into the `task` table for existing dataset,
+                        # `os_sorted` is used to sort the files just like in file browser
+                        # to make the order of the files make more sense to the user
+                        # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
                         image_names = [os.path.basename(p)
-                                       for p in image_paths]
+                                       for p in os_sorted(image_paths)]
                         session_state.project.insert_new_project_task(
                             session_state.new_dataset.name,
                             session_state.new_dataset.id,

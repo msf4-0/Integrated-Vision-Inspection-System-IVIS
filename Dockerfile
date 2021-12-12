@@ -46,9 +46,10 @@ RUN cd /home/myuser/TFOD/models/research && \
 
 # main builder image, to save space from unnecessary files
 FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04 AS runner-image
+# python3-icu is required for the Python 'natsort' library to sort files like file browser
 # libpq-dev is required for psycopg2 library
 # libgl1-mesa-glx and the rest are required for OpenCV library
-RUN apt update && apt install --no-install-recommends -y python3.8 python3-venv && \
+RUN apt update && apt install --no-install-recommends -y python3.8 python3-venv python3-icu && \
     apt install -y libpq-dev libgl1-mesa-glx ffmpeg libglib2.0-0 libsm6 libxrender1 libxext6 && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
