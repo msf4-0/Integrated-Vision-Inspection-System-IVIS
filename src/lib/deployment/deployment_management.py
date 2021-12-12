@@ -117,7 +117,6 @@ class DeploymentConfig:
     camera_type: str = 'USB Camera'
     camera_port: int = 0
     retention_period: int = 7
-    mqtt_qos: int = 1
     # whether is publishing inference results or not
     publishing: bool = True
     # whether is publishing current output frame or not
@@ -464,7 +463,7 @@ class Deployment(BaseDeployment):
         reset_client()
 
         project_attributes = ["deployment_pagination", "deployment", "trainer", "publishing",
-                              "refresh", "deployment_conf", "today"]
+                              "refresh", "deployment_conf", "today", "mqtt_conf"]
 
         reset_page_attributes(project_attributes)
 

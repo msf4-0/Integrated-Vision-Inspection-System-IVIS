@@ -30,7 +30,8 @@ def load_mqtt_config() -> Dict[str, str]:
     return config
 
 
-class MQTTTopics(NamedTuple):
+@dataclass(eq=False)
+class MQTTTopics:
     publish_results: str
     publish_frame: str
     start_publish: str
@@ -45,7 +46,7 @@ class MQTTTopics(NamedTuple):
 CONFIG = load_mqtt_config()
 
 
-@dataclass(init=False, frozen=True, eq=False)
+@dataclass(eq=False)
 class MQTTConfig:
     # 'mosquitto' is the service name defined in docker-compose.yml
     broker: str = 'mosquitto' if os.environ.get(

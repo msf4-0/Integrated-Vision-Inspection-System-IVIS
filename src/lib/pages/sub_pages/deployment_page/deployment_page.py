@@ -31,6 +31,7 @@ import os
 import shutil
 import sys
 from time import perf_counter, sleep
+from typing import Callable
 
 import cv2
 from imutils.video.webcamvideostream import WebcamVideoStream
@@ -61,7 +62,7 @@ from data_manager.database_manager import init_connection
 from machine_learning.visuals import create_class_colors, create_color_legend
 from data_manager.dataset_management import Dataset
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
-from deployment.utils import MQTTConfig, create_csv_file_and_writer, encode_frame, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
+from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, encode_frame, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
 from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_captured_frame
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -132,6 +133,19 @@ def index(RELEASE=True):
     if user.role <= UserRole.Developer1:
         # use this variable to know whether the user has access to edit deployment config
         has_access = True
+    else:
+        has_access = False
+        st.info(f"NOTE: Your user role **{user.role.fullname}** "
+                "does not have access to editing deployment configuration.")
+
+    if has_access:
+        all_timezones = get_all_timezones()
+        tz_idx = all_timezones.index(deploy_conf.timezone)
+        st.sidebar.selectbox(
+            "Local Timezone", all_timezones, index=tz_idx, key='timezone',
+            help="Select your local timezone to have the correct time output in results.",
+            on_change=update_deploy_conf, args=('timezone',))
+
         options = ('Image', 'Video')
         idx = options.index(deploy_conf.input_type)
         st.sidebar.radio(
@@ -139,20 +153,10 @@ def index(RELEASE=True):
             index=idx, key='input_type',
             on_change=update_deploy_conf, args=('input_type',))
     else:
-        has_access = False
-        st.info(f"NOTE: Your user role **{user.role.fullname}** "
-                "does not have access to editing deployment configuration.")
+        st.info(f"Selected timezone: **{deploy_conf.timezone}**")
         st.markdown(f"**Input type**: {deploy_conf.input_type}")
 
     options_col, _ = st.columns(2)
-
-    with options_col:
-        all_timezones = get_all_timezones()
-        tz_idx = all_timezones.index(deploy_conf.timezone)
-        st.selectbox(
-            "Local Timezone", all_timezones, index=tz_idx, key='timezone',
-            help="Select your local timezone to have the correct time output in results.",
-            on_change=update_deploy_conf, args=('timezone',))
 
     if DEPLOYMENT_TYPE == 'Image Classification':
         pipeline_kwargs = {}
@@ -299,6 +303,8 @@ def index(RELEASE=True):
             st.image(img_with_detections, width=display_width,
                      caption=f'Detection result for: {filename}')
 
+        st.stop()
+
     elif deploy_conf.input_type == 'Video':
         def update_conf_and_reset_camera(conf_attr: str):
             update_deploy_conf(conf_attr)
@@ -433,91 +439,11 @@ def index(RELEASE=True):
                         "Be sure to click the `Pause deployment` button "
                         "to ensure the latest CSV file is saved properly if you have any "
                         "problem with opening the file.")
-
-            # only show these if a camera is not selected and not deployed yet
-            if not session_state.camera:
-                if st.sidebar.button(
-                    "🛠️ Deploy Model", key='btn_start_cam',
-                        help='Deploy your model with the selected camera source'):
-                    with st.spinner("Loading up camera ..."):
-                        # NOTE: VideoStream does not work with filepath
-                        try:
-                            session_state.camera = WebcamVideoStream(
-                                src=video_source).start()
-                            if session_state.camera.read() is None:
-                                raise Exception("Video source is not valid")
-                        except Exception as e:
-                            st.error(
-                                f"Unable to read from video source {video_source}")
-                            logger.error(
-                                f"Unable to read from video source {video_source}: {e}")
-                            st.stop()
-                        else:
-                            sleep(2)  # give the camera some time to sink in
-                        # rerun just to avoid displaying unnecessary buttons
-                        st.experimental_rerun()
         else:
             video_file = st.sidebar.file_uploader(
                 "Or upload a video", type=['mp4', 'mov', 'avi', 'asf', 'm4v'],
-                key='video_file_uploader')
-            if not video_file:
-                st.stop()
+                key='video_file_uploader', on_change=reset_camera)
 
-            if TEMP_DIR.exists():
-                shutil.rmtree(TEMP_DIR)
-            os.makedirs(TEMP_DIR)
-            video_path = str(TEMP_DIR / video_file.name)
-            logger.debug(f"{video_path = }")
-            with open(video_path, 'wb') as f:
-                f.write(video_file.getvalue())
-
-            try:
-                session_state.camera = cv2.VideoCapture(video_path)
-                assert session_state.camera.isOpened(), "Video is unreadable"
-                st.text('Input Video')
-                st.video(video_path)
-            except Exception as e:
-                st.error(f"Unable to read from the video file: "
-                         f"'{video_file.name}'")
-                logger.error(f"Unable to read from the video file: "
-                             f"'{video_file.name}' with error: {e}")
-                st.stop()
-            else:
-                sleep(2)  # give the camera some time to sink in
-
-        # after user has clicked the "Deploy Model button"
-        if session_state.camera:
-            if isinstance(session_state.camera, WebcamVideoStream):
-                stream = session_state.camera.stream
-                deploy_status_place.info("Deployment started for video camera")
-            else:
-                stream = session_state.camera
-                deploy_status_place.info(
-                    "Deployment started for uploaded video")
-
-            width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps_input = int(stream.get(cv2.CAP_PROP_FPS))
-            logger.info(
-                f"Video properties: {width = }, {height = }, {fps_input = }")
-
-            def pause_deployment():
-                reset_camera()
-                reset_record_and_vid_writer()
-                reset_csv_file_and_writer()
-
-            pause_deploy_place.button(
-                "Pause Deployment", key='btn_pause_deploy',
-                on_click=pause_deployment,
-                help=("Pause deployment after you have deployed the model  \n"
-                      "with a running video camera. Or use this to reset  \n"
-                      "camera if there is any problem with loading up  \n"
-                      "the camera. Note that this is extremely important  \n"
-                      "to ensure your camera is properly stopped and the  \n"
-                      "camera access is given back to your system. This will  \n"
-                      "also save the latest CSV file in order to be opened."))
-        else:
-            st.stop()
         # **************************** MQTT STUFF ****************************
         saved_frame_dir = deployment.get_frame_save_dir('image')
         recording_dir = deployment.get_frame_save_dir('video')
@@ -531,6 +457,8 @@ def index(RELEASE=True):
             session_state.client_connected = False
             session_state.publishing = True
 
+            session_state.mqtt_conf = MQTTConfig()
+
         if 'csv_writer' not in session_state:
             session_state.csv_writer = None
             session_state.csv_file = None
@@ -541,26 +469,6 @@ def index(RELEASE=True):
         if 'record' not in session_state:
             session_state.record = False
             session_state.vid_writer = None
-
-        def create_video_writer_if_not_exists():
-            if not session_state.vid_writer:
-                logger.info("Creating video file to record to")
-                # NOTE: THIS VIDEO SAVE FORMAT IS VERY PLATFORM DEPENDENT
-                # TODO: THE VIDEO FILE MIGHT NOT SAVE PROPERLY
-                # usually either MJPG + .avi, or XVID + .mp4
-                FOURCC = cv2.VideoWriter_fourcc(*"XVID")
-                filename = f"video_{get_now_string()}.mp4"
-                video_save_path = str(recording_dir / filename)
-                # st.info(f"Video is being saved to **{video_save_path}**")
-                logger.info(f"Video is being saved to '{video_save_path}'")
-                # this FPS value is the FPS of the output video file,
-                # note that if this value is much higher than the fps
-                # during the inference time, the output video will look
-                # like it's moving very very fast
-                FPS = 24
-                session_state.vid_writer = cv2.VideoWriter(
-                    video_save_path, FOURCC, FPS,
-                    (width, height), True)
 
         def start_publish_cb(client, userdata, msg):
             logger.info("Start publishing")
@@ -605,49 +513,32 @@ def index(RELEASE=True):
             session_state.record = False
             session_state.refresh = True
 
-        conf = MQTTConfig()
+        conf: MQTTConfig = session_state.mqtt_conf
+
+        def add_client_callbacks():
+            topics: MQTTTopics = session_state.mqtt_conf.topics
+
+            # on_message() will serve as fallback when none matched
+            # or use this to be more precise on the subscription topic filter
+            session_state.client.message_callback_add(
+                topics.start_publish, start_publish_cb)
+            session_state.client.message_callback_add(
+                topics.stop_publish, stop_publish_cb)
+            session_state.client.message_callback_add(
+                topics.start_publish_frame, start_publish_frame_cb)
+            session_state.client.message_callback_add(
+                topics.stop_publish_frame, stop_publish_frame_cb)
+            session_state.client.message_callback_add(
+                topics.save_frame, save_frame_cb)
+            session_state.client.message_callback_add(
+                topics.start_record, start_record_cb)
+            session_state.client.message_callback_add(
+                topics.stop_record, stop_record_cb)
 
         st.sidebar.markdown("___")
         st.sidebar.subheader("MQTT Options")
-        if has_access:
-            st.sidebar.radio(
-                'MQTT QoS', (0, 1, 2), deploy_conf.mqtt_qos, key='mqtt_qos',
-                on_change=update_deploy_conf, args=('mqtt_qos',))
-        else:
-            st.sidebar.markdown(
-                f"MQTT QoS is set to level **{deploy_conf.mqtt_qos}**")
-        # NOTE: Docker needs to use service name instead to connect to broker,
-        # but user should always connect to 'localhost'
-        st.sidebar.info(
-            f"Connected to MQTT broker **localhost** at port **{conf.port}**")
-        st.sidebar.info(
-            "#### Publishing Results to MQTT Topic:  \n"
-            f"{conf.topics.publish_results}  \n"
-            "#### Publishing output frames to:  \n"
-            f"{conf.topics.publish_frame}"
-        )
-        st.sidebar.info(
-            "#### Subscribed MQTT Topics:  \n"
-            f"**Start publishing results**: {conf.topics.start_publish}  \n"
-            f"**Stop publishing results**: {conf.topics.stop_publish}  \n"
-            f"**Start publishing frames**: {conf.topics.start_publish_frame}  \n"
-            f"**Stop publishing frames**: {conf.topics.stop_publish_frame}  \n"
-            f"**Save current frame**: {conf.topics.save_frame}  \n"
-            f"**Start recording frames**: {conf.topics.start_record}  \n"
-            f"**Stop recording frames**: {conf.topics.stop_record}")
-        with st.sidebar.expander("Notes"):
-            st.markdown(
-                f"Make sure to connect to **'localhost'** broker (or IP Address of this PC) "
-                f"with the correct port **{conf.port}**. "
-                "Then just publish an arbitrary message to any of "
-                "the subscribed MQTT topics to trigger the functionality.  \nFor the saved "
-                f"frames, they will be saved in your project's folder at *{saved_frame_dir}*, "
-                f"while recorded video will be saved at *{recording_dir}*. Please "
-                "**do not simply delete these folders during deployment**, "
-                "otherwise error will occur. You can delete them after pausing/ending "
-                "the deployment if you wish.  \n"
-                "For the publishing frames, they are in **bytes** format.")
 
+        # connect MQTT broker and set up callbacks
         if not session_state.client_connected:
             logger.debug(f"{conf = }")
             logger.debug(f"{conf.topics = }")
@@ -661,36 +552,278 @@ def index(RELEASE=True):
                         f"Error connecting to MQTT broker {conf.broker}: {e}")
                     # return
                     st.stop()
+
                 sleep(2)  # Wait for connection setup to complete
                 logger.info("MQTT client connected successfully to "
                             f"{conf.broker} on port {conf.port}")
                 session_state.client_connected = True
 
-                # on_message will serve as fallback when none matched
-                # or use this to be more precise on the subscription topic filter
-                session_state.client.message_callback_add(
-                    conf.topics.start_publish, start_publish_cb)
-                session_state.client.message_callback_add(
-                    conf.topics.stop_publish, stop_publish_cb)
-                session_state.client.message_callback_add(
-                    conf.topics.start_publish_frame, start_publish_frame_cb)
-                session_state.client.message_callback_add(
-                    conf.topics.stop_publish_frame, stop_publish_frame_cb)
-                session_state.client.message_callback_add(
-                    conf.topics.save_frame, save_frame_cb)
-                session_state.client.message_callback_add(
-                    conf.topics.start_record, start_record_cb)
-                session_state.client.message_callback_add(
-                    conf.topics.stop_record, stop_record_cb)
-                for topic in conf.topics:
+                add_client_callbacks()
+
+                for topic in conf.topics.__dict__.values():
                     session_state.client.subscribe(
-                        topic, qos=deploy_conf.mqtt_qos)
+                        topic, qos=conf.qos)
+
                 session_state.client.loop_start()
+
                 # need to add this to avoid Missing ReportContext error
                 # https://github.com/streamlit/streamlit/issues/1326
                 add_report_ctx(session_state.client._thread)
 
-        # ************************ OUTPUT VIDEO STUFF ************************
+        # NOTE: Docker needs to use service name instead to connect to broker,
+        # but user should always connect to 'localhost'
+        st.sidebar.info(f"**MQTT broker**: localhost  \n**Port**: {conf.port}")
+
+        if has_access:
+            topic_error_place = st.sidebar.empty()
+
+            def update_mqtt_qos():
+                # take from the widget's state and save to our mqtt_conf
+                logger.info(f"Updated QoS level from {conf.qos} to "
+                            f"{session_state.mqtt_qos}")
+                conf.qos = session_state.mqtt_qos
+
+                for topic in conf.topics.__dict__.values():
+                    session_state.client.unsubscribe(topic)
+                    session_state.client.subscribe(
+                        topic, qos=conf.qos)
+
+            # def update_conf_topic(topic_attr: str):
+            def update_conf_topic():
+                for topic_attr in conf.topics.__dict__.keys():
+                    new_topic = session_state[topic_attr]
+                    if new_topic == '':
+                        logger.error('Topic cannot be empty string')
+                        topic_error_place.error('Topic cannot be empty string')
+                        sleep(1)
+                        st.experimental_rerun()
+
+                    # unsubscribe the old topic and remove old topic callback
+                    previous_topic = getattr(conf.topics, topic_attr)
+
+                    if new_topic == previous_topic:
+                        # no need to change anything if user didn't change the topic
+                        continue
+
+                    session_state.client.unsubscribe(previous_topic)
+                    session_state.client.message_callback_remove(
+                        previous_topic)
+
+                    # update MQTTConfig with new topic, add callback, and subscribe
+                    setattr(conf.topics, topic_attr, new_topic)
+
+                    if topic_attr not in ('publish_results', 'publish_frame'):
+                        # only these two topics don't have callbacks
+                        callback_func = eval(f'{topic_attr}_cb')
+                        session_state.client.message_callback_add(
+                            new_topic, callback_func)
+                    session_state.client.subscribe(new_topic, qos=conf.qos)
+
+                    logger.info(f"Updated MQTTConfig.{topic_attr} from {previous_topic} "
+                                f"to {new_topic}")
+
+            st.sidebar.radio(
+                'MQTT QoS', (0, 1, 2), conf.qos, key='mqtt_qos',
+                on_change=update_mqtt_qos)
+
+            st.sidebar.markdown("**MQTT Topics**")
+            st.sidebar.markdown(
+                "If you change any MQTT topic name(s), please click the **Update Config** "
+                "button to allow the changes to be made.")
+            # must clear on submit to show the correct values on form
+            with st.sidebar.form('form_mqtt_topics', clear_on_submit=True):
+                st.text_input(
+                    'Publishing Results to MQTT Topic', conf.topics.publish_results,
+                    key='publish_results')
+                st.text_input(
+                    'Publishing output frames to', conf.topics.publish_frame,
+                    key='publish_frame')
+                st.text_input(
+                    'Start publishing results', conf.topics.start_publish,
+                    key='start_publish')
+                st.text_input(
+                    'Stop publishing results', conf.topics.stop_publish,
+                    key='stop_publish')
+                st.text_input(
+                    'Start publishing frames', conf.topics.start_publish_frame,
+                    key='start_publish_frame')
+                st.text_input(
+                    'Stop publishing frames', conf.topics.stop_publish_frame,
+                    key='stop_publish_frame')
+                st.text_input(
+                    'Save current frame', conf.topics.save_frame,
+                    key='save_frame')
+                st.text_input(
+                    'Start recording frames', conf.topics.start_record,
+                    key='start_record')
+                st.text_input(
+                    'Stop recording frames', conf.topics.stop_record,
+                    key='stop_record')
+                st.form_submit_button(
+                    "Update Config", on_click=update_conf_topic,
+                    help="Please press this button to update if you change any MQTT "
+                    "topic name(s).")
+        else:
+            st.sidebar.markdown(
+                f"MQTT QoS is set to level **{conf.qos}**")
+            st.sidebar.info(
+                "#### Publishing Results to MQTT Topic:  \n"
+                f"{conf.topics.publish_results}  \n"
+                "#### Publishing output frames to:  \n"
+                f"{conf.topics.publish_frame}"
+            )
+            st.sidebar.info(
+                "#### Subscribed MQTT Topics:  \n"
+                f"**Start publishing results**: {conf.topics.start_publish}  \n"
+                f"**Stop publishing results**: {conf.topics.stop_publish}  \n"
+                f"**Start publishing frames**: {conf.topics.start_publish_frame}  \n"
+                f"**Stop publishing frames**: {conf.topics.stop_publish_frame}  \n"
+                f"**Save current frame**: {conf.topics.save_frame}  \n"
+                f"**Start recording frames**: {conf.topics.start_record}  \n"
+                f"**Stop recording frames**: {conf.topics.stop_record}")
+        with st.sidebar.expander("Notes"):
+            st.markdown(
+                f"Make sure to connect to **'localhost'** broker (or IP Address of this PC) "
+                f"with the correct port **{conf.port}**. "
+                "Then just publish an arbitrary message to any of "
+                "the subscribed MQTT topics to trigger the functionality.  \nFor the **saved "
+                f"frames**, they will be saved in your project's folder at *{saved_frame_dir}*, "
+                f"while recorded video will be saved at *{recording_dir}*. Please "
+                "**do not simply delete these folders during deployment**, "
+                "otherwise error will occur. You can delete them after pausing/ending "
+                "the deployment if you wish.  \n"
+                "For the **publishing frames**, they are in **bytes** format.")
+
+        # ************************ Video deployment button ************************
+
+        # allow the user to click the "Deploy Model button" after done configuring everything
+        if deploy_conf.input_type == 'Video':
+            if deploy_conf.use_camera:
+                # only show these if a camera is not selected and not deployed yet
+                if not session_state.camera:
+                    if st.sidebar.button(
+                        "🛠️ Deploy Model", key='btn_deploy_cam',
+                            help='Deploy your model with the selected camera source'):
+                        with st.spinner("Loading up camera ..."):
+                            # NOTE: VideoStream does not work with filepath
+                            try:
+                                session_state.camera = WebcamVideoStream(
+                                    src=video_source).start()
+                                if session_state.camera.read() is None:
+                                    raise Exception(
+                                        "Video source is not valid")
+                            except Exception as e:
+                                st.error(
+                                    f"Unable to read from video source {video_source}")
+                                logger.error(
+                                    f"Unable to read from video source {video_source}: {e}")
+                                st.stop()
+
+                            sleep(2)  # give the camera some time to sink in
+                            stream = session_state.camera.stream
+                            deploy_status_place.info(
+                                "Deployment started for video camera")
+                            # rerun just to avoid displaying unnecessary buttons
+                            st.experimental_rerun()
+            else:
+                if not video_file:
+                    st.stop()
+
+                video_path = str(TEMP_DIR / video_file.name)
+
+                if st.sidebar.button(
+                    "🛠️ Deploy Model", key='btn_deploy_cam',
+                        help='Deploy your model with the selected camera source'):
+
+                    if TEMP_DIR.exists():
+                        shutil.rmtree(TEMP_DIR)
+                    os.makedirs(TEMP_DIR)
+                    logger.debug(f"{video_path = }")
+                    with open(video_path, 'wb') as f:
+                        f.write(video_file.getvalue())
+
+                    try:
+                        session_state.camera = cv2.VideoCapture(video_path)
+                        assert session_state.camera.isOpened(), "Video is unreadable"
+                    except Exception as e:
+                        st.error(f"Unable to read from the video file: "
+                                 f"'{video_file.name}'")
+                        logger.error(f"Unable to read from the video file: "
+                                     f"'{video_file.name}' with error: {e}")
+                        st.stop()
+
+                    sleep(2)  # give the camera some time to sink in
+                    stream = session_state.camera
+                    deploy_status_place.info(
+                        "Deployment started for uploaded video")
+                    st.experimental_rerun()
+
+        # after user has clicked the "Deploy Model button"
+        if session_state.camera:
+            if isinstance(session_state.camera, WebcamVideoStream):
+                stream = session_state.camera.stream
+                deploy_status_place.info("Deployment started for video camera")
+            else:
+                stream = session_state.camera
+                deploy_status_place.info(
+                    "Deployment started for uploaded video")
+
+                with deploy_status_col:
+                    st.subheader('Input Video')
+                    try:
+                        st.video(video_path)
+                    except Exception as e:
+                        st.error(f"Unable to read from the video file: "
+                                 f"'{video_file.name}'")
+                        logger.error(f"Unable to read from the video file: "
+                                     f"'{video_file.name}' with error: {e}")
+                        st.stop()
+
+            width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps_input = int(stream.get(cv2.CAP_PROP_FPS))
+            logger.info(
+                f"Video properties: {width = }, {height = }, {fps_input = }")
+
+            def pause_deployment():
+                reset_camera()
+                reset_record_and_vid_writer()
+                reset_csv_file_and_writer()
+
+            pause_deploy_place.button(
+                "Pause Deployment", key='btn_pause_deploy',
+                on_click=pause_deployment,
+                help=("Pause deployment after you have deployed the model  \n"
+                      "with a running video camera. Or use this to reset  \n"
+                      "camera if there is any problem with loading up  \n"
+                      "the camera. Note that this is extremely important  \n"
+                      "to ensure your camera is properly stopped and the  \n"
+                      "camera access is given back to your system. This will  \n"
+                      "also save the latest CSV file in order to be opened."))
+        else:
+            st.stop()
+
+        # *********************** Deployment video loop ***********************
+        def create_video_writer_if_not_exists():
+            if not session_state.vid_writer:
+                logger.info("Creating video file to record to")
+                # NOTE: THIS VIDEO SAVE FORMAT IS VERY PLATFORM DEPENDENT
+                # TODO: THE VIDEO FILE MIGHT NOT SAVE PROPERLY
+                # usually either MJPG + .avi, or XVID + .mp4
+                FOURCC = cv2.VideoWriter_fourcc(*"XVID")
+                filename = f"video_{get_now_string()}.mp4"
+                video_save_path = str(recording_dir / filename)
+                # st.info(f"Video is being saved to **{video_save_path}**")
+                logger.info(f"Video is being saved to '{video_save_path}'")
+                # this FPS value is the FPS of the output video file,
+                # note that if this value is much higher than the fps
+                # during the inference time, the output video will look
+                # like it's moving very very fast
+                FPS = 24
+                session_state.vid_writer = cv2.VideoWriter(
+                    video_save_path, FOURCC, FPS,
+                    (width, height), True)
+
         st.subheader("Output Video")
         show_video_col = st.container()
         record_text_place = st.empty()
@@ -743,8 +876,8 @@ def index(RELEASE=True):
                     on_click=update_publish_frame_conf, args=(False,))
             else:
                 st.sidebar.button(
-                    "Publish frames", key='btn_start_pub_frame',
-                    help="Publish frames as bytes to the MQTT Topic: "
+                    "Start publishing frames", key='btn_start_pub_frame',
+                    help="Publish frames as bytes to the MQTT Topic:  \n"
                     f"*{conf.topics.publish_frame}*.  \nNote that this could significantly "
                     "reduce FPS.", on_click=update_publish_frame_conf, args=(True,))
 
@@ -784,7 +917,7 @@ def index(RELEASE=True):
         # prepare variables for the video deployment loop
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=draw_result, **pipeline_kwargs)
-        logger.debug(f"{DEPLOYMENT_TYPE = }")
+
         if DEPLOYMENT_TYPE == 'Image Classification':
             is_image_classif = True
             get_result_fn = deployment.get_classification_results
@@ -796,9 +929,9 @@ def index(RELEASE=True):
             get_result_fn = partial(deployment.get_detection_results,
                                     conf_threshold=deploy_conf.confidence_threshold)
         publish_func = partial(session_state.client.publish,
-                               conf.topics.publish_results, qos=deploy_conf.mqtt_qos)
+                               conf.topics.publish_results, qos=conf.qos)
         publish_frame_fn = partial(session_state.client.publish,
-                                   conf.topics.publish_frame, qos=deploy_conf.mqtt_qos)
+                                   conf.topics.publish_frame, qos=conf.qos)
 
         starting_time = datetime.now()
         csv_path = deployment.get_csv_path(starting_time)
@@ -937,7 +1070,9 @@ def index(RELEASE=True):
             # must release to close the video file
             session_state.vid_writer.release()
             session_state.vid_writer = None
+
         reset_camera()
+
         if TEMP_DIR.exists():
             logger.debug("Removing temporary directory")
             shutil.rmtree(TEMP_DIR)
