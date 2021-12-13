@@ -377,7 +377,7 @@ class Deployment(BaseDeployment):
 
     def get_classification_results(self, pred_classname: str, probability: float,
                                    timezone: str):
-        results = [{'class_found': pred_classname,
+        results = [{'name': pred_classname,
                     # need to change to string to be serialized with json.dumps()
                     'probability': f"{probability * 100:.2f}%",
                     'time': get_now_string(timezone=timezone)}]

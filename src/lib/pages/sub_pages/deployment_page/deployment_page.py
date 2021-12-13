@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+from collections import Counter
 from datetime import datetime
 from functools import partial
 import json
@@ -37,6 +38,7 @@ import cv2
 from imutils.video.webcamvideostream import WebcamVideoStream
 from matplotlib import pyplot as plt
 import numpy as np
+from paho.mqtt.client import Client
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
@@ -64,6 +66,7 @@ from data_manager.dataset_management import Dataset
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
 from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, encode_frame, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
 from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_captured_frame
+from dobot_arm_demo import main as dobot_demo
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
@@ -113,11 +116,17 @@ def index(RELEASE=True):
 
     with deploy_status_col:
         st.subheader("Deployment Status")
+
         deploy_status_place = st.empty()
-        st.warning("NOTE: Please do not simply refresh the page without ending "
+        deploy_status_place.info("**Status**: Not deployed. Please upload an image/video "
+                                 "or use video camera.")
+
+        st.warning("**NOTE**: Please do not simply refresh the page without ending "
                    "deployment or errors could occur.")
 
+        deploy_btn_place = st.empty()
         pause_deploy_place = st.empty()
+
         st.button(
             "End Deployment", key='btn_stop_image_deploy',
             on_click=stop_deployment,
@@ -137,6 +146,9 @@ def index(RELEASE=True):
         has_access = False
         st.info(f"NOTE: Your user role **{user.role.fullname}** "
                 "does not have access to editing deployment configuration.")
+        st.markdown("___")
+
+    st.sidebar.subheader("Configuration")
 
     if has_access:
         all_timezones = get_all_timezones()
@@ -162,7 +174,7 @@ def index(RELEASE=True):
         pipeline_kwargs = {}
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
         class_colors = create_class_colors(deployment.class_names)
-        ignore_background = st.checkbox(
+        ignore_background = st.sidebar.checkbox(
             "Ignore background", value=deploy_conf.ignore_background,
             key='ignore_background',
             help="Ignore background class for visualization purposes.  \n"
@@ -170,8 +182,8 @@ def index(RELEASE=True):
             on_change=update_deploy_conf, args=('ignore_background',))
         legend = create_color_legend(
             class_colors, bgr2rgb=False, ignore_background=ignore_background)
-        st.markdown("**Legend**")
-        st.image(legend)
+        st.sidebar.markdown("**Legend**")
+        st.sidebar.image(legend)
         # convert to array
         class_colors = np.array(list(class_colors.values()),
                                 dtype=np.uint8)
@@ -250,7 +262,7 @@ def index(RELEASE=True):
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
 
-        deploy_status_place.info("Deployment started for input images")
+        deploy_status_place.info("**Status**: Deployed for input images")
 
         if DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
             with st.expander("Notes about deployment for semantic segmentation"):
@@ -513,6 +525,7 @@ def index(RELEASE=True):
             session_state.record = False
             session_state.refresh = True
 
+        client: Client = session_state.client
         conf: MQTTConfig = session_state.mqtt_conf
 
         def add_client_callbacks():
@@ -520,19 +533,19 @@ def index(RELEASE=True):
 
             # on_message() will serve as fallback when none matched
             # or use this to be more precise on the subscription topic filter
-            session_state.client.message_callback_add(
+            client.message_callback_add(
                 topics.start_publish, start_publish_cb)
-            session_state.client.message_callback_add(
+            client.message_callback_add(
                 topics.stop_publish, stop_publish_cb)
-            session_state.client.message_callback_add(
+            client.message_callback_add(
                 topics.start_publish_frame, start_publish_frame_cb)
-            session_state.client.message_callback_add(
+            client.message_callback_add(
                 topics.stop_publish_frame, stop_publish_frame_cb)
-            session_state.client.message_callback_add(
+            client.message_callback_add(
                 topics.save_frame, save_frame_cb)
-            session_state.client.message_callback_add(
+            client.message_callback_add(
                 topics.start_record, start_record_cb)
-            session_state.client.message_callback_add(
+            client.message_callback_add(
                 topics.stop_record, stop_record_cb)
 
         st.sidebar.markdown("___")
@@ -544,7 +557,7 @@ def index(RELEASE=True):
             logger.debug(f"{conf.topics = }")
             with st.spinner("Connecting to MQTT broker ..."):
                 try:
-                    session_state.client.connect(conf.broker, port=conf.port)
+                    client.connect(conf.broker, port=conf.port)
                 except Exception as e:
                     st.error("Error connecting to MQTT broker")
                     # st.exception(e)
@@ -561,14 +574,13 @@ def index(RELEASE=True):
                 add_client_callbacks()
 
                 for topic in conf.topics.__dict__.values():
-                    session_state.client.subscribe(
-                        topic, qos=conf.qos)
+                    client.subscribe(topic, qos=conf.qos)
 
-                session_state.client.loop_start()
+                client.loop_start()
 
                 # need to add this to avoid Missing ReportContext error
                 # https://github.com/streamlit/streamlit/issues/1326
-                add_report_ctx(session_state.client._thread)
+                add_report_ctx(client._thread)
 
         # NOTE: Docker needs to use service name instead to connect to broker,
         # but user should always connect to 'localhost'
@@ -584,9 +596,8 @@ def index(RELEASE=True):
                 conf.qos = session_state.mqtt_qos
 
                 for topic in conf.topics.__dict__.values():
-                    session_state.client.unsubscribe(topic)
-                    session_state.client.subscribe(
-                        topic, qos=conf.qos)
+                    client.unsubscribe(topic)
+                    client.subscribe(topic, qos=conf.qos)
 
             # def update_conf_topic(topic_attr: str):
             def update_conf_topic():
@@ -598,26 +609,24 @@ def index(RELEASE=True):
                         sleep(1)
                         st.experimental_rerun()
 
-                    # unsubscribe the old topic and remove old topic callback
                     previous_topic = getattr(conf.topics, topic_attr)
 
                     if new_topic == previous_topic:
                         # no need to change anything if user didn't change the topic
                         continue
 
-                    session_state.client.unsubscribe(previous_topic)
-                    session_state.client.message_callback_remove(
-                        previous_topic)
+                    # unsubscribe the old topic and remove old topic callback
+                    client.unsubscribe(previous_topic)
+                    client.message_callback_remove(previous_topic)
 
                     # update MQTTConfig with new topic, add callback, and subscribe
                     setattr(conf.topics, topic_attr, new_topic)
 
                     if topic_attr not in ('publish_results', 'publish_frame'):
-                        # only these two topics don't have callbacks
+                        # only these two topics don't have callbacks to add
                         callback_func = eval(f'{topic_attr}_cb')
-                        session_state.client.message_callback_add(
-                            new_topic, callback_func)
-                    session_state.client.subscribe(new_topic, qos=conf.qos)
+                        client.message_callback_add(new_topic, callback_func)
+                    client.subscribe(new_topic, qos=conf.qos)
 
                     logger.info(f"Updated MQTTConfig.{topic_attr} from {previous_topic} "
                                 f"to {new_topic}")
@@ -701,7 +710,7 @@ def index(RELEASE=True):
             if deploy_conf.use_camera:
                 # only show these if a camera is not selected and not deployed yet
                 if not session_state.camera:
-                    if st.sidebar.button(
+                    if deploy_btn_place.button(
                         "🛠️ Deploy Model", key='btn_deploy_cam',
                             help='Deploy your model with the selected camera source'):
                         with st.spinner("Loading up camera ..."):
@@ -720,9 +729,6 @@ def index(RELEASE=True):
                                 st.stop()
 
                             sleep(2)  # give the camera some time to sink in
-                            stream = session_state.camera.stream
-                            deploy_status_place.info(
-                                "Deployment started for video camera")
                             # rerun just to avoid displaying unnecessary buttons
                             st.experimental_rerun()
             else:
@@ -731,7 +737,7 @@ def index(RELEASE=True):
 
                 video_path = str(TEMP_DIR / video_file.name)
 
-                if st.sidebar.button(
+                if deploy_btn_place.button(
                     "🛠️ Deploy Model", key='btn_deploy_cam',
                         help='Deploy your model with the selected camera source'):
 
@@ -753,20 +759,18 @@ def index(RELEASE=True):
                         st.stop()
 
                     sleep(2)  # give the camera some time to sink in
-                    stream = session_state.camera
-                    deploy_status_place.info(
-                        "Deployment started for uploaded video")
                     st.experimental_rerun()
 
         # after user has clicked the "Deploy Model button"
         if session_state.camera:
             if isinstance(session_state.camera, WebcamVideoStream):
                 stream = session_state.camera.stream
-                deploy_status_place.info("Deployment started for video camera")
+                deploy_status_place.info(
+                    "**Status**: Deployed for video camera input")
             else:
                 stream = session_state.camera
                 deploy_status_place.info(
-                    "Deployment started for uploaded video")
+                    "**Status**: Deployed for uploaded video")
 
                 with deploy_status_col:
                     st.subheader('Input Video')
@@ -802,6 +806,10 @@ def index(RELEASE=True):
                       "also save the latest CSV file in order to be opened."))
         else:
             st.stop()
+
+        # *********************** DOBOT arm demo ***********************
+        st.button("Move DOBOT and detect",
+                  key='btn_move_dobot', on_click=dobot_demo.run)
 
         # *********************** Deployment video loop ***********************
         def create_video_writer_if_not_exists():
@@ -931,9 +939,9 @@ def index(RELEASE=True):
             get_result_fn = partial(deployment.get_detection_results,
                                     conf_threshold=deploy_conf.confidence_threshold,
                                     timezone=deploy_conf.timezone)
-        publish_func = partial(session_state.client.publish,
+        publish_func = partial(client.publish,
                                conf.topics.publish_results, qos=conf.qos)
-        publish_frame_fn = partial(session_state.client.publish,
+        publish_frame_fn = partial(client.publish,
                                    conf.topics.publish_frame, qos=conf.qos)
 
         starting_time = datetime.now()
@@ -950,6 +958,8 @@ def index(RELEASE=True):
         fps = 0
         prev_time = 0
         first_csv_save = True
+
+        msg_place = st.empty()
         # start the video deployment loop
         while True:
             if session_state.refresh:
@@ -1027,6 +1037,23 @@ def index(RELEASE=True):
                     out = output_img
                 frame_bytes = encode_frame(out)
                 info = publish_frame_fn(frame_bytes)
+
+            if session_state.check_labels:
+                view = session_state.check_labels
+                if view == 'end':
+                    # clear the message if the robot motion is ended
+                    msg_place.empty()
+                    # and reset back to None
+                    session_state.check_labels = None
+
+                required_label_cnts = dobot_demo.BOX_VIEW_LABELS[view]
+                detected_labels = [r['name'] for r in results]
+                detected_label_cnts = Counter(detected_labels)
+                detected_label_cnts = list(detected_label_cnts.items())
+                if detected_label_cnts == [required_label_cnts]:
+                    msg_place.success(f"{view.upper()} view: **OK**")
+                else:
+                    msg_place.error(f"{view.upper()} view: **NG**")
 
             if not results:
                 continue
