@@ -375,17 +375,18 @@ class Deployment(BaseDeployment):
         elif self.deployment_type == 'Semantic Segmentation with Polygons':
             return partial(self.segment_inference_pipeline, **kwargs)
 
-    def get_classification_results(self, pred_classname: str, probability: float):
+    def get_classification_results(self, pred_classname: str, probability: float,
+                                   timezone: str):
         results = [{'class_found': pred_classname,
                     # need to change to string to be serialized with json.dumps()
                     'probability': f"{probability * 100:.2f}%",
-                    'time': get_now_string()}]
+                    'time': get_now_string(timezone=timezone)}]
         return results
 
-    def get_detection_results(self, detections: Dict[str, Any],
+    def get_detection_results(self, detections: Dict[str, Any], timezone: str,
                               conf_threshold: float = None) -> List[Dict[str, Any]]:
         results = []
-        now = get_now_string()
+        now = get_now_string(timezone=timezone)
         for class_id, prob, box in zip(detections['detection_classes'],
                                        detections['detection_scores'],
                                        detections['detection_boxes']):
@@ -403,10 +404,11 @@ class Deployment(BaseDeployment):
             results.append(detection)
         return results
 
-    def get_segmentation_results(self, prediction_mask: np.ndarray) -> List[Dict[str, Any]]:
+    def get_segmentation_results(self, prediction_mask: np.ndarray,
+                                 timezone: str) -> List[Dict[str, Any]]:
         class_names = self.class_names_arr[np.unique(prediction_mask)]
         results = [{'classes_found': class_names.tolist(),
-                   'time': get_now_string()}]
+                   'time': get_now_string(timezone=timezone)}]
         return results
 
     def get_csv_path(self, now: datetime) -> Path:

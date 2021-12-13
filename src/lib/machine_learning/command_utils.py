@@ -394,7 +394,7 @@ def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
                    f'--output_directory "{paths["export"]}"')
         run_command(command, stdout_output=False)
 
-    if (paths['export'] / 'saved_model').exists():
+    if (paths['export'] / 'saved_model' / 'saved_model.pb').exists():
         logger.info("Successfully exported TensorFlow Object Detection model")
         return True
     else:

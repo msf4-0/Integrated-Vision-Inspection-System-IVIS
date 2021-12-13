@@ -27,6 +27,8 @@ ENV PATH="/home/myuser/venv/bin:$PATH"
 COPY requirements_no_hash.txt .
 RUN pip install --no-cache-dir wheel
 RUN pip install --no-cache-dir -r requirements_no_hash.txt
+# RUN pip uninstall -y opencv-python && \
+#     pip install opencv-python-headless
 
 # COCO API installation, note that paths are based on path_desc.py
 # these are same with the tfod_installation.py script
@@ -49,8 +51,11 @@ FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04 AS runner-image
 # python3-icu is required for the Python 'natsort' library to sort files like file browser
 # libpq-dev is required for psycopg2 library
 # libgl1-mesa-glx and the rest are required for OpenCV library
-RUN apt update && apt install --no-install-recommends -y python3.8 python3-venv python3-icu && \
-    apt install -y libpq-dev libgl1-mesa-glx ffmpeg libglib2.0-0 libsm6 libxrender1 libxext6 && \
+RUN apt update && apt install --no-install-recommends -y python3.8 python3-venv
+# Don't need all these, only need libgl1-mesa-glx and libglib2.0-0
+# apt install -y python3-icu libpq-dev libgl1-mesa-glx ffmpeg libglib2.0-0 libsm6 libxrender1 libxext6 && \
+RUN apt install -y python3-icu libpq-dev && \
+    apt install -y libgl1-mesa-glx libglib2.0-0 && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home myuser

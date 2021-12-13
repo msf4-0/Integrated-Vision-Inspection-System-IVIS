@@ -295,7 +295,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 35, 1000, 500, 5, key='display_width',
                 help="This does not affect the size of the captured image as it depends on the camera.")
 
-            is_limiting = st.checkbox("Limit images captured per second")
+            is_limiting = st.checkbox("Limit images captured per second", value=True)
             if is_limiting:
                 img_per_sec = st.slider(
                     "Max images per second",

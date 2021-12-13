@@ -143,8 +143,8 @@ def db_config_form():
             'host': session_state.host,
             'port': session_state.port,
             'dbname': session_state.dbname,
-            'user': session_state.user,
-            'password': session_state.password
+            'user': session_state.user_input,
+            'password': session_state.password_input
         }
 
         if check_if_field_empty(context):
@@ -192,13 +192,15 @@ def db_config_form():
         st.markdown("""This should be based on the user and password used during 
             your PostgreSQL installation.""")
         # user
+        # session_state.user will conflict with our logged in user's session_state
+        # so must use another key besides 'user'
         st.text_input(
-            label='User', value='postgres', key='user',
+            label='User', value='postgres', key='user_input',
             help="The default admin user should be **postgres**, change this if it is not.")
 
         # password
         st.text_input(label='Password',
-                      key='password', type='password')
+                      key='password_input', type='password')
 
         if st.form_submit_button(label='Submit'):
             create_secrets_toml()

@@ -146,6 +146,10 @@ def index(RELEASE=True):
     **Dataset List**: {dataset_chosen_str}  \n
     **Partition Ratio**: training : validation : test -> 
     {partition_ratio['train']} : {partition_ratio['eval']} : {partition_ratio['test']}  \n
+    **Partition Size**: training : validation : test -> 
+    {session_state.new_training.partition_size['train']} :
+    {session_state.new_training.partition_size['eval']} :
+    {session_state.new_training.partition_size['test']}  \n
     **Selected Model Name**: {training.attached_model.name}  \n
     **Model Name**: {training.training_model.name}  \n
     **Model Description**: {training.training_model.desc}

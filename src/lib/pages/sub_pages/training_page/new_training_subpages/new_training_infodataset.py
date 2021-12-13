@@ -193,7 +193,7 @@ def infodataset():
 
             st.slider("Dataset Partition Ratio",
                       min_value=0.5, max_value=1.0,
-                      value=slider_value, step=0.1,
+                      value=slider_value, step=0.01,
                       key="partition_slider", on_change=update_dataset_partition_ratio)
 
             with st.expander("Partition info"):
@@ -259,8 +259,9 @@ def infodataset():
             highlight_row, selections=session_state.new_training_dataset_chosen, axis=1)
 
         # >>>>DATAFRAME
-        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
-            [dict(selector='th', props=[('text-align', 'center')])]))
+        # st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+        #     [dict(selector='th', props=[('text-align', 'center')])]))
+        st.dataframe(styler, height=800)
     # ******************* Left Column to show full list of dataset and selection *******************
 
     # **************************************** DATASET PAGINATION ****************************************

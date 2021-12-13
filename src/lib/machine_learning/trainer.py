@@ -408,27 +408,27 @@ class Trainer:
                 # using the CSV file generated during the augmentation process above
                 # Must provide both image_dir and csv_path to skip the `xml_to_df` conversion step
                 run_command(
-                    f'python "{files["GENERATE_TF_RECORD"]} "'
+                    f'python "{files["GENERATE_TF_RECORD"]}" '
                     f'-e {image_extensions} '
-                    f'-i "{paths["IMAGE_PATH"] / "train"} "'
-                    f'-l "{files["LABELMAP"]} "'
-                    f'-d "{train_xml_csv_path} "'
+                    f'-i "{paths["IMAGE_PATH"] / "train"}" '
+                    f'-l "{files["LABELMAP"]}" '
+                    f'-d "{train_xml_csv_path}" '
                     f'-o "{paths["ANNOTATION_PATH"] / "train.record"}"'
                 )
             else:
                 run_command(
-                    f'python "{files["GENERATE_TF_RECORD"]} "'
+                    f'python "{files["GENERATE_TF_RECORD"]}" '
                     f'-e {image_extensions} '
-                    f'-x "{paths["IMAGE_PATH"] / "train"} "'
-                    f'-l "{files["LABELMAP"]} "'
+                    f'-x "{paths["IMAGE_PATH"] / "train"}" '
+                    f'-l "{files["LABELMAP"]}" '
                     f'-o "{paths["ANNOTATION_PATH"] / "train.record"}"'
                 )
             # test set images are not augmented
             run_command(
-                f'python "{files["GENERATE_TF_RECORD"]} "'
+                f'python "{files["GENERATE_TF_RECORD"]}" '
                 f'-e {image_extensions} '
-                f'-x "{paths["IMAGE_PATH"] / "test"} "'
-                f'-l "{files["LABELMAP"]} "'
+                f'-x "{paths["IMAGE_PATH"] / "test"}" '
+                f'-l "{files["LABELMAP"]}" '
                 f'-o "{paths["ANNOTATION_PATH"] / "test.record"}"'
             )
 

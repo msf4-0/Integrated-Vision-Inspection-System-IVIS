@@ -811,7 +811,7 @@ def index(RELEASE=True):
                 # TODO: THE VIDEO FILE MIGHT NOT SAVE PROPERLY
                 # usually either MJPG + .avi, or XVID + .mp4
                 FOURCC = cv2.VideoWriter_fourcc(*"XVID")
-                filename = f"video_{get_now_string()}.mp4"
+                filename = f"video_{get_now_string(timezone=deploy_conf.timezone)}.mp4"
                 video_save_path = str(recording_dir / filename)
                 # st.info(f"Video is being saved to **{video_save_path}**")
                 logger.info(f"Video is being saved to '{video_save_path}'")
@@ -920,14 +920,17 @@ def index(RELEASE=True):
 
         if DEPLOYMENT_TYPE == 'Image Classification':
             is_image_classif = True
-            get_result_fn = deployment.get_classification_results
+            get_result_fn = partial(deployment.get_classification_results,
+                                    timezone=deploy_conf.timezone)
         elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
             is_image_classif = False
-            get_result_fn = deployment.get_segmentation_results
+            get_result_fn = partial(deployment.get_segmentation_results,
+                                    timezone=deploy_conf.timezone)
         else:
             is_image_classif = False
             get_result_fn = partial(deployment.get_detection_results,
-                                    conf_threshold=deploy_conf.confidence_threshold)
+                                    conf_threshold=deploy_conf.confidence_threshold,
+                                    timezone=deploy_conf.timezone)
         publish_func = partial(session_state.client.publish,
                                conf.topics.publish_results, qos=conf.qos)
         publish_frame_fn = partial(session_state.client.publish,
