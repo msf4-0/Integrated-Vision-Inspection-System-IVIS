@@ -1013,7 +1013,7 @@ class NewProject(BaseProject):
         """Method to reset all widgets and attributes in the New Project Page when changing pages
         """
 
-        new_project_attributes = ["new_project", "new_editor", "new_project_name",
+        new_project_attributes = ["new_project", "new_project_pagination", "is_labeled", "new_editor", "new_project_name",
                                   "new_project_desc", "annotation_type", "new_project_dataset_page", "new_project_dataset_chosen"]
 
         reset_page_attributes(new_project_attributes)

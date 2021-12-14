@@ -308,9 +308,9 @@ def new_project_entry_page(conn=None):
 
     def new_project_submit(dataset_chosen=dataset_chosen, dataset_dict=dataset_dict, labeled=False):
         # if this is True, we will send to New Dataset page for uploading
-        session_state.is_labeled = labeled
-
         if labeled:
+            # set this to True to tell new_dataset page about uploading labeled data
+            session_state.is_labeled = labeled
             # if uploading labeled dataset, then no need to check the dataset_chosen field
             del context['new_project_dataset_chosen']
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
@@ -340,6 +340,7 @@ def new_project_entry_page(conn=None):
                     else:
                         # if not uploading new labeled dataset then go to Editor
                         session_state.new_project_pagination = NewProjectPagination.EditorConfig
+                    st.experimental_rerun()
                 else:
                     success_place.error(
                         f"Failed to stored **{session_state.new_editor.name}** editor config in database")
@@ -350,9 +351,9 @@ def new_project_entry_page(conn=None):
         else:
             st.stop()
     # TODO #72 Change to 'Update' when 'has_submitted' == True
-    submit_button = submit_col2.button(
-        "Submit", key="submit", on_click=new_project_submit,
-        kwargs={'labeled': False})
+    submit_button = submit_col2.button("Submit", key="submit")
+    if submit_button:
+        new_project_submit()
 
     with upload_place.container():
         st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',

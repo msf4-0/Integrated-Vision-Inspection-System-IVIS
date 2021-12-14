@@ -170,7 +170,7 @@ def dashboard():
         create_new_project_button_col1.empty()
 
         project_id_tmp = session_state.all_project_table[0]
-        logger.debug(f"Entering Project {project_id_tmp}")
+        logger.info(f"Entering Project {project_id_tmp}")
 
         session_state.project_pagination = ProjectPagination.Existing
         session_state.project_status = ProjectPagination.Existing
@@ -257,6 +257,8 @@ def index():
     logger.debug(f"Navigator: {session_state.project_pagination = }")
     # st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()
+
+    # st.write(session_state)
 
 
 if __name__ == "__main__":

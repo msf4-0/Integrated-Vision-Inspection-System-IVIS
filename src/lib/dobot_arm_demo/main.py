@@ -1,5 +1,5 @@
-from typing import Dict, Tuple
-from dobot_api import dobot_api_dashboard, dobot_api_feedback, MyType
+from typing import Dict, List, Tuple
+from .dobot_api import dobot_api_dashboard, dobot_api_feedback, MyType
 from multiprocessing import Process
 import numpy as np
 import time
@@ -7,12 +7,12 @@ import time
 from streamlit import session_state
 
 # view -> (label, required_number_of_the_label)
-BOX_VIEW_LABELS: Dict[str, Tuple[str, int]] = {
-    'top': ('hexagon', 3),
-    'back': ('rectangle', 1),
-    'right': ('circle', 2),
-    'front': ('omron-sticker', 1),
-    'left': ('triangle', 2),
+BOX_VIEW_LABELS: Dict[str, List[Tuple[str, int]]] = {
+    'top': [('hexagon', 3)],
+    'back': [('rectangle', 1)],
+    'right': [('circle', 2)],
+    'front': [('omron-sticker', 1)],
+    'left': [('triangle', 2)],
 }
 
 
@@ -100,7 +100,6 @@ def run():
     client_dashboard = dobot_api_dashboard('192.168.5.1', 29999)
     client_feedback = dobot_api_feedback('192.168.5.1', 30003)
     p1 = Process(target=move, args=(client_dashboard, client_feedback))
-    p1.daemon = True
     p1.start()
 
     # Not using all these for our vision inspection app

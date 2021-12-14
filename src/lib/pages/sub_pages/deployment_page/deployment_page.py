@@ -808,6 +808,9 @@ def index(RELEASE=True):
             st.stop()
 
         # *********************** DOBOT arm demo ***********************
+        if 'check_labels' not in session_state:
+            session_state.check_labels = None
+
         st.button("Move DOBOT and detect",
                   key='btn_move_dobot', on_click=dobot_demo.run)
 
@@ -1038,8 +1041,10 @@ def index(RELEASE=True):
                 frame_bytes = encode_frame(out)
                 info = publish_frame_fn(frame_bytes)
 
+            # NOTE: this session_state is currently ONLY used for DOBOT arm demo for
+            # shape detection on different views
             if session_state.check_labels:
-                view = session_state.check_labels
+                view: str = session_state.check_labels
                 if view == 'end':
                     # clear the message if the robot motion is ended
                     msg_place.empty()
@@ -1050,9 +1055,14 @@ def index(RELEASE=True):
                 detected_labels = [r['name'] for r in results]
                 detected_label_cnts = Counter(detected_labels)
                 detected_label_cnts = list(detected_label_cnts.items())
-                if detected_label_cnts == [required_label_cnts]:
+                logger.info(f"Required labels: {required_label_cnts}")
+                logger.info(f"Detected labels: {detected_label_cnts}")
+                if detected_label_cnts == required_label_cnts:
+                    logger.info(f"All labels present at '{view}' view")
                     msg_place.success(f"{view.upper()} view: **OK**")
                 else:
+                    logger.warning("Required labels are not detected at "
+                                   f"'{view}' view")
                     msg_place.error(f"{view.upper()} view: **NG**")
 
             if not results:
