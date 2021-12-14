@@ -545,9 +545,13 @@ def list_available_cameras():
     return available_ports, working_ports
 
 
-def save_captured_frame(frame: np.ndarray, save_dir: Path):
+def save_captured_frame(frame: np.ndarray, save_dir: Path, prefix: str = None):
+    """Optionally pass in `prefix` to prepend to the filename."""
     now = get_now_string()
-    filename = f'image-{now}.png'
+    if prefix:
+        filename = f'{prefix}-image-{now}.png'
+    else:
+        filename = f'image-{now}.png'
     save_path = str(save_dir / filename)
     logger.info(f'saving frame at: "{save_path}"')
     cv2.imwrite(save_path,

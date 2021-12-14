@@ -458,8 +458,9 @@ def index(RELEASE=True):
 
         # **************************** MQTT STUFF ****************************
         saved_frame_dir = deployment.get_frame_save_dir('image')
+        ng_frame_dir = deployment.get_frame_save_dir('NG')
         recording_dir = deployment.get_frame_save_dir('video')
-        for save_dir in (saved_frame_dir, recording_dir):
+        for save_dir in (saved_frame_dir, ng_frame_dir, recording_dir):
             if not save_dir.exists():
                 os.makedirs(save_dir)
 
@@ -913,7 +914,6 @@ def index(RELEASE=True):
                     help="Publish frames as bytes to the MQTT Topic:  \n"
                     f"*{conf.topics.publish_frame}*.  \nNote that this could significantly "
                     "reduce FPS.", on_click=update_publish_frame_conf, args=(True,))
-
         else:
             session_state.publishing = deploy_conf.publishing
             if session_state.publishing:
@@ -979,12 +979,9 @@ def index(RELEASE=True):
         use_cam = deploy_conf.use_camera
         display_width = deploy_conf.video_width
         publish_frame = deploy_conf.publish_frame
-
         fps = 0
         prev_time = 0
         first_csv_save = True
-        # for DOBOT DEMO
-        prev_view = None
 
         # start the video deployment loop
         while True:
@@ -1064,8 +1061,8 @@ def index(RELEASE=True):
                 frame_bytes = encode_frame(out)
                 info = publish_frame_fn(frame_bytes)
 
-            # NOTE: this session_state is currently ONLY used for DOBOT arm demo for
-            # shape detection on different views
+            # NOTE: this session_state is currently ONLY used for DOBOT arm for
+            # object detection demo to detect different labels at different views
             if session_state.check_labels:
                 view: str = session_state.check_labels
                 if view == 'end':
@@ -1074,31 +1071,25 @@ def index(RELEASE=True):
                     # and reset back to None
                     session_state.check_labels = None
                     continue
-                if view == prev_view:
-                    # ONLY CHECK FOR ONCE for the same view
-                    session_state.check_labels = None
-                    continue
 
                 required_label_cnts = VIEW_LABELS[view]
-                # sort by label name
-                required_label_cnts = sorted(
-                    required_label_cnts.items(), key=lambda x: x[0])
-                detected_labels = [r['name'] for r in results]
-                detected_label_cnts = Counter(detected_labels)
-                # sort by label name
-                detected_label_cnts = sorted(
-                    detected_label_cnts.items(), key=lambda x: x[0])
-                logger.info(f"Required labels: {required_label_cnts}")
-                logger.info(f"Detected labels: {detected_label_cnts}")
-                if detected_label_cnts == required_label_cnts:
+                if dobot_demo.check_result_labels(results, required_label_cnts):
                     logger.info(f"All labels present at '{view}' view")
                     msg_place.success(f"### {view.upper()} view: OK")
                 else:
                     logger.warning("Required labels are not detected at "
                                    f"'{view}' view")
                     msg_place.error(f"### {view.upper()} view: NG")
+                    if channels == 'RGB':
+                        # OpenCV needs BGR format
+                        out = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
+                    else:
+                        out = output_img
+                    save_captured_frame(out, ng_frame_dir, prefix=view)
+                    logger.info(f"NG image saved at {ng_frame_dir}")
 
-                prev_view = view
+                # set this to None to ONLY CHECK FOR ONCE for the same view
+                session_state.check_labels = None
 
             if not results:
                 continue

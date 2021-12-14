@@ -112,7 +112,7 @@ class DeploymentPagination(IntEnum):
 class DeploymentConfig:
     timezone: str = "Singapore"
     input_type: str = 'Image'
-    video_width: int = 500
+    video_width: int = 640
     use_camera: bool = False
     camera_type: str = 'USB Camera'
     camera_port: int = 0
@@ -419,11 +419,13 @@ class Deployment(BaseDeployment):
     def get_frame_save_dir(self, save_type: str = 'video') -> Path:
         """To save frames or record videos. 
 
-        `save_type` should be either `'video'` or `'image'.`"""
+        `save_type` should be either `'video'`, 'NG', or `'image'.`"""
         if save_type == 'video':
-            dirname = 'video_recordings'
+            dirname = 'video-recordings'
+        elif save_type == 'NG':
+            dirname = 'NG-images'
         else:
-            dirname = 'saved_frames'
+            dirname = 'saved-frames'
         record_dir = self.project_path / dirname
         return record_dir
 
