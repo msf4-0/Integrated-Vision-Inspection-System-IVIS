@@ -541,7 +541,7 @@ class Trainer:
 
         # Delete unwanted files excluding those needed for evaluation and exporting
         paths_to_del = (paths['ANNOTATION_PATH'],
-                        paths['IMAGE_PATH'] / 'train')
+                        paths['IMAGE_PATH'] / 'train', paths['export'])
         for p in paths_to_del:
             if p.exists():
                 logger.debug("Removing unwanted directories used only "

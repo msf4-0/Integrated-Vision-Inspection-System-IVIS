@@ -403,7 +403,8 @@ def index(RELEASE=True):
 
         with deploy_button_col:
             with st.spinner("Preparing model for deployment ..."):
-                session_state.deployment.run_preparation_pipeline()
+                session_state.deployment.run_preparation_pipeline(
+                    re_export=False)
         session_state.deployment_pagination = DeploymentPagination.Deployment
 
     with deploy_button_col:

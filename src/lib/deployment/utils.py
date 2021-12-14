@@ -42,6 +42,9 @@ class MQTTTopics:
     start_record: str
     stop_record: str
 
+    # NOTE: currently this is only used for dobot_arm_demo !
+    dobot_view: str
+
 
 CONFIG = load_mqtt_config()
 
@@ -65,7 +68,8 @@ class MQTTConfig:
         stop_publish_frame=CONFIG["camera"]["stop_publish_frame_topic"],
         save_frame=CONFIG['save-captures']["save_frame_topic"],
         start_record=CONFIG['save-captures']['start_record_topic'],
-        stop_record=CONFIG['save-captures']['stop_record_topic']
+        stop_record=CONFIG['save-captures']['stop_record_topic'],
+        dobot_view='dobot/view'
     )
 
 

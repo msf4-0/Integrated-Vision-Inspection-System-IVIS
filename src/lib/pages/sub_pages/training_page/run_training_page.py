@@ -356,10 +356,12 @@ def index(RELEASE=True):
                         place.warning("Downloading Model ...")
                         sleep(2)
                         place.empty()
+
                         # remove exported directory after downloaded
-                        export_dir = training_paths['export']
-                        if export_dir.exists():
-                            shutil.rmtree(export_dir)
+                        # export_dir = training_paths['export']
+                        # if export_dir.exists():
+                        #     shutil.rmtree(export_dir)
+
                         # remove the tarfile after downloaded
                         if model_tarfile_path.exists():
                             os.remove(model_tarfile_path)

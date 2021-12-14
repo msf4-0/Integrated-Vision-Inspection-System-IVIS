@@ -811,8 +811,28 @@ def index(RELEASE=True):
         if 'check_labels' not in session_state:
             session_state.check_labels = None
 
+            def get_current_box_view(client, userdata, msg):
+                view: str = msg.payload.decode()
+                logger.info(f"Received message from topic '{msg.topic}': "
+                            f"'{view}'")
+                session_state.check_labels = view
+
+            client.subscribe(conf.topics.dobot_view)
+            client.message_callback_add(
+                conf.topics.dobot_view, get_current_box_view)
+
+        # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
+        DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part
+
+        if DOBOT_TASK == dobot_demo.DobotTask.Box:
+            VIEW_LABELS = dobot_demo.BOX_VIEW_LABELS
+        elif DOBOT_TASK == dobot_demo.DobotTask.P2_143:
+            VIEW_LABELS = dobot_demo.P2_143_VIEW_LABELS
+
         st.button("Move DOBOT and detect",
-                  key='btn_move_dobot', on_click=dobot_demo.run)
+                  key='btn_move_dobot', on_click=dobot_demo.run,
+                  args=(conf, conf.topics.dobot_view, conf.qos,
+                        DOBOT_TASK))
 
         # *********************** Deployment video loop ***********************
         def create_video_writer_if_not_exists():
@@ -837,7 +857,9 @@ def index(RELEASE=True):
 
         st.subheader("Output Video")
         show_video_col = st.container()
-        record_text_place = st.empty()
+        msg_cont, _ = st.columns(2)
+        with msg_cont:
+            msg_place = st.empty()
         output_video_place = st.empty()
         publish_place = st.sidebar.empty()
         fps_col, width_col, height_col = st.columns(3)
@@ -961,8 +983,9 @@ def index(RELEASE=True):
         fps = 0
         prev_time = 0
         first_csv_save = True
+        # for DOBOT DEMO
+        prev_view = None
 
-        msg_place = st.empty()
         # start the video deployment loop
         while True:
             if session_state.refresh:
@@ -1004,7 +1027,7 @@ def index(RELEASE=True):
             if session_state.record:
                 # need to be within the video loop to ensure we also get the latest
                 #  session_state updates from MQTT callback
-                record_text_place.info("Recording ...")
+                msg_place.info("Recording ...")
                 with show_video_col:
                     create_video_writer_if_not_exists()
                 if channels == 'RGB':
@@ -1014,8 +1037,8 @@ def index(RELEASE=True):
                     out = output_img
                 session_state.vid_writer.write(out)
             else:
-                record_text_place.empty()
                 if session_state.vid_writer:
+                    msg_place.empty()
                     logger.info("Saving recorded file")
                     # must release to close the video file
                     session_state.vid_writer.release()
@@ -1050,20 +1073,31 @@ def index(RELEASE=True):
                     msg_place.empty()
                     # and reset back to None
                     session_state.check_labels = None
+                    continue
+                if view == prev_view:
+                    # ONLY CHECK FOR ONCE for the same view
+                    continue
 
-                required_label_cnts = dobot_demo.BOX_VIEW_LABELS[view]
+                required_label_cnts = VIEW_LABELS[view]
+                # sort by label name
+                required_label_cnts = sorted(
+                    required_label_cnts.items(), key=lambda x: x[0])
                 detected_labels = [r['name'] for r in results]
                 detected_label_cnts = Counter(detected_labels)
-                detected_label_cnts = list(detected_label_cnts.items())
+                # sort by label name
+                detected_label_cnts = sorted(
+                    detected_label_cnts.items(), key=lambda x: x[0])
                 logger.info(f"Required labels: {required_label_cnts}")
                 logger.info(f"Detected labels: {detected_label_cnts}")
                 if detected_label_cnts == required_label_cnts:
                     logger.info(f"All labels present at '{view}' view")
-                    msg_place.success(f"{view.upper()} view: **OK**")
+                    msg_place.success(f"### {view.upper()} view: OK")
                 else:
                     logger.warning("Required labels are not detected at "
                                    f"'{view}' view")
-                    msg_place.error(f"{view.upper()} view: **NG**")
+                    msg_place.error(f"### {view.upper()} view: NG")
+
+                prev_view = view
 
             if not results:
                 continue
