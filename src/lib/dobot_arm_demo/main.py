@@ -5,8 +5,11 @@ from enum import IntEnum
 
 from paho.mqtt.client import Client
 
-from dobot_api import dobot_api_dashboard, dobot_api_feedback, MyType
-from multiprocessing import Process
+if __name__ == '__main__':
+    from dobot_api import dobot_api_dashboard, dobot_api_feedback, MyType
+else:
+    from .dobot_api import dobot_api_dashboard, dobot_api_feedback, MyType
+
 from threading import Thread
 import numpy as np
 import time
@@ -39,8 +42,8 @@ P2_143_VIEW_LABELS: Dict[str, List[Tuple[str, int]]] = {
     'top': [('date', 1), ('white dot', 1)],
     'top left': [('top weld', 1)],
     'top right': [('top weld', 1)],
-    'front left': [('left weld', 1)],
-    'front right': [('right weld', 1)],
+    'left': [('left weld', 1)],
+    'right': [('right weld', 1)],
 }
 
 
@@ -142,55 +145,62 @@ def move_for_box(client_feedback: dobot_api_feedback, client: Client):
 
 
 def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client):
-    # move to origin (top view)
-    client_feedback.JointMovJ(
-        (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    time.sleep(2)
+    # origin top
+    client_feedback.JointMovJ((0.0523), (-37.6843),
+                              (-121.325), (158.5393), (87.4376), (0))
+    time.sleep(5)
 
-    # send the current view as the payload to our vision inspection app
+    # top checking
     client.publish(topic, 'top', qos)
-    time.sleep(1)
+    client_feedback.JointMovJ((0.0539), (-50.2704),
+                              (-121.7125), (172.513), (87.4359), (0))
+    time.sleep(5)
     client.publish(topic, None, qos)
 
-    # move to back side
-    client_feedback.JointMovJ(
-        (0.54), (-50.16), (-153.78), (114.97), (89.54), (-178))
-    time.sleep(5)
+    # Intermediate 1
+    client_feedback.JointMovJ((0.0589), (-49.7576),
+                              (-127.02), (177.3076), (87.4310), (0))
+    time.sleep(2)
 
+    # Top Right 1
     client.publish(topic, 'top left', qos)
-    time.sleep(2)
+    client_feedback.JointMovJ(
+        (21.68), (-54.5190), (-121.4119), (172.052), (65.8095), (-32.8328))
+    time.sleep(5)
     client.publish(topic, None, qos)
 
-    # move to right side
-    client_feedback.JointMovJ(
-        (27.478), (-47.836), (-111.595), (70.479), (89.5876), (-63.62))
-    time.sleep(5)
-
+    # Right 2
     client.publish(topic, 'top right', qos)
-    time.sleep(2)
-    client.publish(topic, None, qos)
-
-    # move to front side
-    client_feedback.JointMovJ(
-        (0.56), (-76.07), (-37.9), (25.09), (90.11), (-2.21))
+    client_feedback.JointMovJ((19.2584), (-51.7799),
+                              (-106.9316), (67.7758), (82.393), (-59.3024))
     time.sleep(5)
-
-    client.publish(topic, 'front left', qos)
-    time.sleep(2)
     client.publish(topic, None, qos)
 
-    # move to left side
-    client_feedback.JointMovJ(
-        (-24.19), (-59.51), (-79), (49.49), (90.57), (62.96))
+    # origin top
+    client_feedback.JointMovJ((0.0523), (-37.6843),
+                              (-121.325), (158.5393), (87.4376), (0))
+    time.sleep(2)
+    # Top Left 1
+    client.publish(topic, 'left', qos)
+    client_feedback.JointMovJ((-13.2228), (-40.179),
+                              (-95.0444), (50.8133), (58.3560), (70.5871))
+    time.sleep(8)
+    client.publish(topic, None, qos)
+
+    # Left 2
+    client.publish(topic, 'right', qos)
+    client_feedback.JointMovJ((-16.1938), (-62.0114),
+                              (-67.4206), (41.9222), (87.7707), (31.6594))
     time.sleep(5)
-
-    client.publish(topic, 'front right', qos)
-    time.sleep(2)
     client.publish(topic, None, qos)
 
-    # move back to origin (top view)
-    client_feedback.JointMovJ(
-        (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
+    # Intermediate 2
+    client_feedback.JointMovJ((-16.1938), (-50.0761),
+                              (-64.2679), (26.8342), (87.7707), (31.6594))
+    time.sleep(2)
+    # origin top
+    client_feedback.JointMovJ((0.0523), (-37.6843),
+                              (-121.325), (158.5393), (87.4376), (0))
     time.sleep(5)
     client.publish(topic, 'end', qos)
 

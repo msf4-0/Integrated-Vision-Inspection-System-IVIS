@@ -292,7 +292,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 f"Images will be saved in this directory: *{save_dir}*")
             display_width = st.slider(
                 "Select width of image to resize for display",
-                35, 1000, 500, 5, key='display_width',
+                35, 1000, 640, 5, key='display_width',
                 help="This does not affect the size of the captured image as it depends on the camera.")
 
             is_limiting = st.checkbox("Limit images captured per second", value=True)

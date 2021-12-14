@@ -1076,6 +1076,7 @@ def index(RELEASE=True):
                     continue
                 if view == prev_view:
                     # ONLY CHECK FOR ONCE for the same view
+                    session_state.check_labels = None
                     continue
 
                 required_label_cnts = VIEW_LABELS[view]
