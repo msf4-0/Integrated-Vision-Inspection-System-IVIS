@@ -380,12 +380,12 @@ def index(RELEASE=True):
                         st.success('✏️ Model is successfully archived! This may take awhile'
                                    ' to download, depending on the file size of the trained '
                                    'model.')
-                        if training.deployment_type == 'Object Detection with Bounding Boxes':
-                            st.warning("""The exported object detection model will also be
-                            removed after you have downloaded it. You can try checking the
-                            evaluation result below after exporting, because it will load
-                            from the exported SavedModel format instead of checkpoint, the
-                            results could be different.""")
+                        # if training.deployment_type == 'Object Detection with Bounding Boxes':
+                        #     st.warning("""The exported object detection model will also be
+                        #     removed after you have downloaded it. You can try checking the
+                        #     evaluation result below after exporting, because it will load
+                        #     from the exported SavedModel format instead of checkpoint, the
+                        #     results could be different.""")
                 # only show Export button if model checkpoint/weights file is found
                 elif exist_dict['ckpt']:
                     def export_callback():

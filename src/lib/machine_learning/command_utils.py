@@ -376,9 +376,9 @@ def run_command_update_metrics(
         return traceback
 
 
-def export_tfod_savedmodel(training_paths: Dict[str, Path], re_export: bool = True) -> bool:
+def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
     paths = training_paths
-    if not re_export and paths['export'].exists():
+    if paths['export'].exists():
         # remove any existing export directory first
         shutil.rmtree(paths['export'])
 

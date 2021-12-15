@@ -27,6 +27,7 @@ from deployment.utils import MQTTConfig, get_mqtt_client
 class DobotTask(IntEnum):
     Box = 0
     P2_143 = 1
+    DEBUG = 2
 
 
 # view -> (label, required_number_of_the_label)
@@ -47,6 +48,16 @@ P2_143_VIEW_LABELS: Dict[str, List[Tuple[str, int]]] = {
     'right': [('right weld', 1)],
 }
 
+DEBUG_VIEW_LABELS: Dict[str, List[Tuple[str, int]]] = {
+    'top': [('raccoon', 1)],
+    'top left': [('raccoon', 1)],
+    'top right': [('raccoon', 1)],
+    'left': [('raccoon', 1)],
+    'right': [('raccoon', 1)],
+    'back': [('raccoon', 1)],
+    'front': [('raccoon', 1)]
+}
+
 
 def check_result_labels(results: List[Dict[str, Any]], required_label_cnts: List[Tuple[str, int]],
                         check_subset: bool = True) -> bool:
@@ -63,8 +74,7 @@ def check_result_labels(results: List[Dict[str, Any]], required_label_cnts: List
     label counts.
     """
     # sort by label name
-    required_label_cnts = sorted(
-        required_label_cnts.items(), key=lambda x: x[0])
+    required_label_cnts = sorted(required_label_cnts, key=lambda x: x[0])
 
     detected_labels: List[str] = [r['name'] for r in results]
     detected_label_cnts = Counter(detected_labels)
@@ -199,7 +209,6 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
 
     client = get_mqtt_client()
     client.connect(conf.broker, port=conf.port)
-    client.subscribe(topic, qos)
     client.loop_start()
 
     # Remove alarm
@@ -222,6 +231,35 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
 
     client.loop_stop()
     client.disconnect()
+
+
+def debug_run(conf: MQTTConfig, task: DobotTask):
+    def debug_publish():
+        topic = conf.topics.dobot_view
+        qos = conf.qos
+
+        client = get_mqtt_client()
+        client.connect(conf.broker, port=conf.port)
+        client.loop_start()
+        time.sleep(2)
+
+        # send the current view as the payload to our vision inspection app
+        client.publish(topic, 'top', qos)
+        time.sleep(2)
+
+        client.publish(topic, 'right', qos)
+        time.sleep(2)
+
+        client.publish(topic, 'left', qos)
+        time.sleep(2)
+
+        client.publish(topic, 'end', qos)
+
+        client.loop_stop()
+        client.disconnect()
+
+    p1 = Thread(target=debug_publish)
+    p1.start()
 
 
 def data_feedback(client_feedback: dobot_api_feedback):

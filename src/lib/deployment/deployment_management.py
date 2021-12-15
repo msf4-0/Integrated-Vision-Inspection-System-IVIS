@@ -288,7 +288,11 @@ class Deployment(BaseDeployment):
             else:
                 # this is a project model trained in our app
                 if re_export:
-                    export_tfod_savedmodel(paths, re_export)
+                    export_tfod_savedmodel(paths)
+                else:
+                    # otherwise export only if the model is not exported yet
+                    if not (paths['export'] / 'saved_model' / 'saved_model.pb').exists():
+                        export_tfod_savedmodel(paths)
                 saved_model_dir = paths['export'] / 'saved_model'
                 self.category_index = load_labelmap(
                     paths['labelmap_file'])

@@ -64,8 +64,8 @@ from data_manager.database_manager import init_connection
 from machine_learning.visuals import create_class_colors, create_color_legend
 from data_manager.dataset_management import Dataset
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
-from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, encode_frame, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
-from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_captured_frame
+from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, image_to_bytes, get_mqtt_client, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
+from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_image
 from dobot_arm_demo import main as dobot_demo
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -119,7 +119,7 @@ def index(RELEASE=True):
 
         deploy_status_place = st.empty()
         deploy_status_place.info("**Status**: Not deployed. Please upload an image/video "
-                                 "or use video camera.")
+                                 "or use video camera and click **\"Deploy Model\"**.")
 
         st.warning("**NOTE**: Please do not simply refresh the page without ending "
                    "deployment or errors could occur.")
@@ -275,7 +275,7 @@ def index(RELEASE=True):
         with st.spinner("Running inference ..."):
             try:
                 with Timer("Inference on image"):
-                    result = inference_pipeline(img)
+                    inference_output = inference_pipeline(img)
             except Exception as e:
                 # uncomment the following line to see the traceback
                 # st.exception(e)
@@ -285,13 +285,13 @@ def index(RELEASE=True):
                     please check with Admin/Developer for debugging.""")
                 st.stop()
         if DEPLOYMENT_TYPE == 'Image Classification':
-            pred_classname, y_proba = result
+            pred_classname, y_proba = inference_output
             caption = (f"{filename}; "
                        f"Predicted: {pred_classname}; "
                        f"Score: {y_proba * 100:.1f}")
             st.image(img, channels='BGR', width=display_width, caption=caption)
         elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-            drawn_mask_output, _ = result
+            drawn_mask_output, _ = inference_output
             # convert to RGB for visualizing with Matplotlib
             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -311,7 +311,7 @@ def index(RELEASE=True):
             st.pyplot(fig)
             st.markdown("___")
         else:
-            img_with_detections, detections = result
+            img_with_detections, detections = inference_output
             st.image(img_with_detections, width=display_width,
                      caption=f'Detection result for: {filename}')
 
@@ -424,7 +424,6 @@ def index(RELEASE=True):
             # show CSV directory
             csv_path = deployment.get_csv_path(datetime.now())
             csv_dir = csv_path.parents[1]
-            logger.info(f'Inference results will be saved in {csv_dir}')
             with st.sidebar.container():
                 st.markdown("___")
                 st.subheader("Info about saving results")
@@ -515,8 +514,9 @@ def index(RELEASE=True):
         def save_frame_cb(client, userdata, msg):
             logger.debug(f'Payload received for topic "{msg.topic}"')
             # need this to access to the frame from within mqtt callback
-            nonlocal output_img
-            save_captured_frame(output_img, saved_frame_dir)
+            nonlocal output_img, channels
+            save_image(output_img, saved_frame_dir,
+                       channels, deploy_conf.timezone)
 
         def start_record_cb(client, userdata, msg):
             session_state.record = True
@@ -555,7 +555,6 @@ def index(RELEASE=True):
         # connect MQTT broker and set up callbacks
         if not session_state.client_connected:
             logger.debug(f"{conf = }")
-            logger.debug(f"{conf.topics = }")
             with st.spinner("Connecting to MQTT broker ..."):
                 try:
                     client.connect(conf.broker, port=conf.port)
@@ -812,7 +811,7 @@ def index(RELEASE=True):
         if 'check_labels' not in session_state:
             session_state.check_labels = None
 
-            def get_current_box_view(client, userdata, msg):
+            def get_current_view(client, userdata, msg):
                 view: str = msg.payload.decode()
                 logger.info(f"Received message from topic '{msg.topic}': "
                             f"'{view}'")
@@ -820,20 +819,24 @@ def index(RELEASE=True):
 
             client.subscribe(conf.topics.dobot_view)
             client.message_callback_add(
-                conf.topics.dobot_view, get_current_box_view)
+                conf.topics.dobot_view, get_current_view)
 
         # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
-        DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part
+        # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part
+        DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
+        run_func = dobot_demo.run
 
         if DOBOT_TASK == dobot_demo.DobotTask.Box:
             VIEW_LABELS = dobot_demo.BOX_VIEW_LABELS
         elif DOBOT_TASK == dobot_demo.DobotTask.P2_143:
             VIEW_LABELS = dobot_demo.P2_143_VIEW_LABELS
+        elif DOBOT_TASK == dobot_demo.DobotTask.DEBUG:
+            VIEW_LABELS = dobot_demo.DEBUG_VIEW_LABELS
+            run_func = dobot_demo.debug_run
 
         st.button("Move DOBOT and detect",
-                  key='btn_move_dobot', on_click=dobot_demo.run,
-                  args=(conf, conf.topics.dobot_view, conf.qos,
-                        DOBOT_TASK))
+                  key='btn_move_dobot', on_click=run_func,
+                  args=(conf, DOBOT_TASK))
 
         # *********************** Deployment video loop ***********************
         def create_video_writer_if_not_exists():
@@ -1000,18 +1003,18 @@ def index(RELEASE=True):
 
             # frame.flags.writeable = True  # might need this?
             # run inference on the frame
-            result = inference_pipeline(frame)
+            inference_output = inference_pipeline(frame)
             if is_image_classif:
-                results = get_result_fn(*result)
+                results = get_result_fn(*inference_output)
                 output_img = frame
                 # the read frame is in BGR format
                 channels = 'BGR'
             else:
                 if draw_result:
-                    output_img, pred = result
+                    output_img, pred = inference_output
                     channels = 'RGB'
                 else:
-                    pred = result
+                    pred = inference_output
                     output_img = frame
                     # the read frame is in BGR format
                     channels = 'BGR'
@@ -1040,7 +1043,6 @@ def index(RELEASE=True):
                     # must release to close the video file
                     session_state.vid_writer.release()
                     session_state.vid_writer = None
-                    st.experimental_rerun()
 
             # count FPS
             curr_time = perf_counter()
@@ -1053,12 +1055,7 @@ def index(RELEASE=True):
                 result_place.table(results)
 
             if publish_frame:
-                if channels == 'RGB':
-                    # OpenCV needs BGR format
-                    out = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
-                else:
-                    out = output_img
-                frame_bytes = encode_frame(out)
+                frame_bytes = image_to_bytes(output_img, channels)
                 info = publish_frame_fn(frame_bytes)
 
             # NOTE: this session_state is currently ONLY used for DOBOT arm for
@@ -1080,12 +1077,8 @@ def index(RELEASE=True):
                     logger.warning("Required labels are not detected at "
                                    f"'{view}' view")
                     msg_place.error(f"### {view.upper()} view: NG")
-                    if channels == 'RGB':
-                        # OpenCV needs BGR format
-                        out = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
-                    else:
-                        out = output_img
-                    save_captured_frame(out, ng_frame_dir, prefix=view)
+                    save_image(output_img, ng_frame_dir,
+                               channels, timezone=deploy_conf.timezone, prefix=view)
                     logger.info(f"NG image saved at {ng_frame_dir}")
 
                 # set this to None to ONLY CHECK FOR ONCE for the same view
@@ -1121,7 +1114,6 @@ def index(RELEASE=True):
                 csv_path = deployment.get_csv_path(now)
                 session_state.today = today
                 create_csv_file_and_writer(csv_path, results)
-                st.experimental_rerun()
             else:
                 for row in results:
                     session_state.csv_writer.writerow(row)

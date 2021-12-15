@@ -9,6 +9,11 @@ import os
 import sys
 from pathlib import Path
 from time import sleep
+import os
+
+# to disable warning messages from OpenCV, must do this before import cv2
+os.environ['OPENCV_LOG_LEVEL'] = 'OFF'
+os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'
 
 import streamlit as st
 from streamlit import session_state

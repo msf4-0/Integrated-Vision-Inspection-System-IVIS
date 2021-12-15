@@ -16,9 +16,14 @@ from core.utils.log import logger
 from path_desc import MQTT_CONFIG_PATH
 
 
-def encode_frame(frame: np.ndarray) -> bytes:
-    """Encode a frame from OpenCV into bytes"""
-    _, encoded_image = cv2.imencode('.png', frame)
+def image_to_bytes(frame: np.ndarray, channels: str = 'BGR') -> bytes:
+    """Encode an image and convert into bytes"""
+    if channels == 'RGB':
+        # OpenCV needs BGR format
+        out = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    else:
+        out = frame
+    _, encoded_image = cv2.imencode('.png', out)
     bytes_array = encoded_image.tobytes()
     return bytes_array
 

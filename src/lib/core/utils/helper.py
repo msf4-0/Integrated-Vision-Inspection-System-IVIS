@@ -545,14 +545,20 @@ def list_available_cameras():
     return available_ports, working_ports
 
 
-def save_captured_frame(frame: np.ndarray, save_dir: Path, prefix: str = None):
+def save_image(frame: np.ndarray, save_dir: Path, channels: str = 'BGR',
+               timezone="Singapore", prefix: str = None):
     """Optionally pass in `prefix` to prepend to the filename."""
-    now = get_now_string()
+    now = get_now_string(timezone=timezone)
     if prefix:
         filename = f'{prefix}-image-{now}.png'
     else:
         filename = f'image-{now}.png'
     save_path = str(save_dir / filename)
     logger.info(f'saving frame at: "{save_path}"')
-    cv2.imwrite(save_path,
-                cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+
+    if channels == 'RGB':
+        # OpenCV needs BGR format
+        out = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    else:
+        out = frame
+    cv2.imwrite(save_path, out)
