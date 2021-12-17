@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import pprint
 from pathlib import Path
-import time
+from time import sleep, perf_counter
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
@@ -31,25 +31,33 @@ def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
                    port=port, width=width, scrolling=True)
 
 
-def find_tfod_metric(name: str, cmd_output_line: str) -> Tuple[str, Union[int, float]]:
+def find_tfod_metric(name: str, cmd_output_line: str) -> Union[
+        Tuple[str, int, float],
+        Tuple[str, float]]:
     """
     Find the specific metric name in ONE LINE of command output (`cmd_output_line`)
-    and returns both the full name and the digits (i.e. values) of the metric.
+    and returns both the full name and the digits (i.e. values) of the metric. For 'Step',
+    the `step_time` is also returned.
 
-    Basically search using regex groups, then take the last match,
-    then take the first group for the metric name, and the second group for the digits.
+    Basically search using regex groups, then take the first group for the metric name, 
+    and the second group for the digits. For 'Step', the last group is for the per-step time.
+
+    Returns:
+        Tuple[str, int, float]: for 'Step', returns (name, step_val, step_time)
+        Tuple[str, float]]: for 'Loss', returns (loss_name, value)
     """
     assert name in ('Step', 'Loss')
     try:
         if name == 'Step':
-            value = re.findall(f'Step\s+(\d+)', cmd_output_line)[-1]
-            return name, int(value)
+            pattern = 'Step\s+(\d+)[^\d]+(\d+\.\d+)'
+            step_val, step_time = re.findall(pattern, cmd_output_line)[0]
+            return name, int(step_val), float(step_time)
         else:
             if 'learning_rate' in cmd_output_line:
                 # skip showing/storing learning_rate for now
                 return
             # take the entire loss name, e.g. "Loss/box/scale"
-            pattern = f'(Loss[/\w]*).+(\d+\.\d+)'
+            pattern = '(Loss[/\w]*).+(\d+\.\d+)'
             loss_name, value = re.findall(
                 pattern, cmd_output_line)[-1]
             return loss_name, float(value)
@@ -195,7 +203,7 @@ def run_command(command_line_args: str, st_output: bool = False,
                      "from the command outputs!")
         st.error("Some error has occurred during training ..."
                  " Please try again")
-        time.sleep(2)
+        sleep(2)
         st.experimental_rerun()
     elif filter_by:
         return '\n'.join(output_str_list)
@@ -276,6 +284,7 @@ def run_command_update_metrics_old(
 
 def run_command_update_metrics(
     command_line_args: str,
+    total_steps: int,
     stdout_output: bool = True,
     step_name: str = 'Step',
     pretty_print: Optional[bool] = False
@@ -285,19 +294,21 @@ def run_command_update_metrics(
 
     Args:
         command_line_args (str): Command line arguments to run.
+        total_steps (int): total training steps, used to calculate ETA to complete training.
         stdout_output (bool, optional): Set `stdout_output` to True to
             show the console outputs LIVE on terminal. Defaults to True.
         step_name (str, optional): The key name used to store our training step progress.
             Should be 'Step' for now. Defaults to 'Step'.
+        pretty_print (bool, optional): Set `pretty_print` to True to show prettier `command_line_args`.
+            Defaults to False.
 
     Returns:
         str: Traceback message (empty string if no error)
     """
-    # assert metric_names is not None, "Please pass in metric_names to use for search and updates"
     if pretty_print:
         command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
-    process = subprocess.Popen(command_line_args, shell=True,
+    process = subprocess.Popen(command_line_args, shell=False,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
@@ -347,11 +358,19 @@ def run_command_update_metrics(
                 current_lines.append(line)
             if len(current_lines) == 12:
                 # take the first line because that's where `step_name` was found and appended first
-                _, step_val = find_tfod_metric(step_name, current_lines[0])
-                session_state.new_training.progress[step_name] = step_val
+                _, curr_step, step_time = find_tfod_metric(
+                    step_name, current_lines[0])
+                session_state.new_training.progress[step_name] = curr_step
                 session_state.new_training.update_progress(
                     session_state.new_training.progress, verbose=True)
-                st.markdown(f"**{step_name}**: {step_val}")
+
+                text = (f"**{step_name}**: {curr_step}. "
+                        f"**Per-Step Time**: {step_time:.3f}s.")
+                if curr_step != total_steps:
+                    # only show ETA when it's not final epoch
+                    eta = (total_steps - curr_step) * step_time
+                    text += f" **ETA**: {eta:.2f}s"
+                st.markdown(text)
 
                 metrics = {}
                 for line in current_lines[2:]:

@@ -483,8 +483,10 @@ class Trainer:
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
             logger.info('Start training')
+            # stdout_output = True
+            logger.debug(f"{stdout_output = }")
             traceback = run_command_update_metrics(
-                command, stdout_output=stdout_output,
+                command, NUM_TRAIN_STEPS, stdout_output=stdout_output,
                 step_name='Step')
         if traceback:
             st.error(
@@ -500,6 +502,7 @@ class Trainer:
         if not get_tfod_last_ckpt_path(self.training_path['models']):
             st.error("Unknown error occurred while training, please check the terminal "
                      "output, or contact the admin.")
+            logger.error("Error occurred while training")
             return
         time_elapsed = perf_counter() - start
         m, s = divmod(time_elapsed, 60)
@@ -573,14 +576,16 @@ class Trainer:
             # only use the full exported model after the user has exported it
             # NOTE: take note of the tensor_dtype to convert to work in both ways
             if exist_dict['model_tarfile']:
-                detect_fn = load_tfod_model(
-                    self.training_path['export'] / 'saved_model')
+                if not hasattr(self, 'model'):
+                    self.model = load_tfod_model(
+                        self.training_path['export'] / 'saved_model')
                 tensor_dtype = tf.uint8
                 is_checkpoint = False
             else:
-                detect_fn = load_tfod_checkpoint(
-                    ckpt_dir=self.training_path['models'],
-                    pipeline_config_path=self.training_path['config_file'])
+                if not hasattr(self, 'model'):
+                    self.model = load_tfod_checkpoint(
+                        ckpt_dir=self.training_path['models'],
+                        pipeline_config_path=self.training_path['config_file'])
                 tensor_dtype = tf.float32
                 is_checkpoint = True
         category_index = load_labelmap(paths['labelmap_file'])
@@ -615,7 +620,7 @@ class Trainer:
             def reset_start_idx():
                 session_state['start_idx'] = 0
 
-            st.number_input(
+            n_samples = st.number_input(
                 "Number of samples to show:",
                 min_value=1,
                 max_value=10,
@@ -626,7 +631,7 @@ class Trainer:
                 help="Number of samples to run detection and display results.",
                 on_change=reset_start_idx
             )
-            st.number_input(
+            conf_threshold = st.number_input(
                 "Minimum confidence threshold:",
                 min_value=0.1,
                 max_value=0.99,
@@ -654,8 +659,8 @@ class Trainer:
                     longer than others. In production, we will also export the
                     model before deploying it for inference.""")
 
-        n_samples = session_state['n_samples']
-        start_idx = session_state['start_idx']
+        # must try to int them to avoid complications
+        start_idx, n_samples = int(session_state['start_idx']), int(n_samples)
         current_image_paths = image_paths[start_idx: start_idx + n_samples]
 
         end = start_idx + n_samples
@@ -692,7 +697,7 @@ class Trainer:
                 class_names, bboxes = get_bbox_label_info(gt_xml_df, filename)
 
                 start_t = perf_counter()
-                detections = tfod_detect(detect_fn, img,
+                detections = tfod_detect(self.model, img,
                                          tensor_dtype=tensor_dtype)
                 time_elapsed = perf_counter() - start_t
                 logger.info(f"Done inference on {filename}. "
@@ -712,7 +717,7 @@ class Trainer:
                 logger.info(f"Detected classes: {pred_classes}")
                 draw_tfod_bboxes(
                     detections, img_with_detections, category_index,
-                    session_state.conf_threshold,
+                    conf_threshold,
                     is_checkpoint=is_checkpoint)
 
                 img = draw_gt_bboxes(img, bboxes,
@@ -1303,8 +1308,9 @@ class Trainer:
     def run_keras_eval(self):
         # load back the best model
         logger.info(f"Loading trained Keras model for {self.deployment_type}")
-        model = load_keras_model(self.training_path['output_keras_model_file'],
-                                 self.metrics, self.training_param)
+        if not hasattr(self, 'model'):
+            self.model = load_keras_model(self.training_path['output_keras_model_file'],
+                                          self.metrics, self.training_param)
 
         if self.training_path['test_result_txt_file'].exists():
             # show the evaluation results stored during training
@@ -1427,8 +1433,8 @@ class Trainer:
                     img = cv2.imread(p)
                     start = perf_counter()
                     preprocessed_img = preprocess_image(img, image_size)
-                    y_pred, y_proba = classification_predict(preprocessed_img,
-                                                             model, return_proba=True)
+                    y_pred, y_proba = classification_predict(
+                        preprocessed_img, self.model, return_proba=True)
                     time_elapsed = perf_counter() - start
                     logger.info(f"Inference on image: {filename} "
                                 f"[{time_elapsed:.4f}s]")
@@ -1467,7 +1473,7 @@ class Trainer:
                     start = perf_counter()
                     preprocessed_img = preprocess_image(image, image_size)
                     pred_mask = segmentation_predict(
-                        model, preprocessed_img, orig_W, orig_H)
+                        self.model, preprocessed_img, orig_W, orig_H)
                     time_elapsed = perf_counter() - start
                     logger.info(f"Took {time_elapsed:.4f}s")
 

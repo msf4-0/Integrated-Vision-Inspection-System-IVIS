@@ -150,7 +150,8 @@ def training_configuration(RELEASE=True):
             # details_col.write(param_dict)
             learning_rate = param_dict.get('learning_rate', 1e-4)
             optimizer = param_dict.get('optimizer', "Adam")
-            batch_size = param_dict.get('batch_size', 32)
+            bs = 32 if DEPLOYMENT_TYPE == 'Image Classification' else 8
+            batch_size = param_dict.get('batch_size', bs)
             num_epochs = param_dict.get('num_epochs', 10)
             # NOTE: not using fine_tune_all for now
             # fine_tune_all = param_dict.get('fine_tune_all', False)
@@ -220,10 +221,11 @@ def training_configuration(RELEASE=True):
                 key="param_batch_size",
                 help="""Update batch size based on the system's memory you have.
                 Higher batch size will need a higher memory. Recommended to start
-                with **32**, 64 could be fine depending on how large is the pretrained model,
+                with **32** (for image classification) or **8** (for image segmentation),
+                64 could be fine depending on how large is the pretrained model,
                 i.e. how many parameters does it have. Reduce if memory warning happens.
                 You may choose to increase if you believe your GPU has a lot more
-                VRAM (aka memory) left"""
+                VRAM (aka memory) left."""
             )
             st.number_input(
                 "Number of epochs", min_value=3, max_value=10_000,

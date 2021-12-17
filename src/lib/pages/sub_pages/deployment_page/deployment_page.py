@@ -277,8 +277,8 @@ def index(RELEASE=True):
                 with Timer("Inference on image"):
                     inference_output = inference_pipeline(img)
             except Exception as e:
-                # uncomment the following line to see the traceback
-                # st.exception(e)
+                if os.environ.get("DEBUG", 'true').lower() == 'true':
+                    st.exception(e)
                 logger.error(
                     f"Error running inference with the model: {e}")
                 st.error("""Error when trying to run inference with the model,
@@ -560,7 +560,8 @@ def index(RELEASE=True):
                     client.connect(conf.broker, port=conf.port)
                 except Exception as e:
                     st.error("Error connecting to MQTT broker")
-                    # st.exception(e)
+                    if os.environ.get("DEBUG", 'true').lower() == 'true':
+                        st.exception(e)
                     logger.error(
                         f"Error connecting to MQTT broker {conf.broker}: {e}")
                     # return

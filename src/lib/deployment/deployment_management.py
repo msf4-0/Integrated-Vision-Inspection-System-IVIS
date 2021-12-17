@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 from __future__ import annotations
+import gc
 import shutil
 from copy import deepcopy
 from dataclasses import dataclass
@@ -463,6 +464,7 @@ class Deployment(BaseDeployment):
         """Method to reset all widgets and attributes in the Deployment Pages when changing pages
         """
         tf.keras.backend.clear_session()
+        gc.collect()
 
         reset_camera()
         reset_camera_ports()

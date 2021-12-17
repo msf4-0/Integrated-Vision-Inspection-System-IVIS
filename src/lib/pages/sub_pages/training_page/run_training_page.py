@@ -22,6 +22,7 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
+import gc
 import os
 import shutil
 import sys
@@ -53,7 +54,7 @@ from machine_learning.trainer import Trainer
 from machine_learning.command_utils import run_tensorboard
 from machine_learning.visuals import pretty_format_param
 from project.project_management import Project
-from training.training_management import NewTrainingPagination, Training
+from training.training_management import NewTrainingPagination, Training, TrainingPagination
 from user.user_management import User
 from deployment.deployment_management import Deployment
 
@@ -259,9 +260,10 @@ def index(RELEASE=True):
             for p in logdir_folders:
                 if p.exists():
                     # this is to avoid the problem with Tensorboard displaying
-                    # overlapping graphs when continue training, probably because the
+                    # overlapping graphs when continue training, because the
                     # TFOD 'Step' always starts from 0 even though we are continue
                     # training from an existing checkpoint
+                    # NOTE that this only happens on certain PCs, not sure why
                     logger.debug("Removing existing TensorBoard logdir "
                                  f"before training: {p}")
                     shutil.rmtree(p)
@@ -283,7 +285,11 @@ def index(RELEASE=True):
         # start training, set `stdout_output` to True to print the logging outputs generated
         #  from the TFOD scripts; set to False to avoid clutterring the console outputs
         trainer.train(
-            is_resume, stdout_output=False, train_one_batch=train_one_batch)
+            is_resume, stdout_output=True, train_one_batch=train_one_batch)
+
+        if 'start_idx' in session_state:
+            # this is to avoid problems in the evaluation functions
+            del session_state['start_idx']
 
         def refresh_page():
             sleep(0.5)
@@ -331,9 +337,22 @@ def index(RELEASE=True):
             def clone_train_session():
                 training.clone_training_session()
 
+                # get the id before resetting
+                cloned_train_id = training.id
+                # resetting the training page stuff to avoid memory issues
+                training.reset_training_page()
+                tf.keras.backend.clear_session()
+                gc.collect()
+
+                # create the session_state again after reset
+                session_state.new_training = Training(
+                    cloned_train_id, session_state.project)
+
                 # set all the submissions as True to allow proper updates instead of inserting info into DB
-                for page in training.has_submitted:
-                    training.has_submitted[page] = True
+                for page in session_state.new_training.has_submitted:
+                    session_state.new_training.has_submitted[page] = True
+
+                session_state.training_pagination = TrainingPagination.Existing
 
                 # must go back to the InfoDataset page to allow user to
                 # update the temporarily created names if necessary
@@ -396,7 +415,7 @@ def index(RELEASE=True):
                             st.error("""Some error has occurred when exporting,
                                 please try re-training again""")
                             logger.error(f"Error exporting model: {e}")
-                            if not RELEASE:
+                            if os.environ.get("DEBUG", 'true').lower() == 'true':
                                 st.exception(e)
                             st.stop()
                     if training.deployment_type == 'Object Detection with Bounding Boxes':
@@ -408,6 +427,9 @@ def index(RELEASE=True):
                                'depending on the size of the trained model.')
                     if export:
                         export_callback()
+                        # reset the model to allow it to load the exported model
+                        # (only needed for TFOD currently)
+                        del trainer.model
                         st.experimental_rerun()
 
         with retrain_place.container():
@@ -457,10 +479,12 @@ def index(RELEASE=True):
                     try:
                         trainer.evaluate()
                     except Exception as e:
-                        # uncomment this to check Traceback
-                        # st.exception(e)
-                        st.error("Some error has occurred. Please try "
-                                 "training/exporting the model again.")
+                        if os.environ.get("DEBUG", 'true').lower() == 'true':
+                            st.exception(e)
+                        st.error(
+                            "Some error has occurred. Please try checking the terminal "
+                            "output for the error. Or just try pressing *'R'* to refresh the page. "
+                            "If it still doesn't work, please try training the model again.")
                         logger.error(f"Error evaluating: {e}")
             else:
                 logger.info(f"Model {training.training_model_id} "

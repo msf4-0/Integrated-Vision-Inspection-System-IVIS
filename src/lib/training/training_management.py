@@ -29,16 +29,15 @@ import os
 import shutil
 import sys
 import traceback
-from collections import namedtuple
 from enum import IntEnum
 from math import ceil, floor
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
+import gc
 
-import pandas as pd
-import project
+import tensorflow as tf
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
@@ -1283,10 +1282,10 @@ class Training(BaseTraining):
             directory_structure = [
                 x for x in training_paths.values() if x != training_paths['ROOT']]
 
-            missing_folders = [x for x in training_paths['ROOT'].iterdir(
+            missing_folders = [str(x) for x in training_paths['ROOT'].iterdir(
             ) if x.is_dir() and (x not in directory_structure)]
 
-            logger.error(f"{e}: Missing {missing_folders}")
+            logger.debug(f"{e}: Missing {missing_folders}")
 
     # ! Deprecated, use training_path property
     # @staticmethod
@@ -1603,6 +1602,9 @@ class Training(BaseTraining):
 
     @staticmethod
     def reset_training_page():
+        tf.keras.backend.clear_session()
+        gc.collect()
+
         # remove unwanted files to save space, only files needed
         # for continue training, or test set evaluation are kept
         if isinstance(session_state.get('new_training'), Training):

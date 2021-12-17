@@ -93,10 +93,10 @@ def install():
         run_command(f"apt-get install protobuf-compiler")
         logger.info("Installing TFOD API ...")
         # NEW: --use-feature=2020-resolver
-        cmd = (f"cd {TFOD_DIR / 'research'} "
-               "&& protoc object_detection/protos/*.proto --python_out=. "
-               "&& cp object_detection/packages/tf2/setup.py setup.py "
-               "&& python -m pip install --use-feature=2020-resolver .")
+        cmd = (f'cd "{TFOD_DIR / "research"}" '
+               '&& protoc object_detection/protos/*.proto --python_out=. '
+               '&& cp object_detection/packages/tf2/setup.py setup.py '
+               '&& python -m pip install --use-feature=2020-resolver .')
         run_command(cmd)
         # installing pycocotools here instead of in requirements.txt
         # because Windows NEED to install pycocotools-windows instead
@@ -112,15 +112,15 @@ def install():
             "pip install git+https://github.com/gautamchitnis/cocoapi.git@cocodataset-master#subdirectory=PythonAPI")
         if not (PROTOC_PATH / "bin").exists():
             logger.info("Downloading protobuf dependencies ...")
-            protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
-            protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
-            url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
+            PROTOC_VERSION = "3.19.1"  # updated from 3.15.6 -> 3.19.1
+            protoc_zipfilename = f"protoc-{PROTOC_VERSION}-win64.zip"
+            url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{PROTOC_VERSION}/{protoc_zipfilename}"
             wget.download(url)
             # move the protoc zip file into the desired path, PROTOC_PATH
             shutil.move(protoc_zipfilename, PROTOC_PATH)
             # unzip the zip file
             run_command(
-                f"cd {PROTOC_PATH} && tar -xf {protoc_zipfilename}")
+                f'cd "{PROTOC_PATH}" && tar -xf {protoc_zipfilename}')
             os.remove(PROTOC_PATH / protoc_zipfilename)
         # add the path of $PROTOC_PATH/bin into the PATH in environment variable
         # to be able to run `protoc` as a command in terminal

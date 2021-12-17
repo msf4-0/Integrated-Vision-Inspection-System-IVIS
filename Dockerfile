@@ -52,9 +52,9 @@ FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04 AS runner-image
 # libpq-dev is required for psycopg2 library
 # libgl1-mesa-glx and the rest are required for OpenCV library
 RUN apt update && apt install --no-install-recommends -y python3.8 python3-venv
-# Don't need all these, only need libgl1-mesa-glx and libglib2.0-0
+# Don't need all these, only need libgl1-mesa-glx and libglib2.0-0, ffmpeg for more video codecs to record videos
 # apt install -y python3-icu libpq-dev libgl1-mesa-glx ffmpeg libglib2.0-0 libsm6 libxrender1 libxext6 && \
-RUN apt install -y python3-icu libpq-dev && \
+RUN apt install -y python3-icu libpq-dev ffmpeg && \
     apt install -y libgl1-mesa-glx libglib2.0-0 && \
     apt clean && rm -rf /var/lib/apt/lists/*
 

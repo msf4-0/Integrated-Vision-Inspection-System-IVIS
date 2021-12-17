@@ -22,6 +22,7 @@ Copyright (C) 2021 Selangor Human Resource Development Centre
 SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -327,8 +328,8 @@ def index(RELEASE=True):
                 try:
                     trainer.evaluate()
                 except Exception as e:
-                    # uncomment this line to check the Traceback
-                    # st.exception(e)
+                    if os.environ.get("DEBUG", 'true').lower() == 'true':
+                        st.exception(e)
                     st.error("Some error has occurred. Please try "
                              "training/exporting the model again.")
                     logger.error(f"Error evaluating: {e}")

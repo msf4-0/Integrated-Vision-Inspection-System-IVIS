@@ -1,4 +1,5 @@
 from __future__ import annotations
+import gc
 import json
 import os
 import pickle
@@ -276,7 +277,7 @@ def get_test_images_labels(
             return X_test, y_test
 
 
-@st.cache(allow_output_mutation=True, show_spinner=False)
+# @st.cache(allow_output_mutation=True, show_spinner=False)
 # @st.experimental_memo
 def load_keras_model(model_path: Union[str, Path], metrics: List[Callable],
                      training_param: Dict[str, Any] = None):
@@ -296,6 +297,7 @@ def load_keras_model(model_path: Union[str, Path], metrics: List[Callable],
     else:
         custom_objects = None
     tf.keras.backend.clear_session()
+    gc.collect()
     model = tf.keras.models.load_model(model_path, custom_objects)
     # https://github.com/tensorflow/tensorflow/issues/45903#issuecomment-804973541
     model.compile(loss=model.loss, optimizer=model.optimizer, metrics=metrics)
@@ -305,6 +307,7 @@ def load_keras_model(model_path: Union[str, Path], metrics: List[Callable],
 def load_trained_keras_model(path: str):
     """To load user-uploaded model or trained project model"""
     tf.keras.backend.clear_session()
+    gc.collect()
     all_custom_objects = get_all_keras_custom_objects()
     # load with all the custom objects used in our app
     # will raise ValueError if unknown custom_object is found in the model
@@ -540,8 +543,8 @@ def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
     Return None if no ckpt-*.index file found"""
     ckpt_filepaths = glob.glob(str(ckpt_dir / 'ckpt-*.index'))
     if not ckpt_filepaths:
-        logger.warning("""There is no checkpoint file found,
-        the TFOD model is not trained yet.""")
+        logger.warning("There is no checkpoint file found, the TFOD model is "
+                       "not trained yet.")
         return None
 
     def get_ckpt_cnt(path):
@@ -553,7 +556,7 @@ def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
     return Path(latest_ckpt)
 
 
-@st.cache(allow_output_mutation=True, show_spinner=False)
+# @st.cache(allow_output_mutation=True, show_spinner=False)
 # @st.experimental_memo
 def load_tfod_checkpoint(
         ckpt_dir: Path,
@@ -566,6 +569,7 @@ def load_tfod_checkpoint(
     `pipeline_config_path` should be training_path['models'] / 'pipeline.config'
     """
     tf.keras.backend.clear_session()
+    gc.collect()
     ckpt_path = get_tfod_last_ckpt_path(ckpt_dir)
 
     logger.info(f'Loading TFOD checkpoint from {ckpt_path} ...')
@@ -597,7 +601,7 @@ def load_tfod_checkpoint(
     return detect_fn
 
 
-@st.cache(allow_output_mutation=True, show_spinner=False)
+# @st.cache(allow_output_mutation=True, show_spinner=False)
 # @st.experimental_memo
 def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, Any]]:
     """
@@ -608,6 +612,7 @@ def load_tfod_model(saved_model_path: Path) -> Callable[[tf.Tensor], Dict[str, A
     Maybe can improve this by using st.experimental_memo or other methods. Not sure.
     """
     tf.keras.backend.clear_session()
+    gc.collect()
     logger.info(f'Loading model from {saved_model_path} ...')
     start_time = perf_counter()
     # LOAD SAVED MODEL AND BUILD DETECTION FUNCTION
@@ -766,7 +771,6 @@ def load_mask_image(ori_image_name: str, mask_dir: Path) -> np.ndarray:
     return mask
 
 
-@st.cache(show_spinner=False)
 def get_coco_classes(
     json_path: Union[str, Path],
     return_coco: bool = True) -> Union[Tuple[COCO, List[int], bool, List[str]],

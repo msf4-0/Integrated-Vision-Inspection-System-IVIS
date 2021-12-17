@@ -170,8 +170,6 @@ def dashboard():
     ]
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    training_dashboard_data_table_place = st.empty()
-
     def to_training_page():
         training_id_tmp = session_state.training_dashboard_table[0]
         logger.debug(f"Entering Training {training_id_tmp}")
@@ -214,9 +212,10 @@ def dashboard():
 
         st.experimental_rerun()
 
-    with training_dashboard_data_table_place:
-        data_table(all_project_training, project_training_columns,
-                   checkbox=False, key='training_dashboard_table', on_change=to_training_page)
+    st.markdown("Create/select a training session. Note that entering a trained model "
+                "session might take awhile.")
+    data_table(all_project_training, project_training_columns,
+               checkbox=False, key='training_dashboard_table', on_change=to_training_page)
 
     st.markdown('___')
 

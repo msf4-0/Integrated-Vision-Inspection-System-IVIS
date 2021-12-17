@@ -5,15 +5,12 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 # ----------Add sys path for modules----------------#
 
+import gc
 import os
 import sys
 from pathlib import Path
 from time import sleep
 import os
-
-# to disable warning messages from OpenCV, must do this before import cv2
-os.environ['OPENCV_LOG_LEVEL'] = 'OFF'
-os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'
 
 import streamlit as st
 from streamlit import session_state
@@ -35,6 +32,26 @@ st.set_page_config(page_title="Integrated Vision Inspection System",
 from path_desc import chdir_root, SECRETS_PATH
 from core.utils.log import logger
 from database_setup import database_setup, database_direct_setup, test_database_connection
+
+
+if 'setup' not in session_state:
+    # to disable warning messages from OpenCV, must do this before import cv2
+    os.environ['OPENCV_LOG_LEVEL'] = 'OFF'
+    os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'
+
+    # limit memory growth to avoid memory issues
+    gpus = tf.config.list_physical_devices('GPU')
+    for gpu in gpus:
+        try:
+            # limit memory growth to avoid memory issues
+            tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            logger.info(len(gpus), "Physical GPUs,",
+                        len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Visible devices must be set before GPUs have been initialized
+            logger.warning(e)
+    session_state.setup = True
 
 # ********************** Connection to db **********************
 if 'db_connect_success' not in session_state:
@@ -158,6 +175,7 @@ def logout_cb():
     logger.info("Logged out successfully")
 
     tf.keras.backend.clear_session()
+    gc.collect()
 
     # only need to reset everything on logout
     reset_login_page()
