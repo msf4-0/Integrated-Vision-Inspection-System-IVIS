@@ -111,18 +111,22 @@ def augmentation_configuration(RELEASE=True):
         # You can refer to augmentation/sample_augment_config.json for a sample output
         session_state.augmentation_config = AugmentationConfig()
 
-    # # - This is for None or empty dict; also to create a nested `augmentations` Dict inside
-    # if not session_state.new_training.has_augmentation():
-    #     session_state.new_training.augmentation_config = AugmentationConfig()
+    def clear_xml_df_cache():
+        if hasattr(session_state.project, 'xml_df'):
+            # clear the previously loaded xml_df
+            logger.debug("Clearing xml_df cache")
+            del session_state.project.xml_df
 
     # ******************************BACK BUTTON******************************
     def to_training_config_page():
+        clear_xml_df_cache()
         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
     st.sidebar.button("Back to Modify Training Config", key="btn_back_train_config",
                       on_click=to_training_config_page)
 
     def skip_augmentation():
+        clear_xml_df_cache()
         session_state.augmentation_config.reset()
         # update the database and our Training instance
         session_state.new_training.update_augment_config(
@@ -151,8 +155,7 @@ def augmentation_configuration(RELEASE=True):
                          f"{exported_dataset_dir}")
             # shutil.rmtree(exported_dataset_dir)
     if not exported_dataset_dir.exists():
-        # clear cache for `load_xml_df()`
-        st.legacy_caching.clear_cache()
+        clear_xml_df_cache()
 
         # export the dataset with the correct structure if not done yet
         # mask images will be generated later for a sample amount
@@ -164,15 +167,11 @@ def augmentation_configuration(RELEASE=True):
         image_folder = exported_dataset_dir / "images"
         bbox_label_folder = exported_dataset_dir / "Annotations"
 
-        # NOTE: Only cache for augmentation demo for fast loading,
-        # MUST REMEMBER to clear cache later!
-        @st.cache
-        def load_xml_df():
-            xml_df = xml_to_df(bbox_label_folder)
-            return xml_df
-
-        with st.spinner("Loading bounding box data ..."):
-            xml_df = load_xml_df()
+        # NOTE: Only cache for augmentation demo for fast loading
+        if not hasattr(session_state.project, 'xml_df'):
+            with st.spinner("Loading bounding box data ..."):
+                logger.debug("Loading bounding box data")
+                session_state.project.xml_df = xml_to_df(bbox_label_folder)
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
         image_folder = exported_dataset_dir / "images"
         coco_json_path = exported_dataset_dir / "result.json"
@@ -239,7 +238,8 @@ def augmentation_configuration(RELEASE=True):
             st.sidebar.markdown("___")
 
             if image_name != "Upload my image":
-                class_names, bboxes = get_bbox_label_info(xml_df, image_name)
+                class_names, bboxes = get_bbox_label_info(
+                    session_state.project.xml_df, image_name)
 
         # show the widgets and get parameters for each transform
         transforms = get_transformations_params(
@@ -383,6 +383,7 @@ def augmentation_configuration(RELEASE=True):
     # ******************************SUBMIT BUTTON******************************
 
     def update_augment_config():
+        clear_xml_df_cache()
         # update the database and our Training instance
         session_state.new_training.update_augment_config(
             session_state.augmentation_config)

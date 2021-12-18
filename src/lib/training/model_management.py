@@ -1050,7 +1050,7 @@ class BaseModel:
                 st.error(
                     f"""Error renaming model path, probably due to access error. Please
                     make sure there is nothing accessing the previous model path at:
-                    {prev_model_path}""")
+                    {prev_model_path}, then press *'R'* to refresh current page.""")
                 st.stop()
         logger.info(f"New Updated Model Path: {model_path}")
 

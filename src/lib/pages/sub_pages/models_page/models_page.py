@@ -26,6 +26,7 @@ SPDX-License-Identifier: Apache-2.0
 
 
 from re import T
+import shutil
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -489,8 +490,23 @@ def existing_models():
             ):
                 if training.attached_model is not None and \
                         selected_model.name != training.attached_model.name:
+                    logger.info(
+                        "A different pretrained model from the existing config "
+                        "has been selected. Making relevant changes ...")
                     # must change training config if model is changed
                     go_to_train_config = True
+                    # also remove the trained model directory if attached model is changed
+                    model_path = training.get_paths()['models']
+                    if model_path.exists():
+                        logger.info(
+                            "Removing existing trained model directory")
+                        shutil.rmtree(model_path)
+                    # and reset all training progress
+                    if training.is_started:
+                        logger.info("Resetting training progress")
+                        training_progress = {'Epoch': 0}
+                        training.reset_training_progress(
+                            training_progress)
                 else:
                     go_to_train_config = False
 

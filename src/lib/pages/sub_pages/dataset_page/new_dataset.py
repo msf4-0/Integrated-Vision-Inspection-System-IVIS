@@ -27,7 +27,6 @@ SPDX-License-Identifier: Apache-2.0
 import os
 import sys
 import shutil
-from pathlib import Path
 from time import perf_counter, sleep
 
 from natsort import os_sorted
@@ -53,14 +52,13 @@ from streamlit import session_state
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 from core.utils.code_generator import get_random_string
-from core.utils.helper import Timer, check_filetype, list_available_cameras
+from core.utils.helper import Timer, list_available_cameras
 from core.utils.file_handler import extract_archive, list_files_in_archived, check_image_files
 from core.utils.log import logger
-from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import NewDataset, get_dataset_name_list, get_latest_captured_image_path, query_dataset_list
-from path_desc import DATASET_DIR, TEMP_DIR, chdir_root
-from project.project_management import NewProject, NewProjectPagination, Project, ProjectPagination
+from path_desc import TEMP_DIR, chdir_root
+from project.project_management import NewProject, Project, ProjectPagination, ProjectPermission
 from annotation.annotation_management import NewAnnotations, Task
 from user.user_management import User
 from deployment.utils import reset_camera, reset_camera_ports
@@ -295,7 +293,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 35, 1000, 640, 5, key='display_width',
                 help="This does not affect the size of the captured image as it depends on the camera.")
 
-            is_limiting = st.checkbox("Limit images captured per second", value=True)
+            is_limiting = st.checkbox(
+                "Limit images captured per second", value=True)
             if is_limiting:
                 img_per_sec = st.slider(
                     "Max images per second",
@@ -588,9 +587,10 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                 # index into the List of Dict of task
                                 task_row = task_row[0]
                             else:
-                                logger.error(f"""Image '{img_name}' not found. Probably
-                                removed because unable to read the image. Skipping
-                                from submitting to database.""")
+                                logger.error(
+                                    f"Image '{img_name}' not found. Probably removed "
+                                    "because unable to read the image. Skipping from "
+                                    "submitting to database.")
                                 # these images were skipped in dataset_PNG_encoding()
                                 error_imgs.append(img_name)
                                 continue
@@ -598,7 +598,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                             with Timer("Task instantiated", disable_timer):
                                 task = Task(task_row,
                                             session_state.project.dataset_dict,
-                                            session_state.project.id)
+                                            session_state.project.id,
+                                            generate_data_url=False)
 
                             with Timer("Annotation instantiated", disable_timer):
                                 annotation = NewAnnotations(
@@ -610,7 +611,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                     result, session_state.user.id, conn)
 
                             time_elapsed = perf_counter() - start_task
-                            logger.info(
+                            logger.debug(
                                 f"Annotation submitted successfully [{time_elapsed:.4f}s]")
 
                         time_elapsed = perf_counter() - start_t
@@ -675,16 +676,28 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         if error_imgs:
                             with st.expander("""NOTE: These images were unreadable and
                                 skipped, but others are stored successfully in the
-                                database. You may now go back to the Home page and 
-                                enter the current project."""):
+                                database. You may now proceed to enter the current project."""):
                                 st.warning("  \n".join(error_imgs))
                         else:
                             st.success("""🎉 All images and annotations are successfully
-                            stored in database. You may now go back to the Home page or 
-                            enter the current project.""")
+                            stored in database. You may now proceed to enter the current project.""")
 
                         # clear out the "Submit" button to avoid further interactions
                         button_place.empty()
+
+                        def enter_project_cb():
+                            NewDataset.reset_new_dataset_page()
+                            # also could be coming from project dashboard
+                            Project.reset_dashboard_page()
+                            session_state.project_pagination = ProjectPagination.Existing
+                            session_state.project_status = ProjectPagination.Existing
+                            session_state.append_project_flag = ProjectPermission.ViewOnly
+
+                            logger.info(
+                                f"Entering Project {session_state.project.id}")
+
+                        st.button("Enter Project", key="btn_enter_project",
+                                  on_click=enter_project_cb)
                 else:
                     st.error(
                         f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")

@@ -197,19 +197,10 @@ def dashboard():
         session_state.project_status = ProjectPagination.Existing
         session_state.append_project_flag = ProjectPermission.ViewOnly
 
-        if "project" not in session_state:
-            session_state.project = Project(project_id_tmp)
-
-        else:
-            session_state.project = Project(project_id_tmp)
+        session_state.project = Project(project_id_tmp)
 
         data_table_place.empty()
-        if "all_project_table" in session_state:
-            del session_state.all_project_table
         st.experimental_rerun()
-
-    if "all_project_table" not in session_state:
-        session_state.all_project_table = None
 
     with data_table_place:
         data_table(existing_project, project_columns,
@@ -251,7 +242,7 @@ def index():
     #     st.radio("", options=project_page_options,
     #              index=session_state.project_pagination, on_change=project_page_navigator, key="project_page_navigator_radio")
 
-    def to_project_dashboard():
+    def to_all_projects():
         tf.keras.backend.clear_session()
         gc.collect()
 
@@ -262,6 +253,7 @@ def index():
         NewTraining.reset_new_training_page()
         Training.reset_training_page()
         Project.reset_project_page()
+        Project.reset_dashboard_page()
         Project.reset_settings_page()
         Deployment.reset_deployment_page()
 
@@ -274,13 +266,13 @@ def index():
     navigator = st.sidebar.empty()
     with navigator.container():
         st.button("Home", key="to_project_dashboard_sidebar",
-                  on_click=to_project_dashboard,
+                  on_click=to_all_projects,
                   help="This clears the current project session.")
     logger.debug(f"Navigator: {session_state.project_pagination = }")
     # st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()
 
-    # st.write(session_state)
+    st.write(session_state)
 
 
 if __name__ == "__main__":

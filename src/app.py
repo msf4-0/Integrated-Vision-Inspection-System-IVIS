@@ -186,6 +186,7 @@ def logout_cb():
     NewTraining.reset_new_training_page()
     Training.reset_training_page()
     Project.reset_project_page()
+    Project.reset_dashboard_page()
     Project.reset_settings_page()
     Deployment.reset_deployment_page()
 

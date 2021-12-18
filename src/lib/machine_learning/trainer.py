@@ -33,12 +33,13 @@ import sys
 import shutil
 from pathlib import Path
 from time import perf_counter, sleep
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING
 import cv2
 import numpy as np
 import pickle
 import glob
 import tarfile
+import gc
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -54,15 +55,13 @@ from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
 from keras_unet_collection import models
-from keras_unet_collection.losses import focal_tversky, iou_seg
-from keras.losses import categorical_crossentropy
+from keras_unet_collection.losses import focal_tversky
 
 from sklearn.metrics import classification_report, confusion_matrix
 from imutils.paths import list_images
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
@@ -73,9 +72,7 @@ if TYPE_CHECKING:
     from project.project_management import Project
     from training.training_management import Training, AugmentationConfig
 from training.labelmap_management import Framework, Labels
-from path_desc import (DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR,
-                       USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, TFOD_MODELS_TABLE_PATH,
-                       CLASSIF_MODELS_NAME_PATH, SEGMENT_MODELS_TABLE_PATH, chdir_root)
+from path_desc import DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR, TFOD_MODELS_TABLE_PATH
 from .command_utils import (export_tfod_savedmodel, find_tfod_eval_metrics, run_command,
                             run_command_update_metrics, find_tfod_metric)
 from .utils import (NASNET_IMAGENET_INPUT_SHAPES, check_unique_label_counts, classification_predict, copy_images,
@@ -147,6 +144,9 @@ class Trainer:
         # clearing all cache in case there is something weird happen with the
         # st.experimental_memo or st.cache methods
         st.legacy_caching.clear_cache()
+
+        tf.keras.backend.clear_session()
+        gc.collect()
 
         if self.training_path['export'].exists():
             # remove the exported model first before training

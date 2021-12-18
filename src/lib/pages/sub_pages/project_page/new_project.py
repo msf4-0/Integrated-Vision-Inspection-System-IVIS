@@ -171,8 +171,6 @@ def new_project_entry_page(conn=None):
         if description:
             session_state.new_project.desc = remove_newline_trailing_whitespace(
                 description)
-        else:
-            pass
 
         # **** DEPLOYMENT TYPE and EDITOR BASE TEMPLATE LOAD ****
         v = annotation_sel()

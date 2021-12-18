@@ -40,6 +40,8 @@ if str(LIB_PATH) not in sys.path:
 from core.utils.log import logger
 from path_desc import TFOD_DIR, chdir_root
 
+PROTOC_PATH = TFOD_DIR.parent / 'protoc_installation'
+
 
 def run_command(command_line_args):
     logger.info(f"Running command: '{command_line_args}'")
@@ -58,6 +60,28 @@ def run_command(command_line_args):
     return process.stdout
 
 
+def install_protoc():
+    if not (PROTOC_PATH / "bin").exists():
+        logger.info("Downloading protobuf dependencies ...")
+        protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
+        protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
+        url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
+        wget.download(url)
+        # move the protoc zip file into the desired path, PROTOC_PATH
+        shutil.move(protoc_zipfilename, PROTOC_PATH)
+        # unzip the zip file
+        if os.name == "posix":
+            run_command(
+                f'cd "{PROTOC_PATH}" && unzip {protoc_zipfilename}')
+        else:
+            run_command(
+                f'cd "{PROTOC_PATH}" && tar -xf {protoc_zipfilename}')
+        os.remove(PROTOC_PATH / protoc_zipfilename)
+    # add the path of $PROTOC_PATH/bin into the PATH in environment variable
+    # to be able to run `protoc` as a command in terminal
+    os.environ['PATH'] += os.pathsep + str((PROTOC_PATH / 'bin').resolve())
+
+
 def del_rw(action, name, exc):
     """To delete .git directory in TFOD"""
     os.chmod(name, stat.S_IWRITE)
@@ -65,8 +89,6 @@ def del_rw(action, name, exc):
 
 
 def install():
-    PROTOC_PATH = TFOD_DIR.parent / 'protoc_installation'
-
     for path in (TFOD_DIR, PROTOC_PATH):
         os.makedirs(path, exist_ok=True)
 
@@ -76,6 +98,9 @@ def install():
         run_command(
             f'git clone https://github.com/tensorflow/models "{TFOD_DIR}"')
 
+    # uninstall any existing pycocotools and install specific pycocotools library here
+    run_command("pip uninstall -y pycocotools")
+
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
     # NOTE: Install COCO API ONLY if you want to perform evaluation
     if os.name == 'posix':
@@ -84,13 +109,13 @@ def install():
         run_command("git clone https://github.com/cocodataset/cocoapi.git")
         os.chdir("cocoapi/PythonAPI")
         run_command("make")
-        shutil.copytree("pycocotools", TFOD_DIR / 'research')
+        run_command(f'cp -r pycocotools "{TFOD_DIR / "research"}"')
         os.chdir(cwd)
         # removed the unused cloned files from COCO API
         shutil.rmtree("cocoapi")
         # 'posix' is for Linux (also to use in Colab Notebook)
         logger.info("Installing protobuf ...")
-        run_command(f"apt-get install protobuf-compiler")
+        install_protoc()
         logger.info("Installing TFOD API ...")
         # NEW: --use-feature=2020-resolver
         cmd = (f'cd "{TFOD_DIR / "research"}" '
@@ -110,21 +135,9 @@ def install():
         # NOTE: using this new repo created to fix Windows installation for now
         run_command(
             "pip install git+https://github.com/gautamchitnis/cocoapi.git@cocodataset-master#subdirectory=PythonAPI")
-        if not (PROTOC_PATH / "bin").exists():
-            logger.info("Downloading protobuf dependencies ...")
-            PROTOC_VERSION = "3.19.1"  # updated from 3.15.6 -> 3.19.1
-            protoc_zipfilename = f"protoc-{PROTOC_VERSION}-win64.zip"
-            url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{PROTOC_VERSION}/{protoc_zipfilename}"
-            wget.download(url)
-            # move the protoc zip file into the desired path, PROTOC_PATH
-            shutil.move(protoc_zipfilename, PROTOC_PATH)
-            # unzip the zip file
-            run_command(
-                f'cd "{PROTOC_PATH}" && tar -xf {protoc_zipfilename}')
-            os.remove(PROTOC_PATH / protoc_zipfilename)
-        # add the path of $PROTOC_PATH/bin into the PATH in environment variable
-        # to be able to run `protoc` as a command in terminal
-        os.environ['PATH'] += os.pathsep + str((PROTOC_PATH / 'bin').resolve())
+
+        install_protoc()
+
         # run the `protoc` command and install all the dependencies for TFOD API
         logger.info("Installing TFOD API ...")
         # NEW: --use-feature=2020-resolver

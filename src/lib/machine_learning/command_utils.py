@@ -57,7 +57,7 @@ def find_tfod_metric(name: str, cmd_output_line: str) -> Union[
                 # skip showing/storing learning_rate for now
                 return
             # take the entire loss name, e.g. "Loss/box/scale"
-            pattern = '(Loss[/\w]*).+(\d+\.\d+)'
+            pattern = '(Loss[/\w]*).+(\d+\.\d+|nan)'
             loss_name, value = re.findall(
                 pattern, cmd_output_line)[-1]
             return loss_name, float(value)

@@ -40,7 +40,7 @@ from pathlib import Path
 import tarfile
 from tempfile import mkdtemp
 from time import perf_counter, sleep
-from typing import Any, Dict, Iterator, List, NamedTuple, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, NamedTuple, Tuple, Union
 import xml.etree.ElementTree as ET
 
 import cv2
@@ -134,6 +134,15 @@ class FileTypes(IntEnum):
             raise ValueError()
 
 # <<<< Variable Declaration <<<<
+
+
+def get_items_from_indices(indices: List[int], input_items: Iterable) -> List[Any]:
+    if len(indices) == 1:
+        # rare case for only one item
+        items = [input_items[indices[0]]]
+    else:
+        items = list(itemgetter(*indices)(input_items))
+    return items
 
 
 def convert_to_ls(x, y, width, height, original_width, original_height):
@@ -497,9 +506,9 @@ class NewDataset(BaseDataset):
                         st.warning("  \n".join(fnames))
                 st.stop()
 
-            xml_filepaths = list(itemgetter(*xml_idxs)(filepaths))
+            xml_filepaths = get_items_from_indices(xml_idxs, filepaths)
             image_idxs = set(range(len(filepaths))).difference(xml_idxs)
-            img_filepaths = list(itemgetter(*image_idxs)(filepaths))
+            img_filepaths = get_items_from_indices(list(image_idxs), filepaths)
 
             self.annotation_files = xml_filepaths
 
@@ -641,6 +650,7 @@ class NewDataset(BaseDataset):
             except Exception as e:
                 st.error(f'Error parsing XML file "{xml_filepath}" with error: {e}  \n'
                          'Please try checking your annotation file(s) again before uploading.')
+                logger.error("Error parsing XML file")
                 # delete the invalid dataset
                 self.delete_dataset(self.id)
                 st.stop()

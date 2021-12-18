@@ -271,8 +271,12 @@ def export_section():
             logger.info(f"Zipfile created at: {zipfile_path}")
 
     with export_labels_col:
-        st.button("Export Tasks", key='export_labels_button',
-                  on_click=download_export_tasks)
+        btn_export = st.button("Export Tasks", key='export_labels_button')
+
+    if btn_export:
+        # use this instead of callback to show the message below the button
+        download_export_tasks()
+        st.experimental_rerun()
 
     def reset_zipfile_state():
         # clear out the `download_button` after the user has clicked it

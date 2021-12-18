@@ -165,7 +165,8 @@ class NewTask(BaseTask):
 
 
 class Task(BaseTask):
-    def __init__(self, task_row: dict, dataset_dict: Dict[namedtuple, Any], project_id: int, annotations=None, predictions=None) -> None:
+    def __init__(self, task_row: dict, dataset_dict: Dict[namedtuple, Any], project_id: int, annotations=None, predictions=None,
+                 generate_data_url: bool = True) -> None:
         super().__init__()
         """
         - task_row: id,Task Name, Created By, Dataset Name, Is Labelled, Skipped, Date/Time
@@ -194,7 +195,9 @@ class Task(BaseTask):
         # self.filetype = Dataset.get_filetype_enumerator(self.name)
         self.filetype: FileTypes = FileTypes.Image
 
-        self.data_url: str = self.get_data()  # Get Data URL
+        if generate_data_url:
+            # only need this to show the image on Label Studio Editor
+            self.data_url: str = self.get_data()  # Get Data URL
 
         # self.query_task()
 
@@ -568,7 +571,7 @@ class BaseAnnotations:
         Returns:
             [type]: [description]
         """
-        logger.info(f"Submitting results.......")
+        logger.debug(f"Submitting results.......")
         # NOTE: Update class object: result + task
         self.result = result if result else None
         self.task.is_labelled = True
@@ -877,6 +880,7 @@ def reset_editor_page():
             # don't need it anymore
             os.remove(session_state['zipfile_path'])
     if 'project' in session_state:
+        # must clear this dataset path just in case the user changes any annotations
         dataset_export_path = session_state.project.get_export_path()
         if dataset_export_path.exists():
             logger.debug(
