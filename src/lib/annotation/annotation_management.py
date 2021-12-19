@@ -262,7 +262,19 @@ class Task(BaseTask):
             logger.error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
-    # @st.cache
+    @staticmethod
+    def update_task_dict(all_task: List[Dict[str, Any]], task_id: int,
+                         labelled: bool = False, skipped: bool = False,
+                         for_data_table: bool = True):
+        ID_string = "id" if for_data_table else "ID"
+        for task in all_task:
+            if task[ID_string] == task_id:
+                task["Is Labelled"] = labelled
+                task["Skipped"] = skipped
+                break
+        else:
+            logger.error(f"'task_id' {task_id} does not exist in 'all_task'")
+
     def generate_data_url(self) -> str:
         """Generate data url from OpenCV numpy array
 
@@ -873,6 +885,14 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> Dict:
 
 
 def reset_editor_page():
+    """
+    This function is used every time the user clicked on a navigation in
+    the labelling_dashboard pages.
+
+    So some states such as "labelling_pagination", and "all_task" are not included 
+    here so that we can keep them across pages. They are included in 
+    Training.reset_training_page()
+    """
     if session_state.get('zipfile_path'):
         if os.path.exists(session_state['zipfile_path']):
             logger.debug("Removing exported zipfile: "

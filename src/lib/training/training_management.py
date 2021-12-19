@@ -1621,7 +1621,7 @@ class Training(BaseTraining):
                         shutil.rmtree(p)
 
         training_attributes = ["training", "training_pagination", "labelling_pagination",
-                               "new_training", "trainer", "start_idx",
+                               "all_task", "new_training", "trainer", "start_idx",
                                "augmentation_config"
                                ]
         # this might be required to avoid issues with caching model-related variables

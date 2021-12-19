@@ -7,11 +7,9 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 
 import sys
 from pathlib import Path
-from enum import IntEnum
-from time import sleep
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state
 from deployment.deployment_management import Deployment
 from pages.sub_pages.training_page import training_dashboard
 
@@ -20,15 +18,12 @@ from pages.sub_pages.training_page import training_dashboard
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 from path_desc import chdir_root
 from core.utils.log import logger  # logger
@@ -138,6 +133,10 @@ def index():
         elif navigation_selected == "Training":
             Project.reset_dashboard_page()
             reset_editor_page()
+            # also reset training page when clicked on this navigation, to clean up
+            # some things that were not included in `reset_editor_page()` for reasons
+            # explained in that function
+            Training.reset_training_page()
             Project.reset_settings_page()
             Deployment.reset_deployment_page()
         elif navigation_selected == "Deployment":

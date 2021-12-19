@@ -409,7 +409,7 @@ def index(RELEASE=True):
                   on_click=to_labelling_section, args=(LabellingPagination.Export,))
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    project_id = session_state.project.id
+
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     logger.debug(f"Navigator: {session_state.labelling_pagination}")
 
@@ -426,8 +426,13 @@ def index(RELEASE=True):
 
     else:
         session_state.show_next_unlabeled = False
-        all_task, _ = Task.query_all_task(project_id,
-                                          return_dict=True, for_data_table=True)
+        if 'all_task' not in session_state:
+            all_task, _ = Task.query_all_task(
+                session_state.project.id,
+                return_dict=True,
+                for_data_table=True)
+            session_state.all_task = all_task
+        all_task = session_state.all_task
         labelled_task_dict = Task.get_labelled_task(all_task, True)
         task_queue_dict = Task.get_labelled_task(all_task, False)
         labelling_page[session_state.labelling_pagination](

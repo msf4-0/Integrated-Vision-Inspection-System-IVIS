@@ -272,8 +272,6 @@ def index():
     # st.write(session_state.project_pagination)
     project_page[session_state.project_pagination]()
 
-    st.write(session_state)
-
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
