@@ -305,7 +305,7 @@ def load_keras_model(model_path: Union[str, Path], metrics: List[Callable],
 
 
 def load_trained_keras_model(path: str):
-    """To load user-uploaded model or trained project model"""
+    """To load user-uploaded model or trained project model (from other projects)"""
     tf.keras.backend.clear_session()
     gc.collect()
     all_custom_objects = get_all_keras_custom_objects()

@@ -8,8 +8,7 @@ import logging
 import os
 
 # environment variable should always be string
-DEBUG = os.getenv('DEBUG', 'True')
-if str(DEBUG).lower() == 'true':
+if os.getenv('DEBUG', '1') == '1':
     # added module name, function name, and also line number
     FORMAT = '[%(levelname)s] %(asctime)s - [%(module)s.%(funcName)s: %(lineno)d] %(message)s'
     LEVEL = logging.DEBUG

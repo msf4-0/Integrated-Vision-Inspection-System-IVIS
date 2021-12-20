@@ -395,7 +395,7 @@ def run_command_update_metrics(
         return traceback
 
 
-def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
+def export_tfod_savedmodel(training_paths: Dict[str, Path], stdout_output: bool = False) -> bool:
     paths = training_paths
     if paths['export'].exists():
         # remove any existing export directory first
@@ -411,7 +411,7 @@ def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
                    f'--pipeline_config_path "{pipeline_conf_path}" '
                    f'--trained_checkpoint_dir "{paths["models"]}" '
                    f'--output_directory "{paths["export"]}"')
-        run_command(command, stdout_output=False)
+        run_command(command, stdout_output=stdout_output)
 
     if (paths['export'] / 'saved_model' / 'saved_model.pb').exists():
         logger.info("Successfully exported TensorFlow Object Detection model")

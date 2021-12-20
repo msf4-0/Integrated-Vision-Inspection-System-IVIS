@@ -191,11 +191,17 @@ class Trainer:
         else:
             self.run_keras_eval()
 
-    def export_model(self):
+    def export_model(self, re_export: bool = True):
+        """
+        TFOD: Export model and create a tarfile. If `re_export` is True,
+        will export again even though the exported files already exist.
+
+        Classification/segmentation: Move to paths['export'] and create a tarfile
+        """
         logger.info(f"Exporting model for Training ID {self.training_id}, "
                     f"Model ID {self.training_model_id}")
         if self.deployment_type == 'Object Detection with Bounding Boxes':
-            self.export_tfod_model(stdout_output=False)
+            self.export_tfod_model(stdout_output=False, re_export=re_export)
         else:
             self.export_keras_model()
 
@@ -551,10 +557,13 @@ class Trainer:
                              f"for TFOD training: {p}")
                 shutil.rmtree(p)
 
-    def export_tfod_model(self, stdout_output=False):
+    def export_tfod_model(self, stdout_output: bool = False, re_export: bool = True):
+        """ If `re_export` is True, will export again even though the exported
+        files already exist."""
         paths = self.training_path
 
-        export_tfod_savedmodel(paths)
+        if re_export or not paths['export'].exists():
+            export_tfod_savedmodel(paths, stdout_output)
 
         # copy the labelmap file into the export directory first
         # to store it for exporting

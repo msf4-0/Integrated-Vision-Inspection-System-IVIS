@@ -1,12 +1,13 @@
 from csv import DictWriter
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 import os
-from typing import Any, Dict, List, NamedTuple
+from typing import Any, Dict, Iterator, List, Tuple
 import cv2
+from streamlit.uploaded_file_manager import UploadedFile
 from yaml import full_load
 from pathlib import Path
 
+import streamlit as st
 import numpy as np
 from paho.mqtt.client import Client
 from imutils.video.webcamvideostream import WebcamVideoStream
@@ -14,6 +15,32 @@ from streamlit import session_state
 
 from core.utils.log import logger
 from path_desc import MQTT_CONFIG_PATH
+
+
+def image_from_buffer(buffer: bytes) -> np.ndarray:
+    if not buffer:
+        logger.error("Empty image buffer received")
+        st.error("Please do not send empty image buffer. You can try to check "
+                 "your input camera and try **Pause** and **Deploy** again.")
+        st.stop()
+    img_bytes = np.frombuffer(buffer, dtype=np.uint8)
+    img = cv2.imdecode(img_bytes, cv2.IMREAD_COLOR)
+    if img is None:
+        logger.error("Error reading the input image buffer, please try to send the "
+                     "image/frame in bytes.")
+        st.error("Error reading the input image buffer, please try to send the "
+                 "image/frame in bytes.")
+        st.stop()
+    return img
+
+
+def read_images_from_uploaded(
+        uploaded_imgs: List[UploadedFile]) -> Iterator[Tuple[np.ndarray, str]]:
+    """Read from Streamlit List of UploadedFile and yield Tuple of image and filename."""
+    for uploaded in uploaded_imgs:
+        img = image_from_buffer(uploaded.getvalue())
+        filename = uploaded.name
+        yield img, filename
 
 
 def image_to_bytes(frame: np.ndarray, channels: str = 'BGR') -> bytes:
@@ -37,8 +64,12 @@ def load_mqtt_config() -> Dict[str, str]:
 
 @dataclass(eq=False)
 class MQTTTopics:
-    publish_results: str
+    # main topics
+    recv_frame: str
     publish_frame: str
+    publish_results: str
+
+    # camera topics
     start_publish: str
     stop_publish: str
     start_publish_frame: str
@@ -65,8 +96,9 @@ class MQTTConfig:
         "DOCKERCOMPOSE") else CONFIG["mqtt"]["port"]
     qos: str = CONFIG["mqtt"]["QOS"]
     topics: MQTTTopics = MQTTTopics(
-        publish_frame=CONFIG["camera"]["publish_frame"],
-        publish_results=CONFIG["camera"]["publish_results"],
+        recv_frame=CONFIG["main"]["recv_frame"],
+        publish_frame=CONFIG["main"]["publish_frame"],
+        publish_results=CONFIG["main"]["publish_results"],
         start_publish=CONFIG["camera"]["start_publish_topic"],
         stop_publish=CONFIG["camera"]["stop_publish_topic"],
         start_publish_frame=CONFIG["camera"]["start_publish_frame_topic"],
@@ -106,7 +138,7 @@ def on_publish(client, userdata, mid):
     pass
 
 
-def get_mqtt_client(client_id=''):
+def get_mqtt_client(client_id: str = ''):
     """Return the MQTT client object."""
     client = Client(client_id, clean_session=True)
     # client.connected_flag = False  # set flag
@@ -178,3 +210,4 @@ def reset_client():
             logger.error(f"Could not stop and disconnect client: {e}")
         del session_state['client']
         del session_state['client_connected']
+        del session_state['added_video_cbs']

@@ -328,7 +328,7 @@ def index(RELEASE=True):
                 try:
                     trainer.evaluate()
                 except Exception as e:
-                    if os.environ.get("DEBUG", 'true').lower() == 'true':
+                    if os.getenv('DEBUG', '1') == '1':
                         st.exception(e)
                     st.error("Some error has occurred. Please try "
                              "training/exporting the model again.")

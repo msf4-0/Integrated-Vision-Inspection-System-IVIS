@@ -113,8 +113,9 @@ class DeploymentPagination(IntEnum):
 class DeploymentConfig:
     timezone: str = "Singapore"
     input_type: str = 'Image'
+    video_type: str = 'Uploaded Video'
     video_width: int = 640
-    use_camera: bool = False
+    # use_camera: bool = False
     camera_type: str = 'USB Camera'
     camera_port: int = 0
     retention_period: int = 7
@@ -171,6 +172,7 @@ class Deployment(BaseDeployment):
         # project_path is currently only used to get the path to save CSV file
         # or captured frames
         self.project_path = project_path
+        self.csv_save_dir: Path = self.project_path / 'deployment_results'
         self.deployment_type = deployment_type
         self.training_path = training_path
 
@@ -193,8 +195,9 @@ class Deployment(BaseDeployment):
 
         # not needed for now
         # self.deployment_list: List = self.query_deployment_list()
+
+        # to store the loaded model later
         self.model: tf.keras.Model = None
-        self.csv_save_dir: Path = self.project_path / 'deployment_results'
 
     @classmethod
     def from_trainer(cls, trainer: Trainer):
@@ -472,8 +475,11 @@ class Deployment(BaseDeployment):
         reset_csv_file_and_writer()
         reset_client()
 
-        project_attributes = ["deployment_pagination", "deployment", "trainer", "publishing",
-                              "refresh", "deployment_conf", "today", "mqtt_conf"]
+        project_attributes = [
+            "deployment_pagination", "deployment", "trainer", "publishing",
+            "refresh", "deployment_conf", "today", "mqtt_conf", "recv_frame",
+            "image_idx"
+        ]
 
         reset_page_attributes(project_attributes)
 

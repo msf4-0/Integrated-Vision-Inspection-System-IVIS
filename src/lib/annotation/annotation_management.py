@@ -907,9 +907,11 @@ def reset_editor_page():
                 f"Removing dataset export path: {dataset_export_path}")
             shutil.rmtree(dataset_export_path)
 
-    editor_attributes = ["new_annotation_flag", "task", "show_next_unlabeled"
-                         "annotation", "data_labelling_table", "labelling_prev_result"
-                         'data_selection', 'zipfile_path']
+    editor_attributes = [
+        "new_annotation_flag", "task", "show_next_unlabeled",
+        "annotation", "data_labelling_table", "labelling_prev_result",
+        'data_selection', 'zipfile_path'
+    ]
 
     logger.debug(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)

@@ -410,12 +410,12 @@ def index(RELEASE=True):
                     def export_callback():
                         # with message_place.container():
                         try:
-                            trainer.export_model()
+                            trainer.export_model(re_export=False)
                         except Exception as e:
                             st.error("""Some error has occurred when exporting,
                                 please try re-training again""")
                             logger.error(f"Error exporting model: {e}")
-                            if os.environ.get("DEBUG", 'true').lower() == 'true':
+                            if os.getenv('DEBUG', '1') == '1':
                                 st.exception(e)
                             st.stop()
                     if training.deployment_type == 'Object Detection with Bounding Boxes':
@@ -479,7 +479,7 @@ def index(RELEASE=True):
                     try:
                         trainer.evaluate()
                     except Exception as e:
-                        if os.environ.get("DEBUG", 'true').lower() == 'true':
+                        if os.getenv('DEBUG', '1') == '1':
                             st.exception(e)
                         st.error(
                             "Some error has occurred. Please try checking the terminal "
