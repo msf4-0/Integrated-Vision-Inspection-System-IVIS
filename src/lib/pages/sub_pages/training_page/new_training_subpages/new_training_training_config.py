@@ -23,7 +23,6 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
  """
 import sys
-from pathlib import Path
 from typing import Any, Dict
 
 from tensorflow import keras
@@ -85,7 +84,7 @@ def training_configuration(RELEASE=True):
 
         st.markdown("""___""")
 
-    st.markdown(f"### Step 2: Select training configuration at sidebar.")
+    st.markdown(f"### Step 2: Select training configuration.")
 
     DEPLOYMENT_TYPE = session_state.project.deployment_type
     training: Training = session_state.new_training
@@ -95,11 +94,7 @@ def training_configuration(RELEASE=True):
         param_dict = {}
     logger.debug(f"{param_dict = }")
 
-    if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
-        train_config_col = st.sidebar.container()
-        details_col = st.container()
-    else:
-        train_config_col, details_col = st.columns(2)
+    train_config_col, details_col = st.columns([1.5, 2])
 
     def check_segmentation_model(training_param: Dict[str, Any] = None):
         if not training_param:
@@ -128,7 +123,8 @@ def training_configuration(RELEASE=True):
     with train_config_col:
         def update_training_param():
             training_param = get_training_param_from_session_state(delete=True)
-            if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
+            if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons" \
+                    and not training.attached_model.is_not_pretrained:
                 # continue only if the model is built successfully
                 check_segmentation_model(training_param)
             # update the database and our Training instance
@@ -430,24 +426,24 @@ def training_configuration(RELEASE=True):
             st.button("Test Build Model", key='btn_test_build_model',
                       help="""Test building a segmentation model to verify that 
                       the parameters are working""")
-            st.button("Submit Config", key='btn_training_config_submit')
+
+            with details_col:
+                model_name2_func = get_segmentation_model_name2func()
+                model_name = training.attached_model.name
+                model_func = model_name2_func[model_name]
+                # show docstring
+                st.subheader(f"**{model_name}** Model Docstring:")
+                st.text(getattr(models, model_func).__doc__)
+
+                # using this instead of `on_click` callbacks to show the messages
+                # below the other texts
+                if session_state.btn_test_build_model:
+                    check_segmentation_model()
 
     if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
-        with details_col:
-            model_name2_func = get_segmentation_model_name2func()
-            model_name = training.attached_model.name
-            model_func = model_name2_func[model_name]
-            # show docstring
-            st.subheader(f"**{model_name}** Model Docstring:")
-            st.text(getattr(models, model_func).__doc__)
-
-            # using this instead of `on_click` callbacks to show the messages
-            # below the other texts
-            if session_state.btn_test_build_model:
-                check_segmentation_model()
-            elif session_state.btn_training_config_submit:
-                update_training_param()
-                st.experimental_rerun()
+        if st.button("Submit Config", key='btn_training_config_submit'):
+            update_training_param()
+            st.experimental_rerun()
 
     # ******************************BACK BUTTON******************************
 

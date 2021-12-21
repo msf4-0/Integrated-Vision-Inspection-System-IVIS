@@ -29,11 +29,13 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from tempfile import mkdtemp, mkstemp
+from tempfile import mkdtemp
 from contextlib import contextmanager
 from appdirs import user_config_dir, user_data_dir
 
 from core.utils.log import logger
+
+_CURR_FILEPATH = Path(__file__).resolve()
 
 _DIR_APP_NAME = "integrated-vision-inspection-system"
 _DIR_AUTHOR_NAME = "SHRDC"
@@ -65,7 +67,7 @@ def get_temp_dir() -> str:
 
 
 # ./image_labelling_shrdc
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = _CURR_FILEPATH.parents[2]
 SECRETS_PATH = PROJECT_ROOT / ".streamlit" / "secrets.toml"
 
 # DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
@@ -83,7 +85,7 @@ TEMP_DIR = BASE_DATA_DIR / 'temp'
 
 # Pretrained model details
 # assuming this file is in "utils" directory
-RESOURCES_DIR = Path(__file__).resolve().parents[2] / 'resources'
+RESOURCES_DIR = _CURR_FILEPATH.parents[2] / 'resources'
 # this table has columns: Model Name
 TFOD_MODELS_TABLE_PATH = RESOURCES_DIR / 'tfod_pretrained_models.csv'
 # Keras image classification pretrained model names from
@@ -95,7 +97,7 @@ SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
 
 # folder to store the code cloned for TensorFlow Object Detection (TFOD)
 # from https://github.com/tensorflow/models
-TFOD_DIR = Path(__file__).resolve().parent / "TFOD" / "models"
+TFOD_DIR = _CURR_FILEPATH.parent / "TFOD" / "models"
 
 MQTT_CONFIG_PATH = PROJECT_ROOT / 'src/lib/deployment/mqtt_config.yml'
 
@@ -107,7 +109,7 @@ def chdir_root():
 
 
 def add_path(node: str, parent_node: int = 0) -> None:
-    SRC = Path(__file__).resolve().parents[parent_node]  # ROOT folder -> ./src
+    SRC = _CURR_FILEPATH.parents[parent_node]  # ROOT folder -> ./src
     if node is not None:
         PATH = SRC / node  # ./PROJECT_ROOT/src/lib
     else:

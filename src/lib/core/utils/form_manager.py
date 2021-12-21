@@ -7,17 +7,7 @@ from typing import List
 import streamlit as st
 from streamlit import session_state as session_state
 
-SRC = Path(__file__).resolve().parents[3]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
-
 # >>>> User-defined Modules >>>>
-from path_desc import chdir_root
 from core.utils.log import logger  # logger
 from data_manager.database_manager import db_fetchone, init_connection
 
@@ -69,11 +59,11 @@ def check_if_field_empty(context: Dict, field_placeholder, name_key: str = 'name
 
                 if check_if_exists(context, conn):
                     field_placeholder[k].error(
-                        f"Project name used. Please enter a new name")
+                        f"Name used. Please enter a new name")
                     sleep(1)
                     field_placeholder[k].empty()
                     logger.error(
-                        f" name used. Please enter a new name")
+                        f"Name used. Please enter a new name")
                     empty_fields.append(k)
                 else:
                     logger.debug('escaped check')

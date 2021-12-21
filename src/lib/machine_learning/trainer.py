@@ -130,10 +130,12 @@ class Trainer:
             #  and it could cause error
             if 'background' not in self.class_names:
                 self.class_names = ['background'] + self.class_names
-            self.segm_model_param, self.segm_model_func = (
-                new_training.get_segmentation_model_params(
-                    self.training_param, return_model_func=True
-                ))
+            if not self.is_not_pretrained:
+                # only using this for Pre-trained models selected in our models_page
+                self.segm_model_param, self.segm_model_func = (
+                    new_training.get_segmentation_model_params(
+                        self.training_param, return_model_func=True
+                    ))
         self.metrics, self.metric_names = new_training.get_training_metrics()
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.get_paths()
@@ -309,30 +311,7 @@ class Trainer:
                 "/")[-1].split(".tar.gz")[0]
             pt_model_dir = PRE_TRAINED_MODEL_DIR
 
-        # can check out initialise_training_folder function too
-        paths = {
-            'WORKSPACE_PATH': self.training_path['ROOT'],
-            'APIMODEL_PATH': TFOD_DIR,
-            'ANNOTATION_PATH': self.training_path['annotations'],
-            'IMAGE_PATH': self.training_path['images'],
-            'PRETRAINED_MODEL_PATH': pt_model_dir,
-            'MODELS': self.training_path['models'],
-            'EXPORT': self.training_path['export'],
-        }
-
-        files = {
-            'PIPELINE_CONFIG': self.training_path['config_file'],
-            # this generate_tfrecord.py script is modified from https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html
-            # to convert our PascalVOC XML annotation files into TFRecords which will be used by the TFOD API
-            'GENERATE_TF_RECORD': LIB_PATH / "machine_learning" / "module" / "generate_tfrecord_st.py",
-            'LABELMAP': self.training_path['labelmap_file'],
-            'MODEL_TARFILE': self.training_path['model_tarfile'],
-        }
-
-        # create all the necessary paths if not exists yet
-        for path in paths.values():
-            if not os.path.exists(path):
-                os.makedirs(path)
+        paths = self.training_path
 
         # ************* Generate train & test images in the folder *************
         with st.spinner('Generating train test splits ...'):
@@ -376,11 +355,11 @@ class Trainer:
                                               self.deployment_type)
 
                     # these csv files are temporarily generated to use for generating TF Records, should be removed later
-                    train_xml_csv_path = paths['ANNOTATION_PATH'] / 'train.csv'
+                    train_xml_csv_path = paths['annotations'] / 'train.csv'
                     generate_tfod_xml_csv(
                         image_paths=X_train,
                         xml_dir=self.dataset_export_path / "Annotations",
-                        output_img_dir=paths['IMAGE_PATH'] / 'train',
+                        output_img_dir=paths["images"] / 'train',
                         csv_path=train_xml_csv_path,
                         train_size=self.augmentation_config.train_size,
                         transform=transform
@@ -388,23 +367,23 @@ class Trainer:
             else:
                 # if not augmenting data, directly copy the train images to the folder
                 copy_images(X_train,
-                            dest_dir=paths['IMAGE_PATH'] / "train",
+                            dest_dir=paths["images"] / "train",
                             label_paths=y_train)
             # test set images should not be augmented
             copy_images(X_test,
-                        dest_dir=paths['IMAGE_PATH'] / "test",
+                        dest_dir=paths["images"] / "test",
                         label_paths=y_test)
             logger.info("Dataset files copied successfully.")
 
         # ************* get the pretrained model if not exists *************
         if not self.is_not_pretrained and \
-                not (paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME).exists():
+                not (pt_model_dir / PRETRAINED_MODEL_DIRNAME).exists():
             with st.spinner('Downloading pretrained model ...'):
                 logger.info('Downloading pretrained model')
                 wget.download(PRETRAINED_MODEL_URL)
                 pretrained_tarfile = PRETRAINED_MODEL_DIRNAME + '.tar.gz'
                 with tarfile.open(pretrained_tarfile) as tar:
-                    tar.extractall(paths['PRETRAINED_MODEL_PATH'])
+                    tar.extractall(pt_model_dir)
                 os.remove(pretrained_tarfile)
                 logger.info(
                     f'{PRETRAINED_MODEL_DIRNAME} downloaded successfully')
@@ -415,9 +394,14 @@ class Trainer:
             # must always generate a new one, regardless of which type of model
             logger.info(f"Creating labelmap file")
             create_labelmap_file(
-                CLASS_NAMES, files["LABELMAP"].parent, self.deployment_type)
+                CLASS_NAMES, paths["labelmap_file"].parent, self.deployment_type)
 
         # ******************** Generate TFRecords ********************
+        # this generate_tfrecord_st.py script is modified from https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html
+        # to convert our PascalVOC XML annotation files into TFRecords for TFOD API
+        GENERATE_TFRECORD_SCRIPT = LIB_PATH / \
+            "machine_learning" / "module" / "generate_tfrecord_st.py"
+
         with st.spinner('Generating TFRecords ...'):
             logger.info('Generating TFRecords')
             image_extensions = 'jpeg jpg png'
@@ -425,41 +409,41 @@ class Trainer:
                 # using the CSV file generated during the augmentation process above
                 # Must provide both image_dir and csv_path to skip the `xml_to_df` conversion step
                 run_command(
-                    f'python "{files["GENERATE_TF_RECORD"]}" '
+                    f'python "{GENERATE_TFRECORD_SCRIPT}" '
                     f'-e {image_extensions} '
-                    f'-i "{paths["IMAGE_PATH"] / "train"}" '
-                    f'-l "{files["LABELMAP"]}" '
+                    f'-i "{paths["images"] / "train"}" '
+                    f'-l "{paths["labelmap_file"]}" '
                     f'-d "{train_xml_csv_path}" '
-                    f'-o "{paths["ANNOTATION_PATH"] / "train.record"}"'
+                    f'-o "{paths["annotations"] / "train.record"}"'
                 )
             else:
                 run_command(
-                    f'python "{files["GENERATE_TF_RECORD"]}" '
+                    f'python "{GENERATE_TFRECORD_SCRIPT}" '
                     f'-e {image_extensions} '
-                    f'-x "{paths["IMAGE_PATH"] / "train"}" '
-                    f'-l "{files["LABELMAP"]}" '
-                    f'-o "{paths["ANNOTATION_PATH"] / "train.record"}"'
+                    f'-x "{paths["images"] / "train"}" '
+                    f'-l "{paths["labelmap_file"]}" '
+                    f'-o "{paths["annotations"] / "train.record"}"'
                 )
             # test set images are not augmented
             run_command(
-                f'python "{files["GENERATE_TF_RECORD"]}" '
+                f'python "{GENERATE_TFRECORD_SCRIPT}" '
                 f'-e {image_extensions} '
-                f'-x "{paths["IMAGE_PATH"] / "test"}" '
-                f'-l "{files["LABELMAP"]}" '
-                f'-o "{paths["ANNOTATION_PATH"] / "test.record"}"'
+                f'-x "{paths["images"] / "test"}" '
+                f'-l "{paths["labelmap_file"]}" '
+                f'-o "{paths["annotations"] / "test.record"}"'
             )
 
         # ********************* pipeline.config *********************
         with st.spinner('Generating pipeline config file ...'):
             logger.info('Generating pipeline config file')
-            original_config_path = paths['PRETRAINED_MODEL_PATH'] / \
+            original_config_path = pt_model_dir / \
                 PRETRAINED_MODEL_DIRNAME / 'pipeline.config'
             # copy over the pipeline.config file before modifying it
-            shutil.copy2(original_config_path, paths['MODELS'])
+            shutil.copy2(original_config_path, paths["models"])
 
             # making pipeline.config file editable programmatically
             pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
-            with tf.io.gfile.GFile(files['PIPELINE_CONFIG'], "r") as f:
+            with tf.io.gfile.GFile(paths["config_file"], "r") as f:
                 proto_str = f.read()
                 text_format.Merge(proto_str, pipeline_config)
 
@@ -468,42 +452,42 @@ class Trainer:
 
             pipeline_config.train_config.batch_size = self.training_param['batch_size']
             pipeline_config.train_config.fine_tune_checkpoint = str(
-                paths['PRETRAINED_MODEL_PATH'] / PRETRAINED_MODEL_DIRNAME
+                pt_model_dir / PRETRAINED_MODEL_DIRNAME
                 / 'checkpoint' / 'ckpt-0')
             pipeline_config.train_config.fine_tune_checkpoint_type = "detection"
             pipeline_config.train_input_reader.label_map_path = str(
-                files['LABELMAP'])
+                paths["labelmap_file"])
             pipeline_config.train_input_reader.tf_record_input_reader.input_path[:] = [
-                str(paths['ANNOTATION_PATH'] / 'train.record')]
+                str(paths['annotations'] / 'train.record')]
             pipeline_config.eval_input_reader[0].label_map_path = str(
-                files['LABELMAP'])
+                paths["labelmap_file"])
             pipeline_config.eval_input_reader[0].tf_record_input_reader.input_path[:] = [
-                str(paths['ANNOTATION_PATH'] / 'test.record')]
+                str(paths['annotations'] / 'test.record')]
 
             config_text = text_format.MessageToString(pipeline_config)
-            with tf.io.gfile.GFile(files['PIPELINE_CONFIG'], "wb") as f:
+            with tf.io.gfile.GFile(paths["config_file"], "wb") as f:
                 f.write(config_text)
 
         # ************************ TRAINING ************************
         # the path to the training script file `model_main_tf2.py` used to train our model
 
-        TRAINING_SCRIPT = paths['APIMODEL_PATH'] / \
+        TRAINING_SCRIPT = TFOD_DIR / \
             'research' / 'object_detection' / 'model_main_tf2.py'
         # change the training steps as necessary, recommended start with 300 to test whether it's working, then train for at least 2000 steps
-        NUM_TRAIN_STEPS = self.training_param['num_train_steps']
+        num_train_steps = self.training_param['num_train_steps']
 
         start = perf_counter()
         command = (f'python "{TRAINING_SCRIPT}" '
-                   f'--model_dir "{paths["MODELS"]}" '
-                   f'--pipeline_config_path "{files["PIPELINE_CONFIG"]}" '
-                   f'--num_train_steps {NUM_TRAIN_STEPS}')
+                   f'--model_dir "{paths["models"]}" '
+                   f'--pipeline_config_path "{paths["config_file"]}" '
+                   f'--num_train_steps {num_train_steps}')
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
             logger.info('Start training')
             # stdout_output = True
             logger.debug(f"{stdout_output = }")
             traceback = run_command_update_metrics(
-                command, NUM_TRAIN_STEPS, stdout_output=stdout_output,
+                command, num_train_steps, stdout_output=stdout_output,
                 step_name='Step')
         if traceback:
             st.error(
@@ -516,7 +500,7 @@ class Trainer:
                     f"size of **{self.training_param['batch_size']}**. Please try lowering "
                     "the batch size and train again.")
             return
-        if not get_tfod_last_ckpt_path(self.training_path['models']):
+        if not get_tfod_last_ckpt_path(paths['models']):
             st.error("Unknown error occurred while training, please check the terminal "
                      "output, or contact the admin.")
             logger.error("Error occurred while training")
@@ -532,9 +516,9 @@ class Trainer:
         with st.spinner("Running object detection evaluation ..."):
             logger.info('Running object detection evaluation')
             command = (f'python "{TRAINING_SCRIPT}" '
-                       f'--model_dir "{paths["MODELS"]}" '
-                       f'--pipeline_config_path "{files["PIPELINE_CONFIG"]}" '
-                       f'--checkpoint_dir "{paths["MODELS"]}"')
+                       f'--model_dir "{paths["models"]}" '
+                       f'--pipeline_config_path "{paths["config_file"]}" '
+                       f'--checkpoint_dir "{paths["models"]}"')
             filtered_outputs = run_command(
                 command, stdout_output=stdout_output, st_output=False,
                 filter_by=['DetectionBoxes_', 'Loss/'], is_cocoeval=True)
@@ -551,17 +535,17 @@ class Trainer:
             st.info(eval_result_text)
 
             # store the results to directly show on the training page in the future
-            with open(self.training_path['test_result_txt_file'], 'w') as f:
+            with open(paths['test_result_txt_file'], 'w') as f:
                 f.write(eval_result_text)
             logger.debug("Saved evaluation script results at: "
-                         f"{self.training_path['test_result_txt_file']}")
+                         f"{paths['test_result_txt_file']}")
         else:
             st.warning("There was some error occurred with COCO evaluation.")
             logger.error("There was some error occurred with COCO evaluation.")
 
         # Delete unwanted files excluding those needed for evaluation and exporting
-        paths_to_del = (paths['ANNOTATION_PATH'],
-                        paths['IMAGE_PATH'] / 'train', paths['EXPORT'])
+        paths_to_del = (paths['annotations'],
+                        paths["images"] / 'train', paths["export"])
         for p in paths_to_del:
             if p.exists():
                 logger.debug("Removing unwanted directories used only "
@@ -988,8 +972,11 @@ class Trainer:
         return model
 
     def load_and_modify_trained_model(self):
-        """This function is used to modify the trained model to use it to continue training
-        with the current project datasets"""
+        """
+        This function is used to modify the trained model (uploaded or project model 
+        from other projects) to use it to continue training with the current project 
+        datasets.
+        """
         assert self.is_not_pretrained
         logger.info("Loading the trained keras model")
         model = load_trained_keras_model(
@@ -1180,6 +1167,8 @@ class Trainer:
         if not is_resume:
             with st.spinner("Building the model ..."):
                 if self.is_not_pretrained:
+                    logger.info("Loading model from uploaded or project model from "
+                                "other projects")
                     model = self.load_and_modify_trained_model()
                 else:
                     logger.info("Building the model")
@@ -1369,8 +1358,12 @@ class Trainer:
         # load back the best model
         logger.info(f"Loading trained Keras model for {self.deployment_type}")
         if not hasattr(self, 'model'):
-            self.model = load_keras_model(self.training_path['output_keras_model_file'],
-                                          self.metrics, self.training_param)
+            if self.is_not_pretrained:
+                self.model = load_trained_keras_model(
+                    self.training_path['output_keras_model_file'])
+            else:
+                self.model = load_keras_model(self.training_path['output_keras_model_file'],
+                                              self.metrics, self.training_param)
 
         options_col, _ = st.columns([1, 1])
         prev_btn_col_1, next_btn_col_1, _ = st.columns([1, 1, 3])

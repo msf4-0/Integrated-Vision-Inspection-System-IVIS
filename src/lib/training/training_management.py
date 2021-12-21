@@ -32,7 +32,6 @@ import traceback
 from enum import IntEnum
 from math import ceil, floor
 from pathlib import Path
-from time import sleep
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 from dataclasses import dataclass, field
 import gc
@@ -44,14 +43,11 @@ from streamlit import session_state as session_state
 
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 # >>>> User-defined Modules >>>>
 from core.utils.file_handler import create_folder_if_not_exist
@@ -289,25 +285,31 @@ class BaseTraining:
 
         return total_dataset_size
 
-    def calc_dataset_partition_size(self, dataset_chosen: List, dataset_dict: Dict):
+    def calc_dataset_partition_size(self, partition_ratio: Dict[str, float],
+                                    dataset_chosen: List,
+                                    dataset_dict: Dict) -> Dict[str, int]:
         """Calculate partition size of dataset for training
 
         Args:
             dataset_chosen (List): List of Dataset chosen for Training
             dataset_dict (Dict): Dictionary of Dataset details from Project() class object
         """
+        partition_size = {}
 
         if dataset_chosen:
             total_dataset_size = self.calc_total_dataset_size(
                 dataset_chosen, dataset_dict)
 
-            self.partition_size['test'] = floor(
-                self.partition_ratio['test'] * total_dataset_size)
-            num_train_eval = total_dataset_size - self.partition_size['test']
-            self.partition_size['train'] = ceil(num_train_eval * (self.partition_ratio['train']) / (
-                self.partition_ratio['train'] + self.partition_ratio['eval']))
-            self.partition_size['eval'] = num_train_eval - \
-                self.partition_size['train']
+            partition_size['test'] = floor(
+                partition_ratio['test'] * total_dataset_size)
+            num_train_eval = total_dataset_size - partition_size['test']
+            partition_size['train'] = ceil(num_train_eval * (partition_ratio['train']) / (
+                partition_ratio['train'] + partition_ratio['eval']))
+            partition_size['eval'] = num_train_eval - partition_size['train']
+            return partition_size
+        else:
+            logger.warning(
+                "No dataset chosen passed in to calculate partition size")
 
     def update_dataset_chosen(self, submitted_dataset_chosen: List, dataset_dict: Dict):
         """ Update the training_dataset table in the Database
@@ -517,6 +519,7 @@ class BaseTraining:
 
     def update_training_info_dataset(
             self,
+            partition_ratio: Dict[str, float],
             submitted_dataset_chosen: List,
             dataset_dict: Dict,
             name: Optional[str] = None,
@@ -533,7 +536,12 @@ class BaseTraining:
 
         try:
 
-            assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+            assert partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+
+            self.partition_ratio = partition_ratio.copy()
+            self.partition_size = self.calc_dataset_partition_size(
+                partition_ratio, self.dataset_chosen,
+                session_state.project.dataset_dict)
 
             self.update_training_info(name, desc)
 
@@ -697,7 +705,8 @@ class NewTraining(BaseTraining):
         return exists_flag
 
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict,
+    @staticmethod
+    def check_if_field_empty(context: Dict,
                              field_placeholder: Dict,
                              name_key: str
                              ) -> bool:
@@ -715,14 +724,15 @@ class NewTraining(BaseTraining):
         Returns:
             bool: True if NOT EMPTY + NOT EXISTS, False otherwise.
         """
-        check_if_exists = self.check_if_exists
+        check_if_exists = NewTraining.check_if_exists
         empty_fields = check_if_field_empty(
             context, field_placeholder, name_key, check_if_exists)
 
         # True if not empty, False otherwise
         return empty_fields
 
-    def insert_training_info_dataset(self, name: str, desc: str) -> bool:
+    def insert_training_info_dataset(self, name: str, desc: str,
+                                     partition_ratio: Dict[str, float]) -> bool:
         """Create New Training submission
 
         Returns:
@@ -731,7 +741,12 @@ class NewTraining(BaseTraining):
 
         # submission handler for insertion of Info and Dataset
         try:
-            assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+            assert partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+
+            self.partition_ratio = partition_ratio.copy()
+            self.partition_size = self.calc_dataset_partition_size(
+                partition_ratio, self.dataset_chosen,
+                session_state.project.dataset_dict)
 
             # insert Name, Desc, Partition Size
             self.insert_training_info(name, desc)
@@ -872,7 +887,6 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
-
     @staticmethod
     def reset_new_training_page():
 
@@ -887,13 +901,13 @@ class Training(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
 
+        # creates from `training_dataset` table; could have multiple datasets
+        self.dataset_chosen = self.query_dataset_chosen(self.id)
         # `query_all_fields` creates self.name, self.desc, self.training_param_dict,
-        # self.augmentation_config, self.progress, self.partition_ratio
+        # self.augmentation_config, self.progress, self.partition_ratio, self.partition_size
         # self.training_model_id, self.attached_model_id, self.is_started
         # from `training` table
         self.query_all_fields()
-        # creates from `training_dataset` table; could have multiple datasets
-        self.dataset_chosen = self.query_dataset_chosen(self.id)
         # creates self.attached_model and self.training_model
         self.get_training_details()
         # NOTE: training_paths should always be obtained from self.get_paths()
@@ -1124,6 +1138,10 @@ class Training(BaseTraining):
                     **augmentation_config)
             else:
                 self.augmentation_config = AugmentationConfig()
+
+            self.partition_size = self.calc_dataset_partition_size(
+                self.partition_ratio, self.dataset_chosen,
+                session_state.project.dataset_dict)
         else:
             logger.error(
                 f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")
@@ -1365,7 +1383,6 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
-
 
     @staticmethod
     def progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],

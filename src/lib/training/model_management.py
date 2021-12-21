@@ -27,7 +27,6 @@ SPDX-License-Identifier: Apache-2.0
 import json
 import os
 import shutil
-import sys
 from collections import namedtuple
 from datetime import datetime
 from enum import IntEnum
@@ -37,23 +36,17 @@ from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 import pandas as pd
 import streamlit as st
-from streamlit import session_state as session_state
+from streamlit import session_state
 from streamlit.uploaded_file_manager import UploadedFile
 from object_detection.protos import pipeline_pb2
 from google.protobuf import text_format
-import tensorflow as tf
-
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 from core.utils.code_generator import get_random_string
 from core.utils.file_handler import (extract_archive, extract_one_to_bytes, list_files_in_archived,
@@ -696,7 +689,9 @@ class BaseModel:
 
         NOTE: take note of this path to use to load model in Training.get_paths()
         """
-        filename = f"{get_directory_name(self.name)}.h5"
+        # filename = f"{get_directory_name(self.name)}.h5"
+        # using this name now to make it easier
+        filename = f"keras-model.h5"
         filepath = model_path / filename
         return filepath
 

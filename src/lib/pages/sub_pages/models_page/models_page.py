@@ -23,21 +23,13 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 
 """
-
-
-from re import T
 import shutil
 import sys
 from copy import deepcopy
-from pathlib import Path
-from time import sleep
 
-import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
-from streamlit import session_state as session_state
-
-from machine_learning.visuals import pretty_format_param
+from streamlit import session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
@@ -49,7 +41,7 @@ from machine_learning.visuals import pretty_format_param
 # LIB_PATH = SRC / "lib"
 # if str(LIB_PATH) not in sys.path:
 #     sys.path.insert(0, str(LIB_PATH))  # ./lib
-
+# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> User-defined Modules >>>>
 from core.utils.form_manager import remove_newline_trailing_whitespace
@@ -66,7 +58,7 @@ from training.training_management import (NewTraining, NewTrainingPagination,
                                           Training)
 from user.user_management import User
 from training.utils import get_pretrained_model_details, get_segmentation_model_func2params
-# <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
+from machine_learning.visuals import pretty_format_param
 
 # >>>> Variable Declaration <<<<
 # initialise connection to Database
@@ -351,6 +343,9 @@ def existing_models():
             options=models_df['Model Name'],
             index=model_idx, key="selected_pretrained_model",
         )
+    if training.has_submitted[NewTrainingPagination.Model]:
+        st.warning("WARNING: Changing the selected model will remove all existing "
+                   "trained model data.")
 
     # Instantiate an attached model in the page
     model_df_row = Model.filtered_models_dataframe(
