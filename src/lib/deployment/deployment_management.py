@@ -477,8 +477,8 @@ class Deployment(BaseDeployment):
 
         project_attributes = [
             "deployment_pagination", "deployment", "trainer", "publishing",
-            "refresh", "deployment_conf", "today", "mqtt_conf", "recv_frame",
-            "image_idx"
+            "refresh", "deployment_conf", "today", "mqtt_conf", "mqtt_recv_frame",
+            "image_idx", "check_labels"
         ]
 
         reset_page_attributes(project_attributes)

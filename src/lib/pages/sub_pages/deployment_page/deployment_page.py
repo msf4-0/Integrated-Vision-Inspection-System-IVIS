@@ -107,11 +107,12 @@ def index(RELEASE=True):
         # to check whether is publishing results through MQTT
         session_state.publishing = True
         # to check whether any image/frame is received through MQTT
-        session_state.recv_frame = None
+        session_state.mqtt_recv_frame = None
 
     deploy_conf: DeploymentConfig = session_state.deployment_conf
     client: Client = session_state.client
     conf: MQTTConfig = session_state.mqtt_conf
+    topics: MQTTTopics = session_state.mqtt_conf.topics
 
     project: Project = session_state.project
     deployment: Deployment = session_state.deployment
@@ -125,13 +126,31 @@ def index(RELEASE=True):
 
     def image_recv_frame_cb(client, userdata, msg):
         # logger.debug("FRAME RECEIVED, REFRESHING")
-        session_state.recv_frame = msg.payload
+        session_state.mqtt_recv_frame = msg.payload
         # only refresh for image type
         session_state.refresh = True
 
-    def video_recv_frame_cb(client, userdata, msg):
+    def recv_frame_cb(client, userdata, msg):
         # not refreshing here to speed up video deployment speed
-        session_state.recv_frame = msg.payload
+        session_state.mqtt_recv_frame = msg.payload
+
+    def subscribe_topics(resubscribe: bool = False):
+        for attr, topic in topics.__dict__.items():
+            if attr.startswith('publish'):
+                # skip these topics because we are only publishing things to these topics
+                # instead of subscribing to them to wait for input
+                continue
+            if resubscribe:
+                client.unsubscribe(topic)
+            client.subscribe(topic, qos=conf.qos)
+
+    def update_mqtt_qos():
+        # take from the widget's state and save to our mqtt_conf
+        logger.info(f"Updated QoS level from {conf.qos} to "
+                    f"{session_state.mqtt_qos}")
+        conf.qos = session_state.mqtt_qos
+
+        subscribe_topics(resubscribe=True)
 
     def stop_deployment():
         Deployment.reset_deployment_page()
@@ -164,13 +183,12 @@ def index(RELEASE=True):
             logger.info("MQTT client connected successfully to "
                         f"{conf.broker} on port {conf.port}")
 
-            for topic in conf.topics.__dict__.values():
-                client.subscribe(topic, qos=conf.qos)
+            subscribe_topics()
 
             # add callbacks for image input type first because the input type
             # defaults to "Image"
             client.message_callback_add(
-                conf.topics.recv_frame, image_recv_frame_cb)
+                topics.recv_frame, image_recv_frame_cb)
 
             client.loop_start()
 
@@ -221,14 +239,14 @@ def index(RELEASE=True):
     if has_access:
         def update_input_type_conf():
             reset_image_idx()
-            session_state.recv_frame = None
-            client.message_callback_remove(conf.topics.recv_frame)
+            session_state.mqtt_recv_frame = None
+            client.message_callback_remove(topics.recv_frame)
             if session_state.input_type == 'Video':
                 client.message_callback_add(
-                    conf.topics.recv_frame, video_recv_frame_cb)
+                    topics.recv_frame, recv_frame_cb)
             else:
                 client.message_callback_add(
-                    conf.topics.recv_frame, image_recv_frame_cb)
+                    topics.recv_frame, image_recv_frame_cb)
 
             deploy_conf.input_type = session_state.input_type
         all_timezones = get_all_timezones()
@@ -342,8 +360,37 @@ def index(RELEASE=True):
 
             imgs_info = read_images_from_uploaded(uploaded_imgs)
         else:
+            def update_image_recv_topic():
+                previous_topic = topics.recv_frame
+                new_topic = session_state.image_recv_frame
+
+                client.unsubscribe(previous_topic)
+                client.message_callback_remove(previous_topic)
+
+                topics.recv_frame = new_topic
+                client.subscribe(new_topic)
+                client.message_callback_add(new_topic, image_recv_frame_cb)
+                logger.info(
+                    f"Updated topic from {previous_topic} to {new_topic}")
+
+            st.sidebar.markdown("___")
+            st.sidebar.subheader("MQTT QoS")
+            st.sidebar.radio(
+                'MQTT QoS', (0, 1, 2), conf.qos, key='mqtt_qos',
+                on_change=update_mqtt_qos)
+
+            st.sidebar.subheader("MQTT Topic")
+            st.sidebar.text_input(
+                'Publish frame to our app', topics.recv_frame,
+                key='image_recv_frame', help="Publish the image frame in bytes to this topic "
+                "for MQTT input deployment", on_change=update_image_recv_topic)
+
+            if not deploy_btn_place.checkbox(
+                    "Deploy model for MQTT input", key='btn_deploy_mqtt_image'):
+                st.stop()
+
             msg_place = st.empty()
-            if not session_state.recv_frame:
+            if not session_state.mqtt_recv_frame:
                 logger.info("Waiting for image from MQTT ...")
                 # this session_state is set to True in the recv_frame_cb() callback
                 while not session_state.refresh:
@@ -354,7 +401,7 @@ def index(RELEASE=True):
                 session_state.refresh = False
             msg_place.info("Image received **from MQTT**")
             logger.info("Reading the image from MQTT")
-            img = image_from_buffer(session_state.recv_frame)
+            img = image_from_buffer(session_state.mqtt_recv_frame)
             filename = 'Image from MQTT'
             # using this to cater to the case of multiple uploaded images
             imgs_info = ((img, filename),)
@@ -447,7 +494,7 @@ def index(RELEASE=True):
             update_deploy_conf(conf_attr)
             reset_camera()
             # reset the recv_frame
-            session_state.recv_frame = None
+            session_state.mqtt_recv_frame = None
 
         # Does not seem to work properly
         # max_allowed_fps = st.sidebar.slider(
@@ -611,6 +658,10 @@ def index(RELEASE=True):
             session_state.record = False
             session_state.vid_writer = None
 
+        if 'check_labels' not in session_state:
+            # for checking labels received through MQTT
+            session_state.check_labels = None
+
         def start_publish_cb(client, userdata, msg):
             logger.info("Start publishing")
             session_state.publishing = True
@@ -655,28 +706,28 @@ def index(RELEASE=True):
             session_state.record = False
             session_state.refresh = True
 
-        client: Client = session_state.client
-        conf: MQTTConfig = session_state.mqtt_conf
+        def dobot_view_cb(client, userdata, msg):
+            view: str = msg.payload.decode()
+            logger.info(f"Received message from topic '{msg.topic}': "
+                        f"'{view}'")
+            session_state.check_labels = view
+
+        topic_2cb = {
+            topics.start_publish: start_publish_cb,
+            topics.stop_publish: stop_publish_cb,
+            topics.start_publish_frame: start_publish_frame_cb,
+            topics.stop_publish_frame: stop_publish_frame_cb,
+            topics.save_frame: save_frame_cb,
+            topics.start_record: start_record_cb,
+            topics.stop_record: stop_record_cb,
+            topics.dobot_view: dobot_view_cb,
+        }
 
         def add_video_callbacks():
-            topics: MQTTTopics = session_state.mqtt_conf.topics
-
             # on_message() will serve as fallback when none matched
             # or use this to be more precise on the subscription topic filter
-            client.message_callback_add(
-                topics.start_publish, start_publish_cb)
-            client.message_callback_add(
-                topics.stop_publish, stop_publish_cb)
-            client.message_callback_add(
-                topics.start_publish_frame, start_publish_frame_cb)
-            client.message_callback_add(
-                topics.stop_publish_frame, stop_publish_frame_cb)
-            client.message_callback_add(
-                topics.save_frame, save_frame_cb)
-            client.message_callback_add(
-                topics.start_record, start_record_cb)
-            client.message_callback_add(
-                topics.stop_record, stop_record_cb)
+            for topic, cb in topic_2cb.items():
+                client.message_callback_add(topic, cb)
 
         st.sidebar.markdown("___")
         st.sidebar.subheader("MQTT Options")
@@ -695,19 +746,9 @@ def index(RELEASE=True):
         if has_access:
             topic_error_place = st.sidebar.empty()
 
-            def update_mqtt_qos():
-                # take from the widget's state and save to our mqtt_conf
-                logger.info(f"Updated QoS level from {conf.qos} to "
-                            f"{session_state.mqtt_qos}")
-                conf.qos = session_state.mqtt_qos
-
-                for topic in conf.topics.__dict__.values():
-                    client.unsubscribe(topic)
-                    client.subscribe(topic, qos=conf.qos)
-
             # def update_conf_topic(topic_attr: str):
             def update_conf_topic():
-                for topic_attr in conf.topics.__dict__.keys():
+                for topic_attr in topics.__dict__.keys():
                     new_topic = session_state[topic_attr]
                     if new_topic == '':
                         logger.error('Topic cannot be empty string')
@@ -715,7 +756,7 @@ def index(RELEASE=True):
                         sleep(1)
                         st.experimental_rerun()
 
-                    previous_topic = getattr(conf.topics, topic_attr)
+                    previous_topic = getattr(topics, topic_attr)
 
                     if new_topic == previous_topic:
                         # no need to change anything if user didn't change the topic
@@ -725,16 +766,16 @@ def index(RELEASE=True):
                     client.unsubscribe(previous_topic)
                     client.message_callback_remove(previous_topic)
 
-                    # update MQTTConfig with new topic, add callback, and subscribe
-                    setattr(conf.topics, topic_attr, new_topic)
+                    # update MQTTTopics with new topic, add callback, and subscribe
+                    setattr(topics, topic_attr, new_topic)
 
-                    if topic_attr not in ('publish_results', 'publish_frame'):
-                        # only these two topics don't have callbacks to add
-                        callback_func = eval(f'{topic_attr}_cb')
+                    callback_func = topic_2cb.get(previous_topic)
+                    if callback_func:
+                        # only add callbacks for the topics that have callbacks
                         client.message_callback_add(new_topic, callback_func)
                     client.subscribe(new_topic, qos=conf.qos)
 
-                    logger.info(f"Updated MQTTConfig.{topic_attr} from {previous_topic} "
+                    logger.info(f"Updated MQTTTopics.{topic_attr} from {previous_topic} "
                                 f"to {new_topic}")
 
             st.sidebar.radio(
@@ -746,34 +787,49 @@ def index(RELEASE=True):
                 "If you change any MQTT topic name(s), please click the **Update Config** "
                 "button to allow the changes to be made.")
             # must clear on submit to show the correct values on form
+            # NOTE: the key name must be the same as the topic attribute name
             with st.sidebar.form('form_mqtt_topics', clear_on_submit=True):
                 st.text_input(
-                    'Publishing Results to MQTT Topic', conf.topics.publish_results,
-                    key='publish_results')
+                    'Publishing output frames to', topics.publish_frame,
+                    key='publish_frame', help="This is used to publish output frames. "
+                    "Our MQTT client is not subscribed to this topic.")
                 st.text_input(
-                    'Publishing output frames to', conf.topics.publish_frame,
-                    key='publish_frame')
+                    'Publishing results to', topics.publish_results,
+                    key='publish_results', help="This is used to publish inference results. "
+                    "Our MQTT client is not subscribed to this topic.")
+
                 st.text_input(
-                    'Start publishing results', conf.topics.start_publish,
+                    'Publish frame to our app', topics.recv_frame,
+                    key='recv_frame', help="Publish the image frame in bytes to this topic "
+                    "for MQTT input deployment")
+                st.text_input(
+                    'Start publishing results', topics.start_publish,
                     key='start_publish')
                 st.text_input(
-                    'Stop publishing results', conf.topics.stop_publish,
+                    'Stop publishing results', topics.stop_publish,
                     key='stop_publish')
                 st.text_input(
-                    'Start publishing frames', conf.topics.start_publish_frame,
+                    'Start publishing frames', topics.start_publish_frame,
                     key='start_publish_frame')
                 st.text_input(
-                    'Stop publishing frames', conf.topics.stop_publish_frame,
+                    'Stop publishing frames', topics.stop_publish_frame,
                     key='stop_publish_frame')
                 st.text_input(
-                    'Save current frame', conf.topics.save_frame,
+                    'Save current frame', topics.save_frame,
                     key='save_frame')
                 st.text_input(
-                    'Start recording frames', conf.topics.start_record,
+                    'Start recording frames', topics.start_record,
                     key='start_record')
                 st.text_input(
-                    'Stop recording frames', conf.topics.stop_record,
+                    'Stop recording frames', topics.stop_record,
                     key='stop_record')
+                st.text_input(
+                    'Current camera view and required labels to check',
+                    topics.dobot_view, key='dobot_view',
+                    help='''Send a JSON object containing the "view" and "labels" to check
+                    whether the detected labels at the current view contains the "labels"
+                    sent from MQTT. Example JSON object: 
+                    `"{"view": "top", "labels": ["date", "white dot"]}"`''')
                 st.form_submit_button(
                     "Update Config", on_click=update_conf_topic,
                     help="Please press this button to update if you change any MQTT "
@@ -783,25 +839,27 @@ def index(RELEASE=True):
                 f"MQTT QoS is set to level **{conf.qos}**")
             st.sidebar.info(
                 "#### Publishing Results to MQTT Topic:  \n"
-                f"{conf.topics.publish_results}  \n"
+                f"{topics.publish_results}  \n"
                 "#### Publishing output frames to:  \n"
-                f"{conf.topics.publish_frame}"
+                f"{topics.publish_frame}"
             )
             st.sidebar.info(
                 "#### Subscribed MQTT Topics:  \n"
-                f"**Start publishing results**: {conf.topics.start_publish}  \n"
-                f"**Stop publishing results**: {conf.topics.stop_publish}  \n"
-                f"**Start publishing frames**: {conf.topics.start_publish_frame}  \n"
-                f"**Stop publishing frames**: {conf.topics.stop_publish_frame}  \n"
-                f"**Save current frame**: {conf.topics.save_frame}  \n"
-                f"**Start recording frames**: {conf.topics.start_record}  \n"
-                f"**Stop recording frames**: {conf.topics.stop_record}")
+                f"**Receiving input frames**: {topics.recv_frame}  \n"
+                f"**Start publishing results**: {topics.start_publish}  \n"
+                f"**Stop publishing results**: {topics.stop_publish}  \n"
+                f"**Start publishing frames**: {topics.start_publish_frame}  \n"
+                f"**Stop publishing frames**: {topics.stop_publish_frame}  \n"
+                f"**Save current frame**: {topics.save_frame}  \n"
+                f"**Start recording frames**: {topics.start_record}  \n"
+                f"**Stop recording frames**: {topics.stop_record}")
         with st.sidebar.expander("Notes"):
             st.markdown(
                 f"Make sure to connect to **'localhost'** broker (or IP Address of this PC) "
                 f"with the correct port **{conf.port}**. "
-                "Then just publish an arbitrary message to any of "
-                "the subscribed MQTT topics to trigger the functionality.  \nFor the **saved "
+                "Then just publish an arbitrary message to any of the subscribed MQTT "
+                "topics to trigger the functionality (except for the first two topics, "
+                "where our MQTT client is not subsrcibed to).  \nFor the **saved "
                 f"frames**, they will be saved in your project's folder at *{saved_frame_dir}*, "
                 f"while recorded video will be saved at *{recording_dir}*. Please "
                 "**do not simply delete these folders during deployment**, "
@@ -867,7 +925,7 @@ def index(RELEASE=True):
                     sleep(2)  # give the camera some time to sink in
                     st.experimental_rerun()
             else:
-                if not session_state.recv_frame:
+                if not session_state.mqtt_recv_frame:
                     if not deploy_btn_place.button(
                             "🛠️ Deploy Model", key='btn_deploy_cam',
                             help='Deploy your model with the selected camera source'):
@@ -904,9 +962,9 @@ def index(RELEASE=True):
         else:
             if deploy_conf.video_type == 'From MQTT':
                 msg_place = st.empty()
-                if not session_state.recv_frame:
+                if not session_state.mqtt_recv_frame:
                     logger.info("Waiting for frames from MQTT ...")
-                    while not session_state.recv_frame:
+                    while not session_state.mqtt_recv_frame:
                         msg_place.info(
                             "No frame received from MQTT. Waiting ...")
                         sleep(1)
@@ -914,7 +972,7 @@ def index(RELEASE=True):
                 msg_place.info("Frame received **from MQTT**")
                 logger.info("Reading the frame from MQTT")
 
-                frame = image_from_buffer(session_state.recv_frame)
+                frame = image_from_buffer(session_state.mqtt_recv_frame)
                 height, width = frame.shape[:2]
                 logger.info("Properties of received frame: "
                             f"{width = }, {height = }")
@@ -939,19 +997,6 @@ def index(RELEASE=True):
                   "also save the latest CSV file in order to be opened."))
 
         # *********************** DOBOT arm demo ***********************
-        if 'check_labels' not in session_state:
-            session_state.check_labels = None
-
-            def get_current_view(client, userdata, msg):
-                view: str = msg.payload.decode()
-                logger.info(f"Received message from topic '{msg.topic}': "
-                            f"'{view}'")
-                session_state.check_labels = view
-
-            client.subscribe(conf.topics.dobot_view)
-            client.message_callback_add(
-                conf.topics.dobot_view, get_current_view)
-
         # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
         # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part
         DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
@@ -1040,26 +1085,26 @@ def index(RELEASE=True):
                 st.sidebar.button(
                     "Stop publishing frames", key='btn_stop_pub_frame',
                     help="Stop publishing frames as bytes to the MQTT Topic: "
-                    f"*{conf.topics.publish_frame}*.",
+                    f"*{topics.publish_frame}*.",
                     on_click=update_publish_frame_conf, args=(False,))
             else:
                 st.sidebar.button(
                     "Start publishing frames", key='btn_start_pub_frame',
                     help="Publish frames as bytes to the MQTT Topic:  \n"
-                    f"*{conf.topics.publish_frame}*.  \nNote that this could significantly "
+                    f"*{topics.publish_frame}*.  \nNote that this could significantly "
                     "reduce FPS.", on_click=update_publish_frame_conf, args=(True,))
         else:
             session_state.publishing = deploy_conf.publishing
             if session_state.publishing:
                 st.markdown("Currently is publishing results to the topic: "
-                            f"*{conf.topics.publish_results}*")
+                            f"*{topics.publish_results}*")
             else:
                 st.markdown(
                     "Currently is not publishing any results through MQTT.")
 
             if deploy_conf.publish_frame:
                 st.markdown("Currently is publishing output frames to the topic: "
-                            f"*{conf.topics.publish_frame}*")
+                            f"*{topics.publish_frame}*")
             else:
                 st.markdown(
                     "Currently is not publishing any output frames through MQTT.")
@@ -1099,9 +1144,9 @@ def index(RELEASE=True):
                                     conf_threshold=deploy_conf.confidence_threshold,
                                     timezone=deploy_conf.timezone)
         publish_func = partial(client.publish,
-                               conf.topics.publish_results, qos=conf.qos)
+                               topics.publish_results, qos=conf.qos)
         publish_frame_fn = partial(client.publish,
-                                   conf.topics.publish_frame, qos=conf.qos)
+                                   topics.publish_frame, qos=conf.qos)
 
         starting_time = datetime.now()
         csv_path = deployment.get_csv_path(starting_time)
@@ -1134,7 +1179,7 @@ def index(RELEASE=True):
             if video_type == 0:
                 frame = session_state.camera.read()
             elif video_type == 1:
-                frame = image_from_buffer(session_state.recv_frame)
+                frame = image_from_buffer(session_state.mqtt_recv_frame)
             else:
                 ret, frame = session_state.camera.read()
                 if not ret:

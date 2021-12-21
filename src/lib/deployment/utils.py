@@ -64,12 +64,12 @@ def load_mqtt_config() -> Dict[str, str]:
 
 @dataclass(eq=False)
 class MQTTTopics:
-    # main topics
-    recv_frame: str
+    # publishing things to these topics
     publish_frame: str
     publish_results: str
 
-    # camera topics
+    # subscribing to these topics to wait for input
+    recv_frame: str
     start_publish: str
     stop_publish: str
     start_publish_frame: str
