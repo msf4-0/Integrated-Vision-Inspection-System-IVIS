@@ -427,9 +427,6 @@ def index(RELEASE=True):
                                'depending on the size of the trained model.')
                     if export:
                         export_callback()
-                        # reset the model to allow it to load the exported model
-                        # (only needed for TFOD currently)
-                        del trainer.model
                         st.experimental_rerun()
 
         with retrain_place.container():

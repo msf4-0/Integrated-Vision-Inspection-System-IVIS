@@ -1,11 +1,13 @@
 import copy
+import os
 import shutil
 import subprocess
 import pprint
 from pathlib import Path
-from time import sleep, perf_counter
+from time import sleep
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
+from tempfile import gettempdir
 import numpy as np
 
 import streamlit as st
@@ -21,12 +23,22 @@ from core.utils.log import logger
 def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
     """Run and show TensorBoard interface as a Streamlit component"""
     # TODO: test whether this TensorBoard works after deployed the app
-    logger.info(f"Running TensorBoard on {logdir}")
+    # stop TensoBoard process and remove tensorboard-info folder to properly
+    #  run tensorboard on different logdirs
+    logger.info("Stopping any existing running TensorBoard")
+    run_command('taskkill /IM "tensorboard.exe" /F')
+
+    tb_info_dir = os.path.join(gettempdir(), '.tensorboard-info')
+    if os.path.exists(tb_info_dir):
+        logger.debug(f"Removing existing tensorboard info at: {tb_info_dir}")
+        shutil.rmtree(tb_info_dir)
+
     # NOTE: this st_tensorboard does not work if the path passed in
     #  is NOT in POSIX format, thus the `as_posix()` method to convert
     #  from WindowsPath to POSIX format to work in Windows.
     # Also adding double quotes in case there is space in the path
     path = f'"{logdir.as_posix()}"'
+    logger.info(f"Running TensorBoard on {path}")
     st_tensorboard(logdir=path,
                    port=port, width=width, scrolling=True)
 
@@ -170,9 +182,8 @@ def run_command(command_line_args: str, st_output: bool = False,
     traceback_found = False
     traceback = []
     for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if line:
+        # avoid line with only spaces
+        if line.strip():
             if stdout_output:
                 print(line)
             if 'Traceback' in line:
@@ -207,7 +218,7 @@ def run_command(command_line_args: str, st_output: bool = False,
         st.experimental_rerun()
     elif filter_by:
         return '\n'.join(output_str_list)
-    return process.stdout.read()
+    return traceback
 
 
 def run_command_update_metrics_old(
@@ -323,9 +334,8 @@ def run_command_update_metrics(
     traceback_found = False
     traceback = []
     for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
-        if line:
+        # avoid line with only spaces
+        if line.strip():
             if stdout_output:
                 # print to console
                 print(line)

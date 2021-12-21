@@ -331,7 +331,7 @@ def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
     else:
         # Get IntEnum class constant if is string
         if isinstance(identifier, str):
-            identifier = identifier_dictionary[identifier]
+            identifier = identifier_dictionary.get(identifier)
 
     logger.debug(f"Type is: {identifier!r}")
 

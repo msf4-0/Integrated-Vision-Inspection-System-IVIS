@@ -248,18 +248,29 @@ class Trainer:
         """Check whether model weights (aka checkpoint) and exported model tarfile exists.
         This is to check whether our model needs to be exported first before letting the
         user to download."""
-        ckpt_found = model_tarfile_found = False
+        paths = self.training_path
+        ckpt_found = model_tarfile_found = exported_found = False
         if self.deployment_type == 'Object Detection with Bounding Boxes':
-            ckpt_path = get_tfod_last_ckpt_path(self.training_path['models'])
+            ckpt_path = get_tfod_last_ckpt_path(paths['models'])
+            exported_model_path = paths['export'] / \
+                'saved_model' / 'saved_model.pb'
+            if exported_model_path.exists():
+                exported_found = True
+            else:
+                logger.debug(f"{exported_model_path = }")
+                logger.info("Object Detection Model is not exported yet.")
         else:
-            ckpt_path = self.training_path['output_keras_model_file']
+            ckpt_path = paths['output_keras_model_file']
+            # Keras always has exported H5 model
+            exported_found = True
 
         if ckpt_path and ckpt_path.exists():
             ckpt_found = True
-        if self.training_path['model_tarfile'].exists():
+        if paths['model_tarfile'].exists():
             model_tarfile_found = True
 
         return {'ckpt': ckpt_found,
+                'exported_model': exported_found,
                 'model_tarfile': model_tarfile_found}
 
     def run_tfod_training(self, stdout_output: bool = False):
@@ -561,9 +572,16 @@ class Trainer:
         """ If `re_export` is True, will export again even though the exported
         files already exist."""
         paths = self.training_path
+        exported_model_path = paths['export'] / \
+            'saved_model' / 'saved_model.pb'
 
-        if re_export or not paths['export'].exists():
+        if re_export or not exported_model_path.exists():
             export_tfod_savedmodel(paths, stdout_output)
+            if hasattr(self, 'model'):
+                logger.debug("Deleting loaded checkpoint model to be able to use "
+                             "SavedModel instead")
+                # delete the loaded checkpoint model if exists
+                del self.model
 
         # copy the labelmap file into the export directory first
         # to store it for exporting
@@ -580,11 +598,25 @@ class Trainer:
     def run_tfod_evaluation(self):
         # get the required paths
         paths = self.training_path
+
+        # show the stored evaluation result during training
+        if paths['test_result_txt_file'].exists():
+            st.subheader("Object Detection Evaluation results")
+            with open(paths['test_result_txt_file']) as f:
+                eval_result_text = f.read()
+            st.info(eval_result_text)
+        else:
+            logger.error("Some error occurred while running COCO evaluation script, and "
+                         f"the results were not saved at {paths['test_result_txt_file']}.")
+
+        # **************** SHOW SOME IMAGES FOR EVALUATION ****************
+        st.subheader("Prediction Results on Validation/Test Set:")
+
         exist_dict = self.check_model_exists()
         with st.spinner("Loading model ... This might take awhile ..."):
             # only use the full exported model after the user has exported it
             # NOTE: take note of the tensor_dtype to convert to work in both ways
-            if exist_dict['model_tarfile']:
+            if exist_dict['exported_model']:
                 if not hasattr(self, 'model'):
                     self.model = load_tfod_model(
                         self.training_path['export'] / 'saved_model')
@@ -600,18 +632,6 @@ class Trainer:
         category_index = load_labelmap(paths['labelmap_file'])
         logger.debug(f"{category_index = }")
 
-        # show the stored evaluation result during training
-        if paths['test_result_txt_file'].exists():
-            st.subheader("Object Detection Evaluation results")
-            with open(paths['test_result_txt_file']) as f:
-                eval_result_text = f.read()
-            st.info(eval_result_text)
-        else:
-            logger.error("Some error occurred while running COCO evaluation script, and "
-                         f"the results were not saved at {paths['test_result_txt_file']}.")
-
-        # **************** SHOW SOME IMAGES FOR EVALUATION ****************
-        st.header("Prediction Results on Test Set:")
         options_col, _ = st.columns([1, 1])
         prev_btn_col_1, next_btn_col_1, _ = st.columns([1, 1, 3])
         true_img_col, pred_img_col = st.columns([1, 1])
@@ -654,7 +674,7 @@ class Trainer:
 
             total_samples = len(image_paths)
             st.info(f"**Total test set images**: {total_samples}")
-            if not exist_dict['model_tarfile']:
+            if not exist_dict['exported_model']:
                 with st.expander("NOTES about inference with non-exported model:"):
                     st.markdown("""You are using the model loaded from a
                     checkpoint, the inference time will be slightly slower
@@ -672,12 +692,13 @@ class Trainer:
         start_idx, n_samples = int(session_state['start_idx']), int(n_samples)
         current_image_paths = image_paths[start_idx: start_idx + n_samples]
 
+        start = start_idx + 1
         end = start_idx + n_samples
         end = end if end <= total_samples else total_samples
-        logger.info(f"Detecting from the test set images: {start_idx + 1}"
+        logger.info(f"Detecting from the test set images: {start}"
                     f" to {end} ...")
         options_col.info(
-            f"Showing sample images: **{start_idx + 1}** to **{end}**")
+            f"Showing sample images: **{start}** to **{end}**")
 
         def previous_samples():
             if session_state['start_idx'] > 0:
@@ -733,7 +754,7 @@ class Trainer:
                                      class_names=class_names,
                                      class_colors=class_colors)
                 true_img_col.image(img, channels='RGB',
-                                   caption=f'{i + 1}. Ground Truth: {filename}')
+                                   caption=f'{start + i}. Ground Truth: {filename}')
                 pred_img_col.image(img_with_detections, channels='RGB',
                                    caption=f'Prediction: {filename}')
 
@@ -1315,12 +1336,6 @@ class Trainer:
             shutil.rmtree(self.dataset_export_path / 'images')
 
     def run_keras_eval(self):
-        # load back the best model
-        logger.info(f"Loading trained Keras model for {self.deployment_type}")
-        if not hasattr(self, 'model'):
-            self.model = load_keras_model(self.training_path['output_keras_model_file'],
-                                          self.metrics, self.training_param)
-
         if self.training_path['test_result_txt_file'].exists():
             # show the evaluation results stored during training
             with open(self.training_path['test_result_txt_file']) as f:
@@ -1349,6 +1364,14 @@ class Trainer:
             st.markdown("___")
 
         # ************* Show predictions on test set images *************
+        st.subheader("Prediction Results on Validation/Test Set:")
+
+        # load back the best model
+        logger.info(f"Loading trained Keras model for {self.deployment_type}")
+        if not hasattr(self, 'model'):
+            self.model = load_keras_model(self.training_path['output_keras_model_file'],
+                                          self.metrics, self.training_param)
+
         options_col, _ = st.columns([1, 1])
         prev_btn_col_1, next_btn_col_1, _ = st.columns([1, 1, 3])
         if self.deployment_type == 'Image Classification':
@@ -1409,12 +1432,13 @@ class Trainer:
         # NOTE: these are mask_paths for segmentation task
         current_labels = y_test[start_idx: start_idx + n_samples]
 
+        start = start_idx + 1
         end = start_idx + n_samples
         end = end if end <= total_samples else total_samples
-        logger.info(f"Detecting from the test set images: {start_idx + 1}"
+        logger.info(f"Detecting from the test set images: {start}"
                     f" to {end} ...")
         options_col.info(
-            f"Showing sample images: **{start_idx + 1}** to **{end}**")
+            f"Showing sample images: **{start}** to **{end}**")
 
         def previous_samples():
             if session_state['start_idx'] > 0:
@@ -1440,18 +1464,18 @@ class Trainer:
                     filename = os.path.basename(p)
 
                     img = cv2.imread(p)
-                    start = perf_counter()
+                    start_t = perf_counter()
                     preprocessed_img = preprocess_image(img, image_size)
                     y_pred, y_proba = classification_predict(
                         preprocessed_img, self.model, return_proba=True)
-                    time_elapsed = perf_counter() - start
+                    time_elapsed = perf_counter() - start_t
                     logger.info(f"Inference on image: {filename} "
                                 f"[{time_elapsed:.4f}s]")
 
                     pred_classname = encoded_label_dict[y_pred]
                     true_classname = encoded_label_dict[label]
 
-                    caption = (f"{i + 1}. {filename}; "
+                    caption = (f"{start + i}. {filename}; "
                                f"Actual: {true_classname}; "
                                f"Predicted: {pred_classname}; "
                                f"Score: {y_proba * 100:.1f}")
@@ -1475,21 +1499,23 @@ class Trainer:
                 for i, (img_path, mask_path) in enumerate(zip(current_image_paths, current_labels)):
                     logger.debug(f"Image path: {img_path}")
                     filename = os.path.basename(img_path)
-                    logger.info(f"Inference on image: {filename}")
+                    logger.info(f)
 
                     image = cv2.imread(img_path)
                     orig_H, orig_W = image.shape[:2]
-                    start = perf_counter()
+                    start_t = perf_counter()
                     preprocessed_img = preprocess_image(image, image_size)
                     pred_mask = segmentation_predict(
                         self.model, preprocessed_img, orig_W, orig_H)
-                    time_elapsed = perf_counter() - start
-                    logger.info(f"Took {time_elapsed:.4f}s")
+                    time_elapsed = perf_counter() - start_t
+                    logger.info(f"Inference on image: {filename} "
+                                f"[{time_elapsed:.4f}s]")
 
                     # convert to RGB for visualizing with Matplotlib
                     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-                    figure_row_place.subheader(f"Image {i+1}: {filename}")
+                    figure_row_place.subheader(
+                        f"Image {start + i}: {filename}")
                     fig = plt.figure()
                     plt.subplot(131)
                     plt.title("Original Image")

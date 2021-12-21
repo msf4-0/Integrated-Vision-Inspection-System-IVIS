@@ -118,6 +118,11 @@ def index(RELEASE=True):
     user: User = session_state.user
     DEPLOYMENT_TYPE = deployment.deployment_type
 
+    def reset_image_idx():
+        """Reset index of image chosen to avoid exceeding the max number of images
+        on widget changes"""
+        session_state.image_idx = 0
+
     def image_recv_frame_cb(client, userdata, msg):
         # logger.debug("FRAME RECEIVED, REFRESHING")
         session_state.recv_frame = msg.payload
@@ -215,6 +220,7 @@ def index(RELEASE=True):
 
     if has_access:
         def update_input_type_conf():
+            reset_image_idx()
             session_state.recv_frame = None
             client.message_callback_remove(conf.topics.recv_frame)
             if session_state.input_type == 'Video':
@@ -283,9 +289,6 @@ def index(RELEASE=True):
         pipeline_kwargs = {'conf_threshold': deploy_conf.confidence_threshold}
 
     if deploy_conf.input_type == 'Image':
-        def reset_image_idx():
-            session_state.image_idx = 0
-
         image_type = st.sidebar.radio(
             "Select type of image",
             ("Image from project datasets", "Uploaded Image", "From MQTT"),

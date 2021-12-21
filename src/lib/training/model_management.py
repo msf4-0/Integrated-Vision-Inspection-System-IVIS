@@ -1153,6 +1153,10 @@ class Model(BaseModel):
             #     project_name=project_name,
             #     training_name=training_name,
             #     model_type=self.model_type)
+        else:
+            logger.warning(
+                f"Model type '{self.model_type_constant}' is not valid")
+            return
 
         if return_keras_filepath:
             keras_filepath = self.get_trained_keras_filepath(model_path)
