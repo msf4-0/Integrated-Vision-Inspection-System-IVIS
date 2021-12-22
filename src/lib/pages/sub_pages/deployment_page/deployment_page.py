@@ -24,16 +24,14 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
-from collections import Counter
+from copy import deepcopy
 from datetime import datetime
 from functools import partial
 import json
-from json.decoder import JSONDecodeError
 import os
 import shutil
 import sys
 from time import perf_counter, sleep
-from typing import Any, Callable, Dict, List
 
 import cv2
 from imutils.video.webcamvideostream import WebcamVideoStream
@@ -65,7 +63,7 @@ from data_manager.database_manager import init_connection
 from machine_learning.visuals import create_class_colors, create_color_legend
 from data_manager.dataset_management import Dataset
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
-from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, image_from_buffer, image_to_bytes, get_mqtt_client, read_images_from_uploaded, reset_camera, reset_camera_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
+from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, image_from_buffer, image_to_bytes, get_mqtt_client, read_images_from_uploaded, reset_camera, reset_video_deployment, reset_camera_and_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
 from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_image
 from dobot_arm_demo import main as dobot_demo
 
@@ -85,6 +83,8 @@ def index(RELEASE=True):
             "Please go to the Model Selection page and deploy a model first.")
         st.stop()
 
+    if 'deployed' not in session_state:
+        session_state.deployed = False
     if 'camera' not in session_state:
         session_state.camera = None
 
@@ -107,6 +107,7 @@ def index(RELEASE=True):
 
         # to check whether is publishing results through MQTT
         session_state.publishing = True
+    if 'mqtt_recv_frame' not in session_state:
         # to check whether any image/frame is received through MQTT
         session_state.mqtt_recv_frame = None
 
@@ -153,7 +154,7 @@ def index(RELEASE=True):
 
         subscribe_topics(resubscribe=True)
 
-    def stop_deployment():
+    def end_deployment():
         Deployment.reset_deployment_page()
         session_state.deployment_pagination = DeploymentPagination.Models
 
@@ -212,12 +213,11 @@ def index(RELEASE=True):
                    "deployment or errors could occur.")
 
         deploy_btn_place = st.empty()
-        pause_deploy_place = st.empty()
 
         st.button(
             "End Deployment", key='btn_stop_image_deploy',
-            on_click=stop_deployment,
-            help="This will stop the deployment and reset the entire  \n"
+            on_click=end_deployment,
+            help="This will end the deployment and reset the entire  \n"
             "deployment configuration. Please **make sure** to use this  \n"
             "button to stop deployment before proceeding to any other  \n"
             "page! Or use the **pause button** (only available for camera  \n"
@@ -491,16 +491,14 @@ def index(RELEASE=True):
         st.stop()
 
     elif deploy_conf.input_type == 'Video':
-        def update_conf_and_reset_camera(conf_attr: str):
+        def update_conf_and_reset_video_deploy(conf_attr: str):
             update_deploy_conf(conf_attr)
-            reset_camera()
-            # reset the recv_frame
-            session_state.mqtt_recv_frame = None
+            reset_video_deployment()
 
         # Does not seem to work properly
         # max_allowed_fps = st.sidebar.slider(
         #     'Maximum frame rate', 1, 60, 24, 1,
-        #     key='selected_max_allowed_fps', on_change=reset_camera,
+        #     key='selected_max_allowed_fps', on_change=reset_video_deployment,
         #     help="""This is the maximum allowed frame rate that the
         #         videostream will run at.""")
         if has_access:
@@ -510,7 +508,7 @@ def index(RELEASE=True):
                 "Select type of video input",
                 options, index=idx,
                 key='video_type', help="MQTT should send image frames in bytes.",
-                on_change=update_conf_and_reset_camera, args=('video_type',))
+                on_change=update_conf_and_reset_video_deploy, args=('video_type',))
 
             st.sidebar.slider(
                 'Width of video (for display only)', 320, 1920,
@@ -523,7 +521,7 @@ def index(RELEASE=True):
             # st.sidebar.checkbox(
             #     'Use video camera', value=deploy_conf.use_camera,
             #     key='use_camera',
-            #     on_change=update_conf_and_reset_camera, args=('use_camera',))
+            #     on_change=update_conf_and_reset_video_deploy, args=('use_camera',))
         else:
             st.sidebar.markdown(
                 f"Video input type: **{deploy_conf.video_type}**")
@@ -543,12 +541,16 @@ def index(RELEASE=True):
                     idx = options.index(deploy_conf.camera_type)
                     st.radio(
                         "Select type of camera", options, index=idx,
-                        key='camera_type', on_change=update_conf_and_reset_camera,
+                        key='camera_type', on_change=update_conf_and_reset_video_deploy,
                         args=('camera_type',))
                 if deploy_conf.camera_type == 'USB Camera':
                     if has_access:
+                        def reset_video_deployment_and_ports():
+                            reset_video_deployment()
+                            if 'working_ports' in session_state:
+                                del session_state['working_ports']
                         st.button("Refresh camera ports", key='btn_refresh',
-                                  on_click=reset_camera_ports)
+                                  on_click=reset_video_deployment_and_ports)
 
                         if not session_state.working_ports:
                             with st.spinner("Checking available camera ports ..."):
@@ -566,7 +568,7 @@ def index(RELEASE=True):
                             options=session_state.working_ports,
                             index=deploy_conf.camera_port,
                             key='camera_port',
-                            on_change=update_conf_and_reset_camera,
+                            on_change=update_conf_and_reset_video_deploy,
                             args=('camera_port',))
                     else:
                         st.markdown("USB Camera from camera port: "
@@ -637,9 +639,12 @@ def index(RELEASE=True):
                         "to ensure the latest CSV file is saved properly if you have any "
                         "problem with opening the file.")
         elif deploy_conf.video_type == 'Uploaded Video':
+            def temp_reset_vid():
+                logger.debug("RESETTING VIDEO DEPLOY FOR VIDEO FILE")
+                reset_video_deployment()
             video_file = st.sidebar.file_uploader(
                 "Or upload a video", type=['mp4', 'mov', 'avi', 'asf', 'm4v'],
-                key='video_file_uploader', on_change=reset_camera)
+                key='video_file_uploader', on_change=temp_reset_vid)
         else:
             logger.info("Using continuous frames receiving through MQTT")
 
@@ -712,16 +717,14 @@ def index(RELEASE=True):
             # logger.info(f"Received message from topic '{msg.topic}': "
             #             f"'{view}'")
             # session_state.check_labels = view
-            try:
-                mqtt_recv = json.loads(msg.payload)
-            except JSONDecodeError as e:
-                logger.error("Error reading JSON object from MQTT message payload."
-                             f"Please pass in the correct format as specified. Error: {e}")
-                session_state.check_labels = None
+            payload = msg.payload
+            res = deployment.validate_received_label_msg(payload)
+            if res:
+                logger.info("Received MQTT message with proper format from topic "
+                            f"'{msg.topic}' to perform label checking: '{payload}'")
+                session_state.check_labels = res
             else:
-                logger.info(f"Received message from topic '{msg.topic}': "
-                            f"'{mqtt_recv}'")
-                session_state.check_labels = mqtt_recv
+                session_state.check_labels = None
 
         topic_2cb = {
             topics.start_publish: start_publish_cb,
@@ -839,8 +842,9 @@ def index(RELEASE=True):
                     topics.dobot_view, key='dobot_view',
                     help='''Send a JSON object containing the "view" and "labels" to check
                     whether the detected labels at the current view contains the "labels"
-                    sent from MQTT. Example JSON object: 
-                    `"{"view": "top", "labels": ["date", "white dot"]}"`''')
+                    sent from MQTT. The value for **"view"** must only be a string, while
+                    the value for the **"labels"** must be a list. Example JSON object: 
+                    `"{"view": "top", "labels": ["date", "white dot"]}"''')
                 st.form_submit_button(
                     "Update Config", on_click=update_conf_topic,
                     help="Please press this button to update if you change any MQTT "
@@ -884,94 +888,118 @@ def index(RELEASE=True):
         if deploy_conf.input_type == 'Video':
             if deploy_conf.video_type == 'Video Camera':
                 # only show these if a camera is not selected and not deployed yet
-                if not session_state.camera:
-                    if deploy_btn_place.button(
+                if not session_state.deployed:
+                    if not deploy_btn_place.button(
                         "🛠️ Deploy Model", key='btn_deploy_cam',
                             help='Deploy your model with the selected camera source'):
-                        with st.spinner("Loading up camera ..."):
-                            # NOTE: VideoStream does not work with filepath
-                            try:
-                                session_state.camera = WebcamVideoStream(
-                                    src=video_source).start()
-                                if session_state.camera.read() is None:
-                                    raise Exception(
-                                        "Video source is not valid")
-                            except Exception as e:
-                                st.error(
-                                    f"Unable to read from video source {video_source}")
-                                logger.error(
-                                    f"Unable to read from video source {video_source}: {e}")
-                                st.stop()
+                        st.stop()
 
-                            sleep(2)  # give the camera some time to sink in
-                            # rerun just to avoid displaying unnecessary buttons
-                            st.experimental_rerun()
+                    with st.spinner("Loading up camera ..."):
+                        # NOTE: VideoStream does not work with filepath
+                        try:
+                            session_state.camera = WebcamVideoStream(
+                                src=video_source).start()
+                            if session_state.camera.read() is None:
+                                raise Exception(
+                                    "Video source is not valid")
+                        except Exception as e:
+                            st.error(
+                                f"Unable to read from video source {video_source}")
+                            logger.error(
+                                f"Unable to read from video source {video_source}: {e}")
+                            st.stop()
+
+                        session_state.deployed = True
+                        sleep(2)  # give the camera some time to sink in
+                        # rerun just to avoid displaying unnecessary buttons
+                        st.experimental_rerun()
             elif deploy_conf.video_type == 'Uploaded Video':
                 if not video_file:
                     st.stop()
 
-                video_path = str(TEMP_DIR / video_file.name)
+                # use this to avoid keep calling the file_uploader's callback
+                # NOTE: still not helping...
+                uploaded_video = deepcopy(video_file)
 
-                if deploy_btn_place.button(
-                    "🛠️ Deploy Model", key='btn_deploy_cam',
-                        help='Deploy your model with the selected camera source'):
+                video_path = str(TEMP_DIR / uploaded_video.name)
+
+                if not session_state.deployed:
+                    if not deploy_btn_place.button(
+                        "🛠️ Deploy Model", key='btn_deploy_uploaded_vid',
+                            help='Deploy your model with the uploaded video'):
+                        st.stop()
 
                     if TEMP_DIR.exists():
                         shutil.rmtree(TEMP_DIR)
                     os.makedirs(TEMP_DIR)
                     logger.debug(f"{video_path = }")
                     with open(video_path, 'wb') as f:
-                        f.write(video_file.getvalue())
+                        f.write(uploaded_video.getvalue())
 
                     try:
                         session_state.camera = cv2.VideoCapture(video_path)
                         assert session_state.camera.isOpened(), "Video is unreadable"
                     except Exception as e:
                         st.error(f"Unable to read from the video file: "
-                                 f"'{video_file.name}'")
+                                 f"'{uploaded_video.name}'")
                         logger.error(f"Unable to read from the video file: "
-                                     f"'{video_file.name}' with error: {e}")
+                                     f"'{uploaded_video.name}' with error: {e}")
                         st.stop()
 
+                    session_state.deployed = True
                     sleep(2)  # give the camera some time to sink in
                     st.experimental_rerun()
             else:
-                if not session_state.mqtt_recv_frame:
+                if not session_state.deployed:
                     if not deploy_btn_place.button(
-                            "🛠️ Deploy Model", key='btn_deploy_cam',
-                            help='Deploy your model with the selected camera source'):
+                            "🛠️ Deploy Model", key='btn_deploy_vid_mqtt',
+                            help='Deploy your model for frames sent from MQTT'):
                         st.stop()
-                logger.info("Deploying for video frames received from MQTT")
+
+                    session_state.deployed = True
+                logger.info(
+                    "Deploying for video frames received from MQTT")
 
         # after user has clicked the "Deploy Model" button
-        if session_state.camera:
-            if isinstance(session_state.camera, WebcamVideoStream):
-                stream = session_state.camera.stream
-                deploy_status_place.info(
-                    "**Status**: Deployed for video camera input")
+        if session_state.deployed:
+            deploy_btn_place.button(
+                "Pause Deployment", key='btn_pause_deploy',
+                on_click=reset_video_deployment,
+                help=("Pause deployment after you have deployed the model  \n"
+                      "with a running video camera. Or use this to reset  \n"
+                      "camera if there is any problem with loading up  \n"
+                      "the camera. Note that this is extremely important  \n"
+                      "to ensure your camera is properly stopped and the  \n"
+                      "camera access is given back to your system. This will  \n"
+                      "also save the latest CSV file in order to be opened."))
+
+            if deploy_conf.video_type != 'From MQTT':
+                if deploy_conf.video_type == 'Video Camera':
+                    stream = session_state.camera.stream
+                    deploy_status_place.info(
+                        "**Status**: Deployed for video camera input")
+                else:
+                    stream = session_state.camera
+                    deploy_status_place.info(
+                        "**Status**: Deployed for uploaded video")
+
+                    with deploy_status_col:
+                        st.subheader('Input Video')
+                        try:
+                            st.video(video_path)
+                        except Exception as e:
+                            st.error(f"Unable to read from the video file: "
+                                     f"'{uploaded_video.name}'")
+                            logger.error(f"Unable to read from the video file: "
+                                         f"'{uploaded_video.name}' with error: {e}")
+                            st.stop()
+
+                width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fps_input = int(stream.get(cv2.CAP_PROP_FPS))
+                logger.info(
+                    f"Video properties: {width = }, {height = }, {fps_input = }")
             else:
-                stream = session_state.camera
-                deploy_status_place.info(
-                    "**Status**: Deployed for uploaded video")
-
-                with deploy_status_col:
-                    st.subheader('Input Video')
-                    try:
-                        st.video(video_path)
-                    except Exception as e:
-                        st.error(f"Unable to read from the video file: "
-                                 f"'{video_file.name}'")
-                        logger.error(f"Unable to read from the video file: "
-                                     f"'{video_file.name}' with error: {e}")
-                        st.stop()
-
-            width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps_input = int(stream.get(cv2.CAP_PROP_FPS))
-            logger.info(
-                f"Video properties: {width = }, {height = }, {fps_input = }")
-        else:
-            if deploy_conf.video_type == 'From MQTT':
                 msg_place = st.empty()
                 if not session_state.mqtt_recv_frame:
                     logger.info("Waiting for frames from MQTT ...")
@@ -979,7 +1007,6 @@ def index(RELEASE=True):
                         msg_place.info(
                             "No frame received from MQTT. Waiting ...")
                         sleep(1)
-                deploy_btn_place.empty()
                 msg_place.info("Frame received **from MQTT**")
                 logger.info("Reading the frame from MQTT")
 
@@ -987,25 +1014,10 @@ def index(RELEASE=True):
                 height, width = frame.shape[:2]
                 logger.info("Properties of received frame: "
                             f"{width = }, {height = }")
-            else:
-                # stop if the "Deploy Model" button is not clicked yet
-                st.stop()
-
-        def pause_deployment():
-            reset_camera()
-            reset_record_and_vid_writer()
-            reset_csv_file_and_writer()
-
-        pause_deploy_place.button(
-            "Pause Deployment", key='btn_pause_deploy',
-            on_click=pause_deployment,
-            help=("Pause deployment after you have deployed the model  \n"
-                  "with a running video camera. Or use this to reset  \n"
-                  "camera if there is any problem with loading up  \n"
-                  "the camera. Note that this is extremely important  \n"
-                  "to ensure your camera is properly stopped and the  \n"
-                  "camera access is given back to your system. This will  \n"
-                  "also save the latest CSV file in order to be opened."))
+        else:
+            # stop if the "Deploy Model" button is not clicked yet
+            logger.info("Model is not deployed yet")
+            st.stop()
 
         # *********************** DOBOT arm demo ***********************
         # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
@@ -1256,23 +1268,12 @@ def index(RELEASE=True):
             # NOTE: this session_state is currently ONLY used for DOBOT arm for
             # object detection demo to detect different labels at different views
             if session_state.check_labels:
-                # session_state.check_labels should be Dict[str, Any] with the following
-                # keys: ['labels', 'view']
-                required_labels: List[str] = session_state.check_labels.get(
-                    'labels')
-                view: str = session_state.check_labels.get('view')
-
-                if not view or not required_labels:
-                    if not view:
-                        logger.error(
-                            '"view" key is not found from the received JSON object')
-                    if not required_labels:
-                        logger.error(
-                            '"labels" key is not found from the received JSON object')
-                    session_state.check_labels = None
-                    continue
+                # session_state.check_labels should be Tuple[str, List[str]]
+                # generated from validate_received_label_msg() in dobot_view_cb()
+                view, required_labels = session_state.check_labels
 
                 if view == 'end':
+                    logger.info("Ending the label checking process")
                     # clear the message if the robot motion is ended
                     msg_place.empty()
                     # and reset back to None
@@ -1281,7 +1282,7 @@ def index(RELEASE=True):
 
                 # required_label_cnts = VIEW_LABELS[view]
                 # if dobot_demo.check_result_labels(results, required_label_cnts):
-                if deployment.check_labels(results, required_labels):
+                if deployment.check_labels(results, required_labels, DEPLOYMENT_TYPE):
                     logger.info(f"All labels present at '{view}' view")
                     msg_place.success(f"### {view.upper()} view: OK")
                 else:
@@ -1340,7 +1341,7 @@ def index(RELEASE=True):
             session_state.vid_writer.release()
             session_state.vid_writer = None
 
-        reset_camera()
+        reset_video_deployment()
 
         if TEMP_DIR.exists():
             logger.debug("Removing temporary directory")

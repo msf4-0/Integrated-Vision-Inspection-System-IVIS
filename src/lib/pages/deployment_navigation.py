@@ -106,7 +106,7 @@ def index(RELEASE=True):
 
         # reset the camera to give back access to user
         # NOTE: don't reset here
-        # reset_camera()
+        # reset_video_deployment()
         if navigation_selected == "Upload Model":
             NewModel.reset_model_upload_page()
         elif navigation_selected == "Switch User":

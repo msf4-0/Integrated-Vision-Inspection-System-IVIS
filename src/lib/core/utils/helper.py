@@ -524,21 +524,21 @@ def list_available_cameras():
     while True:
         cap = cv2.VideoCapture(dev_port)
         if not cap.isOpened():
-            logger.debug(f"Port {dev_port} is not working.")
+            logger.info(f"Port {dev_port} is not working.")
             break
         is_reading, img = cap.read()
         w = cap.get(3)
         h = cap.get(4)
         if is_reading:
-            logger.debug(
+            logger.info(
                 f"Port {dev_port} is working and reads images ({h} x {w})")
             working_ports.append(dev_port)
             # cv2.imshow('frame', img)
             # cv2.waitKey(0)
             # cv2.destroyAllWindows()
         else:
-            logger.debug(f"Port {dev_port} for camera ({h} x {w}) is present "
-                         "but does not reads.")
+            logger.info(f"Port {dev_port} for camera ({h} x {w}) is present "
+                        "but does not reads.")
             available_ports.append(dev_port)
         cap.release()
         dev_port += 1

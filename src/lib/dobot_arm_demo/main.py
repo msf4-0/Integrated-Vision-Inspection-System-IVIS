@@ -234,6 +234,10 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
 
 
 def debug_run(conf: MQTTConfig, task: DobotTask):
+    """
+    A debugging function to test publishing to the topic subscribed by our client
+    in the deployment_page.
+    """
     def debug_publish():
         topic = conf.topics.dobot_view
         qos = conf.qos
@@ -244,16 +248,19 @@ def debug_run(conf: MQTTConfig, task: DobotTask):
         time.sleep(2)
 
         # send the current view as the payload to our vision inspection app
-        client.publish(topic, 'top', qos)
+        client.publish(
+            topic, '{"labels": ["white dot", "date"], "view": "top"}', qos)
         time.sleep(2)
 
-        client.publish(topic, 'right', qos)
+        client.publish(
+            topic, '{"labels": ["white dot"], "view": "left"}', qos)
         time.sleep(2)
 
-        client.publish(topic, 'left', qos)
+        client.publish(
+            topic, '{"labels": ["date"], "view": "right"}', qos)
         time.sleep(2)
 
-        client.publish(topic, 'end', qos)
+        client.publish(topic, '{"view": "end"}', qos)
 
         client.loop_stop()
         client.disconnect()

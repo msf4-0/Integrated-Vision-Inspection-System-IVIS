@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 from __future__ import annotations
 import gc
+from json.decoder import JSONDecodeError
 import shutil
 from copy import deepcopy
 from dataclasses import dataclass
@@ -65,8 +66,8 @@ if TYPE_CHECKING:
     from training.model_management import Model
 from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
 from machine_learning.command_utils import export_tfod_savedmodel
-from deployment.utils import (reset_camera, reset_camera_ports,
-                              reset_client, reset_csv_file_and_writer, reset_record_and_vid_writer)
+from deployment.utils import (reset_video_deployment, reset_client,
+                              reset_csv_file_and_writer, reset_record_and_vid_writer)
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -463,12 +464,63 @@ class Deployment(BaseDeployment):
                 break
 
     @staticmethod
-    def check_labels(results: List[Dict[str, Any]],
-                     required_labels: List[str]) -> bool:
-        """Check the object detection `results` to see whether all `required_label` 
-        are found in the `results` (class name is in the 'name' key).
+    def validate_received_label_msg(msg_payload: bytes) -> Union[bool, Tuple[str, List[str]]]:
         """
-        detected_labels: List[str] = [r['name'] for r in results]
+        Validate the received message payload for label checking to have the correct 
+        JSON format.
+
+        e.g. {"labels": ["label1", "label2"], "view": "top"}
+
+        Returns:
+            - If format is not valid, returns False.
+            - If format is valid, returns a Tuple[str, List[str]] for the 
+                (view, required_labels).
+        """
+        try:
+            mqtt_recv = json.loads(msg_payload)
+        except JSONDecodeError as e:
+            logger.error(f'Error reading JSON object "{msg_payload}" from the received '
+                         'MQTT message payload. Please pass in the correct JSON format as '
+                         f'specified, e.g. {{"labels": ["label1", "label2"], "view": "top"}}. '
+                         f'Error: {e}')
+            return False
+
+        required_labels = mqtt_recv.get('labels')
+        view = mqtt_recv.get('view')
+
+        if not view:
+            logger.error(
+                '"view" key is not found from the received JSON object')
+            return False
+        if view == 'end':
+            # if view == 'end' then no need to check required labels
+            return view, required_labels
+        if not required_labels:
+            logger.error(
+                '"labels" key is not found from the received JSON object')
+            return False
+        if not isinstance(view, str):
+            logger.error(f'The received value for the "labels" key '
+                         f'{required_labels} is not in List format')
+            return False
+        if not isinstance(required_labels, list):
+            logger.error(f'The received value for the "labels" key '
+                         f'{required_labels} is not in List format')
+            return False
+        return view, required_labels
+
+    @staticmethod
+    def check_labels(results: List[Dict[str, Any]],
+                     required_labels: List[str],
+                     deployment_type: str) -> bool:
+        """Check the `results` to see whether all `required_labels` 
+        are found in the `results`, which are generated from the get_*_results()
+        function for each deployment type.
+        """
+        if deployment_type == 'Semantic Segmentation with Polygons':
+            detected_labels: List[str] = results[0]['classes_found'].copy()
+        else:
+            detected_labels: List[str] = [r['name'] for r in results]
 
         logger.info(f"Required labels: {required_labels}")
         logger.info(f"Detected labels: {detected_labels}")
@@ -487,16 +539,15 @@ class Deployment(BaseDeployment):
         tf.keras.backend.clear_session()
         gc.collect()
 
-        reset_camera()
-        reset_camera_ports()
+        reset_video_deployment()
         reset_record_and_vid_writer()
         reset_csv_file_and_writer()
         reset_client()
 
         project_attributes = [
             "deployment_pagination", "deployment", "trainer", "publishing",
-            "refresh", "deployment_conf", "today", "mqtt_conf", "mqtt_recv_frame",
-            "image_idx", "check_labels"
+            "refresh", "deployment_conf", "today", "mqtt_conf",
+            "image_idx", "check_labels", "camera_ports"
         ]
 
         reset_page_attributes(project_attributes)

@@ -187,7 +187,8 @@ def reset_camera():
         del session_state['camera']
 
 
-def reset_camera_ports():
+def reset_camera_and_ports():
+    reset_camera()
     if 'working_ports' in session_state:
         del session_state['working_ports']
 
@@ -199,6 +200,21 @@ def reset_record_and_vid_writer():
         del session_state['vid_writer']
     if 'record' in session_state:
         del session_state['record']
+
+
+def reset_video_deployment():
+    """Gracefully reset the session_state for `camera`, `deployed`, `mqtt_recv_frame`,
+    `record`, `vid_writer`, `csv_file`, `csv_writer` but NOT `camera_ports`"""
+    logger.info("Resetting video deployment")
+
+    reset_camera()
+    # also pause the deployment when camera is reset
+    if 'deployed' in session_state:
+        del session_state['deployed']
+    if 'mqtt_recv_frame' in session_state:
+        del session_state['mqtt_recv_frame']
+    reset_record_and_vid_writer()
+    reset_csv_file_and_writer()
 
 
 def reset_client():

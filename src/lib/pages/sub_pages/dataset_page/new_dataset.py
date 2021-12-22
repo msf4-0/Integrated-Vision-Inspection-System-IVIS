@@ -61,7 +61,7 @@ from path_desc import TEMP_DIR, chdir_root
 from project.project_management import NewProject, Project, ProjectPagination, ProjectPermission
 from annotation.annotation_management import NewAnnotations, Task
 from user.user_management import User
-from deployment.utils import reset_camera, reset_camera_ports
+from deployment.utils import reset_camera, reset_camera_and_ports
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -241,7 +241,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         _, working_ports = list_available_cameras()
                         session_state.working_ports = working_ports.copy()
                 st.button("Refresh camera ports",
-                          key='btn_refresh_camera_port', on_click=reset_camera_ports)
+                          key='btn_refresh_camera_port', on_click=reset_camera_and_ports)
                 camera_port = st.radio("Select a camera port", session_state.working_ports,
                                        key='camera_port')
                 video_source = camera_port
