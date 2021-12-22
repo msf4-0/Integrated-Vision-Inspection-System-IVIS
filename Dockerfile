@@ -13,8 +13,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 # install libpq-dev for PostgreSQL dependencies to install psycopg2 library for Python
 # and also protobuf for TFOD installation
 # then install python related stuff
-RUN apt update && apt install -y git make libpq-dev protobuf-compiler && \
-    apt install --no-install-recommends -y python3.8 python3.8-dev python3.8-venv python3-pip python3-wheel build-essential && \
+RUN apt update && apt install --no-install-recommends -y git make libpq-dev protobuf-compiler \
+    python3.8 python3.8-dev python3.8-venv python3-pip python3-wheel build-essential && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 # create and activate virtual environment
@@ -34,9 +34,9 @@ RUN pip install --no-cache-dir -r requirements_no_hash.txt
 # these are same with the tfod_installation.py script
 RUN mkdir /home/myuser/TFOD && git clone https://github.com/tensorflow/models /home/myuser/TFOD/models && \
     git clone https://github.com/cocodataset/cocoapi.git && \
-    cd cocoapi/PythonAPI && make && cp -r pycocotools /home/myuser/TFOD/models/research
-# need to upgrade pip to be able to use the '--use-feature' option later to install TFOD
-RUN pip install pycocotools==2.0.2 && \
+    cd cocoapi/PythonAPI && make && cp -r pycocotools /home/myuser/TFOD/models/research && \
+    # need to upgrade pip to be able to use the '--use-feature' option later to install TFOD
+    pip install pycocotools==2.0.2 && \
     pip install --upgrade pip
 
 # TFOD installation
@@ -51,11 +51,10 @@ FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04 AS runner-image
 # python3-icu is required for the Python 'natsort' library to sort files like file browser
 # libpq-dev is required for psycopg2 library
 # libgl1-mesa-glx and the rest are required for OpenCV library
-RUN apt update && apt install --no-install-recommends -y python3.8 python3-venv
-# Don't need all these, only need libgl1-mesa-glx and libglib2.0-0, ffmpeg for more video codecs to record videos
-# apt install -y python3-icu libpq-dev libgl1-mesa-glx ffmpeg libglib2.0-0 libsm6 libxrender1 libxext6 && \
-RUN apt install -y python3-icu libpq-dev ffmpeg && \
-    apt install -y libgl1-mesa-glx libglib2.0-0 && \
+RUN apt update && apt install --no-install-recommends -y python3.8 python3-venv \
+    # Don't need all these, only need libgl1-mesa-glx and libglib2.0-0, ffmpeg for more video codecs to record videos
+    # apt install -y python3-icu libpq-dev libgl1-mesa-glx ffmpeg libglib2.0-0 libsm6 libxrender1 libxext6 && \
+    python3-icu libpq-dev ffmpeg libgl1-mesa-glx libglib2.0-0 && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home myuser

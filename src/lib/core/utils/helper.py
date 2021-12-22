@@ -546,7 +546,7 @@ def list_available_cameras():
 
 
 def save_image(frame: np.ndarray, save_dir: Path, channels: str = 'BGR',
-               timezone="Singapore", prefix: str = None):
+               timezone: str = 'Singapore', prefix: str = None):
     """Optionally pass in `prefix` to prepend to the filename."""
     now = get_now_string(timezone=timezone)
     if prefix:

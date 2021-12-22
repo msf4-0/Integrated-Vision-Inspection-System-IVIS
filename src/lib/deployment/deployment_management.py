@@ -463,6 +463,24 @@ class Deployment(BaseDeployment):
                 break
 
     @staticmethod
+    def check_labels(results: List[Dict[str, Any]],
+                     required_labels: List[str]) -> bool:
+        """Check the object detection `results` to see whether all `required_label` 
+        are found in the `results` (class name is in the 'name' key).
+        """
+        detected_labels: List[str] = [r['name'] for r in results]
+
+        logger.info(f"Required labels: {required_labels}")
+        logger.info(f"Detected labels: {detected_labels}")
+
+        for label in required_labels:
+            if label not in detected_labels:
+                return False
+            # remove it from the list to be able to count the exact number of labels
+            detected_labels.remove(label)
+        return True
+
+    @staticmethod
     def reset_deployment_page():
         """Method to reset all widgets and attributes in the Deployment Pages when changing pages
         """

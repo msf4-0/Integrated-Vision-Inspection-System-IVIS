@@ -28,11 +28,12 @@ from collections import Counter
 from datetime import datetime
 from functools import partial
 import json
+from json.decoder import JSONDecodeError
 import os
 import shutil
 import sys
 from time import perf_counter, sleep
-from typing import Callable
+from typing import Any, Callable, Dict, List
 
 import cv2
 from imutils.video.webcamvideostream import WebcamVideoStream
@@ -707,10 +708,20 @@ def index(RELEASE=True):
             session_state.refresh = True
 
         def dobot_view_cb(client, userdata, msg):
-            view: str = msg.payload.decode()
-            logger.info(f"Received message from topic '{msg.topic}': "
-                        f"'{view}'")
-            session_state.check_labels = view
+            # view: str = msg.payload.decode()
+            # logger.info(f"Received message from topic '{msg.topic}': "
+            #             f"'{view}'")
+            # session_state.check_labels = view
+            try:
+                mqtt_recv = json.loads(msg.payload)
+            except JSONDecodeError as e:
+                logger.error("Error reading JSON object from MQTT message payload."
+                             f"Please pass in the correct format as specified. Error: {e}")
+                session_state.check_labels = None
+            else:
+                logger.info(f"Received message from topic '{msg.topic}': "
+                            f"'{mqtt_recv}'")
+                session_state.check_labels = mqtt_recv
 
         topic_2cb = {
             topics.start_publish: start_publish_cb,
@@ -1245,7 +1256,22 @@ def index(RELEASE=True):
             # NOTE: this session_state is currently ONLY used for DOBOT arm for
             # object detection demo to detect different labels at different views
             if session_state.check_labels:
-                view: str = session_state.check_labels
+                # session_state.check_labels should be Dict[str, Any] with the following
+                # keys: ['labels', 'view']
+                required_labels: List[str] = session_state.check_labels.get(
+                    'labels')
+                view: str = session_state.check_labels.get('view')
+
+                if not view or not required_labels:
+                    if not view:
+                        logger.error(
+                            '"view" key is not found from the received JSON object')
+                    if not required_labels:
+                        logger.error(
+                            '"labels" key is not found from the received JSON object')
+                    session_state.check_labels = None
+                    continue
+
                 if view == 'end':
                     # clear the message if the robot motion is ended
                     msg_place.empty()
@@ -1253,8 +1279,9 @@ def index(RELEASE=True):
                     session_state.check_labels = None
                     continue
 
-                required_label_cnts = VIEW_LABELS[view]
-                if dobot_demo.check_result_labels(results, required_label_cnts):
+                # required_label_cnts = VIEW_LABELS[view]
+                # if dobot_demo.check_result_labels(results, required_label_cnts):
+                if deployment.check_labels(results, required_labels):
                     logger.info(f"All labels present at '{view}' view")
                     msg_place.success(f"### {view.upper()} view: OK")
                 else:
