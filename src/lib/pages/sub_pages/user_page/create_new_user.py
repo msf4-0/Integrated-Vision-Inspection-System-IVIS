@@ -73,7 +73,11 @@ def show(layout='wide'):
         current_user = get_default_user_info()
 
     if layout == 'wide':
-        _, col2, _ = st.columns([1, 3, 1])
+        left, col2, right = st.columns([1, 3, 1])
+        with left:
+            st.write("")
+        with right:
+            st.write("")
     else:
         col2 = st.container()
     # placeholder=col2.empty()

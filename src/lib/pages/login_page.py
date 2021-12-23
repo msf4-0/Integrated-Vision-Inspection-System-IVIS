@@ -80,7 +80,11 @@ def activation_page(user: UserLogin = None, layout='wide'):  # activation page f
     st.markdown("___")
     activation_place = st.empty()
     if layout == 'wide':
-        _, col2, _ = activation_place.columns([1, 3, 1])
+        left, col2, right = activation_place.columns([1, 3, 1])
+        with left:
+            st.write("")
+        with right:
+            st.write("")
     else:
         col2 = activation_place
 
@@ -134,15 +138,20 @@ def login_page(layout='wide'):
     }
     user = {}  # store user input
     login_field_place = {}
-    login_place = st.empty()  # PLACEHOLDER to replace with error message
 
     # >>>> Place login container at the centre when layout == 'wide'
     if layout == 'wide':
-        left, mid_login, right = login_place.columns([1, 3, 1])
+        left, mid_login, right = st.columns([1, 3, 1])
+        # for some reason need to add these to make the form show in the middle...
+        # this is changed on newer Streamlit versions
+        with left:
+            st.write("")
+        with right:
+            st.write("")
     else:  # Place login container at the centre when layout =='centered'
-        mid_login = login_place
+        mid_login = st.container()
 
-    with mid_login.form(key="login", clear_on_submit=True):
+    with mid_login.form(key="form_login", clear_on_submit=True):
 
         st.write("## Login")
 
@@ -158,70 +167,70 @@ def login_page(layout='wide'):
 
         submit_login = st.form_submit_button("Log In")
 
-       # st.write(f"{username},{pswrd}")
-       # >>>>>>>> INPUT >>>>>>>>
+        # st.write(f"{username},{pswrd}")
+        # >>>>>>>> INPUT >>>>>>>>
 
         # user_login = UserLogin()  # Instatiate Temp login user
         success_place = st.empty()  # Placeholder for Login success
 
+    if submit_login:  # when submit button is pressed
         # >>>>>>>> CHECK FIELD EMPTY >>>>>>>>
-        if submit_login:  # when submit button is pressed
-            has_submitted = check_if_field_empty(
-                user, login_field_place, FIELDS)
+        has_submitted = check_if_field_empty(
+            user, login_field_place, FIELDS)
         # <<<<<<<< CHECK FIELD EMPTY <<<<<<<<
 
-            # >>>>>>>> VERIFICATION >>>>>>>>
-            if has_submitted:  # if both fields entered
+        # >>>>>>>> VERIFICATION >>>>>>>>
+        if has_submitted:  # if both fields entered
 
-                if "user_login" not in session_state:
-                    # Instantiate UserManager class SS holder
-                    session_state.user_login = UserLogin()
+            if "user_login" not in session_state:
+                # Instantiate UserManager class SS holder
+                session_state.user_login = UserLogin()
 
-                if session_state.user_login.user_verification(user, conn):
+            if session_state.user_login.user_verification(user, conn):
 
-                    # >>>> CHECK user status >>>>
-                    if session_state.user_login.status == AccountStatus.NEW:
-                        session_state.login_pagination = LoginPagination.Activation
-                        st.success("This is a new account, entering activation page "
-                                   "to activate it.")
-                        logger.info("This is a new account, entering activation page "
-                                    "to activate it.")
-                        st.experimental_rerun()
-                    elif session_state.user_login.status == AccountStatus.LOCKED:
+                # >>>> CHECK user status >>>>
+                if session_state.user_login.status == AccountStatus.NEW:
+                    session_state.login_pagination = LoginPagination.Activation
+                    success_place.success("This is a new account, entering activation page "
+                                          "to activate it.")
+                    logger.info("This is a new account, entering activation page "
+                                "to activate it.")
+                    st.experimental_rerun()
+                elif session_state.user_login.status == AccountStatus.LOCKED:
 
-                        # admin_email = 'admin@shrdc.com'  # Random admin email
-                        st.error(
-                            f"Account Locked. Please contact any Administrator.")
+                    # admin_email = 'admin@shrdc.com'  # Random admin email
+                    success_place.error(
+                        f"Account Locked. Please contact any Administrator.")
 
-                    # >>>>>>>> SUCCESS ENTER >>>>>>>>
-                    else:
-                        # for other status, enter web app
-                        # set status as log-in
-                        session_state.user_login.update_status(
-                            AccountStatus.LOGGED_IN)
-
-                        # Save Session Log
-                        session_state.user_login.save_session_log()
-
-                        success_place.success(
-                            "#### You have logged in successfully. Welcome 👋🏻")
-                        # change to User
-                        session_state.user = User.from_user_login(
-                            session_state.user_login)
-
-                        sleep(2)
-                        success_place.empty()
-
-                        reset_login_page()
-                        session_state.main_pagination = MainPagination.Projects
-                        st.experimental_rerun()
-                    # <<<< CHECK user status <<<<
-
+                # >>>>>>>> SUCCESS ENTER >>>>>>>>
                 else:
-                    st.error(
-                        "User entered wrong username or password. Please enter again.")
+                    # for other status, enter web app
+                    # set status as log-in
+                    session_state.user_login.update_status(
+                        AccountStatus.LOGGED_IN)
 
-            # <<<<<<<< VERIFICATION <<<<<<<<
+                    # Save Session Log
+                    session_state.user_login.save_session_log()
+
+                    success_place.success(
+                        "#### You have logged in successfully. Welcome 👋🏻")
+                    # change to User
+                    session_state.user = User.from_user_login(
+                        session_state.user_login)
+
+                    sleep(2)
+                    success_place.empty()
+
+                    reset_login_page()
+                    session_state.main_pagination = MainPagination.Projects
+                    st.experimental_rerun()
+                # <<<< CHECK user status <<<<
+
+            else:
+                success_place.error(
+                    "User entered wrong username or password. Please enter again.")
+
+        # <<<<<<<< VERIFICATION <<<<<<<<
 
 
 def index():

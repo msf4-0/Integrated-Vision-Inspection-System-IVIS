@@ -164,7 +164,7 @@ def index(RELEASE=True):
         NOTE: `conf_attr` must exist in the `session_state` (usually is the widget's state)
         and must be the same with the `DeploymentConfig` attribute's name."""
         val = session_state[conf_attr]
-        logger.debug(f"Updated deploy_conf: {conf_attr} = {val}")
+        logger.info(f"Updated deployment config: {conf_attr} = {val}")
         setattr(deploy_conf, conf_attr, val)
 
     # connect MQTT broker and set up callbacks
@@ -200,31 +200,28 @@ def index(RELEASE=True):
 
             session_state.client_connected = True
 
-    deploy_status_col = st.container()
+    st.subheader("Deployment Status")
 
-    with deploy_status_col:
-        st.subheader("Deployment Status")
+    deploy_status_place = st.empty()
+    deploy_status_place.info("**Status**: Not deployed. Please upload an image/video "
+                             "or use video camera or MQTT and click **\"Deploy Model\"**.")
 
-        deploy_status_place = st.empty()
-        deploy_status_place.info("**Status**: Not deployed. Please upload an image/video "
-                                 "or use video camera or MQTT and click **\"Deploy Model\"**.")
+    st.warning("**NOTE**: Please do not simply refresh the page without ending "
+               "deployment or errors could occur.")
 
-        st.warning("**NOTE**: Please do not simply refresh the page without ending "
-                   "deployment or errors could occur.")
+    deploy_btn_place = st.empty()
 
-        deploy_btn_place = st.empty()
-
-        st.button(
-            "End Deployment", key='btn_stop_image_deploy',
-            on_click=end_deployment,
-            help="This will end the deployment and reset the entire  \n"
-            "deployment configuration. Please **make sure** to use this  \n"
-            "button to stop deployment before proceeding to any other  \n"
-            "page! Or use the **pause button** (only available for camera  \n"
-            "input) if you want to pause the deployment to do any other  \n"
-            "things without resetting, such as switching user, or viewing  \n"
-            "the latest saved CSV file (only for video camera deployment).")
-        st.markdown("___")
+    st.button(
+        "End Deployment", key='btn_stop_image_deploy',
+        on_click=end_deployment,
+        help="This will end the deployment and reset the entire  \n"
+        "deployment configuration. Please **make sure** to use this  \n"
+        "button to stop deployment before proceeding to any other  \n"
+        "page! Or use the **pause button** (only available for camera  \n"
+        "input) if you want to pause the deployment to do any other  \n"
+        "things without resetting, such as switching user, or viewing  \n"
+        "the latest saved CSV file (only for video camera deployment).")
+    st.markdown("___")
 
     if user.role <= UserRole.Developer1:
         # use this variable to know whether the user has access to edit deployment config
@@ -264,8 +261,8 @@ def index(RELEASE=True):
             index=idx, key='input_type',
             on_change=update_input_type_conf)
     else:
-        st.info(f"Selected timezone: **{deploy_conf.timezone}**")
-        st.markdown(f"**Input type**: {deploy_conf.input_type}")
+        st.sidebar.markdown(f"**Selected timezone**: {deploy_conf.timezone}")
+        st.sidebar.markdown(f"**Input type**: {deploy_conf.input_type}")
 
     options_col, _ = st.columns(2)
 
@@ -507,30 +504,20 @@ def index(RELEASE=True):
             st.sidebar.radio(
                 "Select type of video input",
                 options, index=idx,
-                key='video_type', help="MQTT should send image frames in bytes.",
+                key='video_type', help="MQTT should publish frames in bytes to the topic  \n"
+                f"*{conf.topics.recv_frame}* (topic can be changed below)",
                 on_change=update_conf_and_reset_video_deploy, args=('video_type',))
-
-            st.sidebar.slider(
-                'Width of video (for display only)', 320, 1920,
-                deploy_conf.video_width, 10,
-                key='video_width',
-                help="This is the width of video for visualization purpose.",
-                on_change=update_deploy_conf, args=('video_width',)
-            )
-
-            # st.sidebar.checkbox(
-            #     'Use video camera', value=deploy_conf.use_camera,
-            #     key='use_camera',
-            #     on_change=update_conf_and_reset_video_deploy, args=('use_camera',))
         else:
             st.sidebar.markdown(
-                f"Video input type: **{deploy_conf.video_type}**")
-            # if deploy_conf.use_camera:
-            #     st.sidebar.markdown("Using **video camera** for deployment.")
-            # else:
-            #     st.sidebar.markdown("Using **uploaded video**.")
-            st.sidebar.markdown(
-                f"**Width of video**: {deploy_conf.video_width}")
+                f"**Video input type**: {deploy_conf.video_type}")
+
+        st.sidebar.slider(
+            'Width of video (for display only)', 320, 1920,
+            deploy_conf.video_width, 10,
+            key='video_width',
+            help="This is the width of video for visualization purpose.",
+            on_change=update_deploy_conf, args=('video_width',)
+        )
 
         if deploy_conf.video_type == 'Video Camera':
             # TODO: test using streamlit-webrtc
@@ -571,8 +558,8 @@ def index(RELEASE=True):
                             on_change=update_conf_and_reset_video_deploy,
                             args=('camera_port',))
                     else:
-                        st.markdown("USB Camera from camera port: "
-                                    f"**{deploy_conf.camera_port}**")
+                        st.markdown("**USB Camera Port**: "
+                                    f"{deploy_conf.camera_port}")
                     video_source = deploy_conf.camera_port
                 else:
                     if has_access:
@@ -615,7 +602,7 @@ def index(RELEASE=True):
             with st.sidebar.container():
                 st.markdown("___")
                 st.subheader("Info about saving results")
-                st.markdown("#### Data retention period")
+                st.markdown("**Data retention period**")
                 warning_place = st.empty()
                 if has_access:
                     with st.form('retention_period_form', clear_on_submit=True):
@@ -629,7 +616,7 @@ def index(RELEASE=True):
                             'Change retention period', on_click=update_retention_period)
                 retention_period = deploy_conf.retention_period
 
-                st.markdown(f"Retention period = **{retention_period} days**")
+                st.markdown(f"**Retention period** = {retention_period} days")
                 with st.expander("CSV save file info"):
                     st.markdown(
                         f"**Inference results will be saved continuously in**: *{csv_dir}*  \n"
@@ -639,12 +626,10 @@ def index(RELEASE=True):
                         "to ensure the latest CSV file is saved properly if you have any "
                         "problem with opening the file.")
         elif deploy_conf.video_type == 'Uploaded Video':
-            def temp_reset_vid():
-                logger.debug("RESETTING VIDEO DEPLOY FOR VIDEO FILE")
-                reset_video_deployment()
             video_file = st.sidebar.file_uploader(
-                "Or upload a video", type=['mp4', 'mov', 'avi', 'asf', 'm4v'],
-                key='video_file_uploader', on_change=temp_reset_vid)
+                "Upload a video", type=['mp4', 'mov', 'avi', 'asf', 'm4v'],
+                key='video_file_uploader')
+            input_video_col = st.sidebar.container()
         else:
             logger.info("Using continuous frames receiving through MQTT")
 
@@ -850,8 +835,7 @@ def index(RELEASE=True):
                     help="Please press this button to update if you change any MQTT "
                     "topic name(s).")
         else:
-            st.sidebar.markdown(
-                f"MQTT QoS is set to level **{conf.qos}**")
+            st.sidebar.info(f"**MQTT QoS**: {conf.qos}")
             st.sidebar.info(
                 "#### Publishing Results to MQTT Topic:  \n"
                 f"{topics.publish_results}  \n"
@@ -912,16 +896,40 @@ def index(RELEASE=True):
                         session_state.deployed = True
                         sleep(2)  # give the camera some time to sink in
                         # rerun just to avoid displaying unnecessary buttons
-                        st.experimental_rerun()
+                        # st.experimental_rerun()
             elif deploy_conf.video_type == 'Uploaded Video':
-                if not video_file:
+                if video_file is None:
+                    logger.info("Resetting video deployment")
+                    # reset deployment and remove the TEMP_DIR if there's no uploaded file
+                    # to ensure the app only reads the new uploaded file
+                    reset_video_deployment()
+                    if TEMP_DIR.exists():
+                        shutil.rmtree(TEMP_DIR)
+                    os.makedirs(TEMP_DIR)
                     st.stop()
 
-                # use this to avoid keep calling the file_uploader's callback
-                # NOTE: still not helping...
-                uploaded_video = deepcopy(video_file)
+                video_path = str(TEMP_DIR / video_file.name)
 
-                video_path = str(TEMP_DIR / uploaded_video.name)
+                if not os.path.exists(video_path):
+                    # only creates it if not exists, to speed up the process when
+                    # there is any widget changes besides the st.file_uploader
+                    logger.debug(f"{video_path = }")
+                    with st.spinner("Copying video to a temporary directory ..."):
+                        with open(video_path, 'wb') as f:
+                            f.write(video_file.getvalue())
+
+                with input_video_col:
+                    st.subheader('Input Video')
+                    logger.info("Showing the uploaded video")
+                    try:
+                        with st.spinner("Showing the uploaded video ..."):
+                            st.video(video_path)
+                    except Exception as e:
+                        st.error(f"Unable to read from the video file: "
+                                 f"'{video_file.name}'")
+                        logger.error(f"Unable to read from the video file: "
+                                     f"'{video_file.name}' with error: {e}")
+                        st.stop()
 
                 if not session_state.deployed:
                     if not deploy_btn_place.button(
@@ -929,26 +937,21 @@ def index(RELEASE=True):
                             help='Deploy your model with the uploaded video'):
                         st.stop()
 
-                    if TEMP_DIR.exists():
-                        shutil.rmtree(TEMP_DIR)
-                    os.makedirs(TEMP_DIR)
-                    logger.debug(f"{video_path = }")
-                    with open(video_path, 'wb') as f:
-                        f.write(uploaded_video.getvalue())
+                    logger.info("Loading the uploaded video for deployment")
+                    with st.spinner("Loading the video for deployment ..."):
+                        try:
+                            session_state.camera = cv2.VideoCapture(video_path)
+                            assert session_state.camera.isOpened(), "Video is unreadable"
+                        except Exception as e:
+                            st.error(f"Unable to read from the video file: "
+                                     f"'{video_file.name}'")
+                            logger.error(f"Unable to read from the video file: "
+                                         f"'{video_file.name}' with error: {e}")
+                            st.stop()
 
-                    try:
-                        session_state.camera = cv2.VideoCapture(video_path)
-                        assert session_state.camera.isOpened(), "Video is unreadable"
-                    except Exception as e:
-                        st.error(f"Unable to read from the video file: "
-                                 f"'{uploaded_video.name}'")
-                        logger.error(f"Unable to read from the video file: "
-                                     f"'{uploaded_video.name}' with error: {e}")
-                        st.stop()
-
-                    session_state.deployed = True
-                    sleep(2)  # give the camera some time to sink in
-                    st.experimental_rerun()
+                        session_state.deployed = True
+                        sleep(2)  # give the camera some time to sink in
+                    # st.experimental_rerun()
             else:
                 if not session_state.deployed:
                     if not deploy_btn_place.button(
@@ -982,17 +985,6 @@ def index(RELEASE=True):
                     stream = session_state.camera
                     deploy_status_place.info(
                         "**Status**: Deployed for uploaded video")
-
-                    with deploy_status_col:
-                        st.subheader('Input Video')
-                        try:
-                            st.video(video_path)
-                        except Exception as e:
-                            st.error(f"Unable to read from the video file: "
-                                     f"'{uploaded_video.name}'")
-                            logger.error(f"Unable to read from the video file: "
-                                         f"'{uploaded_video.name}' with error: {e}")
-                            st.stop()
 
                 width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
                 height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -1119,17 +1111,17 @@ def index(RELEASE=True):
         else:
             session_state.publishing = deploy_conf.publishing
             if session_state.publishing:
-                st.markdown("Currently is publishing results to the topic: "
-                            f"*{topics.publish_results}*")
+                st.sidebar.markdown("Currently is publishing results to the topic: "
+                                    f"*{topics.publish_results}*")
             else:
-                st.markdown(
+                st.sidebar.markdown(
                     "Currently is not publishing any results through MQTT.")
 
             if deploy_conf.publish_frame:
-                st.markdown("Currently is publishing output frames to the topic: "
-                            f"*{topics.publish_frame}*")
+                st.sidebar.markdown("Currently is publishing output frames to the topic: "
+                                    f"*{topics.publish_frame}*")
             else:
-                st.markdown(
+                st.sidebar.markdown(
                     "Currently is not publishing any output frames through MQTT.")
 
         show_labels = st.checkbox("Show the detected labels", value=True)
@@ -1347,7 +1339,8 @@ def index(RELEASE=True):
             logger.debug("Removing temporary directory")
             shutil.rmtree(TEMP_DIR)
 
-        st.info("Inference done for uploaded video.")
+        logger.info("Inference done for uploaded video")
+        msg_place.info("Inference done for uploaded video.")
 
 
 def main():

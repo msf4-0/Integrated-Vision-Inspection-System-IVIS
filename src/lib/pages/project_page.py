@@ -84,7 +84,6 @@ from pages.sub_pages.project_page import existing_project, new_project
 conn = init_connection(**st.secrets["postgres"])
 # PAGE_OPTIONS = {"Dataset", "Project", "Deployment"}
 
-# # <<<< Variable Declaration <<<<
 chdir_root()  # change to root directory
 
 # # TODO: #40 REMOVE SIDEBAR AFTER INTEGRATING INTO APP.PY
@@ -97,6 +96,7 @@ chdir_root()  # change to root directory
 #     st.markdown("""___""")
 
 # st.radio("", options=PAGE_OPTIONS, key="all_pages")
+# <<<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 
 def dashboard():

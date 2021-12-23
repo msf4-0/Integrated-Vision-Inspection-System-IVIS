@@ -46,8 +46,8 @@ if 'setup' not in session_state:
             # limit memory growth to avoid memory issues
             tf.config.experimental.set_memory_growth(gpu, True)
             logical_gpus = tf.config.list_logical_devices('GPU')
-            logger.info(f"{len(gpus)}, Physical GPUs,",
-                        f"{len(logical_gpus)}, Logical GPUs")
+            logger.info(f"{len(gpus)} Physical GPUs, "
+                        f"{len(logical_gpus)} Logical GPUs")
         except RuntimeError as e:
             # Visible devices must be set before GPUs have been initialized
             logger.warning(e)
