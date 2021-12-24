@@ -1,5 +1,6 @@
 import copy
 import os
+import shlex
 import shutil
 import subprocess
 import pprint
@@ -12,7 +13,8 @@ import numpy as np
 
 import streamlit as st
 from streamlit import session_state
-from streamlit_tensorboard import st_tensorboard
+# from streamlit_tensorboard import st_tensorboard
+from core.streamlit_tensorboard import st_tensorboard
 
 from path_desc import TFOD_DIR
 
@@ -26,20 +28,22 @@ def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
     # stop TensoBoard process and remove tensorboard-info folder to properly
     #  run tensorboard on different logdirs
     logger.info("Stopping any existing running TensorBoard")
-    run_command('taskkill /IM "tensorboard.exe" /F')
+    if os.name == 'nt':
+        run_command('taskkill /IM "tensorboard.exe" /F')
+    else:
+        run_command('killall -KILL "tensorboard"')
 
     tb_info_dir = os.path.join(gettempdir(), '.tensorboard-info')
     if os.path.exists(tb_info_dir):
         logger.debug(f"Removing existing tensorboard info at: {tb_info_dir}")
         shutil.rmtree(tb_info_dir)
 
-    # NOTE: this st_tensorboard does not work if the path passed in
-    #  is NOT in POSIX format, thus the `as_posix()` method to convert
-    #  from WindowsPath to POSIX format to work in Windows.
-    # Also adding double quotes in case there is space in the path
-    path = f'"{logdir.as_posix()}"'
-    logger.info(f"Running TensorBoard on {path}")
-    st_tensorboard(logdir=path,
+    logger.info(f"Running TensorBoard on {logdir}")
+    # NOTE: 6007 is the port exposed for our Docker container, don't simply change the port
+    st.markdown("""If TensorBoard does not show up, that means something is using the
+    port **6007**, you will need to stop the process first to allow TensorBoard to work
+    in our application.""")
+    st_tensorboard(logdir=logdir,
                    port=port, width=width, scrolling=True)
 
 
@@ -168,11 +172,15 @@ def run_command(command_line_args: str, st_output: bool = False,
     if pretty_print:
         command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
+    if isinstance(command_line_args, str):
+        # must pass in list to the subprocess when shell=False, which
+        # is required to work properly in Linux
+        command_line_args = shlex.split(command_line_args)
     logger.debug(f"{stdout_output = }")
     # shell=True to work on String instead of list -- not really sure about this...
     # using shell=False for COCO eval to easily stop the process with process.terminate()
-    shell = False if is_cocoeval else True
-    process = subprocess.Popen(command_line_args, shell=shell,
+    # shell = False if is_cocoeval else True
+    process = subprocess.Popen(command_line_args, shell=False,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
@@ -319,6 +327,10 @@ def run_command_update_metrics(
     if pretty_print:
         command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
+    if isinstance(command_line_args, str):
+        # must pass in list to the subprocess when shell=False, which
+        # is required to work properly in Linux
+        command_line_args = shlex.split(command_line_args)
     process = subprocess.Popen(command_line_args, shell=False,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -405,17 +417,33 @@ def run_command_update_metrics(
         return traceback
 
 
-def export_tfod_savedmodel(training_paths: Dict[str, Path], stdout_output: bool = False) -> bool:
+def export_tfod_savedmodel(training_paths: Dict[str, Path],
+                           stdout_output: bool = False,
+                           re_export: bool = True) -> bool:
+    """
+    Export TFOD model to SavedModel format.
+
+    If `re_export` is `True`, then remove any existing export directories first
+    and export again. If `False`, skip export if SavedModel files already exist.
+    """
     paths = training_paths
+    savedmodel_path = paths['export'] / 'saved_model' / 'saved_model.pb'
+
+    if not re_export:
+        if savedmodel_path.exists():
+            logger.info("SavedModel already exists. Skipping export.")
+            return True
+
     if paths['export'].exists():
         # remove any existing export directory first
         shutil.rmtree(paths['export'])
+    os.makedirs(paths['export'])
 
     with st.spinner("Exporting TensorFlow Object Detection model ... "
                     "This may take awhile ..."):
         pipeline_conf_path = paths['config_file']
         FREEZE_SCRIPT = TFOD_DIR / 'research' / \
-            'object_detection' / 'exporter_main_v2.py '
+            'object_detection' / 'exporter_main_v2.py'
         command = (f'python "{FREEZE_SCRIPT}" '
                    '--input_type=image_tensor '
                    f'--pipeline_config_path "{pipeline_conf_path}" '
@@ -423,7 +451,7 @@ def export_tfod_savedmodel(training_paths: Dict[str, Path], stdout_output: bool 
                    f'--output_directory "{paths["export"]}"')
         run_command(command, stdout_output=stdout_output)
 
-    if (paths['export'] / 'saved_model' / 'saved_model.pb').exists():
+    if savedmodel_path.exists():
         logger.info("Successfully exported TensorFlow Object Detection model")
         return True
     else:

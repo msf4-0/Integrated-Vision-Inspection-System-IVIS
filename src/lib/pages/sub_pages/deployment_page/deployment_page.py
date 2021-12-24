@@ -24,7 +24,6 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
-from copy import deepcopy
 from datetime import datetime
 from functools import partial
 import json
@@ -42,9 +41,7 @@ import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
 from streamlit.report_thread import add_report_ctx
-from project.project_management import Project
-
-from user.user_management import User, UserRole
+import tensorflow as tf
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
@@ -59,12 +56,14 @@ from user.user_management import User, UserRole
 
 from path_desc import TEMP_DIR, chdir_root
 from core.utils.log import logger
+from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_image
+from user.user_management import User, UserRole
 from data_manager.database_manager import init_connection
-from machine_learning.visuals import create_class_colors, create_color_legend
+from project.project_management import Project
 from data_manager.dataset_management import Dataset
+from machine_learning.visuals import create_class_colors, create_color_legend
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
 from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, image_from_buffer, image_to_bytes, get_mqtt_client, read_images_from_uploaded, reset_camera, reset_video_deployment, reset_camera_and_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
-from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_image
 from dobot_arm_demo import main as dobot_demo
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -201,6 +200,10 @@ def index(RELEASE=True):
             session_state.client_connected = True
 
     st.subheader("Deployment Status")
+
+    if not tf.config.list_physical_devices('GPU'):
+        st.warning("""**WARNING**: You don't have access to GPU. Inference time will
+        be slower depending on the capability of your CPU and system.""")
 
     deploy_status_place = st.empty()
     deploy_status_place.info("**Status**: Not deployed. Please upload an image/video "
@@ -908,6 +911,7 @@ def index(RELEASE=True):
                     os.makedirs(TEMP_DIR)
                     st.stop()
 
+                # using str to ensure readable by st.video and cv2
                 video_path = str(TEMP_DIR / video_file.name)
 
                 if not os.path.exists(video_path):

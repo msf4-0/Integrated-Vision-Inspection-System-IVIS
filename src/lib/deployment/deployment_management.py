@@ -282,7 +282,7 @@ class Deployment(BaseDeployment):
 
         return deployment_type
 
-    def run_preparation_pipeline(self, re_export: bool = True):
+    def run_preparation_pipeline(self, re_export: bool = False):
         paths = self.training_path
         if self.deployment_type == 'Object Detection with Bounding Boxes':
             if self.is_uploaded:
@@ -292,12 +292,7 @@ class Deployment(BaseDeployment):
                     paths['uploaded_model_dir'].rglob("saved_model"))
             else:
                 # this is a project model trained in our app
-                if re_export:
-                    export_tfod_savedmodel(paths)
-                else:
-                    # otherwise export only if the model is not exported yet
-                    if not (paths['export'] / 'saved_model' / 'saved_model.pb').exists():
-                        export_tfod_savedmodel(paths)
+                export_tfod_savedmodel(paths, re_export=re_export)
                 saved_model_dir = paths['export'] / 'saved_model'
                 self.category_index = load_labelmap(
                     paths['labelmap_file'])

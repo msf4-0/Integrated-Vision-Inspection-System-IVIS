@@ -26,7 +26,7 @@ if str(LIB_PATH) not in sys.path:
 # DEFINE Web APP page configuration
 layout = 'wide'
 st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+                   page_icon="resources/shrdc-logo_no-bg.png", layout=layout)
 
 # user-defined modules
 from path_desc import chdir_root, SECRETS_PATH

@@ -556,16 +556,14 @@ class Trainer:
         """ If `re_export` is True, will export again even though the exported
         files already exist."""
         paths = self.training_path
-        exported_model_path = paths['export'] / \
-            'saved_model' / 'saved_model.pb'
 
-        if re_export or not exported_model_path.exists():
-            export_tfod_savedmodel(paths, stdout_output)
-            if hasattr(self, 'model'):
-                logger.debug("Deleting loaded checkpoint model to be able to use "
-                             "SavedModel instead")
-                # delete the loaded checkpoint model if exists
-                del self.model
+        export_tfod_savedmodel(paths, stdout_output, re_export)
+
+        if hasattr(self, 'model'):
+            logger.debug("Deleting loaded checkpoint model to be able to use "
+                         "SavedModel instead")
+            # delete the loaded checkpoint model if exists
+            del self.model
 
         # copy the labelmap file into the export directory first
         # to store it for exporting

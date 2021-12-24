@@ -220,6 +220,14 @@ def index(RELEASE=True):
 
     st.markdown("___")
 
+    if tf.config.list_physical_devices('GPU'):
+        using_gpu = True
+    else:
+        using_gpu = False
+        st.warning("""**WARNING**: You don't have access to GPU. Training will
+        take much longer time to complete without GPU. Inference time will
+        also be slower.""")
+
     # ******************************* START TRAINING *******************************
     train_btn_place = st.empty()
     retrain_place = st.empty()
@@ -315,9 +323,6 @@ def index(RELEASE=True):
                 "⚡ Start training", key='btn_start_training',
                 help="If you experience any error related to 'Memory' or 'Resources',  \n"
                 "please try to reduce the `Batch Size` before training again.")
-            if not tf.config.list_physical_devices('GPU'):
-                st.warning("""WARNING: You don't have access to GPU. Training will
-                take much longer time to complete without GPU.""")
             if start_train:
                 # must do it this way instead of using callback on button
                 #  to properly show the training progress below the rendered widgets
@@ -471,6 +476,10 @@ def index(RELEASE=True):
                 initialize_trainer()
                 st.markdown("___")
                 st.header("Evaluation results:")
+
+                if not using_gpu:
+                    st.warning("""**WARNING**: You don't have access to GPU. Inference time
+                    will be slower depending on the capability of your CPU and system.""")
 
                 with st.spinner("Running evaluation ..."):
                     try:

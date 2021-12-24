@@ -349,14 +349,12 @@ def new_project_entry_page(conn=None):
         else:
             st.stop()
     # TODO #72 Change to 'Update' when 'has_submitted' == True
-    submit_button = submit_col2.button("Submit", key="submit")
-    if submit_button:
+    if submit_col2.button("Submit", key="submit"):
         new_project_submit()
 
     with upload_place.container():
-        st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
-                  on_click=new_project_submit,
-                  kwargs={'labeled': True})
+        if st.button("Upload Labeled Dataset", key='btn_upload_labeled_data'):
+            new_project_submit(labeled=True)
         with st.expander("NOTES about uploading a labeled dataset"):
             st.info("""If you choose to upload a labeled dataset, you must first fill
             up the project title and select a template for the deployment type of the
