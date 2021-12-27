@@ -1,5 +1,4 @@
-# Difference from the main Dockerfile is just this different image, 
-# which is much smaller in size compared to the nvidia/cuda image
+# only use ubuntu image without CUDA and cuDNN
 FROM ubuntu:20.04 AS builder-image
 
 # Keeps Python from generating .pyc files in the container

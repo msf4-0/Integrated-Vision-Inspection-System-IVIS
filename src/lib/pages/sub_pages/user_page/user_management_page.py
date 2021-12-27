@@ -38,7 +38,7 @@ from core.utils.log import logger
 from core.utils.code_generator import make_random_password
 from project.project_management import NewProject, Project
 from training.training_management import NewTraining, Training
-from user.user_management import USER_ROLES, AccountStatus, User, UserRole, query_all_users, reset_login_page
+from user.user_management import USER_ROLES, AccountStatus, User, UserRole, query_all_admins, query_all_users, reset_login_page
 from main_page_management import MainPagination, UserManagementPagination, reset_user_management_page
 from data_manager.data_table_component.data_table import data_table
 from annotation.annotation_management import reset_editor_page
@@ -226,6 +226,7 @@ def dashboard():
         sleep(0.5)
 
         # clean up the session's user if he decided to delete himself
+        # NOTE: the user here can only be Admin because only Admin can access here
         if selected_user_id == session_state.user.id:
             # need to reset everything just like when logout
             del session_state['user']
@@ -240,7 +241,13 @@ def dashboard():
             Project.reset_project_page()
             Project.reset_settings_page()
             Deployment.reset_deployment_page()
-            session_state.main_pagination = MainPagination.Login
+
+            if not query_all_admins():
+                # no more admin available, therefore redirect to create one
+                session_state.no_admin = True
+                session_state.main_pagination = MainPagination.CreateUser
+            else:
+                session_state.main_pagination = MainPagination.Login
         st.experimental_rerun()
 
 

@@ -516,7 +516,6 @@ def verify_user_password(user: User, input_password: str) -> bool:
     return is_correct
 
 
-@st.cache(hash_funcs={psycopg2.extensions.connection: lambda _: None})
 def query_all_admins() -> List[NamedTuple]:
     """Query all admins, just to check whether there is any Admin user available yet
     during the first launch of the application. If None, allow user to directly create

@@ -297,10 +297,6 @@ def show(layout='wide'):
                 used here to activate the account.  \n__User Temporary Password: 
                 {new_user["psd"]}__
                 """)
-            if new_user['role'] == "Administrator":
-                # need to clear cache to allow query_all_admins() to rerun
-                logger.debug("Clearing Streamlit cache")
-                st.legacy_caching.clear_cache()
 
     return new_user, has_submitted
 

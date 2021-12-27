@@ -3,7 +3,6 @@ Title: Integrated Vision Inspection System
 AUthor: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
-# ----------Add sys path for modules----------------#
 
 import gc
 import os
@@ -18,6 +17,7 @@ from streamlit import session_state
 from streamlit import cli as stcli
 import tensorflow as tf
 
+# ************** Add sys path for modules **************
 SRC = Path(__file__).parent.resolve()  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
 if str(LIB_PATH) not in sys.path:
@@ -51,58 +51,64 @@ if 'setup' not in session_state:
         except RuntimeError as e:
             # Visible devices must be set before GPUs have been initialized
             logger.warning(e)
-    session_state.setup = True
+    # set to False because there are still things to setup later
+    session_state.setup = False
 
 # ********************** Connection to db **********************
 if 'db_connect_success' not in session_state:
     # use this to check connection for only one time
     session_state['db_connect_success'] = False
 
-# for Docker Compose installation
-if os.environ.get("DOCKERCOMPOSE") and not session_state.db_connect_success:
-    logger.debug(f"{os.environ.get('DOCKERCOMPOSE') = }")
-    if not SECRETS_PATH.exists():
-        # setup entire database for the first time and generate the secrets.toml file
-        database_direct_setup()
-    if SECRETS_PATH.exists() and test_database_connection(**st.secrets['postgres']):
-        session_state.db_connect_success = True
-        logger.debug(f"Connected with: {st.secrets = }")
-    else:
-        logger.error("There were some error creating the database config or "
-                     "connecting to database")
-        st.error("""There were some error creating the database config, the database 
-            information seems to be incorrect. Please change them in your ".env" file.""")
-        st.stop()
+if not session_state.setup:
+    # for Docker Compose installation
+    if os.environ.get("DOCKERCOMPOSE") and not session_state.db_connect_success:
+        logger.debug(f"{os.environ.get('DOCKERCOMPOSE') = }")
+        if not SECRETS_PATH.exists():
+            # setup entire database for the first time and generate the secrets.toml file
+            database_direct_setup()
+        if SECRETS_PATH.exists() and test_database_connection(**st.secrets['postgres']):
+            session_state.db_connect_success = True
+            logger.debug(f"Connected with: {st.secrets = }")
+        else:
+            logger.error("There were some error creating the database config or "
+                         "connecting to database")
+            st.error("""There were some error creating the database config, the database 
+                information seems to be incorrect. Please change them in your ".env" file.""")
+            st.stop()
 
-# setup database if Streamlit's secrets.toml file is not generated yet
-if not SECRETS_PATH.exists():
-    # to set it to the middle of the page
-    _, mid_col, _ = st.columns([1, 2, 1])
-    with mid_col:
-        database_setup()
-    st.stop()
-else:
-    if not session_state.db_connect_success:
-        try:
-            logger.debug(f"{st.secrets = }")
-            conn_success = test_database_connection(
-                **st.secrets["postgres"])
-        except Exception as e:
-            logger.error(f"Error reading the secrets.toml file: {e}")
-            # remove the secrets.toml file to create again in case the file is invalid
-            logger.debug("Removing the secrets.toml file")
-            os.remove(SECRETS_PATH)
-            st.experimental_rerun()
-        if not conn_success:
-            st.error("Error connecting to the database! You will be redirected to create "
-                     "the database configuration shortly.")
-            logger.error("Error connecting to the database!")
-            logger.debug("Removing the secrets.toml file")
-            os.remove(SECRETS_PATH)
-            sleep(1)
-            st.experimental_rerun()
-        # set to success at the end to avoid checking again for this session
-        session_state.db_connect_success = conn_success
+    # setup database if Streamlit's secrets.toml file is not generated yet
+    if not SECRETS_PATH.exists():
+        # to set it to the middle of the page
+        left, mid_col, right = st.columns([1, 2, 1])
+        with left:
+            st.write("")
+        with right:
+            st.write("")
+        with mid_col:
+            database_setup()
+        st.stop()
+    else:
+        if not session_state.db_connect_success:
+            try:
+                logger.debug(f"{st.secrets = }")
+                conn_success = test_database_connection(
+                    **st.secrets["postgres"])
+            except Exception as e:
+                logger.error(f"Error reading the secrets.toml file: {e}")
+                # remove the secrets.toml file to create again in case the file is invalid
+                logger.debug("Removing the secrets.toml file")
+                os.remove(SECRETS_PATH)
+                st.experimental_rerun()
+            if not conn_success:
+                st.error("Error connecting to the database! You will be redirected to create "
+                         "the database configuration shortly.")
+                logger.error("Error connecting to the database!")
+                logger.debug("Removing the secrets.toml file")
+                os.remove(SECRETS_PATH)
+                sleep(1)
+                st.experimental_rerun()
+            # set to success at the end to avoid checking again for this session
+            session_state.db_connect_success = conn_success
 # **********************************************************
 
 from data_manager.database_manager import init_connection
@@ -117,6 +123,19 @@ from pages.sub_pages.user_page import create_new_user, user_management_page, use
 
 # run cached database connection
 conn = init_connection(**st.secrets["postgres"])
+
+# setup admin just in case there is no admin user at all
+if not session_state.setup:
+    admins = query_all_admins()
+    if not admins:
+        # to tell the create_new_user.py page that there is no Admin user yet
+        session_state.no_admin = True
+        # straight away proceed to Create User page to allow the user
+        # to create an Admin user if this is the first time launching the app
+        session_state.main_pagination = MainPagination.CreateUser
+    else:
+        # done setting up
+        session_state.setup = True
 
 # ******************* IMPORT for PAGES *******************
 from pages import login_page, project_page
@@ -218,17 +237,8 @@ def main():
                           on_click=to_user_info_cb)
         st.sidebar.button("Logout", key='btn_logout', on_click=logout_cb)
     else:
-        # nobody is logged in
-        admins = query_all_admins()
-        if not admins:
-            # to tell the create_new_user.py page that there is no Admin user yet
-            session_state.no_admin = True
-            # straight away proceed to Create User page to allow the user
-            # to create an Admin user if this is the first time launching the app
-            session_state.main_pagination = MainPagination.CreateUser
-        else:
-            # only show a Login button
-            st.sidebar.button("Login", key='btn_login', on_click=login_cb)
+        # nobody is logged in, only show a Login button
+        st.sidebar.button("Login", key='btn_login', on_click=login_cb)
 
     st.sidebar.markdown("___")
 
