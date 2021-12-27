@@ -149,7 +149,7 @@ def index(RELEASE=True):
         # take from the widget's state and save to our mqtt_conf
         logger.info(f"Updated QoS level from {conf.qos} to "
                     f"{session_state.mqtt_qos}")
-        conf.qos = session_state.mqtt_qos
+        conf.qos = int(session_state.mqtt_qos)
 
         subscribe_topics(resubscribe=True)
 
@@ -1269,11 +1269,11 @@ def index(RELEASE=True):
                 view, required_labels = session_state.check_labels
 
                 if view == 'end':
-                    logger.info("Ending the label checking process")
                     # clear the message if the robot motion is ended
                     msg_place.empty()
                     # and reset back to None
                     session_state.check_labels = None
+                    logger.info("Label checking process has finished")
                     continue
 
                 # required_label_cnts = VIEW_LABELS[view]
@@ -1287,7 +1287,7 @@ def index(RELEASE=True):
                     msg_place.error(f"### {view.upper()} view: NG")
                     save_image(output_img, ng_frame_dir,
                                channels, timezone=deploy_conf.timezone, prefix=view)
-                    logger.info(f"NG image saved at {ng_frame_dir}")
+                    logger.info(f"NG image saved successfully")
 
                 # set this to None to ONLY CHECK FOR ONCE for the same view
                 session_state.check_labels = None

@@ -92,9 +92,9 @@ class MQTTConfig:
         "DOCKERCOMPOSE") else CONFIG["mqtt"]["broker"]
     # port 8883 instead of 1883 is used to avoid potential issues with local mosquitto broker,
     # this port is defined in mosquitto.conf
-    port: str = 8883 if os.environ.get(
-        "DOCKERCOMPOSE") else CONFIG["mqtt"]["port"]
-    qos: str = CONFIG["mqtt"]["QOS"]
+    port: int = 8883 if os.environ.get(
+        "DOCKERCOMPOSE") else int(CONFIG["mqtt"]["port"])
+    qos: int = int(CONFIG["mqtt"]["QOS"])
     topics: MQTTTopics = MQTTTopics(
         recv_frame=CONFIG["main"]["recv_frame"],
         publish_frame=CONFIG["main"]["publish_frame"],

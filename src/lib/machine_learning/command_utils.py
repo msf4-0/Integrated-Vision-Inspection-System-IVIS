@@ -429,10 +429,9 @@ def export_tfod_savedmodel(training_paths: Dict[str, Path],
     paths = training_paths
     savedmodel_path = paths['export'] / 'saved_model' / 'saved_model.pb'
 
-    if not re_export:
-        if savedmodel_path.exists():
-            logger.info("SavedModel already exists. Skipping export.")
-            return True
+    if not re_export and savedmodel_path.exists():
+        logger.info("SavedModel already exists. Skipping export.")
+        return True
 
     if paths['export'].exists():
         # remove any existing export directory first

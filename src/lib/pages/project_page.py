@@ -34,14 +34,14 @@ import tensorflow as tf
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
-# layout = 'wide'
-# st.set_page_config(page_title="Integrated Vision Inspection System",
-#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+layout = 'wide'
+st.set_page_config(page_title="Integrated Vision Inspection System",
+                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-# LIB_PATH = SRC / "lib"
-# if str(LIB_PATH) not in sys.path:
-#     sys.path.insert(0, str(LIB_PATH))  # ./lib
+SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+LIB_PATH = SRC / "lib"
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 if 'setup' not in session_state:
     # to disable warning messages from OpenCV, must do this before import cv2

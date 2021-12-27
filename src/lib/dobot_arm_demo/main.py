@@ -2,6 +2,7 @@ from collections import Counter
 from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import sys
+import json
 from enum import IntEnum
 
 from paho.mqtt.client import Client
@@ -13,7 +14,7 @@ else:
 
 from threading import Thread
 import numpy as np
-import time
+from time import sleep
 
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -59,9 +60,25 @@ DEBUG_VIEW_LABELS: Dict[str, List[Tuple[str, int]]] = {
 }
 
 
+def get_labels_message(label_cnt_dict: Dict[str, List[Tuple[str, int]]],
+                       view: str) -> str:
+    """Returns the labels and view message in the correct JSON format"""
+    if view == 'end':
+        return json.dumps({'view': view})
+
+    curr_labels = []
+    for label, cnt in label_cnt_dict[view]:
+        curr_labels.extend([label for _ in range(cnt)])
+    msg = {'labels': curr_labels, 'view': view}
+    return json.dumps(msg)
+
+
 def check_result_labels(results: List[Dict[str, Any]], required_label_cnts: List[Tuple[str, int]],
                         check_subset: bool = True) -> bool:
-    """Check the object detection `results` to see whether all `required_label_cnts` 
+    """
+    ! DEPRECATED. Use `Deployment.check_labels()` instead.
+
+    Check the object detection `results` to see whether all `required_label_cnts` 
     are found in the `results`.
 
     `required_label_cnts` should be obtained from the `VIEW_LABELS` dictionary.
@@ -95,111 +112,126 @@ def check_result_labels(results: List[Dict[str, Any]], required_label_cnts: List
 
 
 def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str, qos: int):
+    cnt_dict = BOX_VIEW_LABELS
+
     # move to origin (top view)
     client_feedback.JointMovJ(
         (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    time.sleep(3)
-    # send the current view as the payload to our vision inspection app
-    client.publish(topic, 'top', qos)
-    time.sleep(1)
+    sleep(3)
+
+    # send the labels and current view in JSON format
+    client.publish(
+        topic, get_labels_message(cnt_dict, "top"), qos)
+    sleep(1)
 
     # move to back side
     client_feedback.JointMovJ(
         (0.54), (-50.16), (-153.78), (114.97), (89.54), (-178))
     # allow time for the dobot arm to move to the position
-    time.sleep(8)
-    client.publish(topic, 'back', qos)
-    time.sleep(2)
+    sleep(8)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "back"), qos)
+    sleep(2)
 
     # move to right side
     client_feedback.JointMovJ(
         (27.478), (-47.836), (-111.595), (70.479), (89.5876), (-63.62))
-    time.sleep(5)
-    client.publish(topic, 'right', qos)
-    time.sleep(2)
+    sleep(5)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "right"), qos)
+    sleep(2)
 
     # move to front side
     client_feedback.JointMovJ(
         (0.56), (-76.07), (-37.9), (25.09), (90.11), (-2.21))
-    time.sleep(5)
-    client.publish(topic, 'front', qos)
-    time.sleep(2)
+    sleep(5)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "front"), qos)
+    sleep(2)
 
     # move to left side
     client_feedback.JointMovJ(
         (-24.19), (-59.51), (-79), (49.49), (90.57), (62.96))
-    time.sleep(4)
-    client.publish(topic, 'left', qos)
-    time.sleep(2)
+    sleep(4)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "left"), qos)
+    sleep(2)
 
     # move back to origin (top view)
     client_feedback.JointMovJ(
         (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    time.sleep(5)
-    client.publish(topic, 'end', qos)
+    sleep(5)
+    client.publish(topic, get_labels_message(cnt_dict, "end"), qos)
 
 
 def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client, topic: str, qos: int):
+    cnt_dict = P2_143_VIEW_LABELS
+
     # origin top
     client_feedback.JointMovJ(
         (0.0523), (-37.6843), (-121.325), (158.5393), (87.4376), (0))
-    time.sleep(3)
+    sleep(3)
 
     # top checking
     client_feedback.JointMovJ(
         (0.0539), (-50.2704), (-121.7125), (172.513), (87.4359), (0))
-    time.sleep(5)
-    client.publish(topic, 'top', qos)
-    time.sleep(2)
+    sleep(5)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "top"), qos)
+    sleep(2)
 
     # Intermediate 1
     client_feedback.JointMovJ(
         (0.0589), (-49.7576), (-127.02), (177.3076), (87.4310), (0))
-    time.sleep(2)
+    sleep(2)
 
     # Top Right 1
     client_feedback.JointMovJ(
         (21.68), (-54.5190), (-121.4119), (172.052), (65.8095), (-32.8328))
-    time.sleep(5)
-    client.publish(topic, 'top right', qos)
-    time.sleep(2)
+    sleep(5)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "top right"), qos)
+    sleep(2)
 
     # Right 2
     client_feedback.JointMovJ(
         (19.2584), (-51.7799), (-106.9316), (67.7758), (82.393), (-59.3024))
-    time.sleep(5)
-    client.publish(topic, 'right', qos)
-    time.sleep(2)
+    sleep(5)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "right"), qos)
+    sleep(2)
 
     # origin top
     client_feedback.JointMovJ(
         (0.0523), (-37.6843), (-121.325), (158.5393), (87.4376), (0))
-    time.sleep(2)
+    sleep(2)
 
     # Top Left 1
     client_feedback.JointMovJ(
         (-13.2228), (-40.179), (-95.0444), (50.8133), (58.3560), (70.5871))
-    time.sleep(8)
-    client.publish(topic, 'top left', qos)
-    time.sleep(2)
+    sleep(8)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "top left"), qos)
+    sleep(2)
 
     # Left 2
     client_feedback.JointMovJ(
         (-16.1938), (-62.0114), (-67.4206), (41.9222), (87.7707), (31.6594))
-    time.sleep(5)
-    client.publish(topic, 'left', qos)
-    time.sleep(2)
+    sleep(5)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "left"), qos)
+    sleep(2)
 
     # Intermediate 2
     client_feedback.JointMovJ(
         (-16.1938), (-50.0761), (-64.2679), (26.8342), (87.7707), (31.6594))
-    time.sleep(2)
+    sleep(2)
 
     # origin top
     client_feedback.JointMovJ(
         (0.0523), (-37.6843), (-121.325), (158.5393), (87.4376), (0))
-    time.sleep(5)
-    client.publish(topic, 'end', qos)
+    sleep(5)
+    client.publish(topic, get_labels_message(cnt_dict, "end"), qos)
 
 
 def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback: dobot_api_feedback,
@@ -213,10 +245,10 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
 
     # Remove alarm
     client_dashboard.ClearError()
-    time.sleep(0.5)
+    sleep(0.5)
     # Description The upper function was enabled successfully
     client_dashboard.EnableRobot()
-    time.sleep(0.5)
+    sleep(0.5)
 
     if task == DobotTask.Box:
         move_for_box(client_feedback, client, topic, qos)
@@ -239,28 +271,30 @@ def debug_run(conf: MQTTConfig, task: DobotTask):
     in the deployment_page.
     """
     def debug_publish():
+        cnt_dict = BOX_VIEW_LABELS
         topic = conf.topics.dobot_view
         qos = conf.qos
 
         client = get_mqtt_client()
         client.connect(conf.broker, port=conf.port)
         client.loop_start()
-        time.sleep(2)
+        sleep(2)
 
         # send the current view as the payload to our vision inspection app
         client.publish(
-            topic, '{"labels": ["white dot", "date"], "view": "top"}', qos)
-        time.sleep(2)
+            topic, get_labels_message(cnt_dict, 'top'), qos)
+        sleep(2)
 
         client.publish(
-            topic, '{"labels": ["white dot"], "view": "left"}', qos)
-        time.sleep(2)
+            topic, get_labels_message(cnt_dict, 'left'), qos)
+        sleep(2)
 
         client.publish(
-            topic, '{"labels": ["date"], "view": "right"}', qos)
-        time.sleep(2)
+            topic, get_labels_message(cnt_dict, 'right'), qos)
+        sleep(2)
 
-        client.publish(topic, '{"view": "end"}', qos)
+        client.publish(
+            topic, get_labels_message(cnt_dict, "end"), qos)
 
         client.loop_stop()
         client.disconnect()
@@ -272,7 +306,7 @@ def debug_run(conf: MQTTConfig, task: DobotTask):
 def data_feedback(client_feedback: dobot_api_feedback):
     # The feedback information about port 30003 is displayed
     while True:
-        time.sleep(0.05)
+        sleep(0.05)
         all = client_feedback.socket_feedback.recv(10240)
         data = all[0:1440]
         a = np.frombuffer(data, dtype=MyType)
