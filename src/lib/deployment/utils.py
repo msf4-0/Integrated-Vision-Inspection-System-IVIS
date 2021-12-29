@@ -65,7 +65,8 @@ def load_mqtt_config() -> Dict[str, str]:
 @dataclass(eq=False)
 class MQTTTopics:
     # publishing things to these topics
-    publish_frame: str
+    # only `publish_frame` has different topic for each camera
+    publish_frame: List[str]
     publish_results: str
 
     # subscribing to these topics to wait for input
@@ -83,6 +84,7 @@ class MQTTTopics:
 
 
 CONFIG = load_mqtt_config()
+ORI_PUBLISH_FRAME_TOPIC = CONFIG["main"]["publish_frame"]
 
 
 @dataclass(eq=False)
@@ -97,7 +99,8 @@ class MQTTConfig:
     qos: int = int(CONFIG["mqtt"]["QOS"])
     topics: MQTTTopics = MQTTTopics(
         recv_frame=CONFIG["main"]["recv_frame"],
-        publish_frame=CONFIG["main"]["publish_frame"],
+        # only this is a List[str], others just str
+        publish_frame=[f'{ORI_PUBLISH_FRAME_TOPIC}_0'],
         publish_results=CONFIG["main"]["publish_results"],
         start_publish=CONFIG["camera"]["start_publish_topic"],
         stop_publish=CONFIG["camera"]["stop_publish_topic"],
@@ -178,13 +181,17 @@ def reset_csv_file_and_writer():
 
 
 def reset_camera():
-    if 'camera' in session_state:
-        if isinstance(session_state.camera, WebcamVideoStream):
-            session_state.camera.stop()
-            session_state.camera.stream.release()
-        elif isinstance(session_state.camera, cv2.VideoCapture):
-            session_state.camera.release()
-        del session_state['camera']
+    for k in filter(lambda x: x.startswith('camera'), session_state.keys()):
+        cap = session_state[k]
+        if isinstance(cap, WebcamVideoStream):
+            cap.stop()
+            if 'ip' not in k:
+                # IP camera seems like have issues if try to release like this
+                cap.stream.release()
+        elif isinstance(cap, cv2.VideoCapture):
+            # cv2.VideoCapture instance
+            cap.release()
+        del session_state[k]
 
 
 def reset_camera_and_ports():
@@ -194,17 +201,18 @@ def reset_camera_and_ports():
 
 
 def reset_record_and_vid_writer():
-    if 'vid_writer' in session_state:
-        if isinstance(session_state.vid_writer, cv2.VideoWriter):
-            session_state.vid_writer.release()
-        del session_state['vid_writer']
+    for k in filter(lambda x: x.startswith('vid_writer'), session_state.keys()):
+        if isinstance(session_state[k], cv2.VideoWriter):
+            # must release to properly close the video file
+            session_state[k].release()
+        del session_state[k]
     if 'record' in session_state:
         del session_state['record']
 
 
 def reset_video_deployment():
     """Gracefully reset the session_state for `camera`, `deployed`, `mqtt_recv_frame`,
-    `record`, `vid_writer`, `csv_file`, `csv_writer` but NOT `camera_ports`"""
+    `record`, `vid_writer`, `csv_file`, `csv_writer` but NOT `working_ports`"""
     logger.info("Resetting video deployment")
 
     reset_camera()

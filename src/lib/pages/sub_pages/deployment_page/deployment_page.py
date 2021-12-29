@@ -31,6 +31,7 @@ import os
 import shutil
 import sys
 from time import perf_counter, sleep
+from itertools import cycle
 
 import cv2
 from imutils.video.webcamvideostream import WebcamVideoStream
@@ -62,8 +63,10 @@ from data_manager.database_manager import init_connection
 from project.project_management import Project
 from data_manager.dataset_management import Dataset
 from machine_learning.visuals import create_class_colors, create_color_legend
-from deployment.deployment_management import DeploymentConfig, DeploymentPagination, DeploymentType, Deployment
-from deployment.utils import MQTTConfig, MQTTTopics, create_csv_file_and_writer, image_from_buffer, image_to_bytes, get_mqtt_client, read_images_from_uploaded, reset_camera, reset_video_deployment, reset_camera_and_ports, reset_csv_file_and_writer, reset_record_and_vid_writer
+from deployment.deployment_management import DeploymentConfig, DeploymentPagination, Deployment
+from deployment.utils import (ORI_PUBLISH_FRAME_TOPIC, MQTTConfig, MQTTTopics,
+                              create_csv_file_and_writer, image_from_buffer, image_to_bytes,
+                              get_mqtt_client, read_images_from_uploaded, reset_video_deployment)
 from dobot_arm_demo import main as dobot_demo
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -124,6 +127,13 @@ def index(RELEASE=True):
         """Reset index of image chosen to avoid exceeding the max number of images
         on widget changes"""
         session_state.image_idx = 0
+
+    def reset_single_camera_conf():
+        deploy_conf.use_multi_cam = False
+        deploy_conf.num_cameras = 1
+        # reset camera titles
+        deploy_conf.camera_titles = ['']
+        topics.publish_frame = [topics.publish_frame[0]]
 
     def image_recv_frame_cb(client, userdata, msg):
         # logger.debug("FRAME RECEIVED, REFRESHING")
@@ -272,7 +282,11 @@ def index(RELEASE=True):
     if DEPLOYMENT_TYPE == 'Image Classification':
         pipeline_kwargs = {}
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-        class_colors = create_class_colors(deployment.class_names)
+        if not hasattr(deployment, 'class_colors'):
+            class_colors = create_class_colors(deployment.class_names)
+            deployment.class_colors = class_colors
+        else:
+            class_colors = deployment.class_colors
         ignore_background = st.sidebar.checkbox(
             "Ignore background", value=deploy_conf.ignore_background,
             key='ignore_background',
@@ -523,63 +537,216 @@ def index(RELEASE=True):
         )
 
         if deploy_conf.video_type == 'Video Camera':
-            # TODO: test using streamlit-webrtc
-
             with st.sidebar.container():
                 if has_access:
-                    options = ('USB Camera', 'IP Camera')
-                    idx = options.index(deploy_conf.camera_type)
-                    st.radio(
-                        "Select type of camera", options, index=idx,
-                        key='camera_type', on_change=update_conf_and_reset_video_deploy,
-                        args=('camera_type',))
-                if deploy_conf.camera_type == 'USB Camera':
-                    if has_access:
-                        def reset_video_deployment_and_ports():
-                            reset_video_deployment()
-                            if 'working_ports' in session_state:
-                                del session_state['working_ports']
-                        st.button("Refresh camera ports", key='btn_refresh',
-                                  on_click=reset_video_deployment_and_ports)
+                    def update_and_reset_multi_cam_conf(conf_attr: str):
+                        update_conf_and_reset_video_deploy(conf_attr)
 
-                        if not session_state.working_ports:
-                            with st.spinner("Checking available camera ports ..."):
-                                _, working_ports = list_available_cameras()
-                                session_state.working_ports = working_ports.copy()
-                            # stop if no camera port found
-                            if not working_ports:
-                                st.error(
-                                    "No working camera source/port found.")
-                                logger.error("No working camera port found")
-                                st.stop()
+                        if not deploy_conf.use_multi_cam:
+                            reset_single_camera_conf()
+                            return
 
-                        st.radio(
-                            "Select a camera port",
-                            options=session_state.working_ports,
-                            index=deploy_conf.camera_port,
-                            key='camera_port',
-                            on_change=update_conf_and_reset_video_deploy,
-                            args=('camera_port',))
-                    else:
-                        st.markdown("**USB Camera Port**: "
-                                    f"{deploy_conf.camera_port}")
-                    video_source = deploy_conf.camera_port
-                else:
-                    if has_access:
-                        st.text_input(
-                            "Enter the IP address", value=deploy_conf.ip_cam_address,
-                            key='ip_cam_address',
-                            on_change=update_deploy_conf, args=(
-                                'ip_cam_address',),
-                            help="""This address could start with *http* or *rtsp*.
-                            Most of the IP cameras  \nhave a username and password to access
-                            the video. In such case,  \nthe credentials have to be provided
-                            in the streaming URL as follow:  \n
+                        # make empty title for each camera on changes
+                        deploy_conf.camera_titles = []
+                        deploy_conf.camera_sources = []
+                        for i in range(deploy_conf.num_cameras):
+                            deploy_conf.camera_titles.append('')
+                            deploy_conf.camera_sources.append(i)
+
+                    if st.checkbox(
+                        "Use multiple cameras", deploy_conf.use_multi_cam,
+                        key='use_multi_cam', on_change=update_and_reset_multi_cam_conf,
+                            args=('use_multi_cam',)):
+                        deploy_conf.num_cameras = (2 if deploy_conf.num_cameras == 1
+                                                   else deploy_conf.num_cameras)
+                        st.number_input(
+                            "Number of cameras", 2, 5, deploy_conf.num_cameras, 1,
+                            key='num_cameras', on_change=update_and_reset_multi_cam_conf,
+                            args=('num_cameras',))
+
+                    if len(deploy_conf.camera_types) != deploy_conf.num_cameras:
+                        deploy_conf.camera_types = [
+                            'USB Camera' for _ in range(deploy_conf.num_cameras)]
+
+                    with st.expander("Select Camera Types", expanded=True):
+                        with st.form("form_camera_types", clear_on_submit=True):
+                            def update_camera_types():
+                                logger.info(
+                                    "Reset video deployment and update camera types")
+                                reset_video_deployment()
+                                deploy_conf.camera_types = []
+                                for i in range(deploy_conf.num_cameras):
+                                    new = session_state[f'input_camera_type_{i}']
+                                    deploy_conf.camera_types.append(new)
+
+                            for i in range(deploy_conf.num_cameras):
+                                options = ('USB Camera', 'IP Camera')
+                                idx = options.index(
+                                    deploy_conf.camera_types[i])
+                                st.radio(
+                                    f"Type for Camera {i}", options, index=idx,
+                                    key=f'input_camera_type_{i}')
+
+                            st.form_submit_button(
+                                "Update camera types", on_click=update_camera_types)
+
+                    def reset_video_deployment_and_ports():
+                        reset_video_deployment()
+                        if 'working_ports' in session_state:
+                            del session_state['working_ports']
+                    st.button("Refresh camera ports", key='btn_refresh',
+                              on_click=reset_video_deployment_and_ports)
+
+                    if not session_state.working_ports:
+                        with st.spinner("Checking available camera ports ..."):
+                            _, working_ports = list_available_cameras()
+                            session_state.working_ports = working_ports.copy()
+                        # stop if no camera port found
+                        if not working_ports:
+                            st.error(
+                                "No working camera source/port found.")
+                            logger.error(
+                                "No working camera port found")
+                            st.stop()
+
+                    if deploy_conf.use_multi_cam and \
+                            len(session_state.working_ports) < deploy_conf.num_cameras:
+                        st.error(
+                            "The number of cameras available "
+                            f"(**{len(session_state.working_ports)}**) is less than the "
+                            f"number of cameras specified: **{deploy_conf.num_cameras}**.")
+                        st.stop()
+
+                    # reset camera sources & titles if not same
+                    if len(deploy_conf.camera_sources) != deploy_conf.num_cameras:
+                        deploy_conf.camera_sources = []
+                        deploy_conf.camera_titles = []
+                        for v in range(deploy_conf.num_cameras):
+                            deploy_conf.camera_sources.append(v)
+                            deploy_conf.camera_titles.append('')
+
+                    with st.expander("Notes about IP Camera Address"):
+                        st.markdown(
+                            """IP camera address could start with *http* or *rtsp*.
+                            Most of the IP cameras have a username and password to access
+                            the video. In such case, the credentials have to be provided
+                            in the streaming URL as follow: 
                             **rtsp://username:password@192.168.1.64/1**""")
-                    else:
-                        st.markdown("IP Camera with address: "
-                                    f"**{deploy_conf.ip_cam_address}** ")
-                    video_source = deploy_conf.ip_cam_address
+                else:
+                    st.markdown(
+                        f"Deploying with **{deploy_conf.num_cameras} camera(s)**")
+
+                if has_access:
+                    with st.expander("Enter Video Sources & Views", expanded=True):
+                        error_place = st.empty()
+                        form_col = st.container()
+
+                    def update_camera_config():
+                        logger.info("Reset video deployment and update video")
+                        reset_video_deployment()
+
+                        deploy_conf.camera_sources = []
+                        deploy_conf.camera_titles = []
+                        for i in range(deploy_conf.num_cameras):
+                            new_cam_source = session_state[f'input_cam_source_{i}']
+                            new_cam_title = session_state[f'input_cam_title_{i}']
+                            if new_cam_source in deploy_conf.camera_sources:
+                                error_place.error("Duplicated camera sources found. "
+                                                  "Each camera source must be unique!")
+                                logger.error("Duplicated camera sources found")
+                                sleep(1)
+                                return
+                            deploy_conf.camera_sources.append(new_cam_source)
+                            deploy_conf.camera_titles.append(new_cam_title)
+
+                    with form_col.form("form_camera_sources", clear_on_submit=True):
+                        for i in range(deploy_conf.num_cameras):
+                            if deploy_conf.camera_types[i] == 'USB Camera':
+                                # if not deploy_conf.use_multi_cam:
+                                #     if len(deploy_conf.camera_ports) > 1:
+                                #         # reset to first port in List format
+                                #         deploy_conf.camera_ports = [
+                                #             session_state.working_ports[0]]
+
+                                #     def update_camera_port():
+                                #         deploy_conf.camera_ports = [
+                                #             session_state.selected_cam_port]
+                                #         reset_video_deployment()
+
+                                st.radio(
+                                    f"Port for Camera {i}",
+                                    options=session_state.working_ports,
+                                    index=deploy_conf.camera_sources[i],
+                                    key=f'input_cam_source_{i}')
+                                # on_change=update_camera_port)
+                                # else:
+                                # def update_camera_ports():
+                                #     deploy_conf.camera_ports = sorted(
+                                #         session_state.selected_cam_ports)
+                                #     # also reset camera titles
+                                #     deploy_conf.camera_titles = {}
+                                #     reset_video_deployment()
+
+                                # st.multiselect(
+                                #     "Select camera ports",
+                                #     options=session_state.working_ports,
+                                #     default=deploy_conf.camera_ports,
+                                #     # using a different key from above to avoid issues
+                                #     key='selected_cam_ports',
+                                #     on_change=update_camera_ports)
+
+                                # if len(deploy_conf.camera_ports) != deploy_conf.num_cameras:
+                                #     st.warning(
+                                #         """Number of selected camera ports needs to be equal
+                                #         to the number of cameras specified.""")
+                                #     st.stop()
+                                # camera_sources = deploy_conf.camera_ports
+                            else:
+                                # def update_ip_cam_addresses():
+                                #     deploy_conf.ip_cam_addresses = []
+                                #     for i in range(deploy_conf.num_cameras):
+                                #         new = session_state[f'input_ip_cam_address_{i}']
+                                #         deploy_conf.ip_cam_addresses.append(
+                                #             new)
+
+                                # if len(deploy_conf.ip_cam_addresses) != deploy_conf.num_cameras:
+                                #     values = ['' for _ in range(
+                                #         deploy_conf.num_cameras)]
+                                # with st.form("form_multi_cam_ports", clear_on_submit=True):
+                                # else:
+                                #     values = deploy_conf.ip_cam_addresses
+                                # for i in range(deploy_conf.num_cameras):
+                                st.text_input(
+                                    f"IP Camera Address {i}",
+                                    value=deploy_conf.camera_sources[i],
+                                    key=f'input_cam_source_{i}',
+                                    placeholder='rtsp://username:password@192.168.1.64/1')
+                                # st.form_submit_button(
+                                #     "Update IP Camera Addresses",
+                                #     on_click=update_ip_cam_addresses)
+                                # camera_sources = deploy_conf.ip_cam_addresses
+
+                            st.text_input(
+                                f"Title/view for camera {i}",
+                                value=deploy_conf.camera_titles[i],
+                                key=f'input_cam_title_{i}',
+                                placeholder='e.g. Top',
+                                help="This is required for label checking (optional) to work.")
+
+                        st.form_submit_button(
+                            "Update camera config", on_click=update_camera_config)
+                else:
+                    for src, cam_type, cam_title in zip(deploy_conf.camera_sources,
+                                                        deploy_conf.camera_types,
+                                                        deploy_conf.camera_titles):
+                        if cam_type == 'USB Camera':
+                            st.markdown(f"**Port for USB Camera {i}**: {src}")
+                        else:
+                            st.markdown(f"**IP Camera Address {i}:** {src}")
+                        # cam_title = deploy_conf.camera_titles[i]
+                        if cam_title:
+                            st.markdown(
+                                f"**Title/view for camera {i}**: {cam_title}")
 
             # **************************** CSV FILE STUFF ****************************
             if 'today' not in session_state:
@@ -629,11 +796,14 @@ def index(RELEASE=True):
                         "to ensure the latest CSV file is saved properly if you have any "
                         "problem with opening the file.")
         elif deploy_conf.video_type == 'Uploaded Video':
+            reset_single_camera_conf()
+
             video_file = st.sidebar.file_uploader(
                 "Upload a video", type=['mp4', 'mov', 'avi', 'asf', 'm4v'],
                 key='video_file_uploader')
             input_video_col = st.sidebar.container()
         else:
+            reset_single_camera_conf()
             logger.info("Using continuous frames receiving through MQTT")
 
         # **************************** MQTT STUFF ****************************
@@ -748,95 +918,115 @@ def index(RELEASE=True):
         if has_access:
             topic_error_place = st.sidebar.empty()
 
+            # reset the list of publish_frame topics
+            if len(topics.publish_frame) != deploy_conf.num_cameras:
+                topics.publish_frame = [
+                    f'{ORI_PUBLISH_FRAME_TOPIC}_{i}'
+                    for i in range(deploy_conf.num_cameras)]
+
             # def update_conf_topic(topic_attr: str):
             def update_conf_topic():
                 for topic_attr in topics.__dict__.keys():
-                    new_topic = session_state[topic_attr]
-                    if new_topic == '':
-                        logger.error('Topic cannot be empty string')
-                        topic_error_place.error('Topic cannot be empty string')
-                        sleep(1)
-                        st.experimental_rerun()
+                    for i in range(deploy_conf.num_cameras):
+                        if topic_attr == 'publish_frame':
+                            # only this attribute is a List[str]
+                            state_key = f'publish_frame_{i}'
+                            previous_topic = topics.publish_frame[i]
+                        else:
+                            state_key = topic_attr
+                            previous_topic = getattr(topics, topic_attr)
 
-                    previous_topic = getattr(topics, topic_attr)
+                        new_topic = session_state[state_key]
+                        if new_topic == '':
+                            logger.error('Topic cannot be empty string')
+                            topic_error_place.error(
+                                'Topic cannot be empty string')
+                            sleep(1)
+                            st.experimental_rerun()
 
-                    if new_topic == previous_topic:
-                        # no need to change anything if user didn't change the topic
-                        continue
+                        if new_topic == previous_topic:
+                            # no need to change anything if user didn't change the topic
+                            continue
 
-                    # unsubscribe the old topic and remove old topic callback
-                    client.unsubscribe(previous_topic)
-                    client.message_callback_remove(previous_topic)
+                        # unsubscribe the old topic and remove old topic callback
+                        client.unsubscribe(previous_topic)
+                        client.message_callback_remove(previous_topic)
 
-                    # update MQTTTopics with new topic, add callback, and subscribe
-                    setattr(topics, topic_attr, new_topic)
+                        # update MQTTTopics with new topic, add callback, and subscribe
+                        if topic_attr == 'publish_frame':
+                            topics.publish_frame[i] = new_topic
+                        else:
+                            setattr(topics, topic_attr, new_topic)
 
-                    callback_func = topic_2cb.get(previous_topic)
-                    if callback_func:
-                        # only add callbacks for the topics that have callbacks
-                        client.message_callback_add(new_topic, callback_func)
-                    client.subscribe(new_topic, qos=conf.qos)
+                        callback_func = topic_2cb.get(previous_topic)
+                        if callback_func is not None:
+                            # only add callbacks for the topics that have callbacks
+                            client.message_callback_add(
+                                new_topic, callback_func)
+                        client.subscribe(new_topic, qos=conf.qos)
 
-                    logger.info(f"Updated MQTTTopics.{topic_attr} from {previous_topic} "
-                                f"to {new_topic}")
+                        logger.info(f"Updated MQTTTopics.{topic_attr} from {previous_topic} "
+                                    f"to {new_topic}")
 
             st.sidebar.radio(
                 'MQTT QoS', (0, 1, 2), conf.qos, key='mqtt_qos',
                 on_change=update_mqtt_qos)
 
             st.sidebar.markdown("**MQTT Topics**")
-            st.sidebar.markdown(
-                "If you change any MQTT topic name(s), please click the **Update Config** "
-                "button to allow the changes to be made.")
-            # must clear on submit to show the correct values on form
-            # NOTE: the key name must be the same as the topic attribute name
-            with st.sidebar.form('form_mqtt_topics', clear_on_submit=True):
-                st.text_input(
-                    'Publishing output frames to', topics.publish_frame,
-                    key='publish_frame', help="This is used to publish output frames. "
-                    "Our MQTT client is not subscribed to this topic.")
-                st.text_input(
-                    'Publishing results to', topics.publish_results,
-                    key='publish_results', help="This is used to publish inference results. "
-                    "Our MQTT client is not subscribed to this topic.")
+            with st.sidebar.expander("Topic Configuration", expanded=True):
+                st.markdown(
+                    "If you change any MQTT topic name(s), please click the **Update Config** "
+                    "button to allow the changes to be made.")
+                # must clear on submit to show the correct values on form
+                # NOTE: the key name must be the same as the topic attribute name
+                with st.form('form_mqtt_topics', clear_on_submit=True):
+                    for i in range(deploy_conf.num_cameras):
+                        st.text_input(
+                            f'Publishing frames for camera {i} to', topics.publish_frame[i],
+                            key=f'publish_frame_{i}', help="This is used to publish output "
+                            "frames. Our MQTT client is not subscribed to this topic.")
+                    st.text_input(
+                        'Publishing results to', topics.publish_results,
+                        key='publish_results', help="This is used to publish inference results. "
+                        "Our MQTT client is not subscribed to this topic.")
 
-                st.text_input(
-                    'Publish frame to our app', topics.recv_frame,
-                    key='recv_frame', help="Publish the image frame in bytes to this topic "
-                    "for MQTT input deployment")
-                st.text_input(
-                    'Start publishing results', topics.start_publish,
-                    key='start_publish')
-                st.text_input(
-                    'Stop publishing results', topics.stop_publish,
-                    key='stop_publish')
-                st.text_input(
-                    'Start publishing frames', topics.start_publish_frame,
-                    key='start_publish_frame')
-                st.text_input(
-                    'Stop publishing frames', topics.stop_publish_frame,
-                    key='stop_publish_frame')
-                st.text_input(
-                    'Save current frame', topics.save_frame,
-                    key='save_frame')
-                st.text_input(
-                    'Start recording frames', topics.start_record,
-                    key='start_record')
-                st.text_input(
-                    'Stop recording frames', topics.stop_record,
-                    key='stop_record')
-                st.text_input(
-                    'Current camera view and required labels to check',
-                    topics.dobot_view, key='dobot_view',
-                    help='''Send a JSON object containing the "view" and "labels" to check
-                    whether the detected labels at the current view contains the "labels"
-                    sent from MQTT. The value for **"view"** must only be a string, while
-                    the value for the **"labels"** must be a list. Example JSON object: 
-                    `"{"view": "top", "labels": ["date", "white dot"]}"''')
-                st.form_submit_button(
-                    "Update Config", on_click=update_conf_topic,
-                    help="Please press this button to update if you change any MQTT "
-                    "topic name(s).")
+                    st.text_input(
+                        'Publish frame to our app', topics.recv_frame,
+                        key='recv_frame', help="Publish the image frame in bytes to this topic "
+                        "for MQTT input deployment")
+                    st.text_input(
+                        'Start publishing results', topics.start_publish,
+                        key='start_publish')
+                    st.text_input(
+                        'Stop publishing results', topics.stop_publish,
+                        key='stop_publish')
+                    st.text_input(
+                        'Start publishing frames', topics.start_publish_frame,
+                        key='start_publish_frame')
+                    st.text_input(
+                        'Stop publishing frames', topics.stop_publish_frame,
+                        key='stop_publish_frame')
+                    st.text_input(
+                        'Save current frame', topics.save_frame,
+                        key='save_frame')
+                    st.text_input(
+                        'Start recording frames', topics.start_record,
+                        key='start_record')
+                    st.text_input(
+                        'Stop recording frames', topics.stop_record,
+                        key='stop_record')
+                    st.text_input(
+                        'Current camera view and required labels to check',
+                        topics.dobot_view, key='dobot_view',
+                        help='''Send a JSON object containing the "view" and "labels" to check
+                        whether the detected labels at the current view contains the "labels"
+                        sent from MQTT. The value for **"view"** must only be a string, while
+                        the value for the **"labels"** must be a list. Example JSON object: 
+                        `"{"view": "top", "labels": ["date", "white dot"]}"''')
+                    st.form_submit_button(
+                        "Update Config", on_click=update_conf_topic,
+                        help="Please press this button to update if you change any MQTT "
+                        "topic name(s).")
         else:
             st.sidebar.info(f"**MQTT QoS**: {conf.qos}")
             st.sidebar.info(
@@ -855,7 +1045,7 @@ def index(RELEASE=True):
                 f"**Save current frame**: {topics.save_frame}  \n"
                 f"**Start recording frames**: {topics.start_record}  \n"
                 f"**Stop recording frames**: {topics.stop_record}")
-        with st.sidebar.expander("Notes"):
+        with st.sidebar.expander("Notes about deployment"):
             st.markdown(
                 f"Make sure to connect to **'localhost'** broker (or IP Address of this PC) "
                 f"with the correct port **{conf.port}**. "
@@ -881,23 +1071,40 @@ def index(RELEASE=True):
                             help='Deploy your model with the selected camera source'):
                         st.stop()
 
-                    with st.spinner("Loading up camera ..."):
-                        # NOTE: VideoStream does not work with filepath
-                        try:
-                            session_state.camera = WebcamVideoStream(
-                                src=video_source).start()
-                            if session_state.camera.read() is None:
-                                raise Exception(
-                                    "Video source is not valid")
-                        except Exception as e:
-                            st.error(
-                                f"Unable to read from video source {video_source}")
-                            logger.error(
-                                f"Unable to read from video source {video_source}: {e}")
-                            st.stop()
+                    if deploy_conf.use_multi_cam:
+                        spinner_label = f"Loading up {deploy_conf.num_cameras} cameras ..."
+                    else:
+                        spinner_label = f"Loading up the camera ..."
+
+                    with st.spinner(spinner_label):
+                        deploy_conf.camera_keys = []
+                        for i, src in enumerate(deploy_conf.camera_sources):
+                            # NOTE: these keys must start with 'camera' to be able to
+                            # reset them in reset_camera()
+                            if deploy_conf.camera_types[i] == 'USB Camera':
+                                cam_key = f'camera_{i}'
+                            else:
+                                # using a different key for IP camera to avoid release it
+                                # during reset_camera()
+                                cam_key = f'camera_ip_{i}'
+                            deploy_conf.camera_keys.append(cam_key)
+
+                            # NOTE: VideoStream does not work with filepath
+                            try:
+                                session_state[cam_key] = WebcamVideoStream(
+                                    src=src).start()
+                                if session_state[cam_key].read() is None:
+                                    raise Exception(
+                                        "Video source is not valid")
+                            except Exception as e:
+                                st.error(
+                                    f"Unable to read from video source {src}")
+                                logger.error(
+                                    f"Unable to read from video source {src}: {e}")
+                                st.stop()
 
                         session_state.deployed = True
-                        sleep(2)  # give the camera some time to sink in
+                        sleep(2)  # give the cameras some time to sink in
                         # rerun just to avoid displaying unnecessary buttons
                         # st.experimental_rerun()
             elif deploy_conf.video_type == 'Uploaded Video':
@@ -980,22 +1187,7 @@ def index(RELEASE=True):
                       "camera access is given back to your system. This will  \n"
                       "also save the latest CSV file in order to be opened."))
 
-            if deploy_conf.video_type != 'From MQTT':
-                if deploy_conf.video_type == 'Video Camera':
-                    stream = session_state.camera.stream
-                    deploy_status_place.info(
-                        "**Status**: Deployed for video camera input")
-                else:
-                    stream = session_state.camera
-                    deploy_status_place.info(
-                        "**Status**: Deployed for uploaded video")
-
-                width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                fps_input = int(stream.get(cv2.CAP_PROP_FPS))
-                logger.info(
-                    f"Video properties: {width = }, {height = }, {fps_input = }")
-            else:
+            if deploy_conf.video_type == 'From MQTT':
                 msg_place = st.empty()
                 if not session_state.mqtt_recv_frame:
                     logger.info("Waiting for frames from MQTT ...")
@@ -1010,6 +1202,7 @@ def index(RELEASE=True):
                 height, width = frame.shape[:2]
                 logger.info("Properties of received frame: "
                             f"{width = }, {height = }")
+                widths, heights = [width], [height]
         else:
             # stop if the "Deploy Model" button is not clicked yet
             logger.info("Model is not deployed yet")
@@ -1034,14 +1227,16 @@ def index(RELEASE=True):
                   args=(conf, DOBOT_TASK))
 
         # *********************** Deployment video loop ***********************
-        def create_video_writer_if_not_exists():
-            if not session_state.vid_writer:
+        def create_video_writer_if_not_exists(video_idx: int):
+            vid_writer_key = f'vid_writer_{video_idx}'
+            if session_state.get(vid_writer_key) is None:
                 logger.info("Creating video file to record to")
                 # NOTE: THIS VIDEO SAVE FORMAT IS VERY PLATFORM DEPENDENT
                 # TODO: THE VIDEO FILE MIGHT NOT SAVE PROPERLY
-                # usually either MJPG + .avi, or XVID + .mp4
-                FOURCC = cv2.VideoWriter_fourcc(*"XVID")
-                filename = f"video_{get_now_string(timezone=deploy_conf.timezone)}.mp4"
+                # usually either MJPG + .avi, or XVID + .mp4 or mp4v + .mp4
+                FOURCC = cv2.VideoWriter_fourcc(*"mp4v")
+                now = get_now_string(timezone=deploy_conf.timezone)
+                filename = f"video_{video_idx}_{now}.mp4"
                 video_save_path = str(recording_dir / filename)
                 # st.info(f"Video is being saved to **{video_save_path}**")
                 logger.info(f"Video is being saved to '{video_save_path}'")
@@ -1050,36 +1245,98 @@ def index(RELEASE=True):
                 # during the inference time, the output video will look
                 # like it's moving very very fast
                 FPS = 24
-                session_state.vid_writer = cv2.VideoWriter(
+                session_state[vid_writer_key] = cv2.VideoWriter(
                     video_save_path, FOURCC, FPS,
-                    (width, height), True)
+                    (widths[video_idx], heights[video_idx]), True)
 
-        st.subheader("Output Video")
-        show_video_col = st.container()
-        msg_cont, _ = st.columns(2)
-        with msg_cont:
-            msg_place = st.empty()
-        output_video_place = st.empty()
         publish_place = st.sidebar.empty()
-        fps_col, width_col, height_col = st.columns(3)
+        video_options_col = st.container()
+        video_col_1, video_col_2 = st.columns(2)
+        video_title_place = {}
+        msg_place = {}
+        output_video_place = {}
+        fps_place = {}
+        result_place = {}
+        widths = []
+        heights = []
 
-        with show_video_col:
+        for i, col in zip(range(deploy_conf.num_cameras), cycle((video_col_1, video_col_2))):
+            with col:
+                video_title_place[i] = st.empty()
+                msg_place[i] = st.empty()
+                output_video_place[i] = st.empty()
+                # fps_col, width_col, height_col = st.columns(3)
+                fps_col = st.container()
+                result_place[i] = st.empty()
+            if i % 2 == 0:
+                st.markdown("___")
+
+            if deploy_conf.video_type == 'Video Camera':
+                cam_title = deploy_conf.camera_titles[i]
+                video_title_place[i].subheader(
+                    f"Video Camera {i}: {cam_title}")
+                cam_key = deploy_conf.camera_keys[i]
+                stream = session_state[cam_key].stream
+                deploy_status_place.info(
+                    "**Status**: Deployed for camera inputs")
+            else:
+                video_title_place[i].subheader("Output Video")
+                # uploaded video just has one camera
+                stream = session_state.camera
+                deploy_status_place.info(
+                    "**Status**: Deployed for uploaded video")
+
+            width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps_input = int(stream.get(cv2.CAP_PROP_FPS))
+            logger.info(
+                f"Video properties for camera {i}: "
+                f"{width = }, {height = }, {fps_input = }")
+            # store them to use for VideoWriter later
+            widths.append(width)
+            heights.append(height)
+
+            with fps_col:
+                st.markdown(f"**Frame Width**: {width}")
+                st.markdown(f"**Frame Height**: {height}")
+                # st.markdown("**Frame Rate**")
+                fps_place[i] = st.markdown("0")
+            # with width_col:
+            #     st.markdown("**Frame Width**")
+            #     st.markdown(kpi_format(width), unsafe_allow_html=True)
+            # with height_col:
+            #     st.markdown("**Frame Height**")
+            #     st.markdown(kpi_format(height), unsafe_allow_html=True)
+
+        with video_options_col:
             show_video = st.checkbox(
                 'Show video', value=True, key='show_video')
+            if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
+                get_bbox_coords = st.checkbox("Obtain bounding box coordinates",
+                                              key='get_bbox_coords')
             draw_result = st.checkbox(
                 "Draw labels", value=True, key='draw_result')
+            show_labels = st.checkbox("Show the detected labels", value=True)
+
+            if show_labels:
+                for i in range(deploy_conf.num_cameras):
+                    with result_place[i].container():
+                        st.markdown("**Detected Results**")
+                        st.markdown("Coming up")
 
             def update_record(is_recording: bool):
                 session_state.record = is_recording
 
             if not session_state.record:
                 st.button('Start recording', key='btn_start_record',
-                          help=f"The video will be saved in *{recording_dir}*",
+                          help=f"Videos are saved in *{recording_dir}*",
                           on_click=update_record, args=(True,))
             else:
                 st.button("Stop recording and save the video",
                           key='btn_stop_and_save_vid',
                           on_click=update_record, args=(False,))
+            st.markdown("___")
+            msg_place['top'] = st.empty()  # for general messages
 
         if has_access:
             def update_publishing_conf(is_publishing: bool):
@@ -1128,44 +1385,32 @@ def index(RELEASE=True):
                 st.sidebar.markdown(
                     "Currently is not publishing any output frames through MQTT.")
 
-        show_labels = st.checkbox("Show the detected labels", value=True)
-        if show_labels:
-            result_col = st.container()
-            with result_col:
-                st.markdown("**Detected Results**")
-                result_place = st.markdown("Coming up")
-        with fps_col:
-            st.markdown("**Frame Rate**")
-            fps_place = st.markdown("0")
-        with width_col:
-            st.markdown("**Frame Width**")
-            st.markdown(kpi_format(width), unsafe_allow_html=True)
-        with height_col:
-            st.markdown("**Frame Height**")
-            st.markdown(kpi_format(height), unsafe_allow_html=True)
-        st.markdown("___")
-
         # prepare variables for the video deployment loop
+        timezone = deploy_conf.timezone
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=draw_result, **pipeline_kwargs)
 
         if DEPLOYMENT_TYPE == 'Image Classification':
             is_image_classif = True
             get_result_fn = partial(deployment.get_classification_results,
-                                    timezone=deploy_conf.timezone)
+                                    timezone=timezone)
         elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
             is_image_classif = False
             get_result_fn = partial(deployment.get_segmentation_results,
-                                    timezone=deploy_conf.timezone)
+                                    timezone=timezone)
         else:
             is_image_classif = False
             get_result_fn = partial(deployment.get_detection_results,
+                                    get_bbox_coords=get_bbox_coords,
                                     conf_threshold=deploy_conf.confidence_threshold,
-                                    timezone=deploy_conf.timezone)
+                                    timezone=timezone)
         publish_func = partial(client.publish,
                                topics.publish_results, qos=conf.qos)
-        publish_frame_fn = partial(client.publish,
-                                   topics.publish_frame, qos=conf.qos)
+        publish_frame_funcs = []
+        for i in range(deploy_conf.num_cameras):
+            publish_frame_funcs.append(
+                partial(client.publish,
+                        topics.publish_frame[i], qos=conf.qos))
 
         starting_time = datetime.now()
         csv_path = deployment.get_csv_path(starting_time)
@@ -1174,21 +1419,35 @@ def index(RELEASE=True):
             os.makedirs(csv_dir)
         logger.info(f'Operation begins at: {starting_time.isoformat()}')
         logger.info(f'Inference results will be saved in {csv_dir}')
-        # use_cam = deploy_conf.use_camera
         if deploy_conf.video_type == 'Video Camera':
             video_type = 0
         elif deploy_conf.video_type == 'From MQTT':
             video_type = 1
         else:
+            # Uploaded Video
             video_type = 2
+        use_multi_cam = deploy_conf.use_multi_cam
+        camera_keys = deploy_conf.camera_keys
+        cam_titles = deploy_conf.camera_titles
+        camera_view2idx = {
+            v.lower(): i for i, v in enumerate(cam_titles)}
         display_width = deploy_conf.video_width
         publish_frame = deploy_conf.publish_frame
-        fps = 0
-        prev_time = 0
+        # to store frame bytes for each camera to publish through MQTT
+        payload_frame = {f'camera_{i}': ''
+                         for i in range(deploy_conf.num_cameras)}
+        print(payload_frame)
         first_csv_save = True
 
         # start the video deployment loop
-        while True:
+        for i in cycle(range(deploy_conf.num_cameras)):
+            start_time = perf_counter()
+
+            if use_multi_cam:
+                cam_title = cam_titles[i]
+            else:
+                cam_title = ''
+
             if session_state.refresh:
                 # refresh page once to refresh the widgets
                 logger.debug("REFRESHING PAGEE")
@@ -1196,10 +1455,13 @@ def index(RELEASE=True):
                 st.experimental_rerun()
 
             if video_type == 0:
-                frame = session_state.camera.read()
+                # USB Camera or IP Camera
+                frame = session_state[camera_keys[i]].read()
             elif video_type == 1:
+                # from MQTT
                 frame = image_from_buffer(session_state.mqtt_recv_frame)
             else:
+                # Uploaded Video, read with cv2.VideoCapture instead of WebcamVideoStream
                 ret, frame = session_state.camera.read()
                 if not ret:
                     break
@@ -1208,7 +1470,8 @@ def index(RELEASE=True):
             # run inference on the frame
             inference_output = inference_pipeline(frame)
             if is_image_classif:
-                results = get_result_fn(*inference_output)
+                results = get_result_fn(*inference_output,
+                                        camera_title=cam_title)
                 output_img = frame
                 # the read frame is in BGR format
                 channels = 'BGR'
@@ -1221,45 +1484,46 @@ def index(RELEASE=True):
                     output_img = frame
                     # the read frame is in BGR format
                     channels = 'BGR'
-                results = get_result_fn(pred)
+                results = get_result_fn(pred, camera_title=cam_title)
 
             if show_video:
-                output_video_place.image(output_img, channels=channels,
-                                         width=display_width)
+                output_video_place[i].image(output_img, channels=channels,
+                                            width=display_width)
 
+            vid_writer_key = f'vid_writer_{i}'
             if session_state.record:
                 # need to be within the video loop to ensure we also get the latest
                 #  session_state updates from MQTT callback
-                msg_place.info("Recording ...")
-                with show_video_col:
-                    create_video_writer_if_not_exists()
+                msg_place[i].info("Recording ...")
+                with video_options_col:
+                    create_video_writer_if_not_exists(i)
                 if channels == 'RGB':
                     # cv2.VideoWriter needs BGR format
                     out = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
                 else:
                     out = output_img
-                session_state.vid_writer.write(out)
+                session_state[vid_writer_key].write(out)
             else:
-                if session_state.vid_writer:
-                    msg_place.empty()
+                if session_state.get(vid_writer_key) is not None:
+                    msg_place[i].empty()
                     logger.info("Saving recorded file")
                     # must release to close the video file
-                    session_state.vid_writer.release()
-                    session_state.vid_writer = None
+                    session_state[vid_writer_key].release()
+                    del session_state[vid_writer_key]
 
             # count FPS
-            curr_time = perf_counter()
-            fps = 1 / (curr_time - prev_time)
-            prev_time = curr_time
+            fps = 1 / (perf_counter() - start_time)
 
-            fps_place.markdown(kpi_format(int(fps)), unsafe_allow_html=True)
+            # fps_place[i].markdown(kpi_format(int(fps)),
+            #                       unsafe_allow_html=True)
+            fps_place[i].markdown(f"**Frame Rate**: {int(fps)}")
 
             if show_labels:
-                result_place.table(results)
+                result_place[i].table(results)
 
             if publish_frame:
                 frame_bytes = image_to_bytes(output_img, channels)
-                info = publish_frame_fn(frame_bytes)
+                publish_frame_funcs[i](frame_bytes)
 
             # NOTE: this session_state is currently ONLY used for DOBOT arm for
             # object detection demo to detect different labels at different views
@@ -1269,24 +1533,45 @@ def index(RELEASE=True):
                 view, required_labels = session_state.check_labels
 
                 if view == 'end':
-                    # clear the message if the robot motion is ended
-                    msg_place.empty()
+                    # clear the messages if the robot motion has ended
+                    for p in msg_place.values():
+                        p.empty()
                     # and reset back to None
                     session_state.check_labels = None
                     logger.info("Label checking process has finished")
                     continue
 
+                if use_multi_cam:
+                    # we only let user enter the views if there is more than 1 camera
+                    src_idx = camera_view2idx.get(view)
+                    if src_idx is None:
+                        logger.error(
+                            f"Cannot find '{view}' view from the entered camera views. "
+                            "Please try updating the camera views to follow MQTT message "
+                            "(or vice versa).")
+                        msg_place['top'].error(
+                            f"Cannot find **'{view}'** view from the entered camera views. "
+                            "Please try updating the camera views to follow MQTT message "
+                            "(or vice versa).")
+                        session_state.check_labels = None
+                        continue
+                    # continue until the current loop is for the correct view
+                    if src_idx != i:
+                        continue
+                else:
+                    src_idx = 0
+
                 # required_label_cnts = VIEW_LABELS[view]
                 # if dobot_demo.check_result_labels(results, required_label_cnts):
                 if deployment.check_labels(results, required_labels, DEPLOYMENT_TYPE):
                     logger.info(f"All labels present at '{view}' view")
-                    msg_place.success(f"### {view.upper()} view: OK")
+                    msg_place[src_idx].success(f"### {view.upper()} view: OK")
                 else:
                     logger.warning("Required labels are not detected at "
                                    f"'{view}' view")
-                    msg_place.error(f"### {view.upper()} view: NG")
+                    msg_place[src_idx].error(f"### {view.upper()} view: NG")
                     save_image(output_img, ng_frame_dir,
-                               channels, timezone=deploy_conf.timezone, prefix=view)
+                               channels, timezone=timezone, prefix=view)
                     logger.info(f"NG image saved successfully")
 
                 # set this to None to ONLY CHECK FOR ONCE for the same view
@@ -1296,8 +1581,10 @@ def index(RELEASE=True):
                 continue
 
             if session_state.publishing:
+                # if use_multi_cam:
+                #     results['view'] = cam_titles[i]
                 payload = json.dumps(results)
-                info = publish_func(payload=payload)
+                publish_func(payload=payload)
 
             # save results to CSV file only if using video camera
             if video_type != 0:
@@ -1320,9 +1607,15 @@ def index(RELEASE=True):
                     retention_period)
 
                 csv_path = deployment.get_csv_path(now)
-                session_state.today = today
                 create_csv_file_and_writer(csv_path, results)
+                session_state.today = today
             else:
+                # if use_multi_cam:
+                #     for row in results:
+                #         # save the view for multiple cameras
+                #         row['view'] = cam_titles[i]
+                #         session_state.csv_writer.writerow(row)
+                # else:
                 for row in results:
                     session_state.csv_writer.writerow(row)
 
@@ -1331,12 +1624,6 @@ def index(RELEASE=True):
             #     sleep(1 / (fps - max_allowed_fps))
 
         # clean up everything if it's an uploaded video
-        if session_state.vid_writer:
-            logger.info("Saving recorded file")
-            # must release to close the video file
-            session_state.vid_writer.release()
-            session_state.vid_writer = None
-
         reset_video_deployment()
 
         if TEMP_DIR.exists():
@@ -1344,7 +1631,7 @@ def index(RELEASE=True):
             shutil.rmtree(TEMP_DIR)
 
         logger.info("Inference done for uploaded video")
-        msg_place.info("Inference done for uploaded video.")
+        msg_place[i].info("Inference done for uploaded video.")
 
 
 def main():

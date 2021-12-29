@@ -28,7 +28,7 @@ import gc
 from json.decoder import JSONDecodeError
 import shutil
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from functools import partial
 import sys
@@ -113,21 +113,30 @@ class DeploymentPagination(IntEnum):
 @dataclass(eq=False)
 class DeploymentConfig:
     timezone: str = "Singapore"
-    input_type: str = 'Image'
-    video_type: str = 'Uploaded Video'
+    input_type: str = 'Image'  # or Video
+    video_type: str = 'Uploaded Video'  # Or Video Camera or From MQTT
+    use_multi_cam: bool = False
+    num_cameras: int = 2  # only for multiple cameras
     video_width: int = 640
     # use_camera: bool = False
-    camera_type: str = 'USB Camera'
-    camera_port: int = 0
+    camera_types: List[str] = field(default_factory=list)  # USB or IP Camera
+    camera_sources: List[Union[int, str]] = field(default_factory=list)
+    # to store the session_state key names
+    camera_keys: List[str] = field(default_factory=list)
+    # camera_ports: List[int] = field(default_factory=lambda: [0, 1])
+    # to store the title/view for multiple cameras
+    # camera_titles: Dict[int, str] = field(default_factory=dict)
+    camera_titles: List[str] = field(default_factory=list)
     retention_period: int = 7
     # whether is publishing inference results or not
     publishing: bool = True
     # whether is publishing current output frame or not
     publish_frame: bool = False
 
-    # not always used
-    ip_cam_address: str = ''
+    # ip_cam_addresses: List[str] = field(default_factory=list)
+    # for TFOD
     confidence_threshold: float = 0.4
+    # for segmentation
     ignore_background: bool = False
 
     def asdict(self):
@@ -380,14 +389,17 @@ class Deployment(BaseDeployment):
             return partial(self.segment_inference_pipeline, **kwargs)
 
     def get_classification_results(self, pred_classname: str, probability: float,
-                                   timezone: str):
+                                   timezone: str, camera_title: str):
         results = [{'name': pred_classname,
                     # need to change to string to be serialized with json.dumps()
                     'probability': f"{probability * 100:.2f}%",
+                    'view': camera_title,
                     'time': get_now_string(timezone=timezone)}]
         return results
 
     def get_detection_results(self, detections: Dict[str, Any], timezone: str,
+                              camera_title: str,
+                              get_bbox_coords: bool = False,
                               conf_threshold: float = None) -> List[Dict[str, Any]]:
         results = []
         now = get_now_string(timezone=timezone)
@@ -396,22 +408,30 @@ class Deployment(BaseDeployment):
                                        detections['detection_boxes']):
             if prob < conf_threshold:
                 continue
-            ymin, xmin, ymax, xmax = np.around(box, 4).tolist()
-            tl = [xmin, ymin]
-            br = [xmax, ymax]
-            detection = {'name': self.category_index[class_id]['name'],
-                         # need to change to string to be serialized with json.dumps()
-                         'probability': f"{prob * 100:.2f}%",
-                         'top_left': tl,
-                         'bottom_right': br,
-                         'time': now}
+            if get_bbox_coords:
+                ymin, xmin, ymax, xmax = np.around(box, 4).astype(str).tolist()
+                tl = [xmin, ymin]
+                br = [xmax, ymax]
+                detection = {'name': self.category_index[class_id]['name'],
+                             # need to change to string to be serialized with json.dumps()
+                             'probability': f"{prob * 100:.2f}%",
+                             'top_left': tl,
+                             'bottom_right': br,
+                             'view': camera_title,
+                             'time': now}
+            else:
+                detection = {'name': self.category_index[class_id]['name'],
+                             'probability': f"{prob * 100:.2f}%",
+                             'view': camera_title,
+                             'time': now}
             results.append(detection)
         return results
 
     def get_segmentation_results(self, prediction_mask: np.ndarray,
-                                 timezone: str) -> List[Dict[str, Any]]:
+                                 timezone: str, camera_title: str) -> List[Dict[str, Any]]:
         class_names = self.class_names_arr[np.unique(prediction_mask)]
         results = [{'classes_found': class_names.tolist(),
+                    'view': camera_title,
                    'time': get_now_string(timezone=timezone)}]
         return results
 
@@ -542,7 +562,7 @@ class Deployment(BaseDeployment):
         project_attributes = [
             "deployment_pagination", "deployment", "trainer", "publishing",
             "refresh", "deployment_conf", "today", "mqtt_conf",
-            "image_idx", "check_labels", "camera_ports"
+            "image_idx", "check_labels", "working_ports"
         ]
 
         reset_page_attributes(project_attributes)
