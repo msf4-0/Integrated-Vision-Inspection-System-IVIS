@@ -260,6 +260,7 @@ def index(RELEASE=True):
                     topics.recv_frame, image_recv_frame_cb)
 
             conf.input_type = session_state.input_type
+
         all_timezones = get_all_timezones()
         tz_idx = all_timezones.index(conf.timezone)
         st.sidebar.selectbox(
@@ -638,8 +639,16 @@ def index(RELEASE=True):
 
                 if has_access:
                     def update_camera_config():
-                        logger.info("Reset video deployment and update video")
+                        logger.info(
+                            "Reset video deployment and update video config")
                         reset_video_deployment()
+
+                        if not conf.use_multi_cam:
+                            conf.camera_sources = [
+                                session_state['input_cam_source_0']]
+                            # no need camera title/view
+                            conf.camera_titles = ['']
+                            return
 
                         conf.camera_sources = []
                         conf.camera_titles = []
@@ -674,15 +683,18 @@ def index(RELEASE=True):
                                     key=f'input_cam_source_{i}',
                                     placeholder='rtsp://username:password@192.168.1.64/1')
 
-                            st.text_input(
-                                f"Title/view for camera {i}",
-                                value=conf.camera_titles[i],
-                                key=f'input_cam_title_{i}',
-                                placeholder='e.g. top (or top/left)',
-                                help="""This is required for label checking (optional) to
-                                work. If using **multiple views** for the same camera, you
-                                can separate each view with a frontslash '/' character. For
-                                example for "top" and "left" for one camera: *top/left*""")
+                            # Only multi-camera needs camera title/view for label checking
+                            # at different views
+                            if conf.use_multi_cam:
+                                st.text_input(
+                                    f"Title/view for camera {i}",
+                                    value=conf.camera_titles[i],
+                                    key=f'input_cam_title_{i}',
+                                    placeholder='e.g. top (or top/left)',
+                                    help="""This is required for label checking (optional) to
+                                    work. If using **multiple views** for the same camera, you
+                                    can separate each view with a frontslash '/' character. For
+                                    example for "top" and "left" for one camera: *top/left*""")
 
                         st.form_submit_button(
                             "Update camera config", on_click=update_camera_config)
@@ -1179,9 +1191,11 @@ def index(RELEASE=True):
             VIEW_LABELS = dobot_demo.DEBUG_VIEW_LABELS
             run_func = dobot_demo.debug_run
 
-        st.button("Move DOBOT and detect",
-                  key='btn_move_dobot', on_click=run_func,
-                  args=(mqtt_conf, DOBOT_TASK))
+        if st.button("Move DOBOT and detect", key='btn_move_dobot'):
+            with st.spinner("Preparing to run dobot ..."):
+                # this will take some time to connect to the dobot api
+                # and then start moving the dobot in another thread
+                run_func(mqtt_conf, DOBOT_TASK)
 
         # *********************** Deployment video loop ***********************
         def create_video_writer_if_not_exists(video_idx: int):

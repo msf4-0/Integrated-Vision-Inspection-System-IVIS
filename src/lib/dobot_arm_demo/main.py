@@ -321,6 +321,12 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
     topic = conf.topics.dobot_view
     qos = conf.qos
 
+    DOBOT_TASK_TO_FUNC = {
+        DobotTask.Box: move_for_box,
+        DobotTask.P2_143: move_for_p2_143,
+        DobotTask.P2_140: move_for_p2_140
+    }
+
     client = get_mqtt_client()
     client.connect(conf.broker, port=conf.port)
     client.loop_start()
@@ -332,14 +338,11 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
     client_dashboard.EnableRobot()
     sleep(0.5)
 
-    if task == DobotTask.Box:
-        move_for_box(client_feedback, client, topic, qos, client_dashboard)
-    elif task == DobotTask.P2_143:
-        move_for_p2_143(client_feedback, client, topic, qos, client_dashboard)
-    elif task == DobotTask.P2_140:
-        move_for_p2_140(client_feedback, client, topic, qos, client_dashboard)
-    else:
+    task_func = DOBOT_TASK_TO_FUNC.get(task)
+    if task_func is None:
         logger.error(f"Wrong task passed in, task received: {task!r}")
+    else:
+        task_func(client_feedback, client, topic, qos, client_dashboard)
 
     # close them here instead of in the run() function
     client_dashboard.close()

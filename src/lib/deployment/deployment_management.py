@@ -116,7 +116,7 @@ class DeploymentConfig:
     input_type: str = 'Image'  # or Video
     video_type: str = 'Uploaded Video'  # Or Video Camera or From MQTT
     use_multi_cam: bool = False
-    num_cameras: int = 2  # only for multiple cameras
+    num_cameras: int = 2
     video_width: int = 640
     # use_camera: bool = False
     camera_types: List[str] = field(default_factory=list)  # USB or IP Camera
@@ -389,7 +389,7 @@ class Deployment(BaseDeployment):
             return partial(self.segment_inference_pipeline, **kwargs)
 
     def get_classification_results(self, pred_classname: str, probability: float,
-                                   timezone: str, camera_title: str):
+                                   timezone: str, camera_title: str = ''):
         results = [{'name': pred_classname,
                     # need to change to string to be serialized with json.dumps()
                     'probability': f"{probability * 100:.2f}%",
@@ -398,7 +398,7 @@ class Deployment(BaseDeployment):
         return results
 
     def get_detection_results(self, detections: Dict[str, Any], timezone: str,
-                              camera_title: str,
+                              camera_title: str = '',
                               get_bbox_coords: bool = False,
                               conf_threshold: float = None) -> List[Dict[str, Any]]:
         results = []
@@ -428,7 +428,7 @@ class Deployment(BaseDeployment):
         return results
 
     def get_segmentation_results(self, prediction_mask: np.ndarray,
-                                 timezone: str, camera_title: str) -> List[Dict[str, Any]]:
+                                 timezone: str, camera_title: str = '') -> List[Dict[str, Any]]:
         class_names = self.class_names_arr[np.unique(prediction_mask)]
         results = [{'classes_found': class_names.tolist(),
                     'view': camera_title,
