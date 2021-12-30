@@ -479,6 +479,26 @@ class Deployment(BaseDeployment):
                 break
 
     @staticmethod
+    def get_camera_views_from_titles(cam_titles: List[str]) -> Dict[str, int]:
+        """One camera title can have multiple views separated by a frontslash '/'.
+
+        Returns:
+            Dict[str, int]: Camera view -> camera index
+        """
+        camera_view2idx = {}
+        for i, view in enumerate(cam_titles):
+            if '/' in view:
+                # this is for multiple views for a single camera
+                all_views = view.split('/')
+                for v in all_views:
+                    v = v.strip().lower()
+                    camera_view2idx[v] = i
+            else:
+                view = view.strip().lower()
+                camera_view2idx[view] = i
+        return camera_view2idx
+
+    @staticmethod
     def validate_received_label_msg(msg_payload: bytes) -> Union[bool, Tuple[str, List[str]]]:
         """
         Validate the received message payload for label checking to have the correct 
@@ -508,19 +528,20 @@ class Deployment(BaseDeployment):
                 '"view" key is not found from the received JSON object')
             return False
         if view == 'end':
-            # if view == 'end' then no need to check required labels
+            # no need to check required labels
             return view, required_labels
+
         if not required_labels:
             logger.error(
                 '"labels" key is not found from the received JSON object')
             return False
         if not isinstance(view, str):
-            logger.error(f'The received value for the "labels" key '
-                         f'{required_labels} is not in List format')
+            logger.error(f'The received value for the "view" key '
+                         f'"{view}" is not in string format')
             return False
         if not isinstance(required_labels, list):
             logger.error(f'The received value for the "labels" key '
-                         f'{required_labels} is not in List format')
+                         f'"{required_labels}" is not in List format')
             return False
         return view, required_labels
 

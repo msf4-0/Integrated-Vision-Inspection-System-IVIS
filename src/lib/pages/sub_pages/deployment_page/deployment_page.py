@@ -113,9 +113,9 @@ def index(RELEASE=True):
         # to check whether any image/frame is received through MQTT
         session_state.mqtt_recv_frame = None
 
-    deploy_conf: DeploymentConfig = session_state.deployment_conf
+    conf: DeploymentConfig = session_state.deployment_conf
     client: Client = session_state.client
-    conf: MQTTConfig = session_state.mqtt_conf
+    mqtt_conf: MQTTConfig = session_state.mqtt_conf
     topics: MQTTTopics = session_state.mqtt_conf.topics
 
     project: Project = session_state.project
@@ -129,10 +129,10 @@ def index(RELEASE=True):
         session_state.image_idx = 0
 
     def reset_single_camera_conf():
-        deploy_conf.use_multi_cam = False
-        deploy_conf.num_cameras = 1
+        conf.use_multi_cam = False
+        conf.num_cameras = 1
         # reset camera titles
-        deploy_conf.camera_titles = ['']
+        conf.camera_titles = ['']
         topics.publish_frame = [topics.publish_frame[0]]
 
     def image_recv_frame_cb(client, userdata, msg):
@@ -153,13 +153,13 @@ def index(RELEASE=True):
                 continue
             if resubscribe:
                 client.unsubscribe(topic)
-            client.subscribe(topic, qos=conf.qos)
+            client.subscribe(topic, qos=mqtt_conf.qos)
 
     def update_mqtt_qos():
         # take from the widget's state and save to our mqtt_conf
-        logger.info(f"Updated QoS level from {conf.qos} to "
+        logger.info(f"Updated QoS level from {mqtt_conf.qos} to "
                     f"{session_state.mqtt_qos}")
-        conf.qos = int(session_state.mqtt_qos)
+        mqtt_conf.qos = int(session_state.mqtt_qos)
 
         subscribe_topics(resubscribe=True)
 
@@ -174,25 +174,25 @@ def index(RELEASE=True):
         and must be the same with the `DeploymentConfig` attribute's name."""
         val = session_state[conf_attr]
         logger.info(f"Updated deployment config: {conf_attr} = {val}")
-        setattr(deploy_conf, conf_attr, val)
+        setattr(conf, conf_attr, val)
 
     # connect MQTT broker and set up callbacks
     if not session_state.client_connected:
-        logger.debug(f"{conf = }")
+        logger.debug(f"{mqtt_conf = }")
         with st.spinner("Connecting to MQTT broker ..."):
             try:
-                client.connect(conf.broker, port=conf.port)
+                client.connect(mqtt_conf.broker, port=mqtt_conf.port)
             except Exception as e:
                 st.error("Error connecting to MQTT broker")
                 if os.getenv('DEBUG', '1') == '1':
                     st.exception(e)
                 logger.error(
-                    f"Error connecting to MQTT broker {conf.broker}: {e}")
+                    f"Error connecting to MQTT broker {mqtt_conf.broker}: {e}")
                 st.stop()
 
             sleep(2)  # Wait for connection setup to complete
             logger.info("MQTT client connected successfully to "
-                        f"{conf.broker} on port {conf.port}")
+                        f"{mqtt_conf.broker} on port {mqtt_conf.port}")
 
             subscribe_topics()
 
@@ -259,23 +259,23 @@ def index(RELEASE=True):
                 client.message_callback_add(
                     topics.recv_frame, image_recv_frame_cb)
 
-            deploy_conf.input_type = session_state.input_type
+            conf.input_type = session_state.input_type
         all_timezones = get_all_timezones()
-        tz_idx = all_timezones.index(deploy_conf.timezone)
+        tz_idx = all_timezones.index(conf.timezone)
         st.sidebar.selectbox(
             "Local Timezone", all_timezones, index=tz_idx, key='timezone',
             help="Select your local timezone to have the correct time output in results.",
             on_change=update_deploy_conf, args=('timezone',))
 
         options = ('Image', 'Video')
-        idx = options.index(deploy_conf.input_type)
+        idx = options.index(conf.input_type)
         st.sidebar.radio(
             'Choose the Type of Input', options,
             index=idx, key='input_type',
             on_change=update_input_type_conf)
     else:
-        st.sidebar.markdown(f"**Selected timezone**: {deploy_conf.timezone}")
-        st.sidebar.markdown(f"**Input type**: {deploy_conf.input_type}")
+        st.sidebar.markdown(f"**Selected timezone**: {conf.timezone}")
+        st.sidebar.markdown(f"**Input type**: {conf.input_type}")
 
     options_col, _ = st.columns(2)
 
@@ -288,7 +288,7 @@ def index(RELEASE=True):
         else:
             class_colors = deployment.class_colors
         ignore_background = st.sidebar.checkbox(
-            "Ignore background", value=deploy_conf.ignore_background,
+            "Ignore background", value=conf.ignore_background,
             key='ignore_background',
             help="Ignore background class for visualization purposes.  \n"
             "Note that turning this on could significantly reduce the FPS.",
@@ -308,7 +308,7 @@ def index(RELEASE=True):
                 "Confidence threshold:",
                 min_value=0.1,
                 max_value=0.99,
-                value=deploy_conf.confidence_threshold,
+                value=conf.confidence_threshold,
                 step=0.01,
                 format='%.2f',
                 key='confidence_threshold',
@@ -318,10 +318,10 @@ def index(RELEASE=True):
             )
         else:
             options_col.markdown(
-                f"**Confidence threshold**: {deploy_conf.confidence_threshold}")
-        pipeline_kwargs = {'conf_threshold': deploy_conf.confidence_threshold}
+                f"**Confidence threshold**: {conf.confidence_threshold}")
+        pipeline_kwargs = {'conf_threshold': conf.confidence_threshold}
 
-    if deploy_conf.input_type == 'Image':
+    if conf.input_type == 'Image':
         image_type = st.sidebar.radio(
             "Select type of image",
             ("Image from project datasets", "Uploaded Image", "From MQTT"),
@@ -391,7 +391,7 @@ def index(RELEASE=True):
             st.sidebar.markdown("___")
             st.sidebar.subheader("MQTT QoS")
             st.sidebar.radio(
-                'MQTT QoS', (0, 1, 2), conf.qos, key='mqtt_qos',
+                'MQTT QoS', (0, 1, 2), mqtt_conf.qos, key='mqtt_qos',
                 on_change=update_mqtt_qos)
 
             st.sidebar.subheader("MQTT Topic")
@@ -504,7 +504,7 @@ def index(RELEASE=True):
 
         st.stop()
 
-    elif deploy_conf.input_type == 'Video':
+    elif conf.input_type == 'Video':
         def update_conf_and_reset_video_deploy(conf_attr: str):
             update_deploy_conf(conf_attr)
             reset_video_deployment()
@@ -517,56 +517,56 @@ def index(RELEASE=True):
         #         videostream will run at.""")
         if has_access:
             options = ("Uploaded Video", "Video Camera", "From MQTT")
-            idx = options.index(deploy_conf.video_type)
+            idx = options.index(conf.video_type)
             st.sidebar.radio(
                 "Select type of video input",
                 options, index=idx,
                 key='video_type', help="MQTT should publish frames in bytes to the topic  \n"
-                f"*{conf.topics.recv_frame}* (topic can be changed below)",
+                f"*{mqtt_conf.topics.recv_frame}* (topic can be changed below)",
                 on_change=update_conf_and_reset_video_deploy, args=('video_type',))
         else:
             st.sidebar.markdown(
-                f"**Video input type**: {deploy_conf.video_type}")
+                f"**Video input type**: {conf.video_type}")
 
         st.sidebar.slider(
             'Width of video (for display only)', 320, 1920,
-            deploy_conf.video_width, 10,
+            conf.video_width, 10,
             key='video_width',
             help="This is the width of video for visualization purpose.",
             on_change=update_deploy_conf, args=('video_width',)
         )
 
-        if deploy_conf.video_type == 'Video Camera':
+        if conf.video_type == 'Video Camera':
             with st.sidebar.container():
                 if has_access:
                     def update_and_reset_multi_cam_conf(conf_attr: str):
                         update_conf_and_reset_video_deploy(conf_attr)
 
-                        if not deploy_conf.use_multi_cam:
+                        if not conf.use_multi_cam:
                             reset_single_camera_conf()
                             return
 
                         # make empty title for each camera on changes
-                        deploy_conf.camera_titles = []
-                        deploy_conf.camera_sources = []
-                        for i in range(deploy_conf.num_cameras):
-                            deploy_conf.camera_titles.append('')
-                            deploy_conf.camera_sources.append(i)
+                        conf.camera_titles = []
+                        conf.camera_sources = []
+                        for i in range(conf.num_cameras):
+                            conf.camera_titles.append('')
+                            conf.camera_sources.append(i)
 
                     if st.checkbox(
-                        "Use multiple cameras", deploy_conf.use_multi_cam,
+                        "Use multiple cameras", conf.use_multi_cam,
                         key='use_multi_cam', on_change=update_and_reset_multi_cam_conf,
                             args=('use_multi_cam',)):
-                        deploy_conf.num_cameras = (2 if deploy_conf.num_cameras == 1
-                                                   else deploy_conf.num_cameras)
+                        conf.num_cameras = (2 if conf.num_cameras == 1
+                                            else conf.num_cameras)
                         st.number_input(
-                            "Number of cameras", 2, 5, deploy_conf.num_cameras, 1,
+                            "Number of cameras", 2, 5, conf.num_cameras, 1,
                             key='num_cameras', on_change=update_and_reset_multi_cam_conf,
                             args=('num_cameras',))
 
-                    if len(deploy_conf.camera_types) != deploy_conf.num_cameras:
-                        deploy_conf.camera_types = [
-                            'USB Camera' for _ in range(deploy_conf.num_cameras)]
+                    if len(conf.camera_types) != conf.num_cameras:
+                        conf.camera_types = [
+                            'USB Camera' for _ in range(conf.num_cameras)]
 
                     with st.expander("Select Camera Types", expanded=True):
                         with st.form("form_camera_types", clear_on_submit=True):
@@ -574,15 +574,15 @@ def index(RELEASE=True):
                                 logger.info(
                                     "Reset video deployment and update camera types")
                                 reset_video_deployment()
-                                deploy_conf.camera_types = []
-                                for i in range(deploy_conf.num_cameras):
+                                conf.camera_types = []
+                                for i in range(conf.num_cameras):
                                     new = session_state[f'input_camera_type_{i}']
-                                    deploy_conf.camera_types.append(new)
+                                    conf.camera_types.append(new)
 
-                            for i in range(deploy_conf.num_cameras):
+                            for i in range(conf.num_cameras):
                                 options = ('USB Camera', 'IP Camera')
                                 idx = options.index(
-                                    deploy_conf.camera_types[i])
+                                    conf.camera_types[i])
                                 st.radio(
                                     f"Type for Camera {i}", options, index=idx,
                                     key=f'input_camera_type_{i}')
@@ -609,21 +609,21 @@ def index(RELEASE=True):
                                 "No working camera port found")
                             st.stop()
 
-                    if deploy_conf.use_multi_cam and \
-                            len(session_state.working_ports) < deploy_conf.num_cameras:
+                    if conf.use_multi_cam and \
+                            len(session_state.working_ports) < conf.num_cameras:
                         st.error(
                             "The number of cameras available "
                             f"(**{len(session_state.working_ports)}**) is less than the "
-                            f"number of cameras specified: **{deploy_conf.num_cameras}**.")
+                            f"number of cameras specified: **{conf.num_cameras}**.")
                         st.stop()
 
-                    # reset camera sources & titles if not same
-                    if len(deploy_conf.camera_sources) != deploy_conf.num_cameras:
-                        deploy_conf.camera_sources = []
-                        deploy_conf.camera_titles = []
-                        for v in range(deploy_conf.num_cameras):
-                            deploy_conf.camera_sources.append(v)
-                            deploy_conf.camera_titles.append('')
+                    # reset camera sources & titles if not same length
+                    if len(conf.camera_sources) != conf.num_cameras:
+                        conf.camera_sources = []
+                        conf.camera_titles = []
+                        for v in range(conf.num_cameras):
+                            conf.camera_sources.append(v)
+                            conf.camera_titles.append('')
 
                     with st.expander("Notes about IP Camera Address"):
                         st.markdown(
@@ -634,116 +634,66 @@ def index(RELEASE=True):
                             **rtsp://username:password@192.168.1.64/1**""")
                 else:
                     st.markdown(
-                        f"Deploying with **{deploy_conf.num_cameras} camera(s)**")
+                        f"Deploying with **{conf.num_cameras} camera(s)**")
 
                 if has_access:
-                    with st.expander("Enter Video Sources & Views", expanded=True):
-                        error_place = st.empty()
-                        form_col = st.container()
-
                     def update_camera_config():
                         logger.info("Reset video deployment and update video")
                         reset_video_deployment()
 
-                        deploy_conf.camera_sources = []
-                        deploy_conf.camera_titles = []
-                        for i in range(deploy_conf.num_cameras):
+                        conf.camera_sources = []
+                        conf.camera_titles = []
+                        for i in range(conf.num_cameras):
                             new_cam_source = session_state[f'input_cam_source_{i}']
                             new_cam_title = session_state[f'input_cam_title_{i}']
-                            if new_cam_source in deploy_conf.camera_sources:
+                            if new_cam_source in conf.camera_sources:
                                 error_place.error("Duplicated camera sources found. "
                                                   "Each camera source must be unique!")
                                 logger.error("Duplicated camera sources found")
                                 sleep(1)
                                 return
-                            deploy_conf.camera_sources.append(new_cam_source)
-                            deploy_conf.camera_titles.append(new_cam_title)
+                            conf.camera_sources.append(new_cam_source)
+                            conf.camera_titles.append(new_cam_title)
+
+                    with st.expander("Enter Video Sources & Views", expanded=True):
+                        error_place = st.empty()
+                        form_col = st.container()
 
                     with form_col.form("form_camera_sources", clear_on_submit=True):
-                        for i in range(deploy_conf.num_cameras):
-                            if deploy_conf.camera_types[i] == 'USB Camera':
-                                # if not deploy_conf.use_multi_cam:
-                                #     if len(deploy_conf.camera_ports) > 1:
-                                #         # reset to first port in List format
-                                #         deploy_conf.camera_ports = [
-                                #             session_state.working_ports[0]]
-
-                                #     def update_camera_port():
-                                #         deploy_conf.camera_ports = [
-                                #             session_state.selected_cam_port]
-                                #         reset_video_deployment()
-
+                        for i in range(conf.num_cameras):
+                            if conf.camera_types[i] == 'USB Camera':
                                 st.radio(
                                     f"Port for Camera {i}",
                                     options=session_state.working_ports,
-                                    index=deploy_conf.camera_sources[i],
+                                    index=conf.camera_sources[i],
                                     key=f'input_cam_source_{i}')
-                                # on_change=update_camera_port)
-                                # else:
-                                # def update_camera_ports():
-                                #     deploy_conf.camera_ports = sorted(
-                                #         session_state.selected_cam_ports)
-                                #     # also reset camera titles
-                                #     deploy_conf.camera_titles = {}
-                                #     reset_video_deployment()
-
-                                # st.multiselect(
-                                #     "Select camera ports",
-                                #     options=session_state.working_ports,
-                                #     default=deploy_conf.camera_ports,
-                                #     # using a different key from above to avoid issues
-                                #     key='selected_cam_ports',
-                                #     on_change=update_camera_ports)
-
-                                # if len(deploy_conf.camera_ports) != deploy_conf.num_cameras:
-                                #     st.warning(
-                                #         """Number of selected camera ports needs to be equal
-                                #         to the number of cameras specified.""")
-                                #     st.stop()
-                                # camera_sources = deploy_conf.camera_ports
                             else:
-                                # def update_ip_cam_addresses():
-                                #     deploy_conf.ip_cam_addresses = []
-                                #     for i in range(deploy_conf.num_cameras):
-                                #         new = session_state[f'input_ip_cam_address_{i}']
-                                #         deploy_conf.ip_cam_addresses.append(
-                                #             new)
-
-                                # if len(deploy_conf.ip_cam_addresses) != deploy_conf.num_cameras:
-                                #     values = ['' for _ in range(
-                                #         deploy_conf.num_cameras)]
-                                # with st.form("form_multi_cam_ports", clear_on_submit=True):
-                                # else:
-                                #     values = deploy_conf.ip_cam_addresses
-                                # for i in range(deploy_conf.num_cameras):
                                 st.text_input(
                                     f"IP Camera Address {i}",
-                                    value=deploy_conf.camera_sources[i],
+                                    value=conf.camera_sources[i],
                                     key=f'input_cam_source_{i}',
                                     placeholder='rtsp://username:password@192.168.1.64/1')
-                                # st.form_submit_button(
-                                #     "Update IP Camera Addresses",
-                                #     on_click=update_ip_cam_addresses)
-                                # camera_sources = deploy_conf.ip_cam_addresses
 
                             st.text_input(
                                 f"Title/view for camera {i}",
-                                value=deploy_conf.camera_titles[i],
+                                value=conf.camera_titles[i],
                                 key=f'input_cam_title_{i}',
-                                placeholder='e.g. Top',
-                                help="This is required for label checking (optional) to work.")
+                                placeholder='e.g. top (or top/left)',
+                                help="""This is required for label checking (optional) to
+                                work. If using **multiple views** for the same camera, you
+                                can separate each view with a frontslash '/' character. For
+                                example for "top" and "left" for one camera: *top/left*""")
 
                         st.form_submit_button(
                             "Update camera config", on_click=update_camera_config)
                 else:
-                    for src, cam_type, cam_title in zip(deploy_conf.camera_sources,
-                                                        deploy_conf.camera_types,
-                                                        deploy_conf.camera_titles):
+                    for src, cam_type, cam_title in zip(conf.camera_sources,
+                                                        conf.camera_types,
+                                                        conf.camera_titles):
                         if cam_type == 'USB Camera':
                             st.markdown(f"**Port for USB Camera {i}**: {src}")
                         else:
                             st.markdown(f"**IP Camera Address {i}:** {src}")
-                        # cam_title = deploy_conf.camera_titles[i]
                         if cam_title:
                             st.markdown(
                                 f"**Title/view for camera {i}**: {cam_title}")
@@ -764,7 +714,7 @@ def index(RELEASE=True):
                         "Retention period must be larger than 1 day!")
                     return
                 # in 'days' unit
-                deploy_conf.retention_period = retention_period
+                conf.retention_period = retention_period
 
             # show CSV directory
             csv_path = deployment.get_csv_path(datetime.now())
@@ -776,7 +726,7 @@ def index(RELEASE=True):
                 warning_place = st.empty()
                 if has_access:
                     with st.form('retention_period_form', clear_on_submit=True):
-                        st.number_input("Day", 0, 1000, deploy_conf.retention_period, 1,
+                        st.number_input("Day", 0, 1000, conf.retention_period, 1,
                                         key='day_input')
                         st.number_input("Week", 0, 10, 0, 1, key='week_input',
                                         help='7 days per week')
@@ -784,7 +734,7 @@ def index(RELEASE=True):
                                         help='30 days per month')
                         st.form_submit_button(
                             'Change retention period', on_click=update_retention_period)
-                retention_period = deploy_conf.retention_period
+                retention_period = conf.retention_period
 
                 st.markdown(f"**Retention period** = {retention_period} days")
                 with st.expander("CSV save file info"):
@@ -795,7 +745,7 @@ def index(RELEASE=True):
                         "Be sure to click the `Pause deployment` button "
                         "to ensure the latest CSV file is saved properly if you have any "
                         "problem with opening the file.")
-        elif deploy_conf.video_type == 'Uploaded Video':
+        elif conf.video_type == 'Uploaded Video':
             reset_single_camera_conf()
 
             video_file = st.sidebar.file_uploader(
@@ -829,15 +779,15 @@ def index(RELEASE=True):
         def start_publish_cb(client, userdata, msg):
             logger.info("Start publishing")
             session_state.publishing = True
-            deploy_conf.publishing = True
+            conf.publishing = True
             session_state.refresh = True
 
         def stop_publish_cb(client, userdata, msg):
             logger.info("Stopping publishing ...")
             # session_state.client_connected = False
             session_state.publishing = False
-            deploy_conf.publishing = False
-            deploy_conf.publish_frame = False
+            conf.publishing = False
+            conf.publish_frame = False
             logger.info("Stopped")
             session_state.refresh = True
             # st.success("Stopped publishing")
@@ -846,12 +796,12 @@ def index(RELEASE=True):
 
         def start_publish_frame_cb(client, userdata, msg):
             logger.info("Start publishing frames")
-            deploy_conf.publish_frame = True
+            conf.publish_frame = True
             session_state.refresh = True
 
         def stop_publish_frame_cb(client, userdata, msg):
             logger.info("Stopping publishing frames...")
-            deploy_conf.publish_frame = False
+            conf.publish_frame = False
             logger.info("Stopped")
             session_state.refresh = True
 
@@ -860,7 +810,7 @@ def index(RELEASE=True):
             # need this to access to the frame from within mqtt callback
             nonlocal output_img, channels
             save_image(output_img, saved_frame_dir,
-                       channels, deploy_conf.timezone)
+                       channels, conf.timezone)
 
         def start_record_cb(client, userdata, msg):
             session_state.record = True
@@ -913,26 +863,30 @@ def index(RELEASE=True):
 
         # NOTE: Docker needs to use service name instead to connect to broker,
         # but user should always connect to 'localhost' or this PC's IP Address
-        st.sidebar.info(f"**MQTT broker**: localhost  \n**Port**: {conf.port}")
+        st.sidebar.info(
+            f"**MQTT broker**: localhost  \n**Port**: {mqtt_conf.port}")
 
         if has_access:
             topic_error_place = st.sidebar.empty()
 
             # reset the list of publish_frame topics
-            if len(topics.publish_frame) != deploy_conf.num_cameras:
+            if len(topics.publish_frame) != conf.num_cameras:
                 topics.publish_frame = [
                     f'{ORI_PUBLISH_FRAME_TOPIC}_{i}'
-                    for i in range(deploy_conf.num_cameras)]
+                    for i in range(conf.num_cameras)]
 
             # def update_conf_topic(topic_attr: str):
             def update_conf_topic():
                 for topic_attr in topics.__dict__.keys():
-                    for i in range(deploy_conf.num_cameras):
+                    for i in range(conf.num_cameras):
                         if topic_attr == 'publish_frame':
                             # only this attribute is a List[str]
                             state_key = f'publish_frame_{i}'
                             previous_topic = topics.publish_frame[i]
                         else:
+                            if i > 0:
+                                # don't need to check the same topic_attr more than once
+                                break
                             state_key = topic_attr
                             previous_topic = getattr(topics, topic_attr)
 
@@ -963,13 +917,13 @@ def index(RELEASE=True):
                             # only add callbacks for the topics that have callbacks
                             client.message_callback_add(
                                 new_topic, callback_func)
-                        client.subscribe(new_topic, qos=conf.qos)
+                        client.subscribe(new_topic, qos=mqtt_conf.qos)
 
                         logger.info(f"Updated MQTTTopics.{topic_attr} from {previous_topic} "
                                     f"to {new_topic}")
 
             st.sidebar.radio(
-                'MQTT QoS', (0, 1, 2), conf.qos, key='mqtt_qos',
+                'MQTT QoS', (0, 1, 2), mqtt_conf.qos, key='mqtt_qos',
                 on_change=update_mqtt_qos)
 
             st.sidebar.markdown("**MQTT Topics**")
@@ -980,7 +934,7 @@ def index(RELEASE=True):
                 # must clear on submit to show the correct values on form
                 # NOTE: the key name must be the same as the topic attribute name
                 with st.form('form_mqtt_topics', clear_on_submit=True):
-                    for i in range(deploy_conf.num_cameras):
+                    for i in range(conf.num_cameras):
                         st.text_input(
                             f'Publishing frames for camera {i} to', topics.publish_frame[i],
                             key=f'publish_frame_{i}', help="This is used to publish output "
@@ -1028,7 +982,7 @@ def index(RELEASE=True):
                         help="Please press this button to update if you change any MQTT "
                         "topic name(s).")
         else:
-            st.sidebar.info(f"**MQTT QoS**: {conf.qos}")
+            st.sidebar.info(f"**MQTT QoS**: {mqtt_conf.qos}")
             st.sidebar.info(
                 "#### Publishing Results to MQTT Topic:  \n"
                 f"{topics.publish_results}  \n"
@@ -1048,7 +1002,7 @@ def index(RELEASE=True):
         with st.sidebar.expander("Notes about deployment"):
             st.markdown(
                 f"Make sure to connect to **'localhost'** broker (or IP Address of this PC) "
-                f"with the correct port **{conf.port}**. "
+                f"with the correct port **{mqtt_conf.port}**. "
                 "Then just publish an arbitrary message to any of the subscribed MQTT "
                 "topics to trigger the functionality (except for the first two topics, "
                 "where our MQTT client is not subsrcibed to).  \nFor the **saved "
@@ -1062,8 +1016,8 @@ def index(RELEASE=True):
         # ************************ Video deployment button ************************
 
         # allow the user to click the "Deploy Model button" after done configuring everything
-        if deploy_conf.input_type == 'Video':
-            if deploy_conf.video_type == 'Video Camera':
+        if conf.input_type == 'Video':
+            if conf.video_type == 'Video Camera':
                 # only show these if a camera is not selected and not deployed yet
                 if not session_state.deployed:
                     if not deploy_btn_place.button(
@@ -1071,23 +1025,23 @@ def index(RELEASE=True):
                             help='Deploy your model with the selected camera source'):
                         st.stop()
 
-                    if deploy_conf.use_multi_cam:
-                        spinner_label = f"Loading up {deploy_conf.num_cameras} cameras ..."
+                    if conf.use_multi_cam:
+                        spinner_label = f"Loading up {conf.num_cameras} cameras ..."
                     else:
                         spinner_label = f"Loading up the camera ..."
 
                     with st.spinner(spinner_label):
-                        deploy_conf.camera_keys = []
-                        for i, src in enumerate(deploy_conf.camera_sources):
+                        conf.camera_keys = []
+                        for i, src in enumerate(conf.camera_sources):
                             # NOTE: these keys must start with 'camera' to be able to
                             # reset them in reset_camera()
-                            if deploy_conf.camera_types[i] == 'USB Camera':
+                            if conf.camera_types[i] == 'USB Camera':
                                 cam_key = f'camera_{i}'
                             else:
                                 # using a different key for IP camera to avoid release it
                                 # during reset_camera()
                                 cam_key = f'camera_ip_{i}'
-                            deploy_conf.camera_keys.append(cam_key)
+                            conf.camera_keys.append(cam_key)
 
                             # NOTE: VideoStream does not work with filepath
                             try:
@@ -1107,7 +1061,7 @@ def index(RELEASE=True):
                         sleep(2)  # give the cameras some time to sink in
                         # rerun just to avoid displaying unnecessary buttons
                         # st.experimental_rerun()
-            elif deploy_conf.video_type == 'Uploaded Video':
+            elif conf.video_type == 'Uploaded Video':
                 if video_file is None:
                     logger.info("Resetting video deployment")
                     # reset deployment and remove the TEMP_DIR if there's no uploaded file
@@ -1187,7 +1141,7 @@ def index(RELEASE=True):
                       "camera access is given back to your system. This will  \n"
                       "also save the latest CSV file in order to be opened."))
 
-            if deploy_conf.video_type == 'From MQTT':
+            if conf.video_type == 'From MQTT':
                 msg_place = st.empty()
                 if not session_state.mqtt_recv_frame:
                     logger.info("Waiting for frames from MQTT ...")
@@ -1211,8 +1165,8 @@ def index(RELEASE=True):
         # *********************** DOBOT arm demo ***********************
         # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
         # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part P2/143
-        DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
-        # DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
+        # DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
+        DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
         run_func = dobot_demo.run
 
         if DOBOT_TASK == dobot_demo.DobotTask.Box:
@@ -1227,7 +1181,7 @@ def index(RELEASE=True):
 
         st.button("Move DOBOT and detect",
                   key='btn_move_dobot', on_click=run_func,
-                  args=(conf, DOBOT_TASK))
+                  args=(mqtt_conf, DOBOT_TASK))
 
         # *********************** Deployment video loop ***********************
         def create_video_writer_if_not_exists(video_idx: int):
@@ -1238,7 +1192,7 @@ def index(RELEASE=True):
                 # TODO: THE VIDEO FILE MIGHT NOT SAVE PROPERLY
                 # usually either MJPG + .avi, or XVID + .mp4 or mp4v + .mp4
                 FOURCC = cv2.VideoWriter_fourcc(*"mp4v")
-                now = get_now_string(timezone=deploy_conf.timezone)
+                now = get_now_string(timezone=conf.timezone)
                 filename = f"video_{video_idx}_{now}.mp4"
                 video_save_path = str(recording_dir / filename)
                 # st.info(f"Video is being saved to **{video_save_path}**")
@@ -1263,7 +1217,7 @@ def index(RELEASE=True):
         widths = []
         heights = []
 
-        for i, col in zip(range(deploy_conf.num_cameras), cycle((video_col_1, video_col_2))):
+        for i, col in zip(range(conf.num_cameras), cycle((video_col_1, video_col_2))):
             with col:
                 video_title_place[i] = st.empty()
                 msg_place[i] = st.empty()
@@ -1274,11 +1228,11 @@ def index(RELEASE=True):
             if i % 2 == 0:
                 st.markdown("___")
 
-            if deploy_conf.video_type == 'Video Camera':
-                cam_title = deploy_conf.camera_titles[i]
+            if conf.video_type == 'Video Camera':
+                cam_title = conf.camera_titles[i]
                 video_title_place[i].subheader(
                     f"Video Camera {i}: {cam_title}")
-                cam_key = deploy_conf.camera_keys[i]
+                cam_key = conf.camera_keys[i]
                 stream = session_state[cam_key].stream
                 deploy_status_place.info(
                     "**Status**: Deployed for camera inputs")
@@ -1322,7 +1276,7 @@ def index(RELEASE=True):
             show_labels = st.checkbox("Show the detected labels", value=True)
 
             if show_labels:
-                for i in range(deploy_conf.num_cameras):
+                for i in range(conf.num_cameras):
                     with result_place[i].container():
                         st.markdown("**Detected Results**")
                         st.markdown("Coming up")
@@ -1343,13 +1297,13 @@ def index(RELEASE=True):
 
         if has_access:
             def update_publishing_conf(is_publishing: bool):
-                deploy_conf.publishing = is_publishing
+                conf.publishing = is_publishing
                 session_state.publishing = is_publishing
                 # also change whether publishing frame or not
-                deploy_conf.publish_frame = is_publishing
+                conf.publish_frame = is_publishing
 
             def update_publish_frame_conf(publish_frame: bool):
-                deploy_conf.publish_frame = publish_frame
+                conf.publish_frame = publish_frame
 
             if session_state.publishing:
                 # using buttons to allow the widget to change after rerun
@@ -1360,7 +1314,7 @@ def index(RELEASE=True):
                 publish_place.button("Start publishing results", key='btn_start_pub',
                                      on_click=update_publishing_conf, args=(True,))
 
-            if deploy_conf.publish_frame:
+            if conf.publish_frame:
                 st.sidebar.button(
                     "Stop publishing frames", key='btn_stop_pub_frame',
                     help="Stop publishing frames as bytes to the MQTT Topic: "
@@ -1373,7 +1327,7 @@ def index(RELEASE=True):
                     f"*{topics.publish_frame}*.  \nNote that this could significantly "
                     "reduce FPS.", on_click=update_publish_frame_conf, args=(True,))
         else:
-            session_state.publishing = deploy_conf.publishing
+            session_state.publishing = conf.publishing
             if session_state.publishing:
                 st.sidebar.markdown("Currently is publishing results to the topic: "
                                     f"*{topics.publish_results}*")
@@ -1381,15 +1335,17 @@ def index(RELEASE=True):
                 st.sidebar.markdown(
                     "Currently is not publishing any results through MQTT.")
 
-            if deploy_conf.publish_frame:
-                st.sidebar.markdown("Currently is publishing output frames to the topic: "
-                                    f"*{topics.publish_frame}*")
+            if conf.publish_frame:
+                st.sidebar.markdown(
+                    "Currently is publishing output frames for each camera to the topics:")
+                for i in range(conf.num_cameras):
+                    st.sidebar.markdown(f"{i}. *{topics.publish_frame}*")
             else:
                 st.sidebar.markdown(
                     "Currently is not publishing any output frames through MQTT.")
 
         # prepare variables for the video deployment loop
-        timezone = deploy_conf.timezone
+        timezone = conf.timezone
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=draw_result, **pipeline_kwargs)
 
@@ -1405,15 +1361,15 @@ def index(RELEASE=True):
             is_image_classif = False
             get_result_fn = partial(deployment.get_detection_results,
                                     get_bbox_coords=get_bbox_coords,
-                                    conf_threshold=deploy_conf.confidence_threshold,
+                                    conf_threshold=conf.confidence_threshold,
                                     timezone=timezone)
         publish_func = partial(client.publish,
-                               topics.publish_results, qos=conf.qos)
+                               topics.publish_results, qos=mqtt_conf.qos)
         publish_frame_funcs = []
-        for i in range(deploy_conf.num_cameras):
+        for i in range(conf.num_cameras):
             publish_frame_funcs.append(
                 partial(client.publish,
-                        topics.publish_frame[i], qos=conf.qos))
+                        topics.publish_frame[i], qos=mqtt_conf.qos))
 
         starting_time = datetime.now()
         csv_path = deployment.get_csv_path(starting_time)
@@ -1422,34 +1378,31 @@ def index(RELEASE=True):
             os.makedirs(csv_dir)
         logger.info(f'Operation begins at: {starting_time.isoformat()}')
         logger.info(f'Inference results will be saved in {csv_dir}')
-        if deploy_conf.video_type == 'Video Camera':
+        if conf.video_type == 'Video Camera':
             video_type = 0
-        elif deploy_conf.video_type == 'From MQTT':
+        elif conf.video_type == 'From MQTT':
             video_type = 1
         else:
             # Uploaded Video
             video_type = 2
-        use_multi_cam = deploy_conf.use_multi_cam
-        camera_keys = deploy_conf.camera_keys
-        cam_titles = deploy_conf.camera_titles
-        camera_view2idx = {
-            v.lower(): i for i, v in enumerate(cam_titles)}
-        display_width = deploy_conf.video_width
-        publish_frame = deploy_conf.publish_frame
-        # to store frame bytes for each camera to publish through MQTT
-        payload_frame = {f'camera_{i}': ''
-                         for i in range(deploy_conf.num_cameras)}
-        print(payload_frame)
+        use_multi_cam = conf.use_multi_cam
+        camera_keys = conf.camera_keys
+        if use_multi_cam:
+            cam_titles = conf.camera_titles
+            camera_view2idx = deployment.get_camera_views_from_titles(
+                cam_titles)
+        else:
+            cam_title = ''
+        display_width = conf.video_width
+        publish_frame = conf.publish_frame
         first_csv_save = True
 
         # start the video deployment loop
-        for i in cycle(range(deploy_conf.num_cameras)):
+        for i in cycle(range(conf.num_cameras)):
             start_time = perf_counter()
 
             if use_multi_cam:
                 cam_title = cam_titles[i]
-            else:
-                cam_title = ''
 
             if session_state.refresh:
                 # refresh page once to refresh the widgets
@@ -1528,12 +1481,14 @@ def index(RELEASE=True):
                 frame_bytes = image_to_bytes(output_img, channels)
                 publish_frame_funcs[i](frame_bytes)
 
-            # NOTE: this session_state is currently ONLY used for DOBOT arm for
-            # object detection demo to detect different labels at different views
+            # NOTE: this session_state is either used for DOBOT arm for
+            # object detection demo to detect different labels at different views,
+            # or can also use for label checking when MQTT message is received
             if session_state.check_labels:
                 # session_state.check_labels should be Tuple[str, List[str]]
                 # generated from validate_received_label_msg() in dobot_view_cb()
                 view, required_labels = session_state.check_labels
+                view: str = view.lower()
 
                 if view == 'end':
                     # clear the messages if the robot motion has ended
@@ -1568,11 +1523,13 @@ def index(RELEASE=True):
                 # if dobot_demo.check_result_labels(results, required_label_cnts):
                 if deployment.check_labels(results, required_labels, DEPLOYMENT_TYPE):
                     logger.info(f"All labels present at '{view}' view")
-                    msg_place[src_idx].success(f"### {view.upper()} view: OK")
+                    msg_place[src_idx].success(
+                        f"### {view.capitalize()} view: OK")
                 else:
                     logger.warning("Required labels are not detected at "
                                    f"'{view}' view")
-                    msg_place[src_idx].error(f"### {view.upper()} view: NG")
+                    msg_place[src_idx].error(
+                        f"### {view.capitalize()} view: NG")
                     save_image(output_img, ng_frame_dir,
                                channels, timezone=timezone, prefix=view)
                     logger.info(f"NG image saved successfully")
@@ -1584,8 +1541,6 @@ def index(RELEASE=True):
                 continue
 
             if session_state.publishing:
-                # if use_multi_cam:
-                #     results['view'] = cam_titles[i]
                 payload = json.dumps(results)
                 publish_func(payload=payload)
 
@@ -1613,12 +1568,6 @@ def index(RELEASE=True):
                 create_csv_file_and_writer(csv_path, results)
                 session_state.today = today
             else:
-                # if use_multi_cam:
-                #     for row in results:
-                #         # save the view for multiple cameras
-                #         row['view'] = cam_titles[i]
-                #         session_state.csv_writer.writerow(row)
-                # else:
                 for row in results:
                     session_state.csv_writer.writerow(row)
 
