@@ -119,10 +119,13 @@ def check_result_labels(results: List[Dict[str, Any]], required_label_cnts: List
 
 
 def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str, qos: int, client_dashboard: dobot_api_dashboard):
+    client_dashboard.SpeedJ(100)
+    client_dashboard.AccJ(100)
+
     # move to origin (top view)
     client_feedback.JointMovJ(
         (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    sleep(3)
+    sleep(2)
 
     # 'top': [('hexagon', 3)]
     # 'back': [('Rectangle', 1)]
@@ -139,39 +142,39 @@ def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str
     client_feedback.JointMovJ(
         (0.54), (-50.16), (-153.78), (114.97), (89.54), (-178))
     # allow time for the dobot arm to move to the position
-    sleep(8)
+    sleep(3.5)
     client.publish(
         topic, '{"labels": ["Rectangle"], "view": "back"}', qos)
-    sleep(2)
+    sleep(1)
 
     # move to right side
     client_feedback.JointMovJ(
         (27.478), (-47.836), (-111.595), (70.479), (89.5876), (-63.62))
-    sleep(5)
+    sleep(2.5)
     client.publish(
         topic, '{"labels": ["circle", "circle"], "view": "right"}', qos)
-    sleep(2)
+    sleep(1)
 
     # move to front side
     client_feedback.JointMovJ(
         (0.56), (-76.07), (-37.9), (25.09), (90.11), (-2.21))
-    sleep(5)
+    sleep(2.5)
     client.publish(
-        topic, '{"labels": ["omron-sticker",], "view": "front"}', qos)
-    sleep(2)
+        topic, '{"labels": ["omron-sticker"], "view": "front"}', qos)
+    sleep(1)
 
     # move to left side
     client_feedback.JointMovJ(
         (-24.19), (-59.51), (-79), (49.49), (90.57), (62.96))
-    sleep(4)
+    sleep(2)
     client.publish(
         topic, '{"labels": ["Triangle", "Triangle"], "view": "left"}', qos)
-    sleep(2)
+    sleep(1)
 
     # move back to origin (top view)
     client_feedback.JointMovJ(
         (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    sleep(5)
+    sleep(3)
     client.publish(topic, '{"view": "end"}', qos)
 
     sleep(1)
@@ -183,6 +186,7 @@ def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client, topic: 
 
     client_dashboard.SpeedJ(100)
     client_dashboard.AccJ(100)
+    cnt_dict = P2_143_VIEW_LABELS
 
     # origin top
     client_feedback.JointMovJ(
@@ -194,7 +198,7 @@ def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client, topic: 
         (0.0539), (-50.2704), (-121.7125), (172.513), (87.4359), (0))
     sleep(2)
     client.publish(
-        topic, '{"labels": ["date", "white dot"], "view": "top"}', qos)
+        topic, get_labels_message(cnt_dict, "top"), qos)
     sleep(1)
 
     # Intermediate 1
@@ -206,14 +210,16 @@ def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client, topic: 
     client_feedback.JointMovJ(
         (21.68), (-54.5190), (-121.4119), (172.052), (65.8095), (-32.8328))
     sleep(2)
-    client.publish(topic, '{"labels": ["top weld"], "view": "top right"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "top right"), qos)
     sleep(1)
 
     # Right 2
     client_feedback.JointMovJ(
         (19.2584), (-51.7799), (-106.9316), (67.7758), (82.393), (-59.3024))
     sleep(3)
-    client.publish(topic, '{"labels": ["top weld"], "view": "right"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "right"), qos)
     sleep(1)
 
     # origin top
@@ -225,14 +231,16 @@ def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client, topic: 
     client_feedback.JointMovJ(
         (-13.2228), (-40.179), (-95.0444), (50.8133), (58.3560), (70.5871))
     sleep(5)
-    client.publish(topic, '{"labels": ["left weld"], "view": "top left"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "top left"), qos)
     sleep(1)
 
     # Left 2
     client_feedback.JointMovJ(
         (-16.1938), (-62.0114), (-67.4206), (41.9222), (87.7707), (31.6594))
     sleep(3)
-    client.publish(topic, '{"labels": ["right weld"], "view": "left"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "left"), qos)
     sleep(1)
 
     # Intermediate 2
@@ -244,7 +252,7 @@ def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client, topic: 
     client_feedback.JointMovJ(
         (0.0523), (-37.6843), (-121.325), (158.5393), (87.4376), (0))
     sleep(4)
-    client.publish(topic, '{"view": "end"}', qos)
+    client.publish(topic, get_labels_message(cnt_dict, "end"), qos)
 
     sleep(1)
     client_dashboard.close()
@@ -255,6 +263,7 @@ def move_for_p2_140(client_feedback: dobot_api_feedback, client: Client, topic: 
 
     client_dashboard.SpeedJ(100)
     client_dashboard.AccJ(100)
+    cnt_dict = P2_140_VIEW_LABELS
 
     # origin top
     client_feedback.JointMovJ(
@@ -266,35 +275,39 @@ def move_for_p2_140(client_feedback: dobot_api_feedback, client: Client, topic: 
         (-6.40), (-45.43), (-110.47), (155.51), (94.68), (0))
     sleep(2)
     client.publish(
-        topic, '{"labels": ["date", "white dot", "bolt"], "view": "top"}', qos)
+        topic, get_labels_message(cnt_dict, "top"), qos)
     sleep(1)
 
     # Left
     client_feedback.JointMovJ(
         (-22.58), (-40.91), (-106.60), (57.53), (91.66), (99.65))
     sleep(2.5)
-    client.publish(topic, '{"labels": ["left weld"], "view": "left"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "left"), qos)
     sleep(1)
 
     # Back
     client_feedback.JointMovJ(
         (-7.41), (-40.81), (-134.49), (87.11), (89.13), (171.68))
     sleep(3)
-    client.publish(topic, '{"labels": ["back weld"], "view": "back"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "back"), qos)
     sleep(1)
 
     # Right
     client_feedback.JointMovJ(
         (24.33), (-48.59), (-106.76), (65.30), (88.57), (-65.50))
     sleep(5)
-    client.publish(topic, '{"labels": ["stud"], "view": "right"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "right"), qos)
     sleep(1)
 
     # Front
     client_feedback.JointMovJ(
         (-3.99), (-70.34), (-44.02), (25.39), (88.55), (3.40))
     sleep(3)
-    client.publish(topic, '{"labels": ["front weld"], "view": "front"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "front"), qos)
     sleep(1)
 
     # Intermediate 1
@@ -306,7 +319,8 @@ def move_for_p2_140(client_feedback: dobot_api_feedback, client: Client, topic: 
     client_feedback.JointMovJ(
         (0.0523), (-37.6843), (-121.325), (158.5393), (87.4376), (0))
     sleep(4)
-    client.publish(topic, '{"view": "end"}', qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "end"), qos)
 
     sleep(1)
     client_dashboard.close()
@@ -330,7 +344,7 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
     sleep(0.5)
 
     if task == DobotTask.Box:
-        move_for_box(client_feedback, client, topic, qos)
+        move_for_box(client_feedback, client, topic, qos, client_dashboard)
     elif task == DobotTask.P2_143:
         move_for_p2_143(client_feedback, client, topic, qos, client_dashboard)
     elif task == DobotTask.P2_140:
