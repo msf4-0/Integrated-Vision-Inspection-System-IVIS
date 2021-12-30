@@ -121,13 +121,16 @@ def check_result_labels(results: List[Dict[str, Any]], required_label_cnts: List
     return False
 
 
-def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str, qos: int):
+def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str, qos: int, client_dashboard: dobot_api_dashboard):
     cnt_dict = BOX_VIEW_LABELS
+
+    client_dashboard.SpeedJ(100)
+    client_dashboard.AccJ(100)
 
     # move to origin (top view)
     client_feedback.JointMovJ(
         (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    sleep(3)
+    sleep(2)
 
     # send the labels and current view in JSON format
     client.publish(
@@ -138,39 +141,39 @@ def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str
     client_feedback.JointMovJ(
         (0.54), (-50.16), (-153.78), (114.97), (89.54), (-178))
     # allow time for the dobot arm to move to the position
-    sleep(8)
+    sleep(3.5)
     client.publish(
         topic, get_labels_message(cnt_dict, "back"), qos)
-    sleep(2)
+    sleep(1)
 
     # move to right side
     client_feedback.JointMovJ(
         (27.478), (-47.836), (-111.595), (70.479), (89.5876), (-63.62))
-    sleep(5)
+    sleep(2.5)
     client.publish(
         topic, get_labels_message(cnt_dict, "right"), qos)
-    sleep(2)
+    sleep(1)
 
     # move to front side
     client_feedback.JointMovJ(
         (0.56), (-76.07), (-37.9), (25.09), (90.11), (-2.21))
-    sleep(5)
+    sleep(2.5)
     client.publish(
         topic, get_labels_message(cnt_dict, "front"), qos)
-    sleep(2)
+    sleep(1)
 
     # move to left side
     client_feedback.JointMovJ(
         (-24.19), (-59.51), (-79), (49.49), (90.57), (62.96))
-    sleep(4)
+    sleep(2)
     client.publish(
         topic, get_labels_message(cnt_dict, "left"), qos)
-    sleep(2)
+    sleep(1)
 
     # move back to origin (top view)
     client_feedback.JointMovJ(
         (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    sleep(5)
+    sleep(3)
     client.publish(topic, get_labels_message(cnt_dict, "end"), qos)
 
     sleep(1)
@@ -181,6 +184,7 @@ def move_for_p2_143(client_feedback: dobot_api_feedback, client: Client, topic: 
 
     client_dashboard.SpeedJ(100)
     client_dashboard.AccJ(100)
+    cnt_dict = P2_143_VIEW_LABELS
 
     # origin top
     client_feedback.JointMovJ(
@@ -256,6 +260,7 @@ def move_for_p2_140(client_feedback: dobot_api_feedback, client: Client, topic: 
 
     client_dashboard.SpeedJ(100)
     client_dashboard.AccJ(100)
+    cnt_dict = P2_140_VIEW_LABELS
 
     # origin top
     client_feedback.JointMovJ(
@@ -328,7 +333,7 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
     sleep(0.5)
 
     if task == DobotTask.Box:
-        move_for_box(client_feedback, client, topic, qos)
+        move_for_box(client_feedback, client, topic, qos, client_dashboard)
     elif task == DobotTask.P2_143:
         move_for_p2_143(client_feedback, client, topic, qos, client_dashboard)
     elif task == DobotTask.P2_140:
