@@ -1177,8 +1177,8 @@ def index(RELEASE=True):
         # *********************** DOBOT arm demo ***********************
         # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
         # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part P2/143
-        # DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
-        DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
+        DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
+        # DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
         run_func = dobot_demo.run
 
         if DOBOT_TASK == dobot_demo.DobotTask.Box:
@@ -1193,9 +1193,14 @@ def index(RELEASE=True):
 
         if st.button("Move DOBOT and detect", key='btn_move_dobot'):
             with st.spinner("Preparing to run dobot ..."):
+                logger.info("Preparing to run dobot")
                 # this will take some time to connect to the dobot api
                 # and then start moving the dobot in another thread
-                run_func(mqtt_conf, DOBOT_TASK)
+                dobot_connnect_success = run_func(mqtt_conf, DOBOT_TASK)
+                if not dobot_connnect_success:
+                    st.error("Failed to connect to DOBOT for demo")
+                    logger.error("Failed to connect to DOBOT for demo")
+                    st.stop()
 
         # *********************** Deployment video loop ***********************
         def create_video_writer_if_not_exists(video_idx: int):

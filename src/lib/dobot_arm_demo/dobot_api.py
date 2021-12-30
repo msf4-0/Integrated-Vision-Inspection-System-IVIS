@@ -36,10 +36,11 @@ class dobot_api_dashboard:
             try:     
                 self.socket_dashboard = socket.socket() 
                 self.socket_dashboard.connect((self.ip, self.port))
-            except socket.error:
-                print("Fail to setup socket connection !", socket.error)
+            except socket.error as e:
+                raise socket.error(
+                    f"Fail to setup socket connection !: {e}")
         else:
-            print("Connect to dashboard server need use port 29999 !")
+            raise Exception("Connect to dashboard server need use port 29999 !")
 
     def __delete__(self):
         self.close()
@@ -424,10 +425,10 @@ class dobot_api_feedback:
             try:      
                 self.socket_feedback = socket.socket() 
                 self.socket_feedback.connect((self.ip, self.port))
-            except socket.error:
-                print("Fail to connect feedback server !", socket.error)
+            except socket.error as e:
+                raise socket.error(f"Fail to connect feedback server !: {e}")
         else:
-            print("Connect to feedback server need use port 30003 !")
+            raise Exception("Connect to feedback server need use port 30003 !")
 
 
     def __del__(self):

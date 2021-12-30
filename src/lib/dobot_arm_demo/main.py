@@ -352,7 +352,7 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
     client.disconnect()
 
 
-def debug_run(conf: MQTTConfig, task: DobotTask):
+def debug_run(conf: MQTTConfig, task: DobotTask) -> bool:
     """
     A debugging function to test publishing to the topic subscribed by our client
     in the deployment_page.
@@ -388,6 +388,7 @@ def debug_run(conf: MQTTConfig, task: DobotTask):
 
     p1 = Thread(target=debug_publish)
     p1.start()
+    return True
 
 
 def data_feedback(client_feedback: dobot_api_feedback):
@@ -404,16 +405,22 @@ def data_feedback(client_feedback: dobot_api_feedback):
             print('q_actual', np.around(a['q_actual'], decimals=4))
 
 
-def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box):
+def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box) -> bool:
     # Enable threads on ports 29999 and 30003
-    client_dashboard = dobot_api_dashboard('192.168.5.1', 29999)
-    client_feedback = dobot_api_feedback('192.168.5.1', 30003)
+    try:
+        client_dashboard = dobot_api_dashboard('192.168.5.1', 29999)
+        client_feedback = dobot_api_feedback('192.168.5.1', 30003)
+    except Exception as e:
+        logger.error(f"Error connecting to DOBOT with error: {e}")
+        return False
 
     p1 = Thread(
         target=move_and_publish_view,
         args=(client_dashboard, client_feedback, conf, task)
     )
     p1.start()
+
+    return True
 
     # Not using all these for our vision inspection app
     # p2 = Thread(target=data_feedback, args=(client_feedback,))
