@@ -76,7 +76,7 @@ from path_desc import DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR, TFOD_MODELS_
 from .command_utils import (export_tfod_savedmodel, find_tfod_eval_metrics, run_command,
                             run_command_update_metrics, find_tfod_metric)
 from .utils import (NASNET_IMAGENET_INPUT_SHAPES, check_unique_label_counts, classification_predict, copy_images,
-                    custom_train_test_split, generate_tfod_xml_csv, get_bbox_label_info,
+                    custom_train_test_split, generate_tfod_xml_csv, get_bbox_label_info, get_ckpt_cnt,
                     get_classif_model_preprocess_func, get_test_images_labels,
                     get_tfod_last_ckpt_path, get_tfod_test_set_data, get_transform,
                     load_image_into_numpy_array, load_keras_model, load_labelmap,
@@ -161,11 +161,7 @@ class Trainer:
         if self.deployment_type == 'Object Detection with Bounding Boxes':
             if not is_resume:
                 self.reset_tfod_progress()
-            else:
-                progress = session_state.new_training.progress
-                progress['Checkpoint'] += 1
-                session_state.new_training.update_progress(progress)
-            self.run_tfod_training(stdout_output)
+            self.run_tfod_training(stdout_output, is_resume=is_resume)
         else:
             if train_one_batch:
                 logger.info("Test training on only one batch of data")
@@ -275,7 +271,7 @@ class Trainer:
                 'exported_model': exported_found,
                 'model_tarfile': model_tarfile_found}
 
-    def run_tfod_training(self, stdout_output: bool = False):
+    def run_tfod_training(self, stdout_output: bool = False, is_resume: bool = False):
         """
         Run training for TensorFlow Object Detection (TFOD) API.
         Can be used for Mask R-CNN model for image segmentation if wanted.
@@ -283,7 +279,10 @@ class Trainer:
         generated from the script.
         """
         # training_param only consists of 'batch_size' and 'num_train_steps'
-        # TODO: beware of user-uploaded model
+
+        # store this to update the total trained steps later when resuming training
+        if is_resume:
+            previous_trained_steps = session_state.new_training.progress['Step']
 
         # this name is used for the output model paths, see self.training_path
         CUSTOM_MODEL_NAME = self.training_model_name
@@ -475,6 +474,11 @@ class Trainer:
             'research' / 'object_detection' / 'model_main_tf2.py'
         # change the training steps as necessary, recommended start with 300 to test whether it's working, then train for at least 2000 steps
         num_train_steps = self.training_param['num_train_steps']
+        # if is_resume:
+        #     # NOTE: this does not work properly sometimes... I'M NOT SURE WHY
+        #     # TFOD takes into account the total steps, instead of resume training
+        #     # with the steps specified
+        #     num_train_steps += session_state.new_training.progress['Step']
 
         start = perf_counter()
         command = (f'python "{TRAINING_SCRIPT}" '
@@ -510,6 +514,18 @@ class Trainer:
         m, s = int(m), int(s)
         logger.info(f'Finished training! Took {m}m {s}s')
         st.success(f'Model has finished training! Took **{m}m {s}s**')
+
+        # update checkpoint number only if training is successful
+        progress = session_state.new_training.progress
+        # progress['Checkpoint'] += 1
+        latest_ckpt_path = get_tfod_last_ckpt_path(paths['models'])
+        ckpt_cnt = get_ckpt_cnt(str(latest_ckpt_path))
+        progress['Checkpoint'] = ckpt_cnt
+        if is_resume:
+            # get the steps by adding to the trained steps of the previous session
+            progress['Step'] += previous_trained_steps
+        session_state.new_training.update_progress(
+            progress, verbose=True)
 
         # ************************ EVALUATION ************************
         start = perf_counter()

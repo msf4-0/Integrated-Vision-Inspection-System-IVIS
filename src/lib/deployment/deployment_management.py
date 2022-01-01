@@ -332,6 +332,9 @@ class Deployment(BaseDeployment):
             self.encoded_label_dict = get_label_dict_from_labelmap(
                 labelmap_path)
 
+        tf.keras.backend.clear_session()
+        gc.collect()
+
     def classification_inference_pipeline(
             self, img: np.ndarray, **kwargs) -> Tuple[str, float]:
         preprocessed_img = preprocess_image(img, self.image_size)
@@ -573,7 +576,6 @@ class Deployment(BaseDeployment):
         """Method to reset all widgets and attributes in the Deployment Pages when changing pages
         """
         tf.keras.backend.clear_session()
-        gc.collect()
 
         reset_video_deployment()
         reset_record_and_vid_writer()
@@ -587,6 +589,9 @@ class Deployment(BaseDeployment):
         ]
 
         reset_page_attributes(project_attributes)
+
+        # run garbage collect at the end
+        gc.collect()
 
 
 def main():

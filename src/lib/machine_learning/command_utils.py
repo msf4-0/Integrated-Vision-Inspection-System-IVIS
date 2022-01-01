@@ -3,6 +3,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import signal
 import pprint
 from pathlib import Path
 from time import sleep
@@ -149,6 +150,17 @@ def check_process_returncode(returncode: int, traceback: List[str]) -> Union[str
         return traceback
 
 
+def kill_process(pid: int):
+    """Kill the process of the given pid."""
+    logger.debug(f"Killing process with pid {pid}")
+    if os.name == 'nt':
+        # Windows only supports termination signal
+        sig = signal.SIGTERM
+    else:
+        sig = signal.SIGKILL
+    os.kill(pid, sig)
+
+
 def run_command(command_line_args: str, st_output: bool = False,
                 stdout_output: bool = True,
                 filter_by: Optional[List[str]] = None,
@@ -177,21 +189,23 @@ def run_command(command_line_args: str, st_output: bool = False,
         # is required to work properly in Linux
         command_line_args = shlex.split(command_line_args)
     logger.debug(f"{stdout_output = }")
-    # shell=True to work on String instead of list -- not really sure about this...
-    # using shell=False for COCO eval to easily stop the process with process.terminate()
-    # shell = False if is_cocoeval else True
     process = subprocess.Popen(command_line_args, shell=False,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
                                text=True)
+    # store this process ID to kill it in case the user wants to stop the training
+    session_state.process_id = process.pid
+
     if filter_by:
         output_str_list = []
     traceback_found = False
     traceback = []
     for line in process.stdout:
-        # avoid line with only spaces
-        if line.strip():
+        # avoid line with only spaces, and use rstrip() as most of the lines
+        # got trailing newlines '\n'
+        line = line.rstrip()
+        if line:
             if stdout_output:
                 print(line)
             if 'Traceback' in line:
@@ -215,6 +229,10 @@ def run_command(command_line_args: str, st_output: bool = False,
     # wait for the process to terminate and check for any error
     returncode = process.wait()
     traceback = check_process_returncode(returncode, traceback)
+
+    # ensure the child process is properly killed
+    process.kill()
+    del session_state.process_id
 
     if filter_by and not output_str_list:
         # there is nothing obtained from the filtered stdout
@@ -336,6 +354,8 @@ def run_command_update_metrics(
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
                                text=True)
+    # store this process ID to kill it in case the user wants to stop the training
+    session_state.process_id = process.pid
 
     pretty_metric_printer = PrettyMetricPrinter()
     # list of stored stdout lines
@@ -347,7 +367,8 @@ def run_command_update_metrics(
     traceback = []
     for line in process.stdout:
         # avoid line with only spaces
-        if line.strip():
+        line = line.rstrip()
+        if line:
             if stdout_output:
                 # print to console
                 print(line)
@@ -386,7 +407,7 @@ def run_command_update_metrics(
                 session_state.new_training.update_progress(
                     session_state.new_training.progress, verbose=True)
 
-                text = (f"**{step_name}**: {curr_step}. "
+                text = (f"**{step_name}**: {curr_step}/{total_steps}. "
                         f"**Per-Step Time**: {step_time:.3f}s.")
                 if curr_step != total_steps:
                     # only show ETA when it's not final epoch
@@ -413,6 +434,11 @@ def run_command_update_metrics(
     # wait for the process to terminate and check for any error
     returncode = process.wait()
     traceback = check_process_returncode(returncode, traceback)
+
+    # ensure the child process is properly killed
+    process.kill()
+    del session_state.process_id
+
     if traceback:
         return traceback
 

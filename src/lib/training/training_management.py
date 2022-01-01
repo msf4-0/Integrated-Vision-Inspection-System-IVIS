@@ -408,7 +408,8 @@ class BaseTraining:
         Returns:
             bool: True is successful, otherwise False
         """
-        if name is not None:
+        # only need to rename the path if it's new name
+        if name is not None and name != self.name:
             current_training_path = self.get_training_path(
                 self.project_path, self.name)
             if current_training_path.exists():
@@ -416,8 +417,8 @@ class BaseTraining:
                 new_path = self.get_training_path(
                     self.project_path, name)
 
-                logger.info("Renaming existing training path to new path:"
-                            f"{current_training_path} -> {self.project_path}")
+                logger.info("Renaming existing training path to new path: "
+                            f"{current_training_path} -> {new_path}")
                 os.rename(current_training_path, new_path)
             self.name = name
 
@@ -1639,7 +1640,7 @@ class Training(BaseTraining):
 
         training_attributes = ["training", "training_pagination", "labelling_pagination",
                                "all_task", "new_training", "trainer", "start_idx",
-                               "augmentation_config"
+                               "augmentation_config", "process_id"
                                ]
         # this might be required to avoid issues with caching model-related variables
         # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89

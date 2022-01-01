@@ -1177,8 +1177,8 @@ def index(RELEASE=True):
         # *********************** DOBOT arm demo ***********************
         # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
         # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part P2/143
-        DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
-        # DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
+        # DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
+        DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
         run_func = dobot_demo.run
 
         if DOBOT_TASK == dobot_demo.DobotTask.Box:

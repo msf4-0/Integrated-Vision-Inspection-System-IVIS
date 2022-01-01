@@ -535,6 +535,12 @@ def get_label_dict_from_labelmap(labelmap_path) -> Dict[int, str]:
     return encoded_label_dict
 
 
+def get_ckpt_cnt(path: str):
+    """Get the checkpoint number from the path (str, not Path)"""
+    ckpt = path.split("ckpt-")[-1].split(".")[0]
+    return int(ckpt)
+
+
 def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
     """Find and return the latest TFOD checkpoint path. 
 
@@ -546,11 +552,6 @@ def get_tfod_last_ckpt_path(ckpt_dir: Path) -> Path:
         logger.warning("There is no checkpoint file found, the TFOD model is "
                        "not trained yet.")
         return None
-
-    def get_ckpt_cnt(path):
-        # get the number of checkpoint
-        ckpt = path.split("ckpt-")[-1].split(".")[0]
-        return int(ckpt)
 
     latest_ckpt = sorted(ckpt_filepaths, key=get_ckpt_cnt, reverse=True)[0]
     return Path(latest_ckpt)

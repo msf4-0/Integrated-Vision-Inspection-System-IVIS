@@ -397,7 +397,9 @@ def index(RELEASE=True):
             if export_path.exists():
                 # not required after showing evaluation to the user
                 shutil.rmtree(export_path)
+            nonlocal trainer
             session_state.deployment = Deployment.from_trainer(trainer)
+            del trainer
         else:
             session_state.deployment = Deployment.from_uploaded_model(
                 model, uploaded_model_dir, category_index)

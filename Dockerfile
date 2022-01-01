@@ -41,6 +41,7 @@ RUN mkdir /home/myuser/TFOD && git clone https://github.com/tensorflow/models /h
 
 # TFOD installation
 # these are same with the tfod_installation.py script
+# based on (might change in the future) https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/install.html#install-the-object-detection-api
 RUN cd /home/myuser/TFOD/models/research && \
     protoc object_detection/protos/*.proto --python_out=. && \
     cp object_detection/packages/tf2/setup.py setup.py && \

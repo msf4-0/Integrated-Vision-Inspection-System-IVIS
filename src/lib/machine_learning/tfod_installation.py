@@ -57,6 +57,7 @@ def run_command(command_line_args):
         if line:
             print(line)
     process.wait()
+    process.kill()
     return process.stdout
 
 

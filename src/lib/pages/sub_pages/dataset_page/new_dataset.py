@@ -686,6 +686,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         button_place.empty()
 
                         def enter_project_cb():
+                            NewProject.reset_new_project_page()
                             NewDataset.reset_new_dataset_page()
                             # also could be coming from project dashboard
                             Project.reset_dashboard_page()

@@ -51,7 +51,7 @@ import tensorflow as tf
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 from machine_learning.trainer import Trainer
-from machine_learning.command_utils import run_tensorboard
+from machine_learning.command_utils import kill_process, run_tensorboard
 from machine_learning.visuals import pretty_format_param
 from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training, TrainingPagination
@@ -241,17 +241,23 @@ def index(RELEASE=True):
                 logger.info(f"Removing existing training directory {root}")
                 shutil.rmtree(root)
 
-            logger.info("Creating training directories ...")
-            training.initialise_training_folder()
-
-        def stop_run_training():
-            # BEWARE that this will just refresh the page
-            message_place.warning("Training stopped!")
-            sleep(2)
-            message_place.empty()
+        logger.info("Creating training directories if not exists ...")
+        training.initialise_training_folder()
 
         # moved stop button into callback function to only show when training is started
         btn_stop_col, _ = st.columns([1, 1])
+
+        def stop_run_training():
+            # this process_id is from `run_command()` or `run_command_update_metrics()`
+            if session_state.get('process_id'):
+                with btn_stop_col:
+                    with st.spinner("Stopping the training process ..."):
+                        logger.info("Stopping the training process")
+                        kill_process(session_state.process_id)
+                    del session_state.process_id
+                    st.warning("Training stopped!")
+            sleep(2)
+
         with btn_stop_col:
             st.button("⛔ Stop Training", key='btn_stop_training',
                       on_click=stop_run_training)
@@ -413,7 +419,6 @@ def index(RELEASE=True):
                 # only show Export button if model checkpoint/weights file is found
                 elif exist_dict['ckpt']:
                     def export_callback():
-                        # with message_place.container():
                         try:
                             trainer.export_model(re_export=False)
                         except Exception as e:
@@ -445,7 +450,9 @@ def index(RELEASE=True):
                 resume_train = st.button(
                     "⚡ Continue training", key='btn_resume_train')
                 st.warning('✏️ If you think your model needs more training, '
-                           'This will continue training your model from the latest progress.')
+                           'This will continue training your model with the training steps '
+                           'or epochs specified, e.g. 200 steps = continue training for '
+                           'another 200 steps.')
 
         with result_place.container():
             metric_col_1, _ = st.columns([1, 1])
