@@ -173,6 +173,14 @@ def index(RELEASE=True):
         NOTE: `conf_attr` must exist in the `session_state` (usually is the widget's state)
         and must be the same with the `DeploymentConfig` attribute's name."""
         val = session_state[conf_attr]
+        logger.debug(f"New value for {conf_attr}: {val}")
+        val_type = conf.__annotations__[conf_attr]
+        # logger.debug(f"{val_type = }")
+        # logger.debug(f"{type(val_type) = }")
+        if val_type == "int":
+            # cast to int to avoid issues when changing the widgets too fast
+            logger.debug(f"Casting DeploymentConfig.{conf_attr} to int")
+            val = int(val)
         logger.info(f"Updated deployment config: {conf_attr} = {val}")
         setattr(conf, conf_attr, val)
 
@@ -560,10 +568,14 @@ def index(RELEASE=True):
                             args=('use_multi_cam',)):
                         conf.num_cameras = (2 if conf.num_cameras == 1
                                             else conf.num_cameras)
-                        st.number_input(
-                            "Number of cameras", 2, 5, conf.num_cameras, 1,
-                            key='num_cameras', on_change=update_and_reset_multi_cam_conf,
-                            args=('num_cameras',))
+                        with st.form("form_num_cameras", clear_on_submit=True):
+                            st.number_input(
+                                "Number of cameras", 2, 5, conf.num_cameras, 1,
+                                key='num_cameras')
+                            st.form_submit_button(
+                                "Update number of cameras",
+                                on_click=update_and_reset_multi_cam_conf,
+                                args=('num_cameras',))
 
                     if len(conf.camera_types) != conf.num_cameras:
                         conf.camera_types = [

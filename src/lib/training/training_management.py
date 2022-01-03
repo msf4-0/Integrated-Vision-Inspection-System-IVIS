@@ -221,6 +221,8 @@ class BaseTraining:
         #  `min_area`, `min_visibility` and `train_size`
         self.augmentation_config: AugmentationConfig()
         self.is_started: bool = False
+        # NOTE: progress for TFOD should be {'Step': <int>, 'Checkpoint': <int>}
+        # and classification/segmentation should be {'Epoch': <int>}
         self.progress: Dict[str, int] = {}
         # currently training_path is created using `Training.get_paths()`
         # self.training_path: Dict[str, Path] = {
@@ -1047,8 +1049,6 @@ class Training(BaseTraining):
                         progress: Dict[str, int],
                         is_started: bool = True,
                         verbose: bool = False):
-        # NOTE: progress for TFOD should be {'Step': <int>, 'Checkpoint': <int>}
-
         self.is_started = is_started
         self.progress = progress
 

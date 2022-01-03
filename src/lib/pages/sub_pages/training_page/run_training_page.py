@@ -266,22 +266,6 @@ def index(RELEASE=True):
 
         logdir = training_paths['tensorboard_logdir']
 
-        if training.deployment_type == 'Object Detection with Bounding Boxes':
-            # NOTE: the TensorBoard callback will actually create a `train` and a `validation`
-            #  folders and store the logs inside this folder, so don't accidentally
-            #  delete this entire folder
-            logdir_folders = (logdir / 'train', logdir / 'validation')
-            for p in logdir_folders:
-                if p.exists():
-                    # this is to avoid the problem with Tensorboard displaying
-                    # overlapping graphs when continue training, because the
-                    # TFOD 'Step' always starts from 0 even though we are continue
-                    # training from an existing checkpoint
-                    # NOTE that this only happens on certain PCs, not sure why
-                    logger.debug("Removing existing TensorBoard logdir "
-                                 f"before training: {p}")
-                    shutil.rmtree(p)
-
         with st.spinner("Loading TensorBoard ..."):
             st.markdown("Refresh the Tensorboard by clicking the refresh "
                         "icon during training to see the progress:")
@@ -449,10 +433,23 @@ def index(RELEASE=True):
             with resume_train_col:
                 resume_train = st.button(
                     "⚡ Continue training", key='btn_resume_train')
-                st.warning('✏️ If you think your model needs more training, '
-                           'This will continue training your model with the training steps '
-                           'or epochs specified, e.g. 200 steps = continue training for '
-                           'another 200 steps.')
+                if training.deployment_type == 'Object Detection with Bounding Boxes':
+                    num_train_steps = training.training_param_dict['num_train_steps']
+                    current_step = training.progress['Step']
+                    total_steps = current_step + num_train_steps
+                    value_msg = f"""**{num_train_steps}** steps. Current step is 
+                    **{current_step}**, i.e. after training, total of **{total_steps}**
+                    steps"""
+                else:
+                    epochs = training.training_param_dict['num_epochs']
+                    current_epoch = training.progress['Epoch']
+                    total_epochs = current_epoch + epochs
+                    value_msg = f"""**{epochs}** epochs. Current epoch is
+                    **{current_epoch}**, i.e. after training, total of
+                    **{total_epochs}** epochs"""
+                st.warning(
+                    f"""✏️ This will continue training your model based on the training
+                    config specified: {value_msg}.""")
 
         with result_place.container():
             metric_col_1, _ = st.columns([1, 1])

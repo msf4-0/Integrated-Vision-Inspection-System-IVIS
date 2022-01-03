@@ -472,19 +472,26 @@ class Trainer:
 
         TRAINING_SCRIPT = TFOD_DIR / \
             'research' / 'object_detection' / 'model_main_tf2.py'
+        # NOTE: also save a checkpoint every 100 steps. And by default, only the latest
+        # 7 checkpoints are kept. For parameter details, check the training script file's
+        # model_lib_v2.train_loop(). SIDE NOTE: THIS is required to properly continue 
+        # training from the latest checkpoint! But checkpoint files could take up a lot of
+        # space so be careful...
+        checkpoint_every_n = 100
         # change the training steps as necessary, recommended start with 300 to test whether it's working, then train for at least 2000 steps
         num_train_steps = self.training_param['num_train_steps']
-        # if is_resume:
-        #     # NOTE: this does not work properly sometimes... I'M NOT SURE WHY
-        #     # TFOD takes into account the total steps, instead of resume training
-        #     # with the steps specified
-        #     num_train_steps += session_state.new_training.progress['Step']
+        if is_resume:
+            # TFOD takes into account the total steps, instead of resume training
+            # with the steps specified. But currently we allow the user to input
+            # the num_train_steps the user wishes to resume training, so we need this
+            num_train_steps += session_state.new_training.progress['Step']
 
         start = perf_counter()
         command = (f'python "{TRAINING_SCRIPT}" '
                    f'--model_dir "{paths["models"]}" '
                    f'--pipeline_config_path "{paths["config_file"]}" '
-                   f'--num_train_steps {num_train_steps}')
+                   f'--num_train_steps {num_train_steps} '
+                   f'--checkpoint_every_n {checkpoint_every_n}')
         with st.spinner("**Training started ... This might take awhile ... "
                         "Do not refresh the page **"):
             logger.info('Start training')
@@ -521,9 +528,9 @@ class Trainer:
         latest_ckpt_path = get_tfod_last_ckpt_path(paths['models'])
         ckpt_cnt = get_ckpt_cnt(str(latest_ckpt_path))
         progress['Checkpoint'] = ckpt_cnt
-        if is_resume:
-            # get the steps by adding to the trained steps of the previous session
-            progress['Step'] += previous_trained_steps
+        # if is_resume:
+        #     # get the steps by adding to the trained steps of the previous session
+        #     progress['Step'] += previous_trained_steps
         session_state.new_training.update_progress(
             progress, verbose=True)
 

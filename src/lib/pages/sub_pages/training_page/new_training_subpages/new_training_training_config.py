@@ -93,6 +93,7 @@ def training_configuration(RELEASE=True):
         # to change NoneType to a Dict
         param_dict = {}
     logger.debug(f"{param_dict = }")
+    msg_place = {}
 
     train_config_col, details_col = st.columns([1.5, 2])
 
@@ -268,16 +269,27 @@ def training_configuration(RELEASE=True):
                     detection models requires a lot of memory, so do not try to simply increase
                     the batch size if you are not sure whether you have enough GPU memory."""
                 )
-                st.number_input(
+                num_train_steps = st.number_input(
                     "Number of training steps", min_value=100,
                     # NOTE: this max_value should be adjusted according to our server limit
                     max_value=20_000,
                     value=num_train_steps,
-                    step=50, key='param_num_train_steps',
-                    help="Recommended to train for at least **2000** steps."
+                    step=100, key='param_num_train_steps',
+                    help="Recommended to train for at least **2000** steps. "
+                    "Checkpoint is saved at every 100 steps."
                 )
-                st.form_submit_button("Submit Config",
-                                      on_click=update_training_param)
+                msg_place['num_train_steps'] = st.empty()
+                submit = st.form_submit_button("Submit Config")
+            if submit:
+                if num_train_steps % 100 != 0:
+                    msg_place['num_train_steps'].error(
+                        """Number of training steps must be a multiple of 100 because
+                        the checkpoint is saved at every 100 steps, and this is required
+                        to be able to properly continue training from previous steps
+                        when necessary.""")
+                    st.stop()
+                update_training_param()
+                st.experimental_rerun()
 
         # ****************** Model parameters for keras_unet_collection models ******************
         # no need these params if the attached_model is not pretrained (i.e. is uploaded
@@ -441,10 +453,8 @@ def training_configuration(RELEASE=True):
                     check_segmentation_model()
 
     if DEPLOYMENT_TYPE == "Semantic Segmentation with Polygons":
-        if st.button("Submit Config", key='btn_training_config_submit'):
-            update_training_param()
-            st.experimental_rerun()
-
+        st.button("Submit Config", key='btn_training_config_submit',
+                  on_click=update_training_param)
     # ******************************BACK BUTTON******************************
 
     def to_models_page():
