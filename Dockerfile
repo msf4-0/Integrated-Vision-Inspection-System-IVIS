@@ -71,7 +71,7 @@ COPY . .
 
 # this is required to allow the CSV files to be overwritten when
 # running model_details_db_setup.scrape_setup_model_details()
-RUN chmod 666 /home/myuser/code/resources/pretrained_model_tables
+RUN chmod -R 666 /home/myuser/code/resources/pretrained_model_tables
 
 RUN mkdir -p /home/myuser/code/TFOD/models/research/object_detection
 # copy TFOD stuff to the desired path of "TFOD_DIR" as defined in path_desc.py
