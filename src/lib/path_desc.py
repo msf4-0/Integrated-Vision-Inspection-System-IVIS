@@ -84,16 +84,20 @@ USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
 TEMP_DIR = BASE_DATA_DIR / 'temp'
 
 # Pretrained model details
-# assuming this file is in "utils" directory
-RESOURCES_DIR = _CURR_FILEPATH.parents[2] / 'resources'
+# assuming this folder is in "utils/resources/" directory
+# NOTE: this foldername is also being used in Dockerfile
+PRETRAINED_MODEL_TABLES_DIR = _CURR_FILEPATH.parents[2] / \
+    'resources' / 'pretrained_model_tables'
 # this table has columns: Model Name
-TFOD_MODELS_TABLE_PATH = RESOURCES_DIR / 'tfod_pretrained_models.csv'
+TFOD_MODELS_TABLE_PATH = PRETRAINED_MODEL_TABLES_DIR / 'tfod_pretrained_models.csv'
 # Keras image classification pretrained model names from
 # https://www.tensorflow.org/api_docs/python/tf/keras/applications
 # this table has columns: Model Name
-CLASSIF_MODELS_NAME_PATH = RESOURCES_DIR / 'classif_pretrained_models.csv'
+CLASSIF_MODELS_NAME_PATH = PRETRAINED_MODEL_TABLES_DIR / \
+    'classif_pretrained_models.csv'
 # this table has columns: model_func, Model Name, Reference, links
-SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
+SEGMENT_MODELS_TABLE_PATH = PRETRAINED_MODEL_TABLES_DIR / \
+    'segment_pretrained_models.csv'
 
 # folder to store the code cloned for TensorFlow Object Detection (TFOD)
 # from https://github.com/tensorflow/models

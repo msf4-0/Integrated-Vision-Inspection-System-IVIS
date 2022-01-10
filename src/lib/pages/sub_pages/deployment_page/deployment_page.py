@@ -66,7 +66,7 @@ from machine_learning.visuals import create_class_colors, create_color_legend
 from deployment.deployment_management import DeploymentConfig, DeploymentPagination, Deployment
 from deployment.utils import (ORI_PUBLISH_FRAME_TOPIC, MQTTConfig, MQTTTopics,
                               create_csv_file_and_writer, image_from_buffer, image_to_bytes,
-                              get_mqtt_client, read_images_from_uploaded, reset_video_deployment)
+                              get_mqtt_client, read_images_from_uploaded, reset_camera, reset_video_deployment)
 from dobot_arm_demo import main as dobot_demo
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
@@ -183,6 +183,39 @@ def index(RELEASE=True):
             val = int(val)
         logger.info(f"Updated deployment config: {conf_attr} = {val}")
         setattr(conf, conf_attr, val)
+
+    def load_multi_webcams():
+        conf.camera_keys = []
+        for i, src in enumerate(conf.camera_sources):
+            with st.spinner(f"Loading up camera {i} ..."):
+                # NOTE: these keys must start with 'camera' to be able to
+                # reset them in reset_camera()
+                if conf.camera_types[i] == 'USB Camera':
+                    cam_key = f'camera_{i}'
+                else:
+                    # using a different key for IP camera to avoid release it
+                    # during reset_camera()
+                    cam_key = f'camera_ip_{i}'
+                conf.camera_keys.append(cam_key)
+
+                try:
+                    session_state[cam_key] = WebcamVideoStream(
+                        src=src).start()
+                    if session_state[cam_key].read() is None:
+                        raise Exception(
+                            "Video source is not valid")
+                except Exception as e:
+                    st.error(
+                        f"Unable to read from video source {src}")
+                    logger.error(
+                        f"Unable to read from video source {src}: {e}")
+                    reset_camera()
+                    st.stop()
+
+        session_state.deployed = True
+        sleep(2)  # give the cameras some time to sink in
+        # rerun just to avoid displaying unnecessary buttons
+        # st.experimental_rerun()
 
     # connect MQTT broker and set up callbacks
     if not session_state.client_connected:
@@ -1049,42 +1082,8 @@ def index(RELEASE=True):
                             help='Deploy your model with the selected camera source'):
                         st.stop()
 
-                    if conf.use_multi_cam:
-                        spinner_label = f"Loading up {conf.num_cameras} cameras ..."
-                    else:
-                        spinner_label = f"Loading up the camera ..."
+                    load_multi_webcams()
 
-                    with st.spinner(spinner_label):
-                        conf.camera_keys = []
-                        for i, src in enumerate(conf.camera_sources):
-                            # NOTE: these keys must start with 'camera' to be able to
-                            # reset them in reset_camera()
-                            if conf.camera_types[i] == 'USB Camera':
-                                cam_key = f'camera_{i}'
-                            else:
-                                # using a different key for IP camera to avoid release it
-                                # during reset_camera()
-                                cam_key = f'camera_ip_{i}'
-                            conf.camera_keys.append(cam_key)
-
-                            # NOTE: VideoStream does not work with filepath
-                            try:
-                                session_state[cam_key] = WebcamVideoStream(
-                                    src=src).start()
-                                if session_state[cam_key].read() is None:
-                                    raise Exception(
-                                        "Video source is not valid")
-                            except Exception as e:
-                                st.error(
-                                    f"Unable to read from video source {src}")
-                                logger.error(
-                                    f"Unable to read from video source {src}: {e}")
-                                st.stop()
-
-                        session_state.deployed = True
-                        sleep(2)  # give the cameras some time to sink in
-                        # rerun just to avoid displaying unnecessary buttons
-                        # st.experimental_rerun()
             elif conf.video_type == 'Uploaded Video':
                 if video_file is None:
                     logger.info("Resetting video deployment")
@@ -1136,6 +1135,7 @@ def index(RELEASE=True):
                                      f"'{video_file.name}'")
                             logger.error(f"Unable to read from the video file: "
                                          f"'{video_file.name}' with error: {e}")
+                            reset_camera()
                             st.stop()
 
                         session_state.deployed = True
@@ -1324,6 +1324,7 @@ def index(RELEASE=True):
                           key='btn_stop_and_save_vid',
                           on_click=update_record, args=(False,))
             st.markdown("___")
+
             msg_place['top'] = st.empty()  # for general messages
 
         if has_access:
@@ -1432,9 +1433,6 @@ def index(RELEASE=True):
         for i in cycle(range(conf.num_cameras)):
             start_time = perf_counter()
 
-            if use_multi_cam:
-                cam_title = cam_titles[i]
-
             if session_state.refresh:
                 # refresh page once to refresh the widgets
                 logger.debug("REFRESHING PAGEE")
@@ -1452,6 +1450,18 @@ def index(RELEASE=True):
                 ret, frame = session_state.camera.read()
                 if not ret:
                     break
+
+            if frame is None:
+                msg_place[i].error("""Unable to read camera frame from camera,
+                    restarting the cameras ...""")
+                logger.error(f"Error reading frame from Camera {i}")
+                reset_camera()
+                with msg_place['top'].container():
+                    load_multi_webcams()
+                st.experimental_rerun()
+
+            if use_multi_cam:
+                cam_title = cam_titles[i]
 
             # frame.flags.writeable = True  # might need this?
             # run inference on the frame

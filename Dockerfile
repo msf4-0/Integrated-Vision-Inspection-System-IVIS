@@ -65,6 +65,9 @@ COPY --from=builder-image /home/myuser/venv /home/myuser/venv
 # create the app's data directory and add read/write privilege for our user
 RUN mkdir -p /home/myuser/.local/share/integrated-vision-inspection-system && \
     chown myuser /home/myuser/.local/share/integrated-vision-inspection-system
+# this is required to allow the CSV files to be overwritten when
+# running model_details_db_setup.scrape_setup_model_details()
+RUN chmod 777 ./resources/
 
 USER myuser
 RUN mkdir -p /home/myuser/code/TFOD/models/research/object_detection
