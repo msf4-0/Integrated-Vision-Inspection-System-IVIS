@@ -65,11 +65,14 @@ COPY --from=builder-image /home/myuser/venv /home/myuser/venv
 # create the app's data directory and add read/write privilege for our user
 RUN mkdir -p /home/myuser/.local/share/integrated-vision-inspection-system && \
     chown myuser /home/myuser/.local/share/integrated-vision-inspection-system
+
+WORKDIR /home/myuser/code
+COPY . .
+
 # this is required to allow the CSV files to be overwritten when
 # running model_details_db_setup.scrape_setup_model_details()
-RUN chmod 777 ./resources/
+RUN chmod 666 /home/myuser/code/resources/pretrained_model_tables
 
-USER myuser
 RUN mkdir -p /home/myuser/code/TFOD/models/research/object_detection
 # copy TFOD stuff to the desired path of "TFOD_DIR" as defined in path_desc.py
 COPY --from=builder-image /home/myuser/TFOD/models/research/object_detection \
@@ -77,8 +80,9 @@ COPY --from=builder-image /home/myuser/TFOD/models/research/object_detection \
 COPY --from=builder-image /home/myuser/TFOD/models/research/pycocotools \
     /home/myuser/code/src/lib/TFOD/models/research/pycocotools
 RUN rm -rf /home/myuser/code/TFOD
-WORKDIR /home/myuser/code
-COPY . .
+
+# change to the non-root user
+USER myuser
 
 # expose our Streamlit port as defined in .streamlit/config.toml
 EXPOSE 8502
