@@ -66,7 +66,8 @@ def db_fetchone(sql_message, query_vars=None, conn=None, return_output=False, fe
 
             if return_dict:
                 # Convert results to pure Python dictionary
-                return_one = dict(return_one)
+                if return_one is not None:
+                    return_one = dict(return_one)
 
             if fetch_col_name:
                 # Obtain Column names from query
@@ -128,14 +129,15 @@ def scrape_setup_model_details(conn):
     """
     db_fetchone(sql_query, conn=conn)
 
-    # reset the ID to start from latest ID + 1
+    # restart the sequence so that the primary key `id` would
+    # start at 1 for pretrained models
+    # NOTE: will change this to start with the max ID later
     table_name = 'models'
-    # use this or use ALTER SEQUENCE. False to ensure to take next value
-    # https://coderedirect.com/questions/335605/postgresql-using-subqueries-with-alter-sequence-expressions
-    sql_msg = f"""
-        SELECT SETVAL('{table_name}_id_seq', (SELECT MAX(id) + 1 FROM {table_name}), false)
+    sequence_name = f'{table_name}_id_seq'
+    sql_query = f"""
+        SELECT SETVAL('{sequence_name}', 1, false);
     """
-    db_fetchone(sql_msg, conn=conn)
+    db_fetchone(sql_query, conn=conn)
 
     # ************************ Scraping TFOD Model Zoo ************************
     logger.info("Scraping TensorFlow Models information")
@@ -242,6 +244,15 @@ def scrape_setup_model_details(conn):
     # ## Insert to DB
 
     insert_to_db(df, conn)
+
+    # reset the ID to start from latest ID + 1
+    # use this or use ALTER SEQUENCE. False to ensure to take next value
+    # https://coderedirect.com/questions/335605/postgresql-using-subqueries-with-alter-sequence-expressions
+    table_name = 'models'
+    sql_msg = f"""
+        SELECT SETVAL('{sequence_name}', (SELECT MAX(id) + 1 FROM {table_name}), false)
+    """
+    db_fetchone(sql_msg, conn=conn)
 
 
 def main():
