@@ -242,12 +242,25 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         session_state.working_ports = working_ports.copy()
                 st.button("Refresh camera ports",
                           key='btn_refresh_camera_port', on_click=reset_camera_and_ports)
+                if not session_state.working_ports:
+                    st.error("No available camera port found.")
+                    st.stop()
                 camera_port = st.radio("Select a camera port", session_state.working_ports,
                                        key='camera_port')
                 video_source = camera_port
             else:
                 ip_cam_address = st.text_input(
                     "Enter the IP address", key='ip_cam_address')
+                with st.expander("Notes about IP Camera Address"):
+                    st.markdown(
+                        """IP camera address could start with *http* or *rtsp*.
+                        Most of the IP cameras have a username and password to access
+                        the video. In such case, the credentials have to be provided
+                        in the streaming URL as follow: 
+                        **rtsp://username:password@192.168.1.64/1**""")
+                if not ip_cam_address:
+                    st.warning("Please enter an IP address")
+                    st.stop()
                 video_source = ip_cam_address
 
             if not session_state.camera:

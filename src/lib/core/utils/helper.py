@@ -525,7 +525,9 @@ def list_available_cameras():
         cap = cv2.VideoCapture(dev_port)
         if not cap.isOpened():
             logger.info(f"Port {dev_port} is not working.")
-            break
+            # check for at least 5 ports
+            if dev_port >= 5:
+                break
         is_reading, img = cap.read()
         w = cap.get(3)
         h = cap.get(4)

@@ -85,7 +85,7 @@ TEMP_DIR = BASE_DATA_DIR / 'temp'
 
 # Pretrained model details
 # assuming this folder is in "utils/resources/" directory
-# NOTE: this foldername is also being used in Dockerfile
+# NOTE: this foldername is also being used in Dockerfile and .dockerignore
 PRETRAINED_MODEL_TABLES_DIR = _CURR_FILEPATH.parents[2] / \
     'resources' / 'pretrained_model_tables'
 # this table has columns: Model Name
