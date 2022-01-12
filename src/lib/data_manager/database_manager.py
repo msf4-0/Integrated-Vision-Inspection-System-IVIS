@@ -141,6 +141,7 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
         logger.info('Connecting to the PostgreSQL database...')
         try:
             if kwargs:
+                logger.debug(f"Connection kwargs: {kwargs}")
                 conn = psycopg2.connect(**kwargs)
 
             else:

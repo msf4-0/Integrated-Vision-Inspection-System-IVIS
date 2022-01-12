@@ -379,8 +379,9 @@ class Trainer:
                 not (pt_model_dir / PRETRAINED_MODEL_DIRNAME).exists():
             with st.spinner('Downloading pretrained model ...'):
                 logger.info('Downloading pretrained model')
-                wget.download(PRETRAINED_MODEL_URL)
-                pretrained_tarfile = PRETRAINED_MODEL_DIRNAME + '.tar.gz'
+                wget.download(PRETRAINED_MODEL_URL, str(pt_model_dir))
+                pretrained_tarfile = pt_model_dir / \
+                    (PRETRAINED_MODEL_DIRNAME + '.tar.gz')
                 with tarfile.open(pretrained_tarfile) as tar:
                     tar.extractall(pt_model_dir)
                 os.remove(pretrained_tarfile)
@@ -474,7 +475,7 @@ class Trainer:
             'research' / 'object_detection' / 'model_main_tf2.py'
         # NOTE: also save a checkpoint every 100 steps. And by default, only the latest
         # 7 checkpoints are kept. For parameter details, check the training script file's
-        # model_lib_v2.train_loop(). SIDE NOTE: THIS is required to properly continue 
+        # model_lib_v2.train_loop(). SIDE NOTE: THIS is required to properly continue
         # training from the latest checkpoint! But checkpoint files could take up a lot of
         # space so be careful...
         checkpoint_every_n = 100
@@ -780,9 +781,16 @@ class Trainer:
         if self.deployment_type == 'Image Classification':
             preprocess_fn = get_classif_model_preprocess_func(
                 self.attached_model_name)
+
+            def tf_preprocess_fn(image, label):
+                # wrap the function and use it as a TF operation
+                # to optimize for performance
+                image = tf.numpy_function(
+                    func=preprocess_fn, inp=[image], Tout=tf.float32)
+                return image, label
             tf_preprocess_data = partial(tf_classification_preprocess_input,
                                          image_size=image_size,
-                                         preprocess_fn=preprocess_fn)
+                                         preprocess_fn=tf_preprocess_fn)
         else:
             num_classes = len(self.class_names)
             logger.debug(f"{num_classes = }")

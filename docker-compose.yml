@@ -67,6 +67,10 @@ services:
     networks:
       - app_network
 
+    # change this according to the dev paths of your cameras
+    # devices:
+    #   - "/dev/video2:/dev/video2"
+
 volumes:
   postgres-data:
   mosquitto-data:

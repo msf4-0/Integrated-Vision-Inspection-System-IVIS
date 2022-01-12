@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import os
+from pathlib import Path
 import sys
 import shutil
 from time import perf_counter, sleep
@@ -299,6 +300,14 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             save_dir = save_path.parent
             if not save_dir.exists():
                 os.makedirs(save_dir)
+            if os.environ.get("DOCKERCOMPOSE"):
+                # this save directory is the local Linux directory to be able to access the
+                # captured_images directory mounted into the Docker container
+                # NOTE: this path depends on the volume name used in the docker-compose file
+                # and this path is only for Linux PC because currently camera device
+                # is not supported on Docker created on Windows WSL
+                save_dir = Path(r"/var/lib/docker/volumes/integrated-vision-inspection-system_app-data/_data",
+                                save_dir.name)
             st.markdown(
                 f"Images will be saved in this directory: *{save_dir}*")
             display_width = st.slider(
@@ -337,7 +346,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 image_num += 1
                 save_path = save_path.with_name(f'{image_num}.png')
                 # sleep to limit save rate a little bit
-                sleep(1 / 10)
+                sleep(0.1)
 
     # >>>> FILE UPLOAD >>>>
     # TODO #24 Add other filetypes based on filetype table

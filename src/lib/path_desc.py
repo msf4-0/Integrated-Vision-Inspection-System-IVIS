@@ -82,6 +82,7 @@ USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
 # PROJECT_MODELS=PROJECT_DIR/<PROJECT-NAME>/<TRAINING-NAME>/'exported-models'/<MODEL-NAME>
 # named temporary directory
 TEMP_DIR = BASE_DATA_DIR / 'temp'
+CAPTURED_IMAGES_DIR = MEDIA_ROOT / 'captured_images'
 
 # Pretrained model details
 # assuming this folder is in "utils/resources/" directory

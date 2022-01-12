@@ -55,28 +55,16 @@ from streamlit import session_state as session_state
 from streamlit.uploaded_file_manager import UploadedFile
 from videoprops import get_audio_properties, get_video_properties
 
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
-
 from core.utils.code_generator import get_random_string
 from core.utils.dataset_handler import get_image_size
 from core.utils.file_handler import (IMAGE_EXTENSIONS, create_folder_if_not_exist,
-                                     extract_archive, extract_one_to_bytes,
-                                     list_files_in_archived)
+                                     extract_one_to_bytes)
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import get_directory_name, get_filetype, get_mime
 from core.utils.log import logger  # logger
 # >>>> User-defined Modules >>>>
-from path_desc import BASE_DATA_DIR, DATASET_DIR, MEDIA_ROOT, TEMP_DIR, chdir_root
+from path_desc import BASE_DATA_DIR, CAPTURED_IMAGES_DIR, DATASET_DIR, TEMP_DIR
 
 from data_manager.database_manager import (db_fetchall, db_fetchone, db_no_fetch,
                                            init_connection)
@@ -1219,13 +1207,12 @@ def data_url_encoder(filetype: IntEnum, data_path: Union[str, Path]) -> str:
 def get_latest_captured_image_path() -> Tuple[Path, int]:
     """Returns the latest image path and image number based on existing 
     images in the directory."""
-    CAPTURED_IMAGES_DIR = MEDIA_ROOT / 'captured_images'
 
     def get_image_num(image_path: Path):
         return int(image_path.stem)
 
     existing_captured = sorted(
-        CAPTURED_IMAGES_DIR.rglob('*png'),
+        CAPTURED_IMAGES_DIR.rglob('*.png'),
         key=get_image_num,
         reverse=True)
     if not existing_captured:

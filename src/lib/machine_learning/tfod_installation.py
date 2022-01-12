@@ -67,9 +67,8 @@ def install_protoc():
         protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
         protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
         url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
-        wget.download(url)
-        # move the protoc zip file into the desired path, PROTOC_PATH
-        shutil.move(protoc_zipfilename, PROTOC_PATH)
+        # download the protoc zipfile into the desired path, PROTOC_PATH
+        wget.download(url, str(PROTOC_PATH))
         # unzip the zip file
         if os.name == "posix":
             run_command(
