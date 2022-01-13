@@ -62,7 +62,8 @@ from core.utils.file_handler import (IMAGE_EXTENSIONS, create_folder_if_not_exis
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import get_directory_name, get_filetype, get_mime
-from core.utils.log import logger  # logger
+from core.utils.log import logger
+from deployment.utils import reset_camera_and_ports
 # >>>> User-defined Modules >>>>
 from path_desc import BASE_DATA_DIR, CAPTURED_IMAGES_DIR, DATASET_DIR, TEMP_DIR
 
@@ -773,6 +774,8 @@ class NewDataset(BaseDataset):
     def reset_new_dataset_page():
         """Method to reset all widgets and attributes in the New Dataset Page when changing pages
         """
+
+        reset_camera_and_ports()
 
         new_dataset_attributes = [
             "new_dataset", "is_labeled", "dataset_chosen"]

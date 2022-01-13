@@ -782,12 +782,12 @@ class Trainer:
             preprocess_fn = get_classif_model_preprocess_func(
                 self.attached_model_name)
 
-            def tf_preprocess_fn(image, label):
+            def tf_preprocess_fn(image):
                 # wrap the function and use it as a TF operation
                 # to optimize for performance
                 image = tf.numpy_function(
                     func=preprocess_fn, inp=[image], Tout=tf.float32)
-                return image, label
+                return image
             tf_preprocess_data = partial(tf_classification_preprocess_input,
                                          image_size=image_size,
                                          preprocess_fn=tf_preprocess_fn)
@@ -849,17 +849,23 @@ class Trainer:
                 mask.set_shape([image_size, image_size, num_classes])
                 return img, mask
 
+        # randomly shuffle once here, then shuffle with smaller buffer size later
+        np.random.shuffle(X_train)
+
         # only train set is augmented and shuffled
         AUTOTUNE = tf.data.AUTOTUNE
         batch_size = self.training_param['batch_size']
         train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+        # NOTE: large shuffle takes up too much memory and could be very slow
+        # cache() also takes up too much memory on large dataset
+        shuffle_size = len(X_train) if len(X_train) < 1000 else 1000
         train_ds = (
             train_ds.map(tf_preprocess_data,
                          num_parallel_calls=AUTOTUNE)
             .map(augment, num_parallel_calls=AUTOTUNE)
             .map(set_shapes, num_parallel_calls=AUTOTUNE)
-            .shuffle(len(X_train))
-            .cache()
+            .shuffle(shuffle_size)
+            # .cache()
             .batch(batch_size)
             .prefetch(AUTOTUNE)
         )
@@ -869,7 +875,7 @@ class Trainer:
             test_ds.map(tf_preprocess_data,
                         num_parallel_calls=AUTOTUNE)
             .map(set_shapes, num_parallel_calls=AUTOTUNE)
-            .cache()
+            # .cache()
             .batch(batch_size)
             .prefetch(AUTOTUNE)
         )
@@ -880,7 +886,7 @@ class Trainer:
                 val_ds.map(tf_preprocess_data,
                            num_parallel_calls=AUTOTUNE)
                 .map(set_shapes, num_parallel_calls=AUTOTUNE)
-                .cache()
+                # .cache()
                 .batch(batch_size)
                 .prefetch(AUTOTUNE)
             )

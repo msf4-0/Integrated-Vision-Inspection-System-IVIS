@@ -229,13 +229,11 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
         if 'working_ports' not in session_state:
             session_state.working_ports = []
-        if 'camera' not in session_state:
-            session_state.camera = None
 
         with outercol2:
 
             camera_type = st.radio("Select type of camera", ('USB Camera', 'IP Camera'),
-                                   key='camera_type')
+                                   key='input_camera_type', on_change=reset_camera)
             if camera_type == 'USB Camera':
                 if not session_state.working_ports:
                     with st.spinner("Checking available camera ports ..."):
@@ -248,6 +246,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                     st.stop()
                 camera_port = st.radio("Select a camera port", session_state.working_ports,
                                        key='camera_port')
+                cam_key = f'camera'
                 video_source = camera_port
             else:
                 ip_cam_address = st.text_input(
@@ -262,30 +261,37 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 if not ip_cam_address:
                     st.warning("Please enter an IP address")
                     st.stop()
+                # ip camera needs to include 'ip' to avoid release it in reset_camera()
+                cam_key = f'camera_ip'
                 video_source = ip_cam_address
 
-            if not session_state.camera:
-                if st.button("Start camera", key='btn_start_cam',
-                             help='Start camera before start capturing images'):
-                    with st.spinner("Loading up camera ..."):
+            camera_btn_place = st.empty()
+
+            if not session_state.get(cam_key):
+                if camera_btn_place.button(
+                    "Start camera", key='btn_start_cam',
+                        help='Start camera before start capturing images'):
+                    with st.spinner(f"Loading up camera ..."):
                         try:
-                            session_state.camera = WebcamVideoStream(
+                            session_state[cam_key] = WebcamVideoStream(
                                 src=video_source).start()
+                            if session_state[cam_key].read() is None:
+                                raise Exception(
+                                    "Video source is not valid")
                         except Exception as e:
                             st.error(
                                 f"Unable to read from video source {video_source}")
                             logger.error(
                                 f"Unable to read from video source {video_source}: {e}")
+                            reset_camera()
                             st.stop()
-                        else:
-                            sleep(1)  # give the camera some time to sink in
-                        # rerun just to avoid displaying unnecessary buttons
-                        st.experimental_rerun()
-                st.stop()
+                else:
+                    st.stop()
 
-            st.button("Stop camera", key='btn_stop_cam', on_click=reset_camera)
+            camera_btn_place.button(
+                "Stop camera", key='btn_stop_cam', on_click=reset_camera)
 
-        stream = session_state.camera.stream
+        stream = session_state[cam_key].stream
         width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps_input = int(stream.get(cv2.CAP_PROP_FPS))
@@ -330,11 +336,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         start_time = perf_counter()
         total_new_imgs = 0
         while True:
-            frame = session_state.camera.read()
+            frame = session_state[cam_key].read()
             video_place.image(frame, channels='BGR', width=display_width)
-
-            # if img_per_sec > 0:
-            #     sleep(1 / img_per_sec)
 
             if start_capture:
                 elapsed_secs = perf_counter() - start_time
