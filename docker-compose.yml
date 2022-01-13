@@ -56,7 +56,7 @@ services:
     # this volume directly binds to the directory obtained by `appdirs` library
     # in Python in path_desc.py
     volumes:
-      - app-data:/home/myuser/.local/share/integrated-vision-inspection-system
+      - app-data:/root/.local/share/integrated-vision-inspection-system
     # Note that this port is based on the .streamlit/config.toml file
     ports:
       - 8502:8502

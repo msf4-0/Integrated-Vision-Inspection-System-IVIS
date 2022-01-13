@@ -13,9 +13,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 # install libpq-dev for PostgreSQL dependencies to install psycopg2 library for Python
 # and also protobuf for TFOD installation
 # then install python related stuff
-RUN apt update && apt install --no-install-recommends -y git make libpq-dev protobuf-compiler \
+RUN apt-get update && apt-get install --no-install-recommends -y git make libpq-dev protobuf-compiler \
     python3.8 python3.8-dev python3.8-venv python3-pip python3-wheel build-essential && \
-    apt clean && rm -rf /var/lib/apt/lists/*
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # create and activate virtual environment
 # using final folder name to avoid path issues with packages
