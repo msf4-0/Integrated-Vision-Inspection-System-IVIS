@@ -94,7 +94,7 @@ def index(RELEASE=True):
         session_state.refresh = False
 
     if 'working_ports' not in session_state:
-        session_state.working_ports = None
+        session_state.working_ports = []
     if 'deployment_conf' not in session_state:
         # to store the config in case the user needs to go to another page during deployment
         session_state.deployment_conf = DeploymentConfig()
@@ -134,6 +134,33 @@ def index(RELEASE=True):
         # reset camera titles
         conf.camera_titles = ['']
         topics.publish_frame = [topics.publish_frame[0]]
+
+    def update_camera_sources_from_types():
+        """Update camera sources according to selected camera types"""
+        available_ports = iter(session_state.working_ports)
+        conf.camera_sources = []
+        for cam_type in conf.camera_types:
+            if cam_type == 'USB Camera':
+                try:
+                    curr_source = next(available_ports)
+                except StopIteration:
+                    curr_source = session_state.working_ports[0]
+            else:
+                # empty string for IP camera
+                curr_source = ''
+            conf.camera_sources.append(curr_source)
+
+    def reset_multi_camera_config():
+        """Reset camera titles and camera sources according to number
+        of cameras selected
+        """
+        conf.camera_titles = []
+        conf.camera_types = []
+        conf.camera_sources = []
+        for _ in range(conf.num_cameras):
+            conf.camera_titles.append('')
+            conf.camera_types.append('IP Camera')
+            conf.camera_sources.append('')
 
     def image_recv_frame_cb(client, userdata, msg):
         # logger.debug("FRAME RECEIVED, REFRESHING")
@@ -190,7 +217,8 @@ def index(RELEASE=True):
             with st.spinner(f"Loading up camera {i} ..."):
                 # NOTE: these keys must start with 'camera' to be able to
                 # reset them in reset_camera()
-                if conf.camera_types[i] == 'USB Camera':
+                cam_type = conf.camera_types[i]
+                if cam_type == 'USB Camera':
                     cam_key = f'camera_{i}'
                 else:
                     # using a different key for IP camera to avoid release it
@@ -205,10 +233,14 @@ def index(RELEASE=True):
                         raise Exception(
                             "Video source is not valid")
                 except Exception as e:
-                    st.error(
-                        f"Unable to read from video source {src}")
+                    if src == '':
+                        error_msg_place.error(
+                            f"Unable to read from empty IP camera address {i}.")
+                    else:
+                        error_msg_place.error(
+                            f"Unable to read from {cam_type} {i}: '{src}'")
                     logger.error(
-                        f"Unable to read from video source {src}: {e}")
+                        f"Unable to read from {cam_type} {i} from source {src}: {e}")
                     reset_camera()
                     st.stop()
 
@@ -263,9 +295,12 @@ def index(RELEASE=True):
     st.warning("**NOTE**: Please do not simply refresh the page without ending "
                "deployment or errors could occur.")
 
-    deploy_btn_place = st.empty()
+    col1, col2, _, _ = st.columns([1, 1, 1, 2.5])
 
-    st.button(
+    with col2:
+        deploy_btn_place = st.empty()
+
+    col1.button(
         "End Deployment", key='btn_stop_image_deploy',
         on_click=end_deployment,
         help="This will end the deployment and reset the entire  \n"
@@ -275,7 +310,11 @@ def index(RELEASE=True):
         "input) if you want to pause the deployment to do any other  \n"
         "things without resetting, such as switching user, or viewing  \n"
         "the latest saved CSV file (only for video camera deployment).")
+
+    reset_camera_place = st.empty()
     st.markdown("___")
+
+    error_msg_place = st.empty()
 
     if user.role <= UserRole.Developer1:
         # use this variable to know whether the user has access to edit deployment config
@@ -494,7 +533,7 @@ def index(RELEASE=True):
                         st.exception(e)
                     logger.error(
                         f"Error running inference with the model: {e}")
-                    st.error("""Error when trying to run inference with the model,
+                    error_msg_place.error("""Error when trying to run inference with the model,
                         please check with Admin/Developer for debugging.""")
                     st.stop()
             if DEPLOYMENT_TYPE == 'Image Classification':
@@ -547,6 +586,11 @@ def index(RELEASE=True):
         st.stop()
 
     elif conf.input_type == 'Video':
+        reset_camera_place.button(
+            "Reset all cameras", on_click=reset_video_deployment,
+            help="""Click this button if you experience any issues  \nwith the cameras
+            and want to reset them.""")
+
         def update_conf_and_reset_video_deploy(conf_attr: str):
             update_deploy_conf(conf_attr)
             reset_video_deployment()
@@ -588,12 +632,8 @@ def index(RELEASE=True):
                             reset_single_camera_conf()
                             return
 
-                        # make empty title for each camera on changes
-                        conf.camera_titles = []
-                        conf.camera_sources = []
-                        for i in range(conf.num_cameras):
-                            conf.camera_titles.append('')
-                            conf.camera_sources.append(i)
+                        logger.debug("Resetting multi-camera configuration")
+                        reset_multi_camera_config()
 
                     if st.checkbox(
                         "Use multiple cameras", conf.use_multi_cam,
@@ -610,9 +650,10 @@ def index(RELEASE=True):
                                 on_click=update_and_reset_multi_cam_conf,
                                 args=('num_cameras',))
 
-                    if len(conf.camera_types) != conf.num_cameras:
-                        conf.camera_types = [
-                            'USB Camera' for _ in range(conf.num_cameras)]
+                    # reset camera sources & titles if not same length
+                    if len(conf.camera_sources) != conf.num_cameras:
+                        logger.debug("Resetting multi-camera configuration")
+                        reset_multi_camera_config()
 
                     with st.expander("Select Camera Types", expanded=True):
                         with st.form("form_camera_types", clear_on_submit=True):
@@ -620,10 +661,15 @@ def index(RELEASE=True):
                                 logger.info(
                                     "Reset video deployment and update camera types")
                                 reset_video_deployment()
+                                # reset camera_titles & camera_sources too
+                                reset_multi_camera_config()
+
                                 conf.camera_types = []
                                 for i in range(conf.num_cameras):
                                     new = session_state[f'input_camera_type_{i}']
                                     conf.camera_types.append(new)
+
+                                update_camera_sources_from_types()
 
                             for i in range(conf.num_cameras):
                                 options = ('USB Camera', 'IP Camera')
@@ -639,7 +685,8 @@ def index(RELEASE=True):
                     def reset_video_deployment_and_ports():
                         reset_video_deployment()
                         if 'working_ports' in session_state:
-                            del session_state['working_ports']
+                            session_state.working_ports = []
+                        reset_multi_camera_config()
                     st.button("Refresh camera ports", key='btn_refresh',
                               on_click=reset_video_deployment_and_ports)
 
@@ -647,29 +694,24 @@ def index(RELEASE=True):
                         with st.spinner("Checking available camera ports ..."):
                             _, working_ports = list_available_cameras()
                             session_state.working_ports = working_ports.copy()
-                        # stop if no camera port found
                         if not working_ports:
-                            st.error(
-                                "No working camera source/port found.")
-                            logger.error(
-                                "No working camera port found")
-                            st.stop()
+                            st.info(
+                                "No working USB camera port found.")
+                            logger.info(
+                                "No working USB camera port found")
 
-                    if conf.use_multi_cam and \
-                            len(session_state.working_ports) < conf.num_cameras:
-                        st.error(
-                            "The number of cameras available "
-                            f"(**{len(session_state.working_ports)}**) is less than the "
-                            f"number of cameras specified: **{conf.num_cameras}**.")
+                    input_num_usb_cameras = 0
+                    for cam_type in conf.camera_types:
+                        if cam_type == 'USB Camera':
+                            input_num_usb_cameras += 1
+                    num_ports = len(session_state.working_ports)
+                    if num_ports < input_num_usb_cameras:
+                        error_msg_place.error(
+                            f"""The number of USB cameras available 
+                            (**{num_ports}**) is less than the number of
+                            USB cameras specified: **{input_num_usb_cameras}**."""
+                        )
                         st.stop()
-
-                    # reset camera sources & titles if not same length
-                    if len(conf.camera_sources) != conf.num_cameras:
-                        conf.camera_sources = []
-                        conf.camera_titles = []
-                        for v in range(conf.num_cameras):
-                            conf.camera_sources.append(v)
-                            conf.camera_titles.append('')
 
                     with st.expander("Notes about IP Camera Address"):
                         st.markdown(
@@ -689,37 +731,41 @@ def index(RELEASE=True):
                         reset_video_deployment()
 
                         if not conf.use_multi_cam:
+                            # take the first input
                             conf.camera_sources = [
                                 session_state['input_cam_source_0']]
                             # no need camera title/view
                             conf.camera_titles = ['']
                             return
 
-                        conf.camera_sources = []
-                        conf.camera_titles = []
+                        new_camera_sources = []
+                        new_camera_titles = []
                         for i in range(conf.num_cameras):
                             new_cam_source = session_state[f'input_cam_source_{i}']
                             new_cam_title = session_state[f'input_cam_title_{i}']
-                            if new_cam_source in conf.camera_sources:
-                                error_place.error("Duplicated camera sources found. "
-                                                  "Each camera source must be unique!")
+                            if new_cam_source in new_camera_sources:
+                                error_msg_place.error(
+                                    """Duplicated camera sources found. Each IP camera
+                                    address and USB camera address must be unique!""")
                                 logger.error("Duplicated camera sources found")
-                                sleep(1)
-                                return
-                            conf.camera_sources.append(new_cam_source)
-                            conf.camera_titles.append(new_cam_title)
+                                st.stop()
+                            new_camera_sources.append(new_cam_source)
+                            new_camera_titles.append(new_cam_title)
+                        conf.camera_sources = new_camera_sources
+                        conf.camera_titles = new_camera_titles
 
                     with st.expander("Enter Video Sources & Views", expanded=True):
-                        error_place = st.empty()
                         form_col = st.container()
 
                     with form_col.form("form_camera_sources", clear_on_submit=True):
                         for i in range(conf.num_cameras):
                             if conf.camera_types[i] == 'USB Camera':
+                                idx = session_state.working_ports.index(
+                                    conf.camera_sources[i])
                                 st.radio(
                                     f"Port for Camera {i}",
                                     options=session_state.working_ports,
-                                    index=conf.camera_sources[i],
+                                    index=idx,
                                     key=f'input_cam_source_{i}')
                             else:
                                 st.text_input(
@@ -741,8 +787,13 @@ def index(RELEASE=True):
                                     can separate each view with a frontslash '/' character. For
                                     example for "top" and "left" for one camera: *top/left*""")
 
-                        st.form_submit_button(
-                            "Update camera config", on_click=update_camera_config)
+                        submit = st.form_submit_button(
+                            "Update camera config")
+                    if submit:
+                        # put here instead of using on_click callback to stop script here
+                        # in case any error occurs
+                        update_camera_config()
+                        st.experimental_rerun()
                 else:
                     for src, cam_type, cam_title in zip(conf.camera_sources,
                                                         conf.camera_types,
@@ -924,8 +975,6 @@ def index(RELEASE=True):
             f"**MQTT broker**: localhost  \n**Port**: {mqtt_conf.port}")
 
         if has_access:
-            topic_error_place = st.sidebar.empty()
-
             # reset the list of publish_frame topics
             if len(topics.publish_frame) != conf.num_cameras:
                 topics.publish_frame = [
@@ -950,7 +999,7 @@ def index(RELEASE=True):
                         new_topic = session_state[state_key]
                         if new_topic == '':
                             logger.error('Topic cannot be empty string')
-                            topic_error_place.error(
+                            error_msg_place.error(
                                 'Topic cannot be empty string')
                             sleep(1)
                             st.experimental_rerun()
@@ -1113,8 +1162,8 @@ def index(RELEASE=True):
                         with st.spinner("Showing the uploaded video ..."):
                             st.video(video_path)
                     except Exception as e:
-                        st.error(f"Unable to read from the video file: "
-                                 f"'{video_file.name}'")
+                        error_msg_place.error(f"Unable to read from the video file: "
+                                              f"'{video_file.name}'")
                         logger.error(f"Unable to read from the video file: "
                                      f"'{video_file.name}' with error: {e}")
                         st.stop()
@@ -1131,8 +1180,8 @@ def index(RELEASE=True):
                             session_state.camera = cv2.VideoCapture(video_path)
                             assert session_state.camera.isOpened(), "Video is unreadable"
                         except Exception as e:
-                            st.error(f"Unable to read from the video file: "
-                                     f"'{video_file.name}'")
+                            error_msg_place.error(f"Unable to read from the video file: "
+                                                  f"'{video_file.name}'")
                             logger.error(f"Unable to read from the video file: "
                                          f"'{video_file.name}' with error: {e}")
                             reset_camera()
@@ -1210,7 +1259,8 @@ def index(RELEASE=True):
                 # and then start moving the dobot in another thread
                 dobot_connnect_success = run_func(mqtt_conf, DOBOT_TASK)
                 if not dobot_connnect_success:
-                    st.error("Failed to connect to DOBOT for demo")
+                    error_msg_place.error(
+                        "Failed to connect to DOBOT for demo")
                     logger.error("Failed to connect to DOBOT for demo")
                     st.stop()
 
@@ -1238,6 +1288,7 @@ def index(RELEASE=True):
                     (widths[video_idx], heights[video_idx]), True)
 
         publish_place = st.sidebar.empty()
+        option_col1, option_col2, option_col3, option_col4 = st.columns(4)
         video_options_col = st.container()
         video_col_1, video_col_2 = st.columns(2)
         video_title_place = {}
@@ -1256,7 +1307,6 @@ def index(RELEASE=True):
                 # fps_col, width_col, height_col = st.columns(3)
                 fps_col = st.container()
                 result_place[i] = st.empty()
-            if i % 2 == 0:
                 st.markdown("___")
 
             if conf.video_type == 'Video Camera':
@@ -1296,16 +1346,17 @@ def index(RELEASE=True):
             #     st.markdown("**Frame Height**")
             #     st.markdown(kpi_format(height), unsafe_allow_html=True)
 
-        with video_options_col:
-            show_video = st.checkbox(
-                'Show video', value=True, key='show_video')
-            if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
-                get_bbox_coords = st.checkbox("Obtain bounding box coordinates",
-                                              key='get_bbox_coords')
-            draw_result = st.checkbox(
-                "Draw labels", value=True, key='draw_result')
-            show_labels = st.checkbox("Show the detected labels", value=True)
+        show_video = option_col1.checkbox(
+            'Show video', value=True, key='show_video')
+        if DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
+            get_bbox_coords = option_col4.checkbox("Obtain bounding box coordinates",
+                                                   key='get_bbox_coords')
+        draw_result = option_col2.checkbox(
+            "Draw labels", value=True, key='draw_result')
+        show_labels = option_col3.checkbox(
+            "Show the detected labels", value=True)
 
+        with video_options_col:
             if show_labels:
                 for i in range(conf.num_cameras):
                     with result_place[i].container():
@@ -1492,8 +1543,7 @@ def index(RELEASE=True):
                 # need to be within the video loop to ensure we also get the latest
                 #  session_state updates from MQTT callback
                 msg_place[i].info("Recording ...")
-                with video_options_col:
-                    create_video_writer_if_not_exists(i)
+                create_video_writer_if_not_exists(i)
                 if channels == 'RGB':
                     # cv2.VideoWriter needs BGR format
                     out = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
