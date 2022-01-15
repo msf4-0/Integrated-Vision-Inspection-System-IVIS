@@ -98,7 +98,6 @@ if not CAPTURED_IMAGES_DIR.exists():
 
 # Pretrained model details
 # assuming this folder is in "utils/resources/" directory
-# NOTE: this foldername is also being used in Dockerfile and .dockerignore
 PRETRAINED_MODEL_TABLES_DIR = _CURR_FILEPATH.parents[2] / \
     'resources' / 'pretrained_model_tables'
 if not PRETRAINED_MODEL_TABLES_DIR.exists():
