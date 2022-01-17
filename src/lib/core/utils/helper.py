@@ -513,11 +513,12 @@ def find_net_change(initial_list: List, submitted_list: List) -> Tuple:
         return None, flag
 
 
-def list_available_cameras():
+def list_available_cameras(num_check_ports: int):
     """
     Test the ports and returns a tuple with the available ports and the ones that are working.
     """
     # https://stackoverflow.com/questions/57577445/list-available-cameras-opencv-python
+
     dev_port = 0
     working_ports = []
     available_ports = []
@@ -525,8 +526,7 @@ def list_available_cameras():
         cap = cv2.VideoCapture(dev_port)
         if not cap.isOpened():
             logger.info(f"Port {dev_port} is not working.")
-            # check for at least 5 ports
-            if dev_port >= 5:
+            if dev_port >= int(num_check_ports):
                 break
         is_reading, img = cap.read()
         w = cap.get(3)

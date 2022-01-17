@@ -235,12 +235,20 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             camera_type = st.radio("Select type of camera", ('USB Camera', 'IP Camera'),
                                    key='input_camera_type', on_change=reset_camera)
             if camera_type == 'USB Camera':
+                num_check_ports = st.number_input(
+                    "Number of ports to check for", 5, 99, 5,
+                    key='input_num_check_ports',
+                    help="""Number of ports to check whether they are working or not. If you are using
+                    Docker on Linux, you need to specify a number at least as high as the highest number
+                    of the camera *dev path*. For example, **9** if the largest *dev path* is:
+                    **/dev/video9**.""")
+                st.button("Refresh camera ports", key='btn_refresh',
+                          on_click=reset_camera_and_ports)
                 if not session_state.working_ports:
                     with st.spinner("Checking available camera ports ..."):
-                        _, working_ports = list_available_cameras()
+                        _, working_ports = list_available_cameras(
+                            num_check_ports)
                         session_state.working_ports = working_ports.copy()
-                st.button("Refresh camera ports",
-                          key='btn_refresh_camera_port', on_click=reset_camera_and_ports)
                 if not session_state.working_ports:
                     st.error("No available camera port found.")
                     st.stop()

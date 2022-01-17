@@ -687,12 +687,21 @@ def index(RELEASE=True):
                         if 'working_ports' in session_state:
                             session_state.working_ports = []
                         reset_multi_camera_config()
+
+                    num_check_ports = st.number_input(
+                        "Number of ports to check for", 5, 99, 5,
+                        key='input_num_check_ports',
+                        help="""Number of ports to check whether they are working or not. If you are using
+                        Docker on Linux, you need to specify a number at least as high as the highest number
+                        of the camera *dev path*. For example, **9** if the largest *dev path* is:
+                        **/dev/video9**.""")
                     st.button("Refresh camera ports", key='btn_refresh',
                               on_click=reset_video_deployment_and_ports)
 
                     if not session_state.working_ports:
                         with st.spinner("Checking available camera ports ..."):
-                            _, working_ports = list_available_cameras()
+                            _, working_ports = list_available_cameras(
+                                num_check_ports)
                             session_state.working_ports = working_ports.copy()
                         if not working_ports:
                             st.info(
@@ -1641,12 +1650,7 @@ def index(RELEASE=True):
 
             if first_csv_save:
                 first_csv_save = False
-                if not csv_path.exists():
-                    new_file = True
-                else:
-                    new_file = False
-                create_csv_file_and_writer(
-                    csv_path, results, new_file=new_file)
+                create_csv_file_and_writer(csv_path, results)
             now = datetime.now()
             today = now.date()
             if today > session_state.today:

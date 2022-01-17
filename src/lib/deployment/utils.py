@@ -1,7 +1,7 @@
 from csv import DictWriter
 from dataclasses import dataclass
 import os
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Tuple
 import cv2
 from streamlit.uploaded_file_manager import UploadedFile
 from yaml import full_load
@@ -151,13 +151,14 @@ def get_mqtt_client(client_id: str = ''):
 
 
 def create_csv_file_and_writer(
-        csv_path: Path, results: List[Dict[str, Any]], new_file: bool = True):
+        csv_path: Path, results: List[Dict[str, Any]]):
     """Create session_state.csv_file (in open state and append mode) and 
     also session_state.csv_writer"""
     csv_dir = csv_path.parent
     if not csv_dir.exists():
         os.makedirs(csv_dir)
-    if new_file:
+
+    if not csv_path.exists():
         with open(csv_path, 'w') as csv_file:
             session_state.csv_writer = DictWriter(
                 csv_file, fieldnames=results[0].keys())
