@@ -134,6 +134,19 @@ def get_items_from_indices(indices: List[int], input_items: Iterable) -> List[An
     return items
 
 
+def create_classification_result(label: str):
+    result = [
+        {
+            "id": get_random_string(length=6),
+            "type": "choices",
+            "value": {"choices": [label]},
+            "to_name": "image",
+            "from_name": "label"
+        }
+    ]
+    return result
+
+
 def convert_to_ls(x, y, width, height, original_width, original_height):
     return x / original_width * 100.0, y / original_height * 100.0, \
         width / original_width * 100.0, height / original_height * 100
@@ -423,6 +436,7 @@ class NewDataset(BaseDataset):
                               uploaded_archive: UploadedFile,
                               filepaths: List[str],
                               deployment_type: str,
+                              classif_annot_type: str = 'CSV file',
                               return_annotations: bool = False
                               ) -> Union[List[str],
                                          Tuple[List[str], List[str]]]:
@@ -507,9 +521,10 @@ class NewDataset(BaseDataset):
 
         # ***************** Checking Image Classification and Segmentation data *****************
         elif deployment_type == 'Image Classification':
-            # this is actually CSV format
-            required_filetype = '.csv'
-            filetype_name = 'CSV'
+            if classif_annot_type == 'CSV file':
+                # this is actually CSV format
+                required_filetype = '.csv'
+                filetype_name = 'CSV'
         elif deployment_type == 'Semantic Segmentation with Polygons':
             required_filetype = '.json'
             filetype_name = 'JSON'
@@ -521,7 +536,16 @@ class NewDataset(BaseDataset):
             if os.path.splitext(f)[-1] in IMAGE_EXTENSIONS:
                 img_filepaths.append(f)
                 img_names.append(os.path.basename(f))
-            elif f.endswith(required_filetype):
+                if classif_annot_type != 'CSV file':
+                    # try extracting label from folder name
+                    folder_path = os.path.dirname(f)
+                    if not folder_path:
+                        txt = (f"'{f}' does not appear to be in a folder, cannot "
+                               "extract label from folder name")
+                        logger.error(txt)
+                        st.error(txt)
+                        st.stop()
+            elif classif_annot_type == 'CSV file' and f.endswith(required_filetype):
                 st.success(f"Found a {filetype_name} file: {f}")
                 req_file_idx.append(i)
             else:
@@ -532,6 +556,16 @@ class NewDataset(BaseDataset):
             with st.expander("Unwanted files:"):
                 st.warning("  \n".join(error_filepaths))
             st.stop()
+
+        if classif_annot_type != 'CSV file':
+            # this is for image classification "Label by folder name"
+            if not img_names:
+                st.warning("No image uploaded")
+                logger.info("No image uploaded ")
+                st.stop()
+            if return_annotations:
+                return [], img_filepaths
+            return img_filepaths
 
         if not req_file_idx or not img_names:
             if not req_file_idx:
@@ -617,14 +651,16 @@ class NewDataset(BaseDataset):
             return self.annotation_files, img_filepaths
         return img_filepaths
 
-    def parse_annotation_files(self, deployment_type: str) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    def parse_annotation_files(
+            self, deployment_type: str, image_paths: List[str] = None,
+            classif_annot_type: str = 'CSV file') -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded annotation files based on the `deployment_type` and
         yield the image name and annotation result in Label Studio JSON result format
         to save in database annotations table"""
         if deployment_type == 'Object Detection with Bounding Boxes':
             return self.parse_bbox_annotations()
         elif deployment_type == 'Image Classification':
-            return self.parse_classification_annotations()
+            return self.parse_classification_annotations(image_paths, classif_annot_type)
         elif deployment_type == 'Semantic Segmentation with Polygons':
             return self.parse_segmentation_annotations()
 
@@ -648,23 +684,25 @@ class NewDataset(BaseDataset):
             image_name = os.path.splitext(image_name)[0]
             yield image_name, annot_result
 
-    def parse_classification_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    def parse_classification_annotations(
+            self, image_paths: List[str] = None,
+            classif_annot_type: str = 'CSV file') -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded CSV and yield the image name and annotation result in
         Label Studio JSON result format"""
-        # only one CSV file after validation is passed
-        csv_path = self.archive_dir / self.annotation_files[0]
-        df = pd.read_csv(csv_path, dtype=str)
-        for img_name, label in df.values:
-            result = [
-                {
-                    "id": get_random_string(length=6),
-                    "type": "choices",
-                    "value": {"choices": [label]},
-                    "to_name": "image",
-                    "from_name": "label"
-                }
-            ]
-            yield img_name, result
+        if classif_annot_type == 'CSV file':
+            # only one CSV file after validation is passed
+            csv_path = self.archive_dir / self.annotation_files[0]
+            df = pd.read_csv(csv_path, dtype=str)
+            for img_name, label in df.values:
+                result = create_classification_result(label)
+                yield img_name, result
+        else:
+            for p in image_paths:
+                img_name = os.path.basename(p)
+                # get the label from folder name
+                label = os.path.basename(os.path.dirname(p))
+                result = create_classification_result(label)
+                yield img_name, result
 
     def parse_segmentation_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded JSON file and yield the image name and annotation result in

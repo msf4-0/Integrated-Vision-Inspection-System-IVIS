@@ -126,20 +126,23 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         del session_state['new_project']
         session_state.project = Project(project_id)
         logger.info(f"Project ID {project_id} initialized")
+
+    dataset: NewDataset = session_state.new_dataset
     # ******** SESSION STATE ********
+
+    if 'project' in session_state:
+        project: Project = session_state.project
+        deployment_type = project.deployment_type
+    elif 'new_project' in session_state:
+        deployment_type = session_state.new_project.deployment_type
 
     if is_existing_dataset:
         # session_state.dataset_chosen should be obtained from existing_project_dashboard
-        dataset_info = session_state.project.dataset_dict[session_state.dataset_chosen]
+        dataset_info = project.dataset_dict[session_state.dataset_chosen]
         # set the info to be equal to new_dataset to make things easier
-        session_state.new_dataset.id = dataset_info.ID
-        session_state.new_dataset.name = dataset_info.Name
-        session_state.new_dataset.desc = dataset_info.Description
-
-    if 'project' in session_state:
-        deployment_type = session_state.project.deployment_type
-    elif 'new_project' in session_state:
-        deployment_type = session_state.new_project.deployment_type
+        dataset.id = dataset_info.ID
+        dataset.name = dataset_info.Name
+        dataset.desc = dataset_info.Description
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
@@ -156,7 +159,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     # right-align the dataset ID relative to the page
     _, id_right = st.columns([3, 1])
     id_right.write(
-        f"### __Dataset ID:__ {session_state.new_dataset.id}")
+        f"### __Dataset ID:__ {dataset.id}")
 
     outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
 
@@ -165,14 +168,14 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         context = {'column_name': 'name',
                    'value': session_state.name}
         if session_state.name:
-            if session_state.new_dataset.check_if_exists(context, conn):
-                session_state.new_dataset.name = None
+            if dataset.check_if_exists(context, conn):
+                dataset.name = None
                 field_placeholder['name'].error(
                     f"Dataset name used. Please enter a new name")
                 sleep(1)
                 logger.error(f"Dataset name used. Please enter a new name")
             else:
-                session_state.new_dataset.name = session_state.name
+                dataset.name = session_state.name
                 logger.info(f"Dataset name fresh and ready to rumble")
 
     # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -186,12 +189,12 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         description = outercol2.text_area(
             "Description (Optional)", key="desc", help="Enter the description of the dataset")
         if description:
-            session_state.new_dataset.desc = description
+            dataset.desc = description
     else:
         st.write("## __Current Project Dataset Information :__")
-        st.markdown(f"**Dataset name:** {session_state.new_dataset.name}")
+        st.markdown(f"**Dataset name:** {dataset.name}")
         st.markdown(
-            f"**Dataset description:** {session_state.new_dataset.desc}")
+            f"**Dataset description:** {dataset.desc}")
 
         st.markdown("## __Adding data to existing project dataset__")
         labeled = st.radio(
@@ -375,6 +378,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             label="Upload Image", type=allowed_types, accept_multiple_files=False, key="upload_widget")
         # outercol2.info("""NOTE: When you are uploading a lot of files at once, the
         # Streamlit app may look like it's stuck but please wait for it to finish uploading.""")
+        place["upload"] = outercol2.empty()
         # ******** INFO for FILE FORMAT **************************************
         with outercol1.expander("File Format Infomation", expanded=True):
             # not using these formats for our application
@@ -392,12 +396,23 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 st.info(
                     "#### Compatible Annotation Format:  \n"
                     "- Object detection should have one XML file for each uploaded image.  \n"
-                    "- Image classification should only have images and only one CSV file, "
+                    "- Image classification can have two types:  \n"
+                    "1. CSV file: should only have images and only one CSV file, "
                     "the first row of CSV file should be the filename with extension, while "
                     "the second row should be the class label name.  \n"
+                    "2. Label by folder names: Each image is labeled by the folder name they "
+                    "reside in. E.g. *cat1.jpg* image is in a folder named as *cat*, this "
+                    "image will be labeled as *cat*  \n"
                     "- Image segmentation should only have images and only one COCO JSON file.  \n")
 
-        place["upload"] = outercol2.empty()
+        # default to CSV file for everything else
+        classif_annot_type = 'CSV file'
+        if session_state.is_labeled and deployment_type == 'Image Classification':
+            with outercol2:
+                options = ("CSV file", "Label by folder name")
+                classif_annot_type = st.radio(
+                    "Select annotation type", options)
+
         if uploaded_archive:
             # st.write(len(uploaded_archive))
             # st.write(uploaded_archive)
@@ -416,20 +431,20 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         return_content_size=True,
                         skip_dir=True)
                 # check_filetype(
-                #     uploaded_files_multi, session_state.new_dataset, place)
+                #     uploaded_files_multi, dataset, place)
 
-            # session_state.new_dataset.dataset = image_names
+            # dataset.dataset = image_names
 
             # length of uploaded files
             num_files = len(filepaths)
         else:
             content_size = 0
             num_files = 0
-            # session_state.new_dataset.dataset = []
+            # dataset.dataset = []
 
         with outercol3:
             dataset_size_string = f"- ### Number of datas: **{num_files}**"
-            # dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
+            # dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=dataset.calc_total_filesize(),format='%.2f')}**"
             dataset_filesize_string = ("- ### Total size of data: "
                                        f"**{naturalsize(value=content_size, format='%.2f')}**")
             st.markdown(" ____ ")
@@ -468,23 +483,23 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     # st.write(session_state)
 
     if submit_button:
-        context = {'name': session_state.new_dataset.name,
+        context = {'name': dataset.name,
                    'upload': session_state.upload_widget}
         if is_existing_dataset:
             # don't need to check for dataset name for existing dataset
             del context['name']
 
-        session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
+        dataset.has_submitted = dataset.check_if_field_empty(
             context, field_placeholder=place, name_key='name')
 
-        if session_state.new_dataset.has_submitted:
+        if dataset.has_submitted:
             if is_existing_dataset:
                 logger.info("Checking for duplicated filenames")
                 with outercol2:
                     with st.spinner("Checking for duplicated filenames ..."):
                         uploaded_files = [
                             os.path.basename(f) for f in filepaths]
-                        existing_images = session_state.project.data_name_list[
+                        existing_images = project.data_name_list[
                             session_state.dataset_chosen]
                         duplicates = set(uploaded_files).intersection(
                             existing_images)
@@ -503,10 +518,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         logger.info(
                             "Checking uploaded dataset and annotations")
                         start = perf_counter()
-                        image_paths = session_state.new_dataset.validate_labeled_data(
-                            uploaded_archive,
-                            filepaths,
-                            deployment_type)
+                        image_paths = dataset.validate_labeled_data(
+                            uploaded_archive, filepaths, deployment_type,
+                            classif_annot_type=classif_annot_type)
                         time_elapsed = perf_counter() - start
                         logger.info(
                             f"Done. [{time_elapsed:.4f} seconds]")
@@ -517,32 +531,32 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         logger.info("Checking uploaded images")
                         image_paths = check_image_files(filepaths)
 
-            session_state.new_dataset.dataset = image_paths
+            dataset.dataset = image_paths
 
             # create a temporary directory for extracting the archive contents
             if TEMP_DIR.exists():
                 shutil.rmtree(TEMP_DIR)
             os.makedirs(TEMP_DIR)
-            session_state.new_dataset.archive_dir = TEMP_DIR
+            dataset.archive_dir = TEMP_DIR
 
             with outercol3:
                 with st.spinner("Extracting uploaded archive contents ..."):
                     extract_archive(TEMP_DIR, file_object=uploaded_archive)
 
-            if session_state.new_dataset.save_dataset(session_state.new_dataset.archive_dir):
+            if dataset.save_dataset(dataset.archive_dir):
 
                 success_place.success(
-                    f"Successfully created **{session_state.new_dataset.name}** dataset")
+                    f"Successfully created **{dataset.name}** dataset")
 
                 if is_existing_dataset:
-                    dataset_func = session_state.new_dataset.update_dataset_size
+                    dataset_func = dataset.update_dataset_size
                 else:
-                    dataset_func = session_state.new_dataset.insert_dataset
+                    dataset_func = dataset.insert_dataset
 
                 if dataset_func():
 
                     success_place.success(
-                        f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
+                        f"Successfully stored **{dataset.name}** dataset information in database")
 
                     if is_existing_dataset:
                         # insert the new image info into the `task` table for existing dataset,
@@ -551,9 +565,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
                         image_names = [os.path.basename(p)
                                        for p in os_sorted(image_paths)]
-                        session_state.project.insert_new_project_task(
-                            session_state.new_dataset.name,
-                            session_state.new_dataset.id,
+                        project.insert_new_project_task(
+                            dataset.name,
+                            dataset.id,
                             image_names=image_names)
 
                     if session_state.is_labeled:
@@ -568,19 +582,19 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                     existing_dataset)
                                 # add the uploaded dataset as the dataset_chosen, to
                                 # allow the insert_project_dataset to work
-                                dataset_name = session_state.new_dataset.name
+                                dataset_name = dataset.name
                                 dataset_chosen = [dataset_name]
-                                session_state.project.insert_project_dataset(
+                                project.insert_project_dataset(
                                     dataset_chosen, dataset_dict)
-                                project_id = session_state.project.id
+                                project_id = project.id
                                 logger.info(f"Inserted project dataset '{dataset_name}' for "
                                             f"Project {project_id} into project_dataset table")
                                 # must refresh all the dataset details
-                                session_state.project.refresh_project_details()
+                                project.refresh_project_details()
 
                         with st.spinner("Querying all the labeled images ..."):
                             all_task, all_task_column_names = Task.query_all_task(
-                                session_state.project.id,
+                                project.id,
                                 return_dict=True,
                                 # using True to use 'id' instead of 'ID' for the first column name
                                 for_data_table=True)
@@ -590,12 +604,12 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                             # taking only the filename without extension to consider the
                             #  case of Label Studio exported XML filenames without
                             #  any file extension
-                            if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
+                            if project.deployment_type == 'Object Detection with Bounding Boxes':
                                 task_df['Task Name'] = task_df['Task Name'].apply(
                                     lambda filename: os.path.splitext(filename)[0])
 
                         total_images = len(task_df)
-                        filetype = session_state.new_dataset.filetype
+                        filetype = dataset.filetype
                         logger.info("Submitting uploaded annotations ...")
 
                         start_t = perf_counter()
@@ -603,8 +617,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         # set this to False to check how long each process takes
                         disable_timer = True
 
-                        result_generator = session_state.new_dataset.parse_annotation_files(
-                            session_state.project.deployment_type
+                        result_generator = dataset.parse_annotation_files(
+                            project.deployment_type, image_paths,
+                            classif_annot_type=classif_annot_type
                         )
                         message = "Inserting uploaded annotations into database"
                         for img_name, result in stqdm(result_generator, total=total_images,
@@ -630,8 +645,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
                             with Timer("Task instantiated", disable_timer):
                                 task = Task(task_row,
-                                            session_state.project.dataset_dict,
-                                            session_state.project.id,
+                                            project.dataset_dict,
+                                            project.id,
                                             generate_data_url=False)
 
                             with Timer("Annotation instantiated", disable_timer):
@@ -658,12 +673,12 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         with st.spinner("Updating project labels and editor configuration ..."):
                             # get existing labels from editor_config to use to
                             # compare and update editor_config with new labels
-                            existing_config_labels = session_state.project.editor.get_labels()
+                            existing_config_labels = project.editor.get_labels()
                             logger.debug("Existing labels found in "
                                          f"editor config: {existing_config_labels}")
                             # now the annotations will include new labels from the
                             # new uploaded annotations
-                            existing_annotated_labels = session_state.project.get_existing_unique_labels()
+                            existing_annotated_labels = project.get_existing_unique_labels()
                             new_labels = set(existing_annotated_labels).difference(
                                 existing_config_labels)
                             logger.info("After adding the new labels to editor config: "
@@ -679,32 +694,32 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
                             # update editor_config with the new labels from the uploaded annotations
                             for label in new_labels:
-                                newChild = session_state.project.editor.create_label(
+                                newChild = project.editor.create_label(
                                     'value', label)
                                 logger.debug(
                                     f"newChild: {newChild.attributes.items()}")
-                            session_state.project.editor.labels = session_state.project.editor.get_labels()
+                            project.editor.labels = project.editor.get_labels()
 
-                            # default_labels = session_state.project.editor.get_default_template_labels()
+                            # default_labels = project.editor.get_default_template_labels()
 
                             if is_new_project and unwanted_labels:
                                 for label in unwanted_labels:
                                     logger.debug(
                                         f"Removing label: {label}")
-                                    session_state.project.editor.labels.remove(
+                                    project.editor.labels.remove(
                                         label)
-                                    removedChild = session_state.project.editor.remove_label(
+                                    removedChild = project.editor.remove_label(
                                         'value', label)
                                     logger.debug(
                                         f"removedChild: {removedChild}")
                                 logger.debug(f"After removing default labels: "
-                                             f"{session_state.project.editor.labels}")
-                            session_state.project.editor.labels.sort()
+                                             f"{project.editor.labels}")
+                            project.editor.labels.sort()
                             logger.info("All labels after updating: "
-                                        f"{session_state.project.editor.labels}")
+                                        f"{project.editor.labels}")
 
-                            session_state.project.editor.update_editor_config()
-                            session_state.project.refresh_project_details()
+                            project.editor.update_editor_config()
+                            project.refresh_project_details()
 
                         if error_imgs:
                             with st.expander("""NOTE: These images were unreadable and
@@ -723,34 +738,34 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                             NewDataset.reset_new_dataset_page()
                             # also could be coming from project dashboard
                             Project.reset_dashboard_page()
-                            session_state.project_pagination = ProjectPagination.Existing
-                            session_state.project_status = ProjectPagination.Existing
+                            project_pagination = ProjectPagination.Existing
+                            project_status = ProjectPagination.Existing
                             session_state.append_project_flag = ProjectPermission.ViewOnly
 
                             logger.info(
-                                f"Entering Project {session_state.project.id}")
+                                f"Entering Project {project.id}")
 
                         st.button("Enter Project", key="btn_enter_project",
                                   on_click=enter_project_cb)
                 else:
                     st.error(
-                        f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")
+                        f"Failed to stored **{dataset.name}** dataset information in database")
             else:
                 st.error(
-                    f"Failed to created **{session_state.new_dataset.name}** dataset")
+                    f"Failed to created **{dataset.name}** dataset")
 
             # remove the unneeded extracted archive dir contents
             with st.spinner("Removing the unwanted extracted files ..."):
-                shutil.rmtree(session_state.new_dataset.archive_dir)
+                shutil.rmtree(dataset.archive_dir)
                 logger.info(
                     "Removed temporary directory for extracted contents")
 
     # FOR DEBUGGING:
-    # st.write("vars(session_state.new_dataset)")
-    # st.write(vars(session_state.new_dataset))
+    # st.write("vars(dataset)")
+    # st.write(vars(dataset))
     # from copy import deepcopy
 
-    # project: Project = session_state.project
+    # project: Project = project
     # editor = deepcopy(project.editor)
     # existing_config_labels = editor.get_labels()
     # st.write("existing_config_labels")

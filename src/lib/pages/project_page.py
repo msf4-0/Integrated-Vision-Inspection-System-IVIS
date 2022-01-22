@@ -33,33 +33,33 @@ from streamlit import session_state
 import tensorflow as tf
 
 # >>>>>>>>>>>>>>>>>>>>>>DEBUG>>>>>>>>>>>>>>>>>>>>>>>>
-# DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# # DEFINE Web APP page configuration
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-if 'setup' not in session_state:
-    # to disable warning messages from OpenCV, must do this before import cv2
-    os.environ['OPENCV_LOG_LEVEL'] = 'OFF'
-    os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'
+# if 'setup' not in session_state:
+#     # to disable warning messages from OpenCV, must do this before import cv2
+#     os.environ['OPENCV_LOG_LEVEL'] = 'OFF'
+#     os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'
 
-    gpus = tf.config.list_physical_devices('GPU')
-    for gpu in gpus:
-        try:
-            # limit memory growth to avoid memory issues
-            tf.config.experimental.set_memory_growth(gpu, True)
-            logical_gpus = tf.config.list_logical_devices('GPU')
-            print(len(gpus), "Physical GPUs,",
-                  len(logical_gpus), "Logical GPUs")
-        except RuntimeError as e:
-            # Visible devices must be set before GPUs have been initialized
-            print(e)
-    session_state.setup = True
+#     gpus = tf.config.list_physical_devices('GPU')
+#     for gpu in gpus:
+#         try:
+#             # limit memory growth to avoid memory issues
+#             tf.config.experimental.set_memory_growth(gpu, True)
+#             logical_gpus = tf.config.list_logical_devices('GPU')
+#             print(len(gpus), "Physical GPUs,",
+#                   len(logical_gpus), "Logical GPUs")
+#         except RuntimeError as e:
+#             # Visible devices must be set before GPUs have been initialized
+#             print(e)
+#     session_state.setup = True
 # >>>>>>>>>>>>>>>>>>>>>>DEBUG>>>>>>>>>>>>>>>>>>>>>>>>
 
 from annotation.annotation_management import (Annotations, LabellingPagination,
