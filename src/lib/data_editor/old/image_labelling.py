@@ -43,8 +43,8 @@ from data_editor.label_studio_editor_component.label_studio_editor import labels
 conn = init_connection(**st.secrets["postgres"])
 
 # NOTE: not used********************************************
-from data_editor.streamlit_labelstudio import st_labelstudio
-from streamlit.report_thread import add_report_ctx
+# from data_editor.streamlit_labelstudio import st_labelstudio
+# from streamlit.report_thread import add_report_ctx
 
 
 EDITOR_CONFIG = {"Image Classification": ImgClassification, "Object Detection with Bounding Boxes": DetectionBBOX,

@@ -41,7 +41,8 @@ from paho.mqtt.client import Client
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
-from streamlit.report_thread import add_report_ctx
+# this cannot be imported anymore as of Streamlit v1.4.0
+# from streamlit.report_thread import add_report_ctx
 import tensorflow as tf
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -278,7 +279,7 @@ def index(RELEASE=True):
 
             # need to add this to avoid Missing ReportContext error
             # https://github.com/streamlit/streamlit/issues/1326
-            add_report_ctx(client._thread)
+            # add_report_ctx(client._thread)
 
             session_state.client_connected = True
 

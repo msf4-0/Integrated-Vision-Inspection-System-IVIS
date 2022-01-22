@@ -49,3 +49,6 @@ TFOD
 
 # file to store environment variables for Docker
 .env
+
+# user-defined docker-compose file
+docker-compose-user.yml

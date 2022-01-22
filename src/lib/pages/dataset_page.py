@@ -30,7 +30,7 @@ import streamlit as st
 from threading import Thread
 from time import sleep
 import pandas as pd
-from streamlit.report_thread import add_report_ctx
+# from streamlit.report_thread import add_report_ctx
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
@@ -396,7 +396,7 @@ def dashboard():
                     log_info("End Sleep in thread")
                     update_success_place.empty()
                 update_success_msg_thread = Thread(target=show_update_success)
-                add_report_ctx(update_success_msg_thread)
+                # add_report_ctx(update_success_msg_thread)
                 update_success_msg_thread.start()
                 # show_update_success()
                 log_info("After thread start")

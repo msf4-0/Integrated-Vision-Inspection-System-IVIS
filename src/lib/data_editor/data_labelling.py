@@ -39,7 +39,7 @@ from data_manager.data_table_component.data_table import data_table
 conn = init_connection(**st.secrets["postgres"])
 
 # NOTE: not used********************************************
-from streamlit.report_thread import add_report_ctx
+# from streamlit.report_thread import add_report_ctx
 
 
 def editor(data_id: List[int] = None):

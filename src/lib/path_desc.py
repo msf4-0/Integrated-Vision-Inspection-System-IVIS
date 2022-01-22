@@ -74,34 +74,20 @@ SECRETS_PATH = PROJECT_ROOT / ".streamlit" / "secrets.toml"
 BASE_DATA_DIR = Path(get_data_dir())
 MEDIA_ROOT = BASE_DATA_DIR / 'app_media'
 DATABASE_DIR = MEDIA_ROOT / 'data'
-if not DATABASE_DIR.exists():
-    os.makedirs(DATABASE_DIR)
 DATASET_DIR = MEDIA_ROOT / 'dataset'
-if not DATASET_DIR.exists():
-    os.makedirs(DATASET_DIR)
 PROJECT_DIR = MEDIA_ROOT / 'project'
-if not PROJECT_DIR.exists():
-    os.makedirs(PROJECT_DIR)
 PRE_TRAINED_MODEL_DIR = MEDIA_ROOT / 'models' / 'pre-trained-models'
-if not PRE_TRAINED_MODEL_DIR.exists():
-    os.makedirs(PRE_TRAINED_MODEL_DIR)
 USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
     'models' / 'user-deep-learning-model-upload'
-if not USER_DEEP_LEARNING_MODEL_UPLOAD_DIR.exists():
-    os.makedirs(USER_DEEP_LEARNING_MODEL_UPLOAD_DIR)
 # PROJECT_MODELS=PROJECT_DIR/<PROJECT-NAME>/<TRAINING-NAME>/'exported-models'/<MODEL-NAME>
 # named temporary directory
 TEMP_DIR = BASE_DATA_DIR / 'temp'
 CAPTURED_IMAGES_DIR = MEDIA_ROOT / 'captured_images'
-if not CAPTURED_IMAGES_DIR.exists():
-    os.makedirs(CAPTURED_IMAGES_DIR)
 
 # Pretrained model details
 # assuming this folder is in "utils/resources/" directory
 PRETRAINED_MODEL_TABLES_DIR = _CURR_FILEPATH.parents[2] / \
     'resources' / 'pretrained_model_tables'
-if not PRETRAINED_MODEL_TABLES_DIR.exists():
-    os.makedirs(PRETRAINED_MODEL_TABLES_DIR)
 # this table has columns: Model Name
 TFOD_MODELS_TABLE_PATH = PRETRAINED_MODEL_TABLES_DIR / 'tfod_pretrained_models.csv'
 # Keras image classification pretrained model names from
@@ -118,6 +104,21 @@ SEGMENT_MODELS_TABLE_PATH = PRETRAINED_MODEL_TABLES_DIR / \
 TFOD_DIR = _CURR_FILEPATH.parent / "TFOD" / "models"
 
 MQTT_CONFIG_PATH = PROJECT_ROOT / 'src/lib/deployment/mqtt_config.yml'
+
+dirs_to_create = (DATABASE_DIR, DATASET_DIR, PROJECT_DIR, PRE_TRAINED_MODEL_DIR,
+                  USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, CAPTURED_IMAGES_DIR,
+                  PRETRAINED_MODEL_TABLES_DIR)
+for d in dirs_to_create:
+    if not d.exists():
+        os.makedirs(d)
+
+paths_to_del = (TEMP_DIR,)
+for p in paths_to_del:
+    if p.exists():
+        if p.is_dir():
+            shutil.rmtree(p)
+        else:
+            p.unlink()
 
 
 def chdir_root():
