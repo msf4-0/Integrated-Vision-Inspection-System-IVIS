@@ -57,7 +57,7 @@ from pages.sub_pages.training_page.new_training_subpages.augmentation.utils impo
 from pages.sub_pages.training_page.new_training_subpages.augmentation.visuals import (
     select_image,
     show_docstring,
-    get_transormations_params,
+    get_transformations_params,
     show_bbox_params_selection,
     show_train_size_selection
 )
@@ -111,18 +111,22 @@ def augmentation_configuration(RELEASE=True):
         # You can refer to augmentation/sample_augment_config.json for a sample output
         session_state.augmentation_config = AugmentationConfig()
 
-    # # - This is for None or empty dict; also to create a nested `augmentations` Dict inside
-    # if not session_state.new_training.has_augmentation():
-    #     session_state.new_training.augmentation_config = AugmentationConfig()
+    def clear_xml_df_cache():
+        if hasattr(session_state.project, 'xml_df'):
+            # clear the previously loaded xml_df
+            logger.debug("Clearing xml_df cache")
+            del session_state.project.xml_df
 
     # ******************************BACK BUTTON******************************
     def to_training_config_page():
+        clear_xml_df_cache()
         session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
     st.sidebar.button("Back to Modify Training Config", key="btn_back_train_config",
                       on_click=to_training_config_page)
 
     def skip_augmentation():
+        clear_xml_df_cache()
         session_state.augmentation_config.reset()
         # update the database and our Training instance
         session_state.new_training.update_augment_config(
@@ -151,6 +155,8 @@ def augmentation_configuration(RELEASE=True):
                          f"{exported_dataset_dir}")
             # shutil.rmtree(exported_dataset_dir)
     if not exported_dataset_dir.exists():
+        clear_xml_df_cache()
+
         # export the dataset with the correct structure if not done yet
         # mask images will be generated later for a sample amount
         with st.spinner("Exporting tasks for augmentation demo ..."):
@@ -160,6 +166,12 @@ def augmentation_configuration(RELEASE=True):
     elif DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
         image_folder = exported_dataset_dir / "images"
         bbox_label_folder = exported_dataset_dir / "Annotations"
+
+        # NOTE: Only cache for augmentation demo for fast loading
+        if not hasattr(session_state.project, 'xml_df'):
+            with st.spinner("Loading bounding box data ..."):
+                logger.debug("Loading bounding box data")
+                session_state.project.xml_df = xml_to_df(bbox_label_folder)
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
         image_folder = exported_dataset_dir / "images"
         coco_json_path = exported_dataset_dir / "result.json"
@@ -226,11 +238,11 @@ def augmentation_configuration(RELEASE=True):
             st.sidebar.markdown("___")
 
             if image_name != "Upload my image":
-                xml_df = xml_to_df(bbox_label_folder)
-                class_names, bboxes = get_bbox_label_info(xml_df, image_name)
+                class_names, bboxes = get_bbox_label_info(
+                    session_state.project.xml_df, image_name)
 
         # show the widgets and get parameters for each transform
-        transforms = get_transormations_params(
+        transforms = get_transformations_params(
             transform_names, augmentations)
 
         try:
@@ -257,7 +269,7 @@ def augmentation_configuration(RELEASE=True):
                         logger.error(
                             f"Error loading mask image for {image_name}: {e}")
                         data = A.ReplayCompose(transforms)(image=image)
-            if DEPLOYMENT_TYPE == 'Image Classification':
+            if image_name == "Upload my image" or DEPLOYMENT_TYPE == 'Image Classification':
                 # apply the transformation to the image
                 data = A.ReplayCompose(transforms)(image=image)
             error = 0
@@ -371,6 +383,7 @@ def augmentation_configuration(RELEASE=True):
     # ******************************SUBMIT BUTTON******************************
 
     def update_augment_config():
+        clear_xml_df_cache()
         # update the database and our Training instance
         session_state.new_training.update_augment_config(
             session_state.augmentation_config)
@@ -390,9 +403,9 @@ def augmentation_configuration(RELEASE=True):
 
 if __name__ == "__main__":
     # DEFINE wide page layout for debugging on this page
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+    # layout = 'wide'
+    # st.set_page_config(page_title="Integrated Vision Inspection System",
+    #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
     if st._is_running_with_streamlit:
         augmentation_configuration(RELEASE=False)

@@ -159,7 +159,7 @@ def new_project_entry_page(conn=None):
         # **** PROJECT TITLE****
         st.text_input(
             "Project Title", key="new_project_name",
-            help="Enter the name of the project",
+            help="Enter the name of the project. Name should be less than 30 characters long",
             on_change=check_if_name_exist, args=(place, conn,))
         place["new_project_name"] = st.empty()
 
@@ -171,8 +171,6 @@ def new_project_entry_page(conn=None):
         if description:
             session_state.new_project.desc = remove_newline_trailing_whitespace(
                 description)
-        else:
-            pass
 
         # **** DEPLOYMENT TYPE and EDITOR BASE TEMPLATE LOAD ****
         v = annotation_sel()
@@ -308,9 +306,9 @@ def new_project_entry_page(conn=None):
 
     def new_project_submit(dataset_chosen=dataset_chosen, dataset_dict=dataset_dict, labeled=False):
         # if this is True, we will send to New Dataset page for uploading
-        session_state.is_labeled = labeled
-
         if labeled:
+            # set this to True to tell new_dataset page about uploading labeled data
+            session_state.is_labeled = labeled
             # if uploading labeled dataset, then no need to check the dataset_chosen field
             del context['new_project_dataset_chosen']
         session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
@@ -340,6 +338,7 @@ def new_project_entry_page(conn=None):
                     else:
                         # if not uploading new labeled dataset then go to Editor
                         session_state.new_project_pagination = NewProjectPagination.EditorConfig
+                    st.experimental_rerun()
                 else:
                     success_place.error(
                         f"Failed to stored **{session_state.new_editor.name}** editor config in database")
@@ -347,15 +346,15 @@ def new_project_entry_page(conn=None):
             else:
                 success_place.error(
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
+        else:
+            st.stop()
     # TODO #72 Change to 'Update' when 'has_submitted' == True
-    submit_button = submit_col2.button(
-        "Submit", key="submit", on_click=new_project_submit,
-        kwargs={'labeled': False})
+    if submit_col2.button("Submit", key="submit"):
+        new_project_submit()
 
     with upload_place.container():
-        st.button("Upload Labeled Dataset", key='btn_upload_labeled_data',
-                  on_click=new_project_submit,
-                  kwargs={'labeled': True})
+        if st.button("Upload Labeled Dataset", key='btn_upload_labeled_data'):
+            new_project_submit(labeled=True)
         with st.expander("NOTES about uploading a labeled dataset"):
             st.info("""If you choose to upload a labeled dataset, you must first fill
             up the project title and select a template for the deployment type of the
@@ -446,9 +445,9 @@ def index(RELEASE=True, conn=None):
 
 if __name__ == "__main__":
     # DEFINE wide page layout for debugging on this page directly
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+    # layout = 'wide'
+    # st.set_page_config(page_title="Integrated Vision Inspection System",
+    #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
     if st._is_running_with_streamlit:
         # initialise connection to Database

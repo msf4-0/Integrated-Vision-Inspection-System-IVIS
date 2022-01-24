@@ -24,6 +24,7 @@ SPDX-License-Identifier: Apache-2.0
  """
 import os
 import shutil
+import stat
 import sys
 import wget
 import subprocess
@@ -39,8 +40,11 @@ if str(LIB_PATH) not in sys.path:
 from core.utils.log import logger
 from path_desc import TFOD_DIR, chdir_root
 
+PROTOC_PATH = TFOD_DIR.parent / 'protoc_installation'
+
 
 def run_command(command_line_args):
+    logger.info(f"Running command: '{command_line_args}'")
     # shell=True to work on String instead of list
     process = subprocess.Popen(command_line_args, shell=True,
                                # stdout to capture all output
@@ -53,12 +57,38 @@ def run_command(command_line_args):
         if line:
             print(line)
     process.wait()
+    process.kill()
     return process.stdout
 
 
-def install():
-    PROTOC_PATH = TFOD_DIR.parent / 'protoc_installation'
+def install_protoc():
+    if not (PROTOC_PATH / "bin").exists():
+        logger.info("Downloading protobuf dependencies ...")
+        protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
+        protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
+        url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
+        # download the protoc zipfile into the desired path, PROTOC_PATH
+        wget.download(url, str(PROTOC_PATH))
+        # unzip the zip file
+        if os.name == "posix":
+            run_command(
+                f'cd "{PROTOC_PATH}" && unzip {protoc_zipfilename}')
+        else:
+            run_command(
+                f'cd "{PROTOC_PATH}" && tar -xf {protoc_zipfilename}')
+        os.remove(PROTOC_PATH / protoc_zipfilename)
+    # add the path of $PROTOC_PATH/bin into the PATH in environment variable
+    # to be able to run `protoc` as a command in terminal
+    os.environ['PATH'] += os.pathsep + str((PROTOC_PATH / 'bin').resolve())
 
+
+def del_rw(action, name, exc):
+    """To delete .git directory in TFOD"""
+    os.chmod(name, stat.S_IWRITE)
+    os.remove(name)
+
+
+def install():
     for path in (TFOD_DIR, PROTOC_PATH):
         os.makedirs(path, exist_ok=True)
 
@@ -66,7 +96,10 @@ def install():
         logger.info(
             "Cloning TFOD API from https://github.com/tensorflow/models...")
         run_command(
-            f"git clone https://github.com/tensorflow/models {TFOD_DIR}")
+            f'git clone https://github.com/tensorflow/models "{TFOD_DIR}"')
+
+    # uninstall any existing pycocotools and install specific pycocotools library here
+    run_command("pip uninstall -y pycocotools")
 
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
     # NOTE: Install COCO API ONLY if you want to perform evaluation
@@ -76,24 +109,23 @@ def install():
         run_command("git clone https://github.com/cocodataset/cocoapi.git")
         os.chdir("cocoapi/PythonAPI")
         run_command("make")
-        shutil.copytree("pycocotools", TFOD_DIR / 'research')
+        run_command(f'cp -r pycocotools "{TFOD_DIR / "research"}"')
         os.chdir(cwd)
         # removed the unused cloned files from COCO API
         shutil.rmtree("cocoapi")
         # 'posix' is for Linux (also to use in Colab Notebook)
         logger.info("Installing protobuf ...")
-        run_command(f"apt-get install protobuf-compiler")
-        cmd = (f"cd {TFOD_DIR / 'research'} "
-               "&& protoc object_detection/protos/*.proto --python_out=. "
-               "&& cp object_detection/packages/tf2/setup.py setup.py "
-               "&& python setup.py build && python setup.py install")
+        install_protoc()
+        logger.info("Installing TFOD API ...")
+        # NEW: --use-feature=2020-resolver
+        cmd = (f'cd "{TFOD_DIR / "research"}" '
+               '&& protoc object_detection/protos/*.proto --python_out=. '
+               '&& cp object_detection/packages/tf2/setup.py setup.py '
+               '&& python -m pip install --use-feature=2020-resolver .')
         run_command(cmd)
-        # The command below does not work properly because the pip install will stuck for very long
-        # run_command(
-        #     f"cd {TFOD_DIR / 'research'} "
-        #     "&& protoc object_detection/protos/*.proto --python_out=. "
-        #     "&& cp object_detection/packages/tf2/setup.py . "
-        #     "&& python -m pip install . ")
+        # installing pycocotools here instead of in requirements.txt
+        # because Windows NEED to install pycocotools-windows instead
+        run_command('pip install pycocotools==2.0.2')
     elif os.name == 'nt':
         # 'nt' is for Windows
         # NOTE: Windows need to install COCO API first, but there is currently an ongoing issue
@@ -103,41 +135,46 @@ def install():
         # NOTE: using this new repo created to fix Windows installation for now
         run_command(
             "pip install git+https://github.com/gautamchitnis/cocoapi.git@cocodataset-master#subdirectory=PythonAPI")
-        if not (PROTOC_PATH / "bin").exists():
-            logger.info("Downloading protobuf dependencies ...")
-            protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
-            protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
-            url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
-            wget.download(url)
-            # move the protoc zip file into the desired path, PROTOC_PATH
-            shutil.move(protoc_zipfilename, PROTOC_PATH)
-            # unzip the zip file
-            run_command(
-                f"cd {PROTOC_PATH} && tar -xf {protoc_zipfilename}")
-            os.remove(PROTOC_PATH / protoc_zipfilename)
-        # add the path of $PROTOC_PATH/bin into the PATH in environment variable
-        # to be able to run `protoc` as a command in terminal
-        os.environ['PATH'] += os.pathsep + str((PROTOC_PATH / 'bin').resolve())
+
+        install_protoc()
+
         # run the `protoc` command and install all the dependencies for TFOD API
         logger.info("Installing TFOD API ...")
-        cmd = (f"cd {TFOD_DIR / 'research'} "
-               "&& protoc object_detection/protos/*.proto --python_out=. "
-               "&& cp object_detection\\packages\\tf2\\setup.py setup.py "
-               "&& python setup.py build "
-               "&& python setup.py install")
-        logger.info(f"Running {cmd}")
+        # NEW: --use-feature=2020-resolver
+        cmd = (f'cd "{TFOD_DIR / "research"}" '
+               '&& protoc object_detection/protos/*.proto --python_out=. '
+               '&& copy object_detection\\packages\\tf2\\setup.py setup.py '
+               '&& python -m pip install --use-feature=2020-resolver .')
         run_command(cmd)
+        # reason explained above under Linux part
+        run_command('pip install pycocotools-windows==2.0.0.2')
 
-    # install slim dependencies
-    run_command(f"cd {TFOD_DIR / 'research'}/slim && pip install -e .")
+    # remove unnecessary files
+    folders_to_del = (TFOD_DIR, (TFOD_DIR / 'research'))
+    folders_to_keep = set(('research', 'object_detection', 'pycocotools'))
+    for folder in folders_to_del:
+        for path in folder.iterdir():
+            if path.is_dir():
+                # these folders should not be removed
+                if path.name in folders_to_keep:
+                    continue
+                if path.name == '.git':
+                    # .git folder needs special permission
+                    shutil.rmtree(path, onerror=del_rw)
+                else:
+                    shutil.rmtree(path)
+            else:
+                os.remove(path)
 
-    VERIFICATION_SCRIPT = TFOD_DIR / 'research' / \
-        'object_detection' / 'builders' / 'model_builder_tf2_test.py'
-    # Verify all the installation above works for TFOD API
-    logger.info("Verifying all works ...")
-    run_command(f"python {VERIFICATION_SCRIPT}")
-    logger.info(
-        "If the last line above returns 'OK' then TFOD API is installed successfully.")
+    # NOTE: not running verification script for now as the environment might not be updated
+    #   with the latest packages yet
+    # VERIFICATION_SCRIPT = TFOD_DIR / 'research' / \
+    #     'object_detection' / 'builders' / 'model_builder_tf2_test.py'
+    # # Verify all the installation above works for TFOD API
+    # logger.info("Verifying all works ...")
+    # run_command(f"python {VERIFICATION_SCRIPT}")
+    # logger.info(
+    #     "If the last line above returns 'OK' then TFOD API is installed successfully.")
 
     chdir_root()
 

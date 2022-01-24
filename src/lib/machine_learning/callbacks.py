@@ -1,3 +1,4 @@
+from time import perf_counter
 from typing import Dict, Any
 
 import streamlit as st
@@ -22,7 +23,12 @@ class StreamlitOutputCallback(Callback):
         self.progress_placeholder = progress_placeholder
         self.update_metrics = update_metrics
 
+        self._start: float = None
+
     def on_epoch_begin(self, epoch, logs=None):
+        # to calculate epoch time
+        self._start = perf_counter()
+
         with self.progress_placeholder['epoch'].container():
             st.markdown(
                 f"**Current epoch {epoch + 1} / {self.num_epochs}**:")
@@ -43,8 +49,15 @@ class StreamlitOutputCallback(Callback):
     def on_epoch_end(self, epoch, logs=None):
         # NOTE: MUST INCLUDE at least one line of Streamlit function here to make
         # Keras interacts with Streamlit
-        epoch = epoch + 1  # add one to start from 1 instead of 0
-        st.markdown(f"**Epoch {epoch} / {self.num_epochs}**:")
+        epoch += 1  # add one to start from 1 instead of 0
+        epoch_time = perf_counter() - self._start
+        text = (f"**Epoch** {epoch} / {self.num_epochs}. "
+                f"**Epoch time**: {epoch_time:.4f}s.")
+        if epoch != self.num_epochs:
+            # only show ETA when it's not final epoch
+            eta = (self.num_epochs - epoch) * epoch_time
+            text += f" **ETA**: {eta:.2f}s"
+        st.markdown(text)
 
         if 'learning_rate' in logs:
             # not storing learning_rate for now

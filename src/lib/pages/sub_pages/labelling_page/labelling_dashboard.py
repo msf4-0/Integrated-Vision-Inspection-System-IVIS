@@ -184,7 +184,6 @@ def labelled_table(all_task, labelled_task_dict, task_queue_dict):
     labelled_task_table_col1, labelled_task_table_col2 = st.columns([3, 0.75])
 
     length_of_labelled = len(labelled_task_dict)
-    length_of_remaining = len(all_task) - len(labelled_task_dict)
 
     labelled_task_table_col1.write(f"### Labelled Task")
     labelled_task_table_col2.write(
@@ -198,26 +197,33 @@ def all_task_table(all_task, labelled_task_dict, task_queue_dict):
     # >>>> ALL TASK TABLE >>>>>>>>>>>>>>>>>>>>>>
 
     # >>>> All task table placeholders
-    all_task_table_col1, all_task_table_col2, all_task_table_col3, all_task_table_col4 = st.columns([
-                                                                                                    2, 0.3, 0.5, 0.5])
+    (all_task_table_col1, all_task_table_col2,
+     all_task_table_col3, all_task_table_col4,
+     all_task_table_col5) = st.columns([2, 0.3, 0.5, 0.5, 0.5])
     _, all_task_table_bottom_col1, all_task_table_bottom_col2 = st.columns([
                                                                            3, 0.75, 0.75])
 
     all_task_table_col1.write(f"### All Task")
     all_task_table_col2.write(f"### Total data: {len(all_task)}")
+    n_skipped_data = 0
+    for task in labelled_task_dict:
+        if task['Skipped']:
+            n_skipped_data += 1
+
+    n_remaining = len(all_task) - len(labelled_task_dict)
+
     all_task_table_col3.write(
         f"### Total labelled data: {len(labelled_task_dict)}")
     all_task_table_col4.write(
-        f"### Total remaining data: {len(task_queue_dict)}")
+        f"### Total skipped data: {n_skipped_data}")
+    all_task_table_col5.write(
+        f"### Total remaining data: {n_remaining}")
 
     data_table(all_task, all_task_columns,
                checkbox=False, key='all_task_table_key', on_change=to_labelling_editor_page, args=(LabellingPagination.AllTask,))
 
 
 def export_section():
-    if 'archive_success' not in session_state:
-        # to check whether exported zipfile successfully
-        session_state['archive_success'] = False
     if 'zipfile_path' not in session_state:
         # initialize the path to the zipfile for images & annotations
         session_state['zipfile_path'] = None
@@ -263,24 +269,27 @@ def export_section():
                 return_original_path=True)
             session_state['zipfile_path'] = zipfile_path
             logger.info(f"Zipfile created at: {zipfile_path}")
-            session_state['archive_success'] = True
 
     with export_labels_col:
-        st.button("Export Tasks", key='export_labels_button',
-                  on_click=download_export_tasks)
+        btn_export = st.button("Export Tasks", key='export_labels_button')
+
+    if btn_export:
+        # use this instead of callback to show the message below the button
+        download_export_tasks()
+        st.experimental_rerun()
 
     def reset_zipfile_state():
         # clear out the `download_button` after the user has clicked it
         os.remove(session_state['zipfile_path'])
-        session_state.archive_success = False
         session_state['zipfile_path'] = None
 
     with download_task_col:
         zipfile_path = session_state.get('zipfile_path')
+        downloaded = False
         if zipfile_path is not None and zipfile_path.exists():
             with st.spinner("Creating the Zipfile button to download ... This may take awhile ..."):
                 with open(zipfile_path, "rb") as fp:
-                    st.download_button(
+                    downloaded = st.download_button(
                         label="Download Zipfile",
                         data=fp,
                         file_name="images_annotations.zip",
@@ -289,11 +298,11 @@ def export_section():
                         on_click=reset_zipfile_state,
                     )
 
-    if session_state['archive_success']:
+    if downloaded:
         # - commenting out this line in case we are only deploying for local machine,
         # - this is to show message to the user about the "Downloads" folder path
         # archive_success_message.success(
-        #     f"Zipfile created successfully at **{session_state['archive_success']}**")
+        #     f"Zipfile created successfully at **{session_state['zipfile_path']}**")
         archive_success_message.success(
             f"Zipfile created successfully, you may download it by pressing the 'Download ZIP' button")
 
@@ -400,7 +409,7 @@ def index(RELEASE=True):
                   on_click=to_labelling_section, args=(LabellingPagination.Export,))
 
     # >>>> PAGINATION BUTTONS  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    project_id = session_state.project.id
+
     # >>>> MAIN FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     logger.debug(f"Navigator: {session_state.labelling_pagination}")
 
@@ -417,8 +426,13 @@ def index(RELEASE=True):
 
     else:
         session_state.show_next_unlabeled = False
-        all_task, _ = Task.query_all_task(project_id,
-                                          return_dict=True, for_data_table=True)
+        if 'all_task' not in session_state:
+            all_task, _ = Task.query_all_task(
+                session_state.project.id,
+                return_dict=True,
+                for_data_table=True)
+            session_state.all_task = all_task
+        all_task = session_state.all_task
         labelled_task_dict = Task.get_labelled_task(all_task, True)
         task_queue_dict = Task.get_labelled_task(all_task, False)
         labelling_page[session_state.labelling_pagination](
@@ -427,9 +441,9 @@ def index(RELEASE=True):
 
 if __name__ == "__main__":
     # DEFINE wide layout for debugging when running this script/page directly
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+    # layout = 'wide'
+    # st.set_page_config(page_title="Integrated Vision Inspection System",
+    #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
     if st._is_running_with_streamlit:
         index(RELEASE=False)

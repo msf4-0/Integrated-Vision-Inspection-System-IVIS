@@ -165,7 +165,8 @@ class NewTask(BaseTask):
 
 
 class Task(BaseTask):
-    def __init__(self, task_row: dict, dataset_dict: Dict[namedtuple, Any], project_id: int, annotations=None, predictions=None) -> None:
+    def __init__(self, task_row: dict, dataset_dict: Dict[namedtuple, Any], project_id: int, annotations=None, predictions=None,
+                 generate_data_url: bool = True) -> None:
         super().__init__()
         """
         - task_row: id,Task Name, Created By, Dataset Name, Is Labelled, Skipped, Date/Time
@@ -194,7 +195,9 @@ class Task(BaseTask):
         # self.filetype = Dataset.get_filetype_enumerator(self.name)
         self.filetype: FileTypes = FileTypes.Image
 
-        self.data_url: str = self.get_data()  # Get Data URL
+        if generate_data_url:
+            # only need this to show the image on Label Studio Editor
+            self.data_url: str = self.get_data()  # Get Data URL
 
         # self.query_task()
 
@@ -259,7 +262,19 @@ class Task(BaseTask):
             logger.error(
                 f"{e}: Task for data {self.name} from Dataset {self.dataset_id} does not exist in table for Project {self.project_id}")
 
-    # @st.cache
+    @staticmethod
+    def update_task_dict(all_task: List[Dict[str, Any]], task_id: int,
+                         labelled: bool = False, skipped: bool = False,
+                         for_data_table: bool = True):
+        ID_string = "id" if for_data_table else "ID"
+        for task in all_task:
+            if task[ID_string] == task_id:
+                task["Is Labelled"] = labelled
+                task["Skipped"] = skipped
+                break
+        else:
+            logger.error(f"'task_id' {task_id} does not exist in 'all_task'")
+
     def generate_data_url(self) -> str:
         """Generate data url from OpenCV numpy array
 
@@ -428,20 +443,27 @@ class Task(BaseTask):
 
     @staticmethod
     @dataframe2dict(orient='index')
-    def get_labelled_task(all_task: Union[List[namedtuple], List[dict]], is_labelled: bool = True) -> List[Dict]:
+    def get_labelled_task(all_task: Union[List[namedtuple], List[dict]],
+                          is_labelled: bool = True) -> List[Dict]:
         """Get a List of Task-Annotations Dict where is_labelled is True
 
         Args:
             all_task (Union[List[namedtuple], List[dict]]): all_task query from 'get_all_task()'
-            is_labelled (bool, optional): [description]. Defaults to True.
+            is_labelled (bool, optional): Labelled data means either 'Is Labelled' or 'Skipped. Defaults to True.
+            is_skipped_only (bool, optional): If True, only return skipped data. Defaults to False
 
         Returns:
             List[Dict]: List of dictionaries based on Material UI Data Grid format
         """
 
         all_task_df = Task.create_all_task_dataframe(all_task)
-        labelled_task_df = all_task_df.loc[(all_task_df['Is Labelled'] == is_labelled)
-                                           | (all_task_df['Skipped'] == is_labelled)]
+        if is_labelled:
+            filt = ((all_task_df['Is Labelled'] == True)
+                    | (all_task_df['Skipped'] == True))
+        else:
+            filt = ((all_task_df['Is Labelled'] == False)
+                    & (all_task_df['Skipped'] == False))
+        labelled_task_df = all_task_df.loc[filt]
         # labelled_task_df=labelled_task_df[["id","Task Name","Created By","Dataset Name","Date/Time"]]
 
         # labelled_task_dict = list(
@@ -561,7 +583,7 @@ class BaseAnnotations:
         Returns:
             [type]: [description]
         """
-        logger.info(f"Submitting results.......")
+        logger.debug(f"Submitting results.......")
         # NOTE: Update class object: result + task
         self.result = result if result else None
         self.task.is_labelled = True
@@ -863,6 +885,14 @@ def get_task_row(task_id: int, task_df: pd.DataFrame) -> Dict:
 
 
 def reset_editor_page():
+    """
+    This function is used every time the user clicked on a navigation in
+    the labelling_dashboard pages.
+
+    So some states such as "labelling_pagination", and "all_task" are not included 
+    here so that we can keep them across pages. They are included in 
+    Training.reset_training_page()
+    """
     if session_state.get('zipfile_path'):
         if os.path.exists(session_state['zipfile_path']):
             logger.debug("Removing exported zipfile: "
@@ -870,15 +900,18 @@ def reset_editor_page():
             # don't need it anymore
             os.remove(session_state['zipfile_path'])
     if 'project' in session_state:
+        # must clear this dataset path just in case the user changes any annotations
         dataset_export_path = session_state.project.get_export_path()
         if dataset_export_path.exists():
             logger.debug(
                 f"Removing dataset export path: {dataset_export_path}")
             shutil.rmtree(dataset_export_path)
 
-    editor_attributes = ["new_annotation_flag", "task", "show_next_unlabeled"
-                         "annotation", "data_labelling_table", "labelling_prev_result"
-                         'data_selection', 'zipfile_path', 'archive_success']
+    editor_attributes = [
+        "new_annotation_flag", "task", "show_next_unlabeled",
+        "annotation", "data_labelling_table", "labelling_prev_result",
+        'data_selection', 'zipfile_path'
+    ]
 
     logger.debug(f"Resetting Editor Page......")
     reset_page_attributes(editor_attributes)

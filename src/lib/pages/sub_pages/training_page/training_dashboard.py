@@ -24,47 +24,36 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import sys
-from enum import IntEnum
 from pathlib import Path
-from time import sleep
-import pandas as pd
 
 import streamlit as st
 from streamlit import cli as stcli
-from streamlit import session_state as session_state
+from streamlit import session_state
 
-from training.model_management import ModelsPagination
-
-
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 # DEFINE Web APP page configuration
 # layout = 'wide'
 # st.set_page_config(page_title="Integrated Vision Inspection System",
 #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
 
 from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from data_manager.data_table_component.data_table import data_table
 from pages.sub_pages.training_page import new_training
-from pages.sub_pages.models_page import models_page
 from path_desc import chdir_root
 from project.project_management import Project, ProjectPermission
 from training.training_management import NewTraining, NewTrainingPagination, Training, TrainingPagination
-# >>>> TEMP
-from user.user_management import User
+from user.user_management import User, UserRole
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
-conn = init_connection(**st.secrets["postgres"])
+# conn = init_connection(**st.secrets["postgres"])
 
 
 # >>>> Variable Declaration >>>>
@@ -72,9 +61,9 @@ conn = init_connection(**st.secrets["postgres"])
 place = {}
 
 PROGRESS_COLUMN_HEADER = {
-    "Image Classification": 'Steps',
+    "Image Classification": 'Epoch',
     "Object Detection with Bounding Boxes": 'Checkpoint / Steps',
-    "Semantic Segmentation with Polygons": 'Checkpoint / Steps'
+    "Semantic Segmentation with Polygons": 'Epoch'
 }
 
 chdir_root()  # change to root directory
@@ -181,8 +170,6 @@ def dashboard():
     ]
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>> DATA TABLE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    training_dashboard_data_table_place = st.empty()
-
     def to_training_page():
         training_id_tmp = session_state.training_dashboard_table[0]
         logger.debug(f"Entering Training {training_id_tmp}")
@@ -225,19 +212,19 @@ def dashboard():
 
         st.experimental_rerun()
 
-    with training_dashboard_data_table_place:
-        data_table(all_project_training, project_training_columns,
-                   checkbox=False, key='training_dashboard_table', on_change=to_training_page)
+    st.markdown("Create/select a training session. Note that entering a trained model "
+                "session might take awhile.")
+    data_table(all_project_training, project_training_columns,
+               checkbox=False, key='training_dashboard_table', on_change=to_training_page)
 
     st.markdown('___')
 
 
-def index():
-    RELEASE = True
+def index(RELEASE=True):
     logger.debug("Navigator: At training_dashboard.py INDEX")
+
     # ****************** TEST ******************************
     if not RELEASE:
-
         # ************************TO REMOVE************************
         with st.sidebar.container():
             st.image("resources/MSF-logo.gif", use_column_width=True)
@@ -247,7 +234,8 @@ def index():
             st.markdown("""___""")
 
         # ************************TO REMOVE************************
-        project_id_tmp = 4
+        # dogs vs cats classification - small (uploaded): 98
+        project_id_tmp = 98
         logger.debug(f"Entering Project {project_id_tmp}")
 
         session_state.append_project_flag = ProjectPermission.ViewOnly
@@ -265,6 +253,11 @@ def index():
 
         st.markdown("""___""")
     # ****************** TEST ******************************
+
+    if session_state.user.role == UserRole.Annotator:
+        st.warning(
+            "You are not allowed to access to the training page.")
+        st.stop()
 
     # ****************************** HEADER **********************************************
     st.write(f"## **Training Section:**")
@@ -327,7 +320,7 @@ def index():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        index()
+        index(RELEASE=False)
 
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]

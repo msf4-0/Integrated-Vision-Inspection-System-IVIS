@@ -17,7 +17,7 @@ def str2float(val: str, float_format: str = '.5g'):
     try:
         param_val = f"{float(val):{float_format}}"
     except Exception as e:
-        logger.debug(f"Skip converting `{val}``: {e}")
+        logger.debug(f"Skip converting `{val}`: {e}")
         param_val = val
     return param_val
 
@@ -25,7 +25,7 @@ def str2float(val: str, float_format: str = '.5g'):
 def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g',
                         st_newlines: bool = True, bold_name: bool = True) -> str:
     """
-    Format param_dict to become a nice output to show on Streamlit.
+    Format param_dict (or any Dictionary) to become a nice output to show on Streamlit.
 
     `float_format` is used for formatting floats.
     The formatting for significant digits `.5g` is based on [StackOverflow](https://stackoverflow.com/questions/25780022/how-to-make-python-format-floats-with-certain-amount-of-significant-digits).
@@ -196,7 +196,6 @@ class PrettyMetricPrinter:
         self.prev_metrics = metrics.copy()
 
 
-@st.experimental_memo
 def create_class_colors(
         class_names: List[str],
         as_array: bool = False) -> Union[Dict[str, Tuple[int, int, int]], np.ndarray]:
@@ -286,7 +285,7 @@ def draw_gt_bboxes(
                 image_with_gt_box,
                 (xmin - 1, y),
                 (
-                    int(xmin + label_width + label_width * 0.05),
+                    int(xmin + label_width * 1.02),
                     int(y + label_height + label_height * 1),
                 ),
                 color=color,
@@ -297,7 +296,7 @@ def draw_gt_bboxes(
                 image_with_gt_box,
                 class_name,
                 (
-                    int(xmin + label_width * 0.08),
+                    int(xmin + label_width * 0.02),
                     int(y + label_height + label_height * 0.5),
                 ),  # bottom left
                 fontFace=cv2.FONT_HERSHEY_PLAIN,
@@ -370,7 +369,7 @@ def get_colored_mask_image(image: np.ndarray,
     return output
 
 
-@st.experimental_memo
+@st.cache
 def create_color_legend(class_colors: Dict[str, Tuple[int, int, int]],
                         bgr2rgb: bool = True,
                         ignore_background: bool = True,

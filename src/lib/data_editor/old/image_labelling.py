@@ -14,9 +14,9 @@ import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 # DEFINE Web APP page configuration
-layout = 'wide'
-st.set_page_config(page_title="Integrated Vision Inspection System",
-                   page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 # >>>> User-defined Modules >>>>
 SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
@@ -43,8 +43,8 @@ from data_editor.label_studio_editor_component.label_studio_editor import labels
 conn = init_connection(**st.secrets["postgres"])
 
 # NOTE: not used********************************************
-from data_editor.streamlit_labelstudio import st_labelstudio
-from streamlit.report_thread import add_report_ctx
+# from data_editor.streamlit_labelstudio import st_labelstudio
+# from streamlit.report_thread import add_report_ctx
 
 
 EDITOR_CONFIG = {"Image Classification": ImgClassification, "Object Detection with Bounding Boxes": DetectionBBOX,

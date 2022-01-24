@@ -1,8 +1,82 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  imagelabellingshrdc:
-    image: imagelabellingshrdc
+  db:
+    image: postgres:14
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # the default values set here are just placeholder to show the default values
+    # used in `database_setup.database_direct_setup()`,
+    # these environment variables can be loaded from a '.env' file too
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-integrated_vision_inspection_system}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shrdc}
+    ports:
+      - 6543:5432
+    networks:
+      - app_network
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.14
+    restart: unless-stopped
+    # 8883 is used instead of 1883 to avoid conflict with local broker,
+    # this port is defined in ./mosquitto.conf
+    ports:
+      - 8883:8883
+      - 9001:9001
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data/
+    networks:
+      - app_network
+
+  app:
+    image: integrated_vision_inspection_system
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./Dockerfile
+    # GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    ipc: host
+
+    # Currently, DEBUG=1 will only set the logging level to DEBUG
+    # Set DEBUG to 1 to show all the logging messages for developers
+    environment:
+      DEBUG: ${DEBUG:-0}
+      POSTGRES_DB: ${POSTGRES_DB:-integrated_vision_inspection_system}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shrdc}
+
+    # care that the `myuser` name is used in the Dockerfile
+    # this volume directly binds to the directory obtained by `appdirs` library
+    # in Python in path_desc.py
+    volumes:
+      - app-data:/root/.local/share/integrated-vision-inspection-system
+    # Note that this port is based on the .streamlit/config.toml file
+    ports:
+      - 8502:8502
+      - 6007:6007
+    # use this to create/start the database first before creating/booting up this image
+    depends_on:
+      - db
+    networks:
+      - app_network
+
+    # change this according to the dev paths of your cameras
+    # devices:
+    #   - "/dev/video2:/dev/video2"
+
+volumes:
+  postgres-data:
+  mosquitto-data:
+  app-data:
+
+# this network is to allow connection to the mosquitto-broker
+# from our app container
+networks:
+  app_network:

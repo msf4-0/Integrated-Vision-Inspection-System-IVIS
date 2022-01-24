@@ -9,15 +9,17 @@ from datetime import datetime
 import logging
 import mimetypes
 import sys
-from collections import namedtuple
 from enum import IntEnum
 from functools import wraps
 from inspect import signature
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
-import cv2
+import re
+import numpy as np
 
+import pytz
+import cv2
 import pandas as pd
 import streamlit as st
 
@@ -47,12 +49,15 @@ conn = init_connection(**st.secrets["postgres"])
 DATETIME_STR_FORMAT = "%Y-%m-%d_%H-%M-%S_%f"
 
 
-def get_now_string(dt_format=DATETIME_STR_FORMAT) -> str:
-    return datetime.now().strftime(dt_format)
+@st.experimental_memo
+def get_all_timezones() -> Tuple[str, ...]:
+    return tuple(pytz.all_timezones)
 
 
-def get_today_string(dt_format="%d-%b") -> str:
-    return datetime.now().strftime(dt_format)
+def get_now_string(dt_format=DATETIME_STR_FORMAT, timezone="Singapore") -> str:
+    local_tz = pytz.timezone(timezone)
+    tz_now = datetime.now(tz=local_tz)
+    return tz_now.strftime(dt_format)
 
 
 class TimerError(Exception):
@@ -200,6 +205,8 @@ def get_directory_name(name: str) -> str:
     """
     directory_name = join_string(split_string(
         remove_newline_trailing_whitespace(str(name)))).lower()
+    # replace symbols that are unwanted in file/folder names
+    directory_name = re.sub(r'[?/\\*"><|\s]+', '-', directory_name)
     return directory_name
 
 
@@ -324,7 +331,7 @@ def get_identifier_str_IntEnum(identifier: Union[str, IntEnum],
     else:
         # Get IntEnum class constant if is string
         if isinstance(identifier, str):
-            identifier = identifier_dictionary[identifier]
+            identifier = identifier_dictionary.get(identifier)
 
     logger.debug(f"Type is: {identifier!r}")
 
@@ -506,33 +513,54 @@ def find_net_change(initial_list: List, submitted_list: List) -> Tuple:
         return None, flag
 
 
-def list_available_cameras():
+def list_available_cameras(num_check_ports: int):
     """
     Test the ports and returns a tuple with the available ports and the ones that are working.
     """
     # https://stackoverflow.com/questions/57577445/list-available-cameras-opencv-python
+
     dev_port = 0
     working_ports = []
     available_ports = []
     while True:
         cap = cv2.VideoCapture(dev_port)
         if not cap.isOpened():
-            logger.debug(f"Port {dev_port} is not working.")
-            break
+            logger.info(f"Port {dev_port} is not working.")
+            if dev_port >= int(num_check_ports):
+                break
         is_reading, img = cap.read()
         w = cap.get(3)
         h = cap.get(4)
         if is_reading:
-            logger.debug(
+            logger.info(
                 f"Port {dev_port} is working and reads images ({h} x {w})")
             working_ports.append(dev_port)
             # cv2.imshow('frame', img)
             # cv2.waitKey(0)
             # cv2.destroyAllWindows()
         else:
-            logger.debug(f"Port {dev_port} for camera ({h} x {w}) is present "
-                         "but does not reads.")
+            logger.info(f"Port {dev_port} for camera ({h} x {w}) is present "
+                        "but does not reads.")
             available_ports.append(dev_port)
         cap.release()
         dev_port += 1
     return available_ports, working_ports
+
+
+def save_image(frame: np.ndarray, save_dir: Path, channels: str = 'BGR',
+               timezone: str = 'Singapore', prefix: str = None):
+    """Optionally pass in `prefix` to prepend to the filename."""
+    now = get_now_string(timezone=timezone)
+    if prefix:
+        filename = f'{prefix}-image-{now}.png'
+    else:
+        filename = f'image-{now}.png'
+    save_path = str(save_dir / filename)
+    logger.info(f'saving frame at: "{save_path}"')
+
+    if channels == 'RGB':
+        # OpenCV needs BGR format
+        out = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    else:
+        out = frame
+    cv2.imwrite(save_path, out)

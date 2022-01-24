@@ -29,30 +29,25 @@ import os
 import shutil
 import sys
 import traceback
-from collections import namedtuple
 from enum import IntEnum
 from math import ceil, floor
 from pathlib import Path
-from time import sleep
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
+import gc
 
-import pandas as pd
-import project
+import tensorflow as tf
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
 from streamlit import session_state as session_state
 
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
+# SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
+# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
 # >>>> User-defined Modules >>>>
 from core.utils.file_handler import create_folder_if_not_exist
@@ -116,10 +111,10 @@ class NewTrainingPagination(IntEnum):
 
 # NOTE KIV
 PROGRESS_TAGS = {
-    DeploymentType.Image_Classification: ['Epoch', 'Steps'],
-    DeploymentType.OD: ['Checkpoint', 'Steps'],
-    DeploymentType.Instance: ['Checkpoint', 'Steps'],
-    DeploymentType.Semantic: ['Epoch', 'Steps']
+    DeploymentType.Image_Classification: ['Epoch'],
+    DeploymentType.OD: ['Checkpoint', 'Step'],
+    DeploymentType.Instance: ['Checkpoint', 'Step'],
+    DeploymentType.Semantic: ['Epoch']
 }
 
 
@@ -226,8 +221,10 @@ class BaseTraining:
         #  `min_area`, `min_visibility` and `train_size`
         self.augmentation_config: AugmentationConfig()
         self.is_started: bool = False
-        self.progress: Dict = {}
-        # currently training_path is created using `property` in the Training class
+        # NOTE: progress for TFOD should be {'Step': <int>, 'Checkpoint': <int>}
+        # and classification/segmentation should be {'Epoch': <int>}
+        self.progress: Dict[str, int] = {}
+        # currently training_path is created using `Training.get_paths()`
         # self.training_path: Dict[str, Path] = {
         #     'ROOT': None,
         #     'annotations': None,
@@ -240,7 +237,7 @@ class BaseTraining:
         # }
         # this tells whether the data has already been stored in dataset,
         # to be able to tell the submission forms whether we are inserting or updating the DB
-        self.has_submitted: Dict = {
+        self.has_submitted: Dict[NewTrainingPagination, bool] = {
             NewTrainingPagination.InfoDataset: False,
             NewTrainingPagination.Model: False,
             NewTrainingPagination.TrainingConfig: False,
@@ -290,25 +287,31 @@ class BaseTraining:
 
         return total_dataset_size
 
-    def calc_dataset_partition_size(self, dataset_chosen: List, dataset_dict: Dict):
+    def calc_dataset_partition_size(self, partition_ratio: Dict[str, float],
+                                    dataset_chosen: List,
+                                    dataset_dict: Dict) -> Dict[str, int]:
         """Calculate partition size of dataset for training
 
         Args:
             dataset_chosen (List): List of Dataset chosen for Training
             dataset_dict (Dict): Dictionary of Dataset details from Project() class object
         """
+        partition_size = {}
 
         if dataset_chosen:
             total_dataset_size = self.calc_total_dataset_size(
                 dataset_chosen, dataset_dict)
 
-            self.partition_size['test'] = floor(
-                self.partition_ratio['test'] * total_dataset_size)
-            num_train_eval = total_dataset_size - self.partition_size['test']
-            self.partition_size['train'] = ceil(num_train_eval * (self.partition_ratio['train']) / (
-                self.partition_ratio['train'] + self.partition_ratio['eval']))
-            self.partition_size['eval'] = num_train_eval - \
-                self.partition_size['train']
+            partition_size['test'] = floor(
+                partition_ratio['test'] * total_dataset_size)
+            num_train_eval = total_dataset_size - partition_size['test']
+            partition_size['train'] = ceil(num_train_eval * (partition_ratio['train']) / (
+                partition_ratio['train'] + partition_ratio['eval']))
+            partition_size['eval'] = num_train_eval - partition_size['train']
+            return partition_size
+        else:
+            logger.warning(
+                "No dataset chosen passed in to calculate partition size")
 
     def update_dataset_chosen(self, submitted_dataset_chosen: List, dataset_dict: Dict):
         """ Update the training_dataset table in the Database
@@ -407,7 +410,8 @@ class BaseTraining:
         Returns:
             bool: True is successful, otherwise False
         """
-        if name is not None:
+        # only need to rename the path if it's new name
+        if name is not None and name != self.name:
             current_training_path = self.get_training_path(
                 self.project_path, self.name)
             if current_training_path.exists():
@@ -415,8 +419,8 @@ class BaseTraining:
                 new_path = self.get_training_path(
                     self.project_path, name)
 
-                logger.info("Renaming existing training path to new path:"
-                            f"{current_training_path} -> {self.project_path}")
+                logger.info("Renaming existing training path to new path: "
+                            f"{current_training_path} -> {new_path}")
                 os.rename(current_training_path, new_path)
             self.name = name
 
@@ -518,6 +522,7 @@ class BaseTraining:
 
     def update_training_info_dataset(
             self,
+            partition_ratio: Dict[str, float],
             submitted_dataset_chosen: List,
             dataset_dict: Dict,
             name: Optional[str] = None,
@@ -534,7 +539,12 @@ class BaseTraining:
 
         try:
 
-            assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+            assert partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+
+            self.partition_ratio = partition_ratio.copy()
+            self.partition_size = self.calc_dataset_partition_size(
+                partition_ratio, self.dataset_chosen,
+                session_state.project.dataset_dict)
 
             self.update_training_info(name, desc)
 
@@ -698,7 +708,8 @@ class NewTraining(BaseTraining):
         return exists_flag
 
     # Wrapper for check_if_exists function from form_manager.py
-    def check_if_field_empty(self, context: Dict,
+    @staticmethod
+    def check_if_field_empty(context: Dict,
                              field_placeholder: Dict,
                              name_key: str
                              ) -> bool:
@@ -716,14 +727,15 @@ class NewTraining(BaseTraining):
         Returns:
             bool: True if NOT EMPTY + NOT EXISTS, False otherwise.
         """
-        check_if_exists = self.check_if_exists
+        check_if_exists = NewTraining.check_if_exists
         empty_fields = check_if_field_empty(
             context, field_placeholder, name_key, check_if_exists)
 
         # True if not empty, False otherwise
         return empty_fields
 
-    def insert_training_info_dataset(self, name: str, desc: str) -> bool:
+    def insert_training_info_dataset(self, name: str, desc: str,
+                                     partition_ratio: Dict[str, float]) -> bool:
         """Create New Training submission
 
         Returns:
@@ -732,7 +744,12 @@ class NewTraining(BaseTraining):
 
         # submission handler for insertion of Info and Dataset
         try:
-            assert self.partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+            assert partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
+
+            self.partition_ratio = partition_ratio.copy()
+            self.partition_size = self.calc_dataset_partition_size(
+                partition_ratio, self.dataset_chosen,
+                session_state.project.dataset_dict)
 
             # insert Name, Desc, Partition Size
             self.insert_training_info(name, desc)
@@ -873,7 +890,6 @@ class NewTraining(BaseTraining):
 
 # TODO #133 Add New Training Reset
 
-
     @staticmethod
     def reset_new_training_page():
 
@@ -888,16 +904,16 @@ class Training(BaseTraining):
     def __init__(self, training_id, project: Project) -> None:
         super().__init__(training_id, project)
 
+        # creates from `training_dataset` table; could have multiple datasets
+        self.dataset_chosen = self.query_dataset_chosen(self.id)
         # `query_all_fields` creates self.name, self.desc, self.training_param_dict,
-        # self.augmentation_config, self.progress, self.partition_ratio
+        # self.augmentation_config, self.progress, self.partition_ratio, self.partition_size
         # self.training_model_id, self.attached_model_id, self.is_started
         # from `training` table
         self.query_all_fields()
-        # creates from `training_dataset` table; could have multiple datasets
-        self.dataset_chosen = self.query_dataset_chosen(self.id)
         # creates self.attached_model and self.training_model
         self.get_training_details()
-        # NOTE: self.training_path is now created with `property` decorator below
+        # NOTE: training_paths should always be obtained from self.get_paths()
         # self.training_path = self.get_all_training_path()
 
     def __repr__(self):
@@ -925,19 +941,15 @@ class Training(BaseTraining):
 
     def get_training_details(self):
         if self.attached_model_id and self.training_model_id:
-            self.attached_model = Model(model_id=self.attached_model_id)
-            self.training_model = Model(model_id=self.training_model_id)
+            self.attached_model: Model = Model(model_id=self.attached_model_id)
+            self.training_model: Model = Model(model_id=self.training_model_id)
         else:
-            self.attached_model = None
-            self.training_model = NewModel()
+            self.attached_model: Model = None
+            self.training_model: NewModel = NewModel()
 
-    @property
-    def training_path(self) -> Dict[str, Path]:
-        """Using property decorator to make sure these paths are dynamically generated
+    def get_paths(self) -> Dict[str, Path]:
+        """Using a method to make sure these paths are always dynamically generated
         based on latest info of the training session or the model.
-
-        Optionally can also change this to a function to avoid computing all the paths
-        every time you try to access this property attribute.
         """
         # modified from get_all_training_path
         # >>>> TRAINING PATH
@@ -955,6 +967,7 @@ class Training(BaseTraining):
         paths['models'] = root / 'models' / model_dirname
 
         if self.deployment_type == 'Object Detection with Bounding Boxes' \
+            and isinstance(self.attached_model, Model) \
                 and self.attached_model.is_not_pretrained:
             # otherwise if is pretrained, we will create the path during TFOD training
             paths['trained_model'] = self.attached_model.get_path()
@@ -977,15 +990,16 @@ class Training(BaseTraining):
         # NOTE: need to exclude file paths from the `initialise_training_folder` method.
         # currently setting every filepath's key to end with "file" to easily skip them
 
+        # this filename is based on the `generate_labelmap_file` function
+        paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
         paths['test_result_txt_file'] = paths['models'] / 'test_result.txt'
 
         if self.deployment_type == 'Object Detection with Bounding Boxes':
-            # this filename is based on the `generate_labelmap_file` function
             # this file is probably only needed for TF object detection
-            paths['labelmap_file'] = paths['models'] / 'labelmap.pbtxt'
             paths['config_file'] = paths['models'] / 'pipeline.config'
         else:
-            if self.attached_model.is_not_pretrained:
+            if isinstance(self.attached_model, Model) \
+                    and self.attached_model.is_not_pretrained:
                 paths['trained_keras_model_file'] = self.attached_model.get_path(
                     return_keras_filepath=True)
             # created this path to save all the test set related paths and encoded_labels
@@ -999,8 +1013,9 @@ class Training(BaseTraining):
             # when using Keras
             paths['model_weights_file'] = paths['models'] / \
                 f"keras-model-weights.h5"
+            # do not use model's name for h5 model file in case user decided to change model name
             paths['output_keras_model_file'] = paths['models'] / \
-                f"{model_dirname}.h5"
+                f"keras-model.h5"
         # model_tarfile should be in the same folder with 'export' folder,
         # because we are tarring the 'export' folder
         paths['model_tarfile'] = paths['models'] / \
@@ -1034,8 +1049,6 @@ class Training(BaseTraining):
                         progress: Dict[str, int],
                         is_started: bool = True,
                         verbose: bool = False):
-        # NOTE: progress for TFOD should be {'Step': <int>, 'Checkpoint': <int>}
-
         self.is_started = is_started
         self.progress = progress
 
@@ -1126,6 +1139,10 @@ class Training(BaseTraining):
                     **augmentation_config)
             else:
                 self.augmentation_config = AugmentationConfig()
+
+            self.partition_size = self.calc_dataset_partition_size(
+                self.partition_ratio, self.dataset_chosen,
+                session_state.project.dataset_dict)
         else:
             logger.error(
                 f"Training with ID {self.id} for Project ID {self.project_id} does not exists in the Database!!!")
@@ -1258,7 +1275,7 @@ class Training(BaseTraining):
 
         '''
         # *************** GENERATE TRAINING PATHS ***************
-        training_paths = self.training_path
+        training_paths = self.get_paths()
 
         # >>>> CREATE Training directory recursively
         # filepath_keys = ('model_tarfile', 'labelmap', 'keras_model', 'model_weights')
@@ -1284,10 +1301,10 @@ class Training(BaseTraining):
             directory_structure = [
                 x for x in training_paths.values() if x != training_paths['ROOT']]
 
-            missing_folders = [x for x in training_paths['ROOT'].iterdir(
+            missing_folders = [str(x) for x in training_paths['ROOT'].iterdir(
             ) if x.is_dir() and (x not in directory_structure)]
 
-            logger.error(f"{e}: Missing {missing_folders}")
+            logger.debug(f"{e}: Missing {missing_folders}")
 
     # ! Deprecated, use training_path property
     # @staticmethod
@@ -1368,7 +1385,6 @@ class Training(BaseTraining):
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
 
-
     @staticmethod
     def progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],
                                deployment_type: Union[str, IntEnum],
@@ -1389,23 +1405,24 @@ class Training(BaseTraining):
             deployment_type)  # Make sure it is IntEnum
 
         # get progress tags based on Deployment Type
-        progress_tag = PROGRESS_TAGS[deployment_type]
+        logger.debug(f"{deployment_type = }")
+        progress_tags = PROGRESS_TAGS[deployment_type]
+        logger.debug(f"{progress_tags = }")
 
         formatted_all_project_training = []
         for project_training in all_project_training:
             if return_dict:
                 if project_training['Is Started'] == True:
+                    logger.debug(f"{project_training['Progress'] = }")
                     # Preprocess
                     progress_value = []
 
-                    for tag in progress_tag:
+                    for tag in progress_tags:
                         # for k, v in project_training["Progress"].items():
 
-                        # if k in progress_tag:
+                        # if k in progress_tags:
 
-                        v = project_training["Progress"].get(
-                            tag)if project_training["Progress"].get(
-                            tag) is not None else '-'
+                        v = project_training["Progress"].get(tag, '-')
                         progress_value.append(str(v))
 
                     progress_row = join_string(progress_value, ' / ')
@@ -1419,11 +1436,9 @@ class Training(BaseTraining):
                     # Preprocess
                     progress_value = []
                     # for k, v in project_training.Progress.items():
-                    for tag in progress_tag:
+                    for tag in progress_tags:
 
-                        v = project_training.Progress.get(
-                            tag)if project_training.Progress.get(
-                            tag) is not None else '-'
+                        v = project_training.Progress.get(tag, '-')
                         progress_value.append(str(v))
 
                     progress_row = join_string(progress_value, ' / ')
@@ -1605,24 +1620,27 @@ class Training(BaseTraining):
 
     @staticmethod
     def reset_training_page():
+        tf.keras.backend.clear_session()
+        gc.collect()
+
         # remove unwanted files to save space, only files needed
         # for continue training, or test set evaluation are kept
-        if 'new_training' in session_state:
-            paths = session_state.new_training.training_path
+        if isinstance(session_state.get('new_training'), Training):
+            paths = session_state.new_training.get_paths()
             dataset_export_path = session_state.project.get_export_path()
             paths_to_del = (paths['model_tarfile'], dataset_export_path)
             for p in paths_to_del:
                 if p.exists():
+                    logger.debug(
+                        f"Removing unnecessary existing training related path: {p}")
                     if p.is_file():
-                        logger.debug(
-                            f"Removing unnecessary existing training related path: {p}")
                         os.remove(p)
                     else:
                         shutil.rmtree(p)
 
         training_attributes = ["training", "training_pagination", "labelling_pagination",
-                               "new_training", "trainer", "start_idx",
-                               "augmentation_config"
+                               "all_task", "new_training", "trainer", "start_idx",
+                               "augmentation_config", "process_id"
                                ]
         # this might be required to avoid issues with caching model-related variables
         # NOTE: this method has moved from `caching` to `legacy_caching` module in v0.89

@@ -4,13 +4,9 @@ Date: 15/7/2021
 Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
-import copy
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
-from threading import Thread
-from time import perf_counter, sleep
-from copy import deepcopy
 import pandas as pd
 import streamlit as st
 from streamlit import cli as stcli  # Add CLI so can run Python script directly
@@ -43,7 +39,7 @@ from data_manager.data_table_component.data_table import data_table
 conn = init_connection(**st.secrets["postgres"])
 
 # NOTE: not used********************************************
-from streamlit.report_thread import add_report_ctx
+# from streamlit.report_thread import add_report_ctx
 
 
 def editor(data_id: List[int] = None):
@@ -100,11 +96,9 @@ def editor(data_id: List[int] = None):
 
 # ************************** DATA TABLE PREPARATION ***********************************************
     if not session_state.show_next_unlabeled:
-        all_task, all_task_column_names = Task.query_all_task(session_state.project.id,
-                                                              return_dict=True,
-                                                              for_data_table=True)
-        task_df = Task.create_all_task_dataframe(
-            all_task, all_task_column_names)
+        # all_task loaded into session_state in labelling_dashboard page
+        # to speed up loading time
+        all_task = session_state.all_task
 
     def load_data(task_df: pd.DataFrame = None, task_row: Dict[str, Any] = None):
         logger.debug(f"Inside load data CALLBACK")
@@ -112,10 +106,18 @@ def editor(data_id: List[int] = None):
             # get task row from task_df
             task_id = session_state.data_labelling_table[0]
             logger.debug(f"{task_id = }")
-            task_row = get_task_row(task_id, task_df)
+            # task_row = get_task_row(task_id, task_df)
+            for task in session_state.all_task:
+                if task['id'] == task_id:
+                    task_row = task
+                    break
+            else:
+                logger.error("TASK ID NOT FOUND")
+                st.error("TASK ID NOT FOUND")
+                st.stop()
 
         if "labelling_interface" in session_state:
-            logger.debug("Deleting session_state.labelling_interface")
+            # logger.debug("Deleting session_state.labelling_interface")
             del session_state.labelling_interface
 
         # >>>> INSTANTIATE TASK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -158,7 +160,7 @@ def editor(data_id: List[int] = None):
         if session_state.data_labelling_table == []:  # if task id NOT passed as argument
             session_state.data_labelling_table = [
                 all_task[0]['id']]  # set value as first ID
-        load_data(task_df)
+        load_data()
     # ************************ FIRST RENDER: *********************************************
 
     # ************************ Feature of auto-next task ****************************
@@ -211,7 +213,7 @@ def editor(data_id: List[int] = None):
         with main_col1:
             data_table(all_task, task_labelling_columns,
                        checkbox=False, key='data_labelling_table',
-                       on_change=load_data, args=(task_df, None))
+                       on_change=load_data, args=(None, None))
 
         # >>>>> Temp Image Viewer >>>>>
         # st.write(all_task[0])
@@ -280,6 +282,10 @@ def editor(data_id: List[int] = None):
                                 session_state.annotation.result = session_state.annotation.submit_annotations(
                                     result, session_state.user.id, conn)
 
+                                Task.update_task_dict(
+                                    session_state.all_task, session_state.task.id,
+                                    labelled=True)
+
                                 # Memoir prev results
                                 session_state.labelling_prev_result = session_state.labelling_interface
                                 logger.debug(
@@ -335,6 +341,10 @@ def editor(data_id: List[int] = None):
 
                                 skip_return = session_state.annotation.skip_task(
                                     skipped=True, conn=conn)
+
+                                Task.update_task_dict(
+                                    session_state.all_task, session_state.task.id,
+                                    skipped=True)
 
                                 logger.info(
                                     f"Skip for Task {session_state.task.name} with Annotation ID: {session_state.annotation.id}\n{skip_return}")

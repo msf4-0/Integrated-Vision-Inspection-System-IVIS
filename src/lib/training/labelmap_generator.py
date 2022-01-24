@@ -50,7 +50,7 @@ if str(LIB_PATH) not in sys.path:
 
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
-from core.utils.log import log_info, log_error  # logger
+from core.utils.log import logger
 from data_manager.database_manager import init_connection
 from training.labelmap_management import Labels
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -76,18 +76,25 @@ def labelmap_generator(framework: Union[str, IntEnum] = None, deployment_type: U
     st.checkbox(label='Generate Labelmap', key='generate_labelmap_checkbox')
     labelmap_string = ''
     if session_state.generate_labelmap_checkbox:
-
+        st.info("Enter your labels separated by a comma (,)")
+        st.warning("""Note that the **order of the labels** is very important. 
+            It should follow the order that was used to train your model.""")
+        if deployment_type == 'Semantic Segmentation with Polygons':
+            st.warning(
+                "For semantic segmentation, a background class should also be available.")
         st.text_area(
             label='Labels',
             value='Enter your labels separated by a comma (,)',
             key='labels_text_input')
-        st.info("Enter your labels separated by a comma (,)")
+
+        logger.debug(f"{framework = }, {deployment_type = }")
 
         if framework and deployment_type:
 
             if session_state.labels_text_input:
                 labels_list = Labels.generate_list_of_labels(
                     session_state.labels_text_input)
+                logger.debug(f"{labels_list = }")
                 labelmap_string = Labels.generate_labelmap_string(labels_list=labels_list,
                                                                   framework=framework,
                                                                   deployment_type=deployment_type)

@@ -38,22 +38,19 @@ from streamlit import session_state
 # ***************** Add src/lib to path ***************************
 SRC = Path(__file__).resolve().parent  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
-
 if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))  # ./lib
 # ***************** Add src/lib to path ***************************
 
 
-from core.utils.log import logger  # logger
-from core.utils.model_details_db_setup import connect_db, scrape_setup_model_details
-from data_manager.database_manager import db_no_fetch, init_connection, initialise_database_pipeline, test_db_conn, DatabaseStatus
-from path_desc import DATABASE_DIR, PROJECT_ROOT
+from core.utils.log import logger
+from data_manager.database_manager import APP_DATABASE_NAME, init_connection, initialise_database_pipeline, test_db_conn, DatabaseStatus
+from path_desc import SECRETS_PATH
 
 # initialise connection to Database
 # conn = init_connection(**st.secrets["postgres"])
 place = {}
-SECRETS_DIR = PROJECT_ROOT / ".streamlit/secrets.toml"
-# st.write(SECRETS_DIR)
+# st.write(SECRETS_PATH)
 
 # **********************************SESSION STATE ******************************
 
@@ -87,7 +84,7 @@ def check_if_field_empty(context: Dict) -> bool:
 
         if not v and v == "":
             empty_fields.append(k)
-    logger.info(empty_fields)
+    logger.debug(empty_fields)
 
     # if empty_fields not empty -> return True, else -> return False (Negative Logic)
     return not empty_fields  # Negative logic
@@ -100,7 +97,7 @@ def test_database_connection(**dsn: Dict):
         psycopg2.connection: Connection object for the Database
     """
     conn = test_db_conn(**dsn)
-    if conn != None:
+    if conn is not None:
 
         success_msg = f"Successfully connected to Database {dsn['dbname']}"
         logger.info(success_msg)
@@ -110,36 +107,30 @@ def test_database_connection(**dsn: Dict):
         success_place.empty()
     else:
         st.error(f"Failed to connect to the Database")
+        logger.error(f"Failed to connect to the Database")
     return conn
 
 
 def modify_secrets_toml(**context: Dict):
     if test_database_connection(**context):
-        if st._is_running_with_streamlit:
-            conn = init_connection(**context)
-            database_status = initialise_database_pipeline(
-                conn,
-                context)
-            session_state.database_status = database_status
-        else:
-            # connect to DB without using streamlit cache
-            conn = connect_db(**context)
-            database_status = initialise_database_pipeline(
-                conn,
-                context)
+        # connect to DB without using streamlit cache
+        conn = test_db_conn(**context)
+        database_status = initialise_database_pipeline(
+            conn, context)
 
         if database_status == DatabaseStatus.Exist:
             # Write to secrets.toml file if database configuration is valid
-            context['dbname'] = "integrated_vision_inspection_system"
-            secrets = {
-                'postgres': context
-            }
-            with open(str(SECRETS_DIR), 'w+') as f:
+            context['dbname'] = APP_DATABASE_NAME
+            secrets = {'postgres': context}
+            with open(str(SECRETS_PATH), 'w+') as f:
                 new_toml = toml.dump(secrets, f)
-                logger.info(new_toml)
+                logger.info(f"Created secrets.toml file:\n{new_toml}")
+                logger.debug(f"{SECRETS_PATH = }")
+                logger.debug(f"{SECRETS_PATH.exists() = }")
+            return
 
-            # also scrape model details online and setup the `models` table
-            scrape_setup_model_details(conn)
+    logger.error("There were some error creating the database config or "
+                 "connecting to database")
 
 
 def db_config_form():
@@ -152,13 +143,14 @@ def db_config_form():
             'host': session_state.host,
             'port': session_state.port,
             'dbname': session_state.dbname,
-            'user': session_state.user,
-            'password': session_state.password
+            'user': session_state.user_input,
+            'password': session_state.password_input
         }
 
         if check_if_field_empty(context):
 
-            # Modify secrets.toml file
+            # Modify secrets.toml file, and create a new database if not exists,
+            #  based on the given db name
             modify_secrets_toml(**context)
 
             st.experimental_rerun()
@@ -167,29 +159,51 @@ def db_config_form():
             error_place.error("Please fill in all fields")
             sleep(0.7)
             error_place.empty()
+    st.title("Creating Database Configuration")
+    st.markdown("___")
     st.info(f"""
     #### Please make sure the User has Create DB permission
     """)
-    with st.form(key='db_setup', clear_on_submit=True):
+    with st.form(key='db_setup', clear_on_submit=False):
 
         # Host
-        st.text_input(label='Host', key='host')
+        st.text_input(label='Host', value='localhost', key='host',
+                      help="This must be `localhost` if installing our application on a local machine.")
 
         # Port
-        st.text_input(label='Port', key='port')
+        st.text_input(label='Port', value='5432', key='port',
+                      help="By default, PostgreSQL database uses port 5432. "
+                      "Please do not change this if you are not sure about it.")
 
         # dbname
-        st.text_input(label='Database Name', key='dbname')
+        st.text_input(
+            label='Existing Database Name', value='postgres',
+            key='dbname', help="""This **postgres** database should exist by default when
+            you installed PostgreSQL, unless you have deleted this default database,
+            for which you will have to specify another database name in order for our
+            application to connect to, as this is required to create a new database for
+            our application. """)
+        st.markdown("""Our new database will be named as **integrated_vision_inspection_system**.
+            If this database already exists in your system, we will just assume that it's 
+            the same database that we have created previously, and directly use it to query
+            and also store the data for our application.""")
 
+        st.markdown("**Notes about user and password:**")
+        st.markdown("""This should be based on the user and password used during 
+            your PostgreSQL installation.""")
         # user
-        st.text_input(label='User', key='user')
+        # session_state.user will conflict with our logged in user's session_state
+        # so must use another key besides 'user'
+        st.text_input(
+            label='User', value='postgres', key='user_input',
+            help="The default admin user should be **postgres**, change this if it is not.")
 
         # password
         st.text_input(label='Password',
-                      key='password', type='password')
+                      key='password_input', type='password')
 
-        st.form_submit_button(label='Submit',
-                              on_click=create_secrets_toml)
+        if st.form_submit_button(label='Submit'):
+            create_secrets_toml()
 
 
 def database_setup():
@@ -200,43 +214,48 @@ def database_setup():
     """
 
     # If secretes.toml does not exists
-    if not SECRETS_DIR.exists():
+    if not SECRETS_PATH.exists():
 
         # Ask user to enter Database details
 
-        if not session_state.db_connect_flag:
+        if not session_state.get('db_connect_flag'):
 
             db_config_form()
 
     else:
         # If connection to wrong database
-        if st.secrets['postgres']['dbname'] != 'integrated_vision_inspection_system':
+        if st.secrets['postgres']['dbname'] != APP_DATABASE_NAME:
 
             if test_database_connection(**st.secrets['postgres']):
                 session_state.db_connect_flag = True
-                conn = init_connection(**st.secrets['postgres'])
+                conn = test_db_conn(**st.secrets['postgres'])
                 modify_secrets_toml(**st.secrets['postgres'])
 
             else:
                 db_config_form()
-        elif not session_state.db_connect_flag:
+        elif not session_state.get('db_connect_flag'):
             if test_database_connection(**st.secrets['postgres']):
                 session_state.db_connect_flag = True
-                conn = init_connection(**st.secrets['postgres'])
+                conn = test_db_conn(**st.secrets['postgres'])
             else:
                 db_config_form()
 
 
-def database_docker_setup():
+def database_direct_setup():
+    host = "db" if os.environ.get("DOCKERCOMPOSE") else "localhost"
     db_config = {
-        "host": "localhost",
-        "port": "5432",
+        "host": host,
+        # this port MUST be 5432 for PostgreSQL as default in Docker
+        "port": '5432',
+        # user should be 'postgres' as this is the default superuser
+        # that has access to create database
+        "user": 'postgres',
         # the rest are obtained from the environment variables
         # defined in docker-compose.yml
-        "dbname": os.environ['POSTGRES_DB'],
-        "user": os.environ['POSTGRES_USER'],
-        "password": os.environ['POSTGRES_PASSWORD']
+        "dbname": APP_DATABASE_NAME,
+        "password": os.environ.get('POSTGRES_PASSWORD', 'shrdc')
     }
+    logger.debug(f"{db_config = }")
     modify_secrets_toml(**db_config)
 
 
@@ -246,11 +265,11 @@ def main():
 
 if __name__ == "__main__":
     if st._is_running_with_streamlit:
-        print('[INFO] Setting up database using Streamlit ...')
+        logger.info('[INFO] Setting up database using Streamlit ...')
         database_setup()
     elif os.environ.get('DOCKERCONTAINER'):
-        print('[INFO] Setting up database for Docker container ...')
-        database_docker_setup()
+        logger.info('[INFO] Setting up database for Docker container ...')
+        database_direct_setup()
     else:
         sys.argv = ["streamlit", "run", sys.argv[0]]
         sys.exit(stcli.main())

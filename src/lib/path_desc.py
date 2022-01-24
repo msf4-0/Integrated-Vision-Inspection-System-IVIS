@@ -29,25 +29,32 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from tempfile import mkdtemp, mkstemp
+from tempfile import mkdtemp
 from contextlib import contextmanager
 from appdirs import user_config_dir, user_data_dir
 
 from core.utils.log import logger
 
+_CURR_FILEPATH = Path(__file__).resolve()
+
 _DIR_APP_NAME = "integrated-vision-inspection-system"
+_DIR_AUTHOR_NAME = "SHRDC"
 
 # REFERENCED LS
 
 
 def get_config_dir():
-    config_dir = user_config_dir(appname=_DIR_APP_NAME)
+    config_dir = user_config_dir(
+        appname=_DIR_APP_NAME,
+        appauthor=_DIR_AUTHOR_NAME)
     os.makedirs(config_dir, exist_ok=True)
     return config_dir
 
 
 def get_data_dir():
-    data_dir = user_data_dir(appname=_DIR_APP_NAME)
+    data_dir = user_data_dir(
+        appname=_DIR_APP_NAME,
+        appauthor=_DIR_AUTHOR_NAME)
     os.makedirs(data_dir, exist_ok=True)
     return data_dir
 
@@ -60,7 +67,8 @@ def get_temp_dir() -> str:
 
 
 # ./image_labelling_shrdc
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = _CURR_FILEPATH.parents[2]
+SECRETS_PATH = PROJECT_ROOT / ".streamlit" / "secrets.toml"
 
 # DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
 BASE_DATA_DIR = Path(get_data_dir())
@@ -74,25 +82,43 @@ USER_DEEP_LEARNING_MODEL_UPLOAD_DIR = MEDIA_ROOT / \
 # PROJECT_MODELS=PROJECT_DIR/<PROJECT-NAME>/<TRAINING-NAME>/'exported-models'/<MODEL-NAME>
 # named temporary directory
 TEMP_DIR = BASE_DATA_DIR / 'temp'
+CAPTURED_IMAGES_DIR = MEDIA_ROOT / 'captured_images'
 
 # Pretrained model details
-# assuming this file is in "utils" directory
-RESOURCES_DIR = Path(__file__).resolve().parents[2] / 'resources'
+# assuming this folder is in "utils/resources/" directory
+PRETRAINED_MODEL_TABLES_DIR = _CURR_FILEPATH.parents[2] / \
+    'resources' / 'pretrained_model_tables'
 # this table has columns: Model Name
-TFOD_MODELS_TABLE_PATH = RESOURCES_DIR / 'tfod_pretrained_models.csv'
+TFOD_MODELS_TABLE_PATH = PRETRAINED_MODEL_TABLES_DIR / 'tfod_pretrained_models.csv'
 # Keras image classification pretrained model names from
 # https://www.tensorflow.org/api_docs/python/tf/keras/applications
 # this table has columns: Model Name
-CLASSIF_MODELS_NAME_PATH = RESOURCES_DIR / 'classif_pretrained_models.csv'
+CLASSIF_MODELS_NAME_PATH = PRETRAINED_MODEL_TABLES_DIR / \
+    'classif_pretrained_models.csv'
 # this table has columns: model_func, Model Name, Reference, links
-SEGMENT_MODELS_TABLE_PATH = RESOURCES_DIR / 'segment_pretrained_models.csv'
+SEGMENT_MODELS_TABLE_PATH = PRETRAINED_MODEL_TABLES_DIR / \
+    'segment_pretrained_models.csv'
 
 # folder to store the code cloned for TensorFlow Object Detection (TFOD)
 # from https://github.com/tensorflow/models
-TFOD_DIR = Path(__file__).resolve().parent / "TFOD" / "models"
+TFOD_DIR = _CURR_FILEPATH.parent / "TFOD" / "models"
 
 MQTT_CONFIG_PATH = PROJECT_ROOT / 'src/lib/deployment/mqtt_config.yml'
-CSV_SAVEPATH = MEDIA_ROOT / 'deployment_results'
+
+dirs_to_create = (DATABASE_DIR, DATASET_DIR, PROJECT_DIR, PRE_TRAINED_MODEL_DIR,
+                  USER_DEEP_LEARNING_MODEL_UPLOAD_DIR, CAPTURED_IMAGES_DIR,
+                  PRETRAINED_MODEL_TABLES_DIR)
+for d in dirs_to_create:
+    if not d.exists():
+        os.makedirs(d)
+
+paths_to_del = (TEMP_DIR,)
+for p in paths_to_del:
+    if p.exists():
+        if p.is_dir():
+            shutil.rmtree(p)
+        else:
+            p.unlink()
 
 
 def chdir_root():
@@ -102,7 +128,7 @@ def chdir_root():
 
 
 def add_path(node: str, parent_node: int = 0) -> None:
-    SRC = Path(__file__).resolve().parents[parent_node]  # ROOT folder -> ./src
+    SRC = _CURR_FILEPATH.parents[parent_node]  # ROOT folder -> ./src
     if node is not None:
         PATH = SRC / node  # ./PROJECT_ROOT/src/lib
     else:

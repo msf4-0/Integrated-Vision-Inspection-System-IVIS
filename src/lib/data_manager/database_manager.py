@@ -25,6 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 # Initialise Connection Snippet
+import os
 import sys
 from pathlib import Path
 import psycopg2
@@ -33,10 +34,10 @@ from psycopg2 import sql, extensions
 from collections import namedtuple
 import traceback
 from enum import IntEnum
-from core.utils.model_details_db_setup import connect_db
 from passlib.hash import argon2
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 import streamlit as st
+from streamlit import session_state
 
 # from config import config
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
@@ -58,6 +59,11 @@ for path in sys.path:
 # >>>> User-defined Modules >>>>
 from path_desc import chdir_root
 from core.utils.log import logger  # logger
+from core.utils.model_details_db_setup import check_if_pretrained_models_exist, connect_db, scrape_setup_model_details
+
+# POSTGRES_DB env variable could be used by Docker for a different name
+APP_DATABASE_NAME = os.environ.get(
+    "POSTGRES_DB", "integrated_vision_inspection_system")
 
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
@@ -135,6 +141,7 @@ def init_connection(dsn=None, connection_factory=None, cursor_factory=None, **kw
         logger.info('Connecting to the PostgreSQL database...')
         try:
             if kwargs:
+                logger.debug(f"Connection kwargs: {kwargs}")
                 conn = psycopg2.connect(**kwargs)
 
             else:
@@ -676,7 +683,7 @@ def create_relation_database(conn):
             CACHE 1)
             , users_id bigint NOT NULL
             , login_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
-            , logout_at timestamp with time zone NOT NULL
+            , logout_at timestamp with time zone
             , PRIMARY KEY (id)
         );
 
@@ -837,7 +844,7 @@ def create_relation_database(conn):
 
         -- SESSION_LOG
         ALTER TABLE IF EXISTS public.session_log
-            ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE NO ACTION NOT VALID;
+            ADD CONSTRAINT fk_users_id FOREIGN KEY (users_id) REFERENCES public.users (id) ON DELETE CASCADE NOT VALID;
 
         ALTER TABLE public.session_log VALIDATE CONSTRAINT fk_users_id;
 
@@ -1028,26 +1035,41 @@ def initialise_database_pipeline(conn, dsn: dict) -> DatabaseStatus:
         conn (psycopg2.connection): Connection object for PostgreSQL
     """
 
-    # check if database exists
-    database_name = "integrated_vision_inspection_system"
     try:
-        if not check_if_database_exist(datname=database_name,
+        # check if database exists
+        if not check_if_database_exist(datname=APP_DATABASE_NAME,
                                        conn=conn):
 
-            # if not,create database "integrated_vision_inspection_system"
-            create_database(database_name=database_name,
+            # if not,create database with the name
+            create_database(database_name=APP_DATABASE_NAME,
                             conn=conn)
+            # closing the old connection to the existing database, before creating
+            # a new connection to the new database
             conn.close()
+        else:
+            logger.info(f"Database '{APP_DATABASE_NAME}' already exists")
+
+        # create new DSN for the new database name
+        dsn['dbname'] = APP_DATABASE_NAME
+        # NOTE: this is the FIRST ever connection to the new database
+        # not using init_connection as this decorated function would cache even on error
+        # conn = init_connection(**dsn)
+        conn = connect_db(**dsn)
+
         if not check_if_table_exist('project', conn=conn):
-            # create new DSN
-            dsn['dbname'] = "integrated_vision_inspection_system"
-            if st._is_running_with_streamlit:
-                conn = init_connection(**dsn)
-            else:
-                conn = connect_db(**dsn)
             # then create relation in the database
             logger.info('Creating relation database ...')
             create_relation_database(conn=conn)
+        else:
+            logger.info(
+                f"Tables already exist in database '{APP_DATABASE_NAME}'")
+
+        # also scrape model details online and setup the `models` table if not exists
+        if not check_if_pretrained_models_exist(conn):
+            logger.info("Scraping all details of pretrained models")
+            scrape_setup_model_details(conn)
+        else:
+            logger.info("Pretrained model data already exists in database")
 
         return DatabaseStatus.Exist
     except Exception as e:

@@ -28,9 +28,8 @@ from path_desc import chdir_root
 from core.utils.log import logger  # logger
 from data_manager.database_manager import init_connection
 from data_editor.editor_management import load_sample_image
-
-
-from project.project_management import NewProject, Project
+from annotation.annotation_management import LabellingPagination
+from project.project_management import ExistingProjectPagination, NewProject, Project, ProjectPagination, ProjectPermission
 # <<<< User-defined Modules <<<<
 
 # initialise connection to Database
@@ -69,7 +68,7 @@ def editor_config(project: Union[NewProject, Project]):
         'data': {
             # 'image': "https://app.heartex.ai/static/samples/sample.jpg"
             'image': f'{data_url}'
-        }
+            }
     }
     # *********************** EDITOR SETUP ****************************************************
 
@@ -200,6 +199,11 @@ def editor_config(project: Union[NewProject, Project]):
         place["warning_label_removal"] = st.empty()
 
         def save_editor_config():
+            if not session_state.labels_select:
+                place["warning_label_removal"].error(
+                    "Please provide at least one label")
+                st.stop()
+
             logger.info("Updating Editor Config......")
 
             if project.editor.update_editor_config():
@@ -207,6 +211,25 @@ def editor_config(project: Union[NewProject, Project]):
 
         if st.button('Save', key='save_editor_config'):
             save_editor_config()
+
+            if session_state.get('new_project_pagination'):
+                # user just finished creating a new project, so enter the project directly
+                new_project_id = session_state.new_project.id
+                NewProject.reset_new_project_page()
+
+                session_state.project_pagination = ProjectPagination.Existing
+                session_state.project_status = ProjectPagination.Existing
+                session_state.append_project_flag = ProjectPermission.ViewOnly
+
+                # directly go to labelling page and start labelling with Label Studio Editor
+                session_state.existing_project_pagination = ExistingProjectPagination.Labelling
+                session_state.labelling_pagination = LabellingPagination.Editor
+                # this session_state is to enable the feature for auto next image
+                session_state.show_next_unlabeled = True
+
+                session_state.project = Project(new_project_id)
+                logger.info(f"Entering Project {new_project_id}")
+                st.experimental_rerun()
 
         # >>>>>>>>>> TODO #66 Add Color picker for Bbox, Segmentation Polygons and Segmentation Masks >>>>>>>>>>>>>>
     # with lowercol1:

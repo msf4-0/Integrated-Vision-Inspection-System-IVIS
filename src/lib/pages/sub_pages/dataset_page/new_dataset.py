@@ -25,15 +25,14 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import os
+from pathlib import Path
 import sys
 import shutil
-from copy import deepcopy
-from enum import IntEnum
-from pathlib import Path
-import tarfile
 from time import perf_counter, sleep
-from typing import Dict, Union
-from zipfile import ZipFile
+
+from natsort import os_sorted
+import cv2
+from imutils.video.webcamvideostream import WebcamVideoStream
 from humanize import naturalsize
 import streamlit as st
 from stqdm import stqdm
@@ -43,26 +42,27 @@ from streamlit import session_state
 
 # >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
 
-SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
+# SRC = Path(__file__).resolve().parents[4]  # ROOT folder -> ./src
+# LIB_PATH = SRC / "lib"
+# if str(LIB_PATH) not in sys.path:
+#     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
-for path in sys.path:
-    if str(LIB_PATH) not in sys.path:
-        sys.path.insert(0, str(LIB_PATH))  # ./lib
-    else:
-        pass
+# # DEFINE wide page layout for debugging on this page directly
+# layout = 'wide'
+# st.set_page_config(page_title="Integrated Vision Inspection System",
+#                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
 
 from core.utils.code_generator import get_random_string
-from core.utils.helper import Timer, check_filetype
+from core.utils.helper import Timer, list_available_cameras
 from core.utils.file_handler import extract_archive, list_files_in_archived, check_image_files
 from core.utils.log import logger
-from core.webcam import webcam_webrtc
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset, get_dataset_name_list, query_dataset_list
+from data_manager.dataset_management import NewDataset, get_dataset_name_list, get_latest_captured_image_path, query_dataset_list
 from path_desc import TEMP_DIR, chdir_root
-from project.project_management import NewProject, NewProjectPagination, Project, ProjectPagination
+from project.project_management import NewProject, Project, ProjectPagination, ProjectPermission
 from annotation.annotation_management import NewAnnotations, Task
 from user.user_management import User
+from deployment.utils import reset_camera, reset_camera_and_ports
 
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -95,7 +95,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     #  an existing project_id
     if not RELEASE:
         # debugging upload dataset
-        session_state.is_labeled = False
+        session_state.is_labeled = True
 
         if not session_state.is_labeled and ("new_project" not in session_state):
             session_state.new_project = NewProject(get_random_string(length=8))
@@ -103,7 +103,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             # session_state.new_project.deployment_type = "Image Classification"
             session_state.new_project.deployment_type = "Semantic Segmentation with Polygons"
         if session_state.is_labeled and ('project' not in session_state):
-            project_id = 4
+            project_id = 30
             logger.debug(f"""Entering Project ID {project_id} for debugging
             uploading labeled dataset""")
             session_state.project = Project(project_id)
@@ -126,20 +126,23 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         del session_state['new_project']
         session_state.project = Project(project_id)
         logger.info(f"Project ID {project_id} initialized")
+
+    dataset: NewDataset = session_state.new_dataset
     # ******** SESSION STATE ********
+
+    if 'project' in session_state:
+        project: Project = session_state.project
+        deployment_type = project.deployment_type
+    elif 'new_project' in session_state:
+        deployment_type = session_state.new_project.deployment_type
 
     if is_existing_dataset:
         # session_state.dataset_chosen should be obtained from existing_project_dashboard
-        dataset_info = session_state.project.dataset_dict[session_state.dataset_chosen]
+        dataset_info = project.dataset_dict[session_state.dataset_chosen]
         # set the info to be equal to new_dataset to make things easier
-        session_state.new_dataset.id = dataset_info.ID
-        session_state.new_dataset.name = dataset_info.Name
-        session_state.new_dataset.desc = dataset_info.Description
-
-    if 'project' in session_state:
-        deployment_type = session_state.project.deployment_type
-    elif 'new_project' in session_state:
-        deployment_type = session_state.new_project.deployment_type
+        dataset.id = dataset_info.ID
+        dataset.name = dataset_info.Name
+        dataset.desc = dataset_info.Description
 
     # >>>>>>>> New Dataset INFO >>>>>>>>
     # Page title
@@ -156,7 +159,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     # right-align the dataset ID relative to the page
     _, id_right = st.columns([3, 1])
     id_right.write(
-        f"### __Dataset ID:__ {session_state.new_dataset.id}")
+        f"### __Dataset ID:__ {dataset.id}")
 
     outercol1, outercol2, outercol3 = st.columns([1.5, 3.5, 0.5])
 
@@ -165,14 +168,14 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         context = {'column_name': 'name',
                    'value': session_state.name}
         if session_state.name:
-            if session_state.new_dataset.check_if_exists(context, conn):
-                session_state.new_dataset.name = None
+            if dataset.check_if_exists(context, conn):
+                dataset.name = None
                 field_placeholder['name'].error(
                     f"Dataset name used. Please enter a new name")
                 sleep(1)
                 logger.error(f"Dataset name used. Please enter a new name")
             else:
-                session_state.new_dataset.name = session_state.name
+                dataset.name = session_state.name
                 logger.info(f"Dataset name fresh and ready to rumble")
 
     # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -186,12 +189,12 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         description = outercol2.text_area(
             "Description (Optional)", key="desc", help="Enter the description of the dataset")
         if description:
-            session_state.new_dataset.desc = description
+            dataset.desc = description
     else:
         st.write("## __Current Project Dataset Information :__")
-        st.markdown(f"**Dataset name:** {session_state.new_dataset.name}")
+        st.markdown(f"**Dataset name:** {dataset.name}")
         st.markdown(
-            f"**Dataset description:** {session_state.new_dataset.desc}")
+            f"**Dataset description:** {dataset.desc}")
 
         st.markdown("## __Adding data to existing project dataset__")
         labeled = st.radio(
@@ -224,8 +227,140 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     # TODO: #15 Webcam integration
     # >>>> WEBCAM >>>>
     if data_source == 0:
+        # NOTE: not using streamlit-webrtc for now
+        # webcam_webrtc.app_loopback()
+
+        if 'working_ports' not in session_state:
+            session_state.working_ports = []
+
         with outercol2:
-            webcam_webrtc.app_loopback()
+
+            camera_type = st.radio("Select type of camera", ('USB Camera', 'IP Camera'),
+                                   key='input_camera_type', on_change=reset_camera)
+            if camera_type == 'USB Camera':
+                num_check_ports = st.number_input(
+                    "Number of ports to check for", 5, 99, 5,
+                    key='input_num_check_ports',
+                    help="""Number of ports to check whether they are working or not. If you are using
+                    Docker on Linux, you need to specify a number at least as high as the highest number
+                    of the camera *dev path*. For example, **9** if the largest *dev path* is:
+                    **/dev/video9**.""")
+                st.button("Refresh camera ports", key='btn_refresh',
+                          on_click=reset_camera_and_ports)
+                if not session_state.working_ports:
+                    with st.spinner("Checking available camera ports ..."):
+                        _, working_ports = list_available_cameras(
+                            num_check_ports)
+                        session_state.working_ports = working_ports.copy()
+                if not session_state.working_ports:
+                    st.error("No available camera port found.")
+                    st.stop()
+                camera_port = st.radio("Select a camera port", session_state.working_ports,
+                                       key='camera_port')
+                cam_key = f'camera'
+                video_source = camera_port
+            else:
+                ip_cam_address = st.text_input(
+                    "Enter the IP address", key='ip_cam_address')
+                with st.expander("Notes about IP Camera Address"):
+                    st.markdown(
+                        """IP camera address could start with *http* or *rtsp*.
+                        Most of the IP cameras have a username and password to access
+                        the video. In such case, the credentials have to be provided
+                        in the streaming URL as follow: 
+                        **rtsp://username:password@192.168.1.64/1**""")
+                if not ip_cam_address:
+                    st.warning("Please enter an IP address")
+                    st.stop()
+                # ip camera needs to include 'ip' to avoid release it in reset_camera()
+                cam_key = f'camera_ip'
+                video_source = ip_cam_address
+
+            camera_btn_place = st.empty()
+
+            if not session_state.get(cam_key):
+                if camera_btn_place.button(
+                    "Start camera", key='btn_start_cam',
+                        help='Start camera before start capturing images'):
+                    with st.spinner(f"Loading up camera ..."):
+                        try:
+                            session_state[cam_key] = WebcamVideoStream(
+                                src=video_source).start()
+                            if session_state[cam_key].read() is None:
+                                raise Exception(
+                                    "Video source is not valid")
+                        except Exception as e:
+                            st.error(
+                                f"Unable to read from video source {video_source}")
+                            logger.error(
+                                f"Unable to read from video source {video_source}: {e}")
+                            reset_camera()
+                            st.stop()
+                else:
+                    st.stop()
+
+            camera_btn_place.button(
+                "Stop camera", key='btn_stop_cam', on_click=reset_camera)
+
+        stream = session_state[cam_key].stream
+        width = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps_input = int(stream.get(cv2.CAP_PROP_FPS))
+        logger.info(
+            f"Webcam properties: {width = }, {height = }, {fps_input = }")
+
+        with outercol1:
+            st.markdown(f"### Webcam info:  \n**Width**: {width}, "
+                        f"**Height**: {height}, **FPS**: {fps_input}")
+
+            save_path, image_num = get_latest_captured_image_path()
+            save_dir = save_path.parent
+            if not save_dir.exists():
+                os.makedirs(save_dir)
+            if os.environ.get("DOCKERCOMPOSE"):
+                # this save directory is the local Linux directory to be able to access the
+                # captured_images directory mounted into the Docker container
+                # NOTE: this path depends on the volume name used in the docker-compose file
+                # and this path is only for Linux PC because currently camera device
+                # is not supported on Docker created on Windows WSL
+                save_dir = Path(r"/var/lib/docker/volumes/integrated-vision-inspection-system_app-data/_data",
+                                save_dir.name)
+            st.markdown(
+                f"Images will be saved in this directory: *{save_dir}*")
+            display_width = st.slider(
+                "Select width of image to resize for display",
+                35, 1000, 640, 5, key='display_width',
+                help="This does not affect the size of the captured image as it depends on the camera.")
+
+            is_limiting = st.checkbox(
+                "Limit images captured per second", value=True)
+            if is_limiting:
+                img_per_sec = st.slider(
+                    "Max images per second",
+                    0.1, 30.0, 2.0, 0.1, format='%.1f', key='cps',
+                    help="Note that this is not exactly precise but very close.")
+
+        with outercol2:
+            video_place = st.empty()
+            start_capture = st.checkbox("Start capturing", key='start_capture')
+
+        start_time = perf_counter()
+        total_new_imgs = 0
+        while True:
+            frame = session_state[cam_key].read()
+            video_place.image(frame, channels='BGR', width=display_width)
+
+            if start_capture:
+                elapsed_secs = perf_counter() - start_time
+                if is_limiting and (total_new_imgs / elapsed_secs) > img_per_sec:
+                    continue
+                # note that opencv only accepts str and not Path
+                cv2.imwrite(str(save_path), frame)
+                total_new_imgs += 1
+                image_num += 1
+                save_path = save_path.with_name(f'{image_num}.png')
+                # sleep to limit save rate a little bit
+                sleep(0.1)
 
     # >>>> FILE UPLOAD >>>>
     # TODO #24 Add other filetypes based on filetype table
@@ -243,6 +378,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             label="Upload Image", type=allowed_types, accept_multiple_files=False, key="upload_widget")
         # outercol2.info("""NOTE: When you are uploading a lot of files at once, the
         # Streamlit app may look like it's stuck but please wait for it to finish uploading.""")
+        place["upload"] = outercol2.empty()
         # ******** INFO for FILE FORMAT **************************************
         with outercol1.expander("File Format Infomation", expanded=True):
             # not using these formats for our application
@@ -260,12 +396,23 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 st.info(
                     "#### Compatible Annotation Format:  \n"
                     "- Object detection should have one XML file for each uploaded image.  \n"
-                    "- Image classification should only have images and only one CSV file, "
+                    "- Image classification can have two types:  \n"
+                    "1. CSV file: should only have images and only one CSV file, "
                     "the first row of CSV file should be the filename with extension, while "
                     "the second row should be the class label name.  \n"
+                    "2. Label by folder names: Each image is labeled by the folder name they "
+                    "reside in. E.g. *cat1.jpg* image is in a folder named as *cat*, this "
+                    "image will be labeled as *cat*  \n"
                     "- Image segmentation should only have images and only one COCO JSON file.  \n")
 
-        place["upload"] = outercol2.empty()
+        # default to CSV file for everything else
+        classif_annot_type = 'CSV file'
+        if session_state.is_labeled and deployment_type == 'Image Classification':
+            with outercol2:
+                options = ("CSV file", "Label by folder name")
+                classif_annot_type = st.radio(
+                    "Select annotation type", options)
+
         if uploaded_archive:
             # st.write(len(uploaded_archive))
             # st.write(uploaded_archive)
@@ -284,20 +431,20 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         return_content_size=True,
                         skip_dir=True)
                 # check_filetype(
-                #     uploaded_files_multi, session_state.new_dataset, place)
+                #     uploaded_files_multi, dataset, place)
 
-            # session_state.new_dataset.dataset = image_names
+            # dataset.dataset = image_names
 
             # length of uploaded files
             num_files = len(filepaths)
         else:
             content_size = 0
             num_files = 0
-            # session_state.new_dataset.dataset = []
+            # dataset.dataset = []
 
         with outercol3:
             dataset_size_string = f"- ### Number of datas: **{num_files}**"
-            # dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=session_state.new_dataset.calc_total_filesize(),format='%.2f')}**"
+            # dataset_filesize_string = f"- ### Total size of data: **{naturalsize(value=dataset.calc_total_filesize(),format='%.2f')}**"
             dataset_filesize_string = ("- ### Total size of data: "
                                        f"**{naturalsize(value=content_size, format='%.2f')}**")
             st.markdown(" ____ ")
@@ -336,23 +483,23 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
     # st.write(session_state)
 
     if submit_button:
-        context = {'name': session_state.new_dataset.name,
+        context = {'name': dataset.name,
                    'upload': session_state.upload_widget}
         if is_existing_dataset:
             # don't need to check for dataset name for existing dataset
             del context['name']
 
-        session_state.new_dataset.has_submitted = session_state.new_dataset.check_if_field_empty(
+        dataset.has_submitted = dataset.check_if_field_empty(
             context, field_placeholder=place, name_key='name')
 
-        if session_state.new_dataset.has_submitted:
+        if dataset.has_submitted:
             if is_existing_dataset:
                 logger.info("Checking for duplicated filenames")
                 with outercol2:
                     with st.spinner("Checking for duplicated filenames ..."):
                         uploaded_files = [
                             os.path.basename(f) for f in filepaths]
-                        existing_images = session_state.project.data_name_list[
+                        existing_images = project.data_name_list[
                             session_state.dataset_chosen]
                         duplicates = set(uploaded_files).intersection(
                             existing_images)
@@ -371,10 +518,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         logger.info(
                             "Checking uploaded dataset and annotations")
                         start = perf_counter()
-                        image_paths = session_state.new_dataset.validate_labeled_data(
-                            uploaded_archive,
-                            filepaths,
-                            deployment_type)
+                        image_paths = dataset.validate_labeled_data(
+                            uploaded_archive, filepaths, deployment_type,
+                            classif_annot_type=classif_annot_type)
                         time_elapsed = perf_counter() - start
                         logger.info(
                             f"Done. [{time_elapsed:.4f} seconds]")
@@ -385,40 +531,43 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         logger.info("Checking uploaded images")
                         image_paths = check_image_files(filepaths)
 
-            session_state.new_dataset.dataset = image_paths
+            dataset.dataset = image_paths
 
             # create a temporary directory for extracting the archive contents
             if TEMP_DIR.exists():
                 shutil.rmtree(TEMP_DIR)
             os.makedirs(TEMP_DIR)
-            session_state.new_dataset.archive_dir = TEMP_DIR
+            dataset.archive_dir = TEMP_DIR
 
             with outercol3:
                 with st.spinner("Extracting uploaded archive contents ..."):
                     extract_archive(TEMP_DIR, file_object=uploaded_archive)
 
-            if session_state.new_dataset.save_dataset(session_state.new_dataset.archive_dir):
+            if dataset.save_dataset(dataset.archive_dir):
 
                 success_place.success(
-                    f"Successfully created **{session_state.new_dataset.name}** dataset")
+                    f"Successfully created **{dataset.name}** dataset")
 
                 if is_existing_dataset:
-                    dataset_func = session_state.new_dataset.update_dataset_size
+                    dataset_func = dataset.update_dataset_size
                 else:
-                    dataset_func = session_state.new_dataset.insert_dataset
+                    dataset_func = dataset.insert_dataset
 
                 if dataset_func():
 
                     success_place.success(
-                        f"Successfully stored **{session_state.new_dataset.name}** dataset information in database")
+                        f"Successfully stored **{dataset.name}** dataset information in database")
 
                     if is_existing_dataset:
-                        # insert the new image info into the `task` table for existing dataset
+                        # insert the new image info into the `task` table for existing dataset,
+                        # `os_sorted` is used to sort the files just like in file browser
+                        # to make the order of the files make more sense to the user
+                        # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
                         image_names = [os.path.basename(p)
-                                       for p in image_paths]
-                        session_state.project.insert_new_project_task(
-                            session_state.new_dataset.name,
-                            session_state.new_dataset.id,
+                                       for p in os_sorted(image_paths)]
+                        project.insert_new_project_task(
+                            dataset.name,
+                            dataset.id,
                             image_names=image_names)
 
                     if session_state.is_labeled:
@@ -433,19 +582,19 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                     existing_dataset)
                                 # add the uploaded dataset as the dataset_chosen, to
                                 # allow the insert_project_dataset to work
-                                dataset_name = session_state.new_dataset.name
+                                dataset_name = dataset.name
                                 dataset_chosen = [dataset_name]
-                                session_state.project.insert_project_dataset(
+                                project.insert_project_dataset(
                                     dataset_chosen, dataset_dict)
-                                project_id = session_state.project.id
+                                project_id = project.id
                                 logger.info(f"Inserted project dataset '{dataset_name}' for "
                                             f"Project {project_id} into project_dataset table")
                                 # must refresh all the dataset details
-                                session_state.project.refresh_project_details()
+                                project.refresh_project_details()
 
                         with st.spinner("Querying all the labeled images ..."):
                             all_task, all_task_column_names = Task.query_all_task(
-                                session_state.project.id,
+                                project.id,
                                 return_dict=True,
                                 # using True to use 'id' instead of 'ID' for the first column name
                                 for_data_table=True)
@@ -455,12 +604,12 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                             # taking only the filename without extension to consider the
                             #  case of Label Studio exported XML filenames without
                             #  any file extension
-                            if session_state.project.deployment_type == 'Object Detection with Bounding Boxes':
+                            if project.deployment_type == 'Object Detection with Bounding Boxes':
                                 task_df['Task Name'] = task_df['Task Name'].apply(
                                     lambda filename: os.path.splitext(filename)[0])
 
                         total_images = len(task_df)
-                        filetype = session_state.new_dataset.filetype
+                        filetype = dataset.filetype
                         logger.info("Submitting uploaded annotations ...")
 
                         start_t = perf_counter()
@@ -468,8 +617,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         # set this to False to check how long each process takes
                         disable_timer = True
 
-                        result_generator = session_state.new_dataset.parse_annotation_files(
-                            session_state.project.deployment_type
+                        result_generator = dataset.parse_annotation_files(
+                            project.deployment_type, image_paths,
+                            classif_annot_type=classif_annot_type
                         )
                         message = "Inserting uploaded annotations into database"
                         for img_name, result in stqdm(result_generator, total=total_images,
@@ -485,17 +635,19 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                 # index into the List of Dict of task
                                 task_row = task_row[0]
                             else:
-                                logger.error(f"""Image '{img_name}' not found. Probably
-                                removed because unable to read the image. Skipping
-                                from submitting to database.""")
+                                logger.error(
+                                    f"Image '{img_name}' not found. Probably removed "
+                                    "because unable to read the image. Skipping from "
+                                    "submitting to database.")
                                 # these images were skipped in dataset_PNG_encoding()
                                 error_imgs.append(img_name)
                                 continue
 
                             with Timer("Task instantiated", disable_timer):
                                 task = Task(task_row,
-                                            session_state.project.dataset_dict,
-                                            session_state.project.id)
+                                            project.dataset_dict,
+                                            project.id,
+                                            generate_data_url=False)
 
                             with Timer("Annotation instantiated", disable_timer):
                                 annotation = NewAnnotations(
@@ -507,7 +659,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                     result, session_state.user.id, conn)
 
                             time_elapsed = perf_counter() - start_task
-                            logger.info(
+                            logger.debug(
                                 f"Annotation submitted successfully [{time_elapsed:.4f}s]")
 
                         time_elapsed = perf_counter() - start_t
@@ -521,13 +673,12 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         with st.spinner("Updating project labels and editor configuration ..."):
                             # get existing labels from editor_config to use to
                             # compare and update editor_config with new labels
-                            existing_config_labels = list(
-                                session_state.project.editor.get_labels())
+                            existing_config_labels = project.editor.get_labels()
                             logger.debug("Existing labels found in "
                                          f"editor config: {existing_config_labels}")
                             # now the annotations will include new labels from the
                             # new uploaded annotations
-                            existing_annotated_labels = session_state.project.get_existing_unique_labels()
+                            existing_annotated_labels = project.get_existing_unique_labels()
                             new_labels = set(existing_annotated_labels).difference(
                                 existing_config_labels)
                             logger.info("After adding the new labels to editor config: "
@@ -543,70 +694,95 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
                             # update editor_config with the new labels from the uploaded annotations
                             for label in new_labels:
-                                newChild = session_state.project.editor.create_label(
+                                newChild = project.editor.create_label(
                                     'value', label)
                                 logger.debug(
                                     f"newChild: {newChild.attributes.items()}")
-                            session_state.project.editor.labels = session_state.project.editor.get_labels()
+                            project.editor.labels = project.editor.get_labels()
 
-                            # default_labels = session_state.project.editor.get_default_template_labels()
+                            # default_labels = project.editor.get_default_template_labels()
 
                             if is_new_project and unwanted_labels:
                                 for label in unwanted_labels:
                                     logger.debug(
                                         f"Removing label: {label}")
-                                    session_state.project.editor.labels.remove(
+                                    project.editor.labels.remove(
                                         label)
-                                    removedChild = session_state.project.editor.remove_label(
+                                    removedChild = project.editor.remove_label(
                                         'value', label)
                                     logger.debug(
                                         f"removedChild: {removedChild}")
-                                session_state.project.editor.labels.sort()
                                 logger.debug(f"After removing default labels: "
-                                             f"{session_state.project.editor.labels}")
+                                             f"{project.editor.labels}")
+                            project.editor.labels.sort()
                             logger.info("All labels after updating: "
-                                        f"{session_state.project.editor.labels}")
+                                        f"{project.editor.labels}")
 
-                            session_state.project.editor.update_editor_config()
-                            session_state.project.refresh_project_details()
+                            project.editor.update_editor_config()
+                            project.refresh_project_details()
 
                         if error_imgs:
                             with st.expander("""NOTE: These images were unreadable and
                                 skipped, but others are stored successfully in the
-                                database. You may now go back to the Home page and 
-                                enter the current project."""):
+                                database. You may now proceed to enter the current project."""):
                                 st.warning("  \n".join(error_imgs))
                         else:
                             st.success("""🎉 All images and annotations are successfully
-                            stored in database. You may now go back to the Home page or 
-                            enter the current project.""")
+                            stored in database. You may now proceed to enter the current project.""")
 
                         # clear out the "Submit" button to avoid further interactions
                         button_place.empty()
+
+                        def enter_project_cb():
+                            NewProject.reset_new_project_page()
+                            NewDataset.reset_new_dataset_page()
+                            # also could be coming from project dashboard
+                            Project.reset_dashboard_page()
+                            project_pagination = ProjectPagination.Existing
+                            project_status = ProjectPagination.Existing
+                            session_state.append_project_flag = ProjectPermission.ViewOnly
+
+                            logger.info(
+                                f"Entering Project {project.id}")
+
+                        st.button("Enter Project", key="btn_enter_project",
+                                  on_click=enter_project_cb)
                 else:
                     st.error(
-                        f"Failed to stored **{session_state.new_dataset.name}** dataset information in database")
+                        f"Failed to stored **{dataset.name}** dataset information in database")
             else:
                 st.error(
-                    f"Failed to created **{session_state.new_dataset.name}** dataset")
+                    f"Failed to created **{dataset.name}** dataset")
 
             # remove the unneeded extracted archive dir contents
             with st.spinner("Removing the unwanted extracted files ..."):
-                shutil.rmtree(session_state.new_dataset.archive_dir)
+                shutil.rmtree(dataset.archive_dir)
                 logger.info(
                     "Removed temporary directory for extracted contents")
 
-    # st.write("vars(session_state.new_dataset)")
-    # st.write(vars(session_state.new_dataset))
+    # FOR DEBUGGING:
+    # st.write("vars(dataset)")
+    # st.write(vars(dataset))
+    # from copy import deepcopy
+
+    # project: Project = project
+    # editor = deepcopy(project.editor)
+    # existing_config_labels = editor.get_labels()
+    # st.write("existing_config_labels")
+    # st.write(existing_config_labels)
+    # st.write(type(editor))
+    # st.write("vars(editor)")
+    # st.write(vars(editor))
+    # st.write(editor.editor_config)
+    # # st.write(editor.xml_doc.getElementsByTagName(
+    # #     editor.parent_tagname))
+    # st.write(editor.create_label('value', 'haha'))
+    # st.write(editor.get_labels())
 
 
 if __name__ == "__main__":
-    # DEFINE wide page layout for debugging on this page directly
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
-
     if st._is_running_with_streamlit:
+        st.sidebar.markdown("Dummy sidebar")
         # initialise connection to Database
         conn = init_connection(**st.secrets["postgres"])
 

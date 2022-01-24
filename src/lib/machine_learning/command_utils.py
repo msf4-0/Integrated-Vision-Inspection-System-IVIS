@@ -1,16 +1,21 @@
 import copy
+import os
+import shlex
 import shutil
 import subprocess
+import signal
 import pprint
 from pathlib import Path
-import time
+from time import sleep
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
+from tempfile import gettempdir
 import numpy as np
 
 import streamlit as st
 from streamlit import session_state
-from streamlit_tensorboard import st_tensorboard
+# from streamlit_tensorboard import st_tensorboard
+from core.streamlit_tensorboard import st_tensorboard
 
 from path_desc import TFOD_DIR
 
@@ -21,33 +26,60 @@ from core.utils.log import logger
 def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
     """Run and show TensorBoard interface as a Streamlit component"""
     # TODO: test whether this TensorBoard works after deployed the app
+    # stop TensoBoard process and remove tensorboard-info folder to properly
+    #  run tensorboard on different logdirs
+    logger.info("Stopping any existing running TensorBoard")
+    if os.name == 'nt':
+        run_command('taskkill /IM "tensorboard.exe" /F')
+    else:
+        run_command('killall -KILL "tensorboard"')
+
+    tb_info_dir = os.path.join(gettempdir(), '.tensorboard-info')
+    if os.path.exists(tb_info_dir):
+        logger.debug(f"Removing existing tensorboard info at: {tb_info_dir}")
+        shutil.rmtree(tb_info_dir)
+
     logger.info(f"Running TensorBoard on {logdir}")
-    # NOTE: this st_tensorboard does not work if the path passed in
-    #  is NOT in POSIX format, thus the `as_posix()` method to convert
-    #  from WindowsPath to POSIX format to work in Windows
-    st_tensorboard(logdir=logdir.as_posix(),
+    # NOTE: 6007 is the port exposed for our Docker container, don't simply change the port
+    st.markdown("""If TensorBoard does not show up, that means something is using the
+    port **6007**, you will need to stop the process first to allow TensorBoard to work
+    in our application.""")
+    st_tensorboard(logdir=logdir,
                    port=port, width=width, scrolling=True)
 
 
-def find_tfod_metric(name: str, cmd_output: str) -> Tuple[str, Union[int, float]]:
+def find_tfod_metric(name: str, cmd_output_line: str) -> Union[
+        Tuple[str, int, float],
+        Tuple[str, float]]:
     """
-    Find the specific metric name in the command output (`cmd_output`)
-    and returns only the digits (i.e. values) of the metric.
+    Find the specific metric name in ONE LINE of command output (`cmd_output_line`)
+    and returns both the full name and the digits (i.e. values) of the metric. For 'Step',
+    the `step_time` is also returned.
 
-    Basically search using regex groups, then take the last match,
-    then take the first group for the metric name, and the second group for the digits.
+    Basically search using regex groups, then take the first group for the metric name, 
+    and the second group for the digits. For 'Step', the last group is for the per-step time.
+
+    Returns:
+        Tuple[str, int, float]: for 'Step', returns (name, step_val, step_time)
+        Tuple[str, float]]: for 'Loss', returns (loss_name, value)
     """
     assert name in ('Step', 'Loss')
     try:
         if name == 'Step':
-            value = re.findall(f'({name})\s+(\d+)', cmd_output)[-1][1]
-            return name, int(value)
+            pattern = 'Step\s+(\d+)[^\d]+(\d+\.\d+)'
+            step_val, step_time = re.findall(pattern, cmd_output_line)[0]
+            return name, int(step_val), float(step_time)
         else:
+            if 'learning_rate' in cmd_output_line:
+                # skip showing/storing learning_rate for now
+                return
+            # take the entire loss name, e.g. "Loss/box/scale"
+            pattern = '(Loss[/\w]*)[^\d]+(\d+\.\d+|nan)'
             loss_name, value = re.findall(
-                f'{name}/(\w+).+(\d+\.\d+)', cmd_output)[-1]
+                pattern, cmd_output_line)[-1]
             return loss_name, float(value)
     except IndexError:
-        logger.debug(f"Value for '{name}' not found from {cmd_output}")
+        logger.debug(f"Value for '{name}' not found from {cmd_output_line}")
 
 
 def find_tfod_eval_metrics(cmd_output) -> str:
@@ -118,6 +150,17 @@ def check_process_returncode(returncode: int, traceback: List[str]) -> Union[str
         return traceback
 
 
+def kill_process(pid: int):
+    """Kill the process of the given pid."""
+    logger.debug(f"Killing process with pid {pid}")
+    if os.name == 'nt':
+        # Windows only supports termination signal
+        sig = signal.SIGTERM
+    else:
+        sig = signal.SIGKILL
+    os.kill(pid, sig)
+
+
 def run_command(command_line_args: str, st_output: bool = False,
                 stdout_output: bool = True,
                 filter_by: Optional[List[str]] = None,
@@ -141,22 +184,27 @@ def run_command(command_line_args: str, st_output: bool = False,
     if pretty_print:
         command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
+    if isinstance(command_line_args, str):
+        # must pass in list to the subprocess when shell=False, which
+        # is required to work properly in Linux
+        command_line_args = shlex.split(command_line_args)
     logger.debug(f"{stdout_output = }")
-    # shell=True to work on String instead of list -- not really sure about this...
-    # using shell=False for COCO eval to easily stop the process with process.terminate()
-    shell = False if is_cocoeval else True
-    process = subprocess.Popen(command_line_args, shell=shell,
+    process = subprocess.Popen(command_line_args, shell=False,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
                                text=True)
+    # store this process ID to kill it in case the user wants to stop the training
+    session_state.process_id = process.pid
+
     if filter_by:
         output_str_list = []
     traceback_found = False
     traceback = []
     for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
+        # avoid line with only spaces, and use rstrip() as most of the lines
+        # got trailing newlines '\n'
+        line = line.rstrip()
         if line:
             if stdout_output:
                 print(line)
@@ -182,17 +230,21 @@ def run_command(command_line_args: str, st_output: bool = False,
     returncode = process.wait()
     traceback = check_process_returncode(returncode, traceback)
 
+    # ensure the child process is properly killed
+    process.kill()
+    del session_state.process_id
+
     if filter_by and not output_str_list:
         # there is nothing obtained from the filtered stdout
         logger.error("Error getting any filtered text "
                      "from the command outputs!")
         st.error("Some error has occurred during training ..."
                  " Please try again")
-        time.sleep(3)
+        sleep(2)
         st.experimental_rerun()
     elif filter_by:
         return '\n'.join(output_str_list)
-    return process.stdout.read()
+    return traceback
 
 
 def run_command_update_metrics_old(
@@ -269,31 +321,41 @@ def run_command_update_metrics_old(
 
 def run_command_update_metrics(
     command_line_args: str,
+    total_steps: int,
     stdout_output: bool = True,
     step_name: str = 'Step',
     pretty_print: Optional[bool] = False
 ) -> str:
-    """[summary]
+    """Run the command for TFOD training script and update the metrics by extracting them
+    from the script output in real time.
 
     Args:
         command_line_args (str): Command line arguments to run.
+        total_steps (int): total training steps, used to calculate ETA to complete training.
         stdout_output (bool, optional): Set `stdout_output` to True to
             show the console outputs LIVE on terminal. Defaults to True.
         step_name (str, optional): The key name used to store our training step progress.
             Should be 'Step' for now. Defaults to 'Step'.
+        pretty_print (bool, optional): Set `pretty_print` to True to show prettier `command_line_args`.
+            Defaults to False.
 
     Returns:
-        str: the entire console output generated from the TFOD training script
+        str: Traceback message (empty string if no error)
     """
-    # assert metric_names is not None, "Please pass in metric_names to use for search and updates"
     if pretty_print:
         command_line_args = pprint.pformat(command_line_args)
     logger.info(f"Running command: '{command_line_args}'")
-    process = subprocess.Popen(command_line_args, shell=True,
+    if isinstance(command_line_args, str):
+        # must pass in list to the subprocess when shell=False, which
+        # is required to work properly in Linux
+        command_line_args = shlex.split(command_line_args)
+    process = subprocess.Popen(command_line_args, shell=False,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
                                text=True)
+    # store this process ID to kill it in case the user wants to stop the training
+    session_state.process_id = process.pid
 
     pretty_metric_printer = PrettyMetricPrinter()
     # list of stored stdout lines
@@ -304,8 +366,8 @@ def run_command_update_metrics(
     traceback_found = False
     traceback = []
     for line in process.stdout:
-        # remove empty trailing spaces, and also string with only spaces
-        line = line.strip()
+        # avoid line with only spaces
+        line = line.rstrip()
         if line:
             if stdout_output:
                 # print to console
@@ -339,11 +401,19 @@ def run_command_update_metrics(
                 current_lines.append(line)
             if len(current_lines) == 12:
                 # take the first line because that's where `step_name` was found and appended first
-                _, step_val = find_tfod_metric(step_name, current_lines[0])
-                session_state.new_training.progress[step_name] = step_val
+                _, curr_step, step_time = find_tfod_metric(
+                    step_name, current_lines[0])
+                session_state.new_training.progress[step_name] = curr_step
                 session_state.new_training.update_progress(
                     session_state.new_training.progress, verbose=True)
-                st.markdown(f"**{step_name}**: {step_val}")
+
+                text = (f"**{step_name}**: {curr_step}/{total_steps}. "
+                        f"**Per-Step Time**: {step_time:.3f}s.")
+                if curr_step != total_steps:
+                    # only show ETA when it's not final epoch
+                    eta = (total_steps - curr_step) * step_time
+                    text += f" **ETA**: {eta:.2f}s"
+                st.markdown(text)
 
                 metrics = {}
                 for line in current_lines[2:]:
@@ -364,28 +434,49 @@ def run_command_update_metrics(
     # wait for the process to terminate and check for any error
     returncode = process.wait()
     traceback = check_process_returncode(returncode, traceback)
-    return process.stdout.read()
+
+    # ensure the child process is properly killed
+    process.kill()
+    del session_state.process_id
+
+    if traceback:
+        return traceback
 
 
-def export_tfod_savedmodel(training_paths: Dict[str, Path]) -> bool:
+def export_tfod_savedmodel(training_paths: Dict[str, Path],
+                           stdout_output: bool = False,
+                           re_export: bool = True) -> bool:
+    """
+    Export TFOD model to SavedModel format.
+
+    If `re_export` is `True`, then remove any existing export directories first
+    and export again. If `False`, skip export if SavedModel files already exist.
+    """
     paths = training_paths
+    savedmodel_path = paths['export'] / 'saved_model' / 'saved_model.pb'
+
+    if not re_export and savedmodel_path.exists():
+        logger.info("SavedModel already exists. Skipping export.")
+        return True
+
     if paths['export'].exists():
         # remove any existing export directory first
         shutil.rmtree(paths['export'])
+    os.makedirs(paths['export'])
 
     with st.spinner("Exporting TensorFlow Object Detection model ... "
                     "This may take awhile ..."):
         pipeline_conf_path = paths['config_file']
         FREEZE_SCRIPT = TFOD_DIR / 'research' / \
-            'object_detection' / 'exporter_main_v2.py '
-        command = (f"python {FREEZE_SCRIPT} "
-                   "--input_type=image_tensor "
-                   f"--pipeline_config_path={pipeline_conf_path} "
-                   f"--trained_checkpoint_dir={paths['models']} "
-                   f"--output_directory={paths['export']}")
-        run_command(command, stdout_output=False)
+            'object_detection' / 'exporter_main_v2.py'
+        command = (f'python "{FREEZE_SCRIPT}" '
+                   '--input_type=image_tensor '
+                   f'--pipeline_config_path "{pipeline_conf_path}" '
+                   f'--trained_checkpoint_dir "{paths["models"]}" '
+                   f'--output_directory "{paths["export"]}"')
+        run_command(command, stdout_output=stdout_output)
 
-    if (paths['export'] / 'saved_model').exists():
+    if savedmodel_path.exists():
         logger.info("Successfully exported TensorFlow Object Detection model")
         return True
     else:

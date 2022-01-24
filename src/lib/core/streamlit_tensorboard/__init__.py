@@ -1,0 +1,87 @@
+"""
+This is referring to GitHub repository here: https://github.com/snehankekre/streamlit-tensorboard
+for the custom Streamlit Component to embed TensorBoard within Streamlit, which some
+modifications to suit our application.
+"""
+
+import streamlit.components.v1 as components
+from tensorboard import manager
+import shlex
+import random
+import html
+import json
+from pathlib import Path
+
+
+def st_tensorboard(logdir="/logs/", port=6006, width=None, height=800, scrolling=True):
+    """Embed Tensorboard within a Streamlit app
+    Parameters
+    ----------
+    logdir: str
+        Directory where TensorBoard will look to find TensorFlow event files that it can display.
+        TensorBoard will recursively walk the directory structure rooted at logdir, looking for .*tfevents.* files.
+        Defaults to /logs/
+    port: int
+        Port to serve TensorBoard on. Defaults to 6006
+    width: int
+        The width of the frame in CSS pixels. Defaults to the report’s default element width.
+    height: int
+        The height of the frame in CSS pixels. Defaults to 800.
+    scrolling: bool
+        If True, show a scrollbar when the content is larger than the iframe.
+        Otherwise, do not show a scrollbar. Defaults to True.
+
+    Example
+    -------
+    >>> st_tensorboard(logdir="/logs/", port=6006, width=1080)
+    """
+    # NOTE: this st_tensorboard does not work if the path passed in
+    #  is NOT in POSIX format, thus the `as_posix()` method to convert
+    #  from WindowsPath to POSIX format to work in Windows.
+    # Also adding double quotes in case there is space in the path
+    logdir = f'"{Path(logdir).as_posix()}"'
+    port = port
+    width = width
+    height = height
+
+    frame_id = "tensorboard-frame-{:08x}".format(random.getrandbits(64))
+    shell = """
+        <iframe id="%HTML_ID%" width="100%" height="%HEIGHT%" frameborder="0">
+        </iframe>
+        <script>
+        (function() {
+            const frame = document.getElementById(%JSON_ID%);
+            const url = new URL(%URL%, window.location);
+            const port = %PORT%;
+            if (port) {
+            url.port = port;
+            }
+            frame.src = url;
+        })();
+        </script>
+    """
+
+    # added bind_all to work inside Docker container
+    args_string = f"--logdir {logdir} --port {port} --bind_all"
+    parsed_args = shlex.split(args_string, comments=True, posix=True)
+    start_result = manager.start(parsed_args)
+
+    if isinstance(start_result, manager.StartReused):
+        port = start_result.info.port
+        print(f"Reusing TensorBoard on port {port}")
+
+    proxy_url = "http://localhost:%PORT%"
+
+    proxy_url = proxy_url.replace("%PORT%", "%d" % port)
+    replacements = [
+        ("%HTML_ID%", html.escape(frame_id, quote=True)),
+        ("%JSON_ID%", json.dumps(frame_id)),
+        ("%HEIGHT%", "%d" % height),
+        ("%PORT%", "0"),
+        ("%URL%", json.dumps(proxy_url)),
+    ]
+
+    for (k, v) in replacements:
+        shell = shell.replace(k, v)
+
+    return components.html(shell, width=width, height=height, scrolling=scrolling)

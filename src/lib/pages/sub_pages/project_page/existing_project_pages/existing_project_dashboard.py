@@ -74,11 +74,14 @@ def dashboard(RELEASE=True, **kwargs):
     annotation_col1, annotation_col2 = st.columns([3, 0.5])
 
     annotation_col1.write("### **Annotations**")
-    annotation_col2.write(
-        f"### Total labels: {len(session_state.project.editor.labels_results)}")
+    annotation_col1.write(
+        f"#### Total labels : {len(session_state.project.editor.labels_results)}")
 
-    st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
-        [dict(selector='th', props=[('text-align', 'center')])]))
+    # st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+    #     [dict(selector='th', props=[('text-align', 'center')])]))
+
+    # Using st.dataframe instead of st.table to allow sorting
+    st.dataframe(styler, width=1920)
 
     # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -95,11 +98,12 @@ def dashboard(RELEASE=True, **kwargs):
         dataset_table_col1, dataset_table_col2 = st.columns([3, 0.5])
 
         dataset_table_col1.write("### **Datasets**")
-        dataset_table_col2.write(
-            f"### Total datasets: {len(session_state.project.datasets)}")
+        dataset_table_col1.write(
+            f"#### Total datasets: {len(session_state.project.datasets)}")
 
-        st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
-            [dict(selector='th', props=[('text-align', 'center')])]))    # >>>>>>>>>>PANDAS DATAFRAME for DATASET DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        # st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
+        #     [dict(selector='th', props=[('text-align', 'center')])]))    # >>>>>>>>>>PANDAS DATAFRAME for DATASET DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        st.dataframe(styler, width=1920)
     else:
         st.warning("No dataset selected for this project yet! "
                    "Please add one by selecting from the options below.")
@@ -213,8 +217,8 @@ def index(RELEASE=True):
         datasets_to_add = st.multiselect(
             "Select dataset(s) to add to current project",
             options=all_datasets, key="datasets_to_add",
-            help="""Add more dataset to the project. The colored row in the
-            table is the project dataset chosen during project creation.""")
+            help="""Add more dataset to the project. The colored rows in the
+            table are the datasets that have already been added to the current project.""")
 
         if datasets_to_add:
             st.write("### Dataset chosen:")
@@ -282,9 +286,9 @@ def index(RELEASE=True):
 
 if __name__ == "__main__":
     # Set to wide page layout for debugging on this page
-    layout = 'wide'
-    st.set_page_config(page_title="Integrated Vision Inspection System",
-                       page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
+    # layout = 'wide'
+    # st.set_page_config(page_title="Integrated Vision Inspection System",
+    #                    page_icon="static/media/shrdc_image/shrdc_logo.png", layout=layout)
     if st._is_running_with_streamlit:
         # This is set to False for debugging purposes
         # when running Streamlit directly from this page

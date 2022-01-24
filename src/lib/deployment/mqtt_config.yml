@@ -3,17 +3,23 @@ mqtt:
   port: 1883
   QOS: 1
 
+main:
+  recv_frame: cvsystem/main/recv_frame
+  publish_frame: cvsystem/main/publish_frame
+  publish_results: cvsystem/main/results
+
 camera:
-  publish_results: homie/webcam/capture
-  start_publish_topic: homie/webcam/start
-  stop_publish_topic: homie/webcam/stop
+  start_publish_topic: cvsystem/webcam/start
+  stop_publish_topic: cvsystem/webcam/stop
+  start_publish_frame_topic: cvsystem/webcam/start_publish_frame
+  stop_publish_frame_topic: cvsystem/webcam/stop_publish_frame
 
 processing:
-  subscribe_topic: homie/webcam/capture
-  publish_topic: homie/webcam/capture/rotated
+  subscribe_topic: cvsystem/webcam/capture
+  publish_topic: cvsystem/webcam/capture/rotated
 
 save-captures:
-  # mqtt_topic: homie/webcam/capture
-  save_frame_topic: homie/webcam/save
-  start_record_topic: homie/webcam/start_record
-  stop_record_topic: homie/webcam/stop_record
+  # mqtt_topic: cvsystem/webcam/capture
+  save_frame_topic: cvsystem/webcam/save
+  start_record_topic: cvsystem/webcam/start_record
+  stop_record_topic: cvsystem/webcam/stop_record

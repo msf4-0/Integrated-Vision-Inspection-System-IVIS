@@ -163,9 +163,9 @@ def create_folder_if_not_exist(path: Path) -> None:
             path.mkdir(parents=True)
             logger.info(f"Created Directory at {str(path)}")
         except FileExistsError as e:
-            logger.info(f"Directory already exists: {e}")
+            logger.debug(f"Directory already exists: {e}")
     else:
-        logger.info(f"Directory already exist")
+        logger.debug(f"Directory already exist")
         pass
 
 
@@ -191,6 +191,12 @@ def move_file(src: Union[str, Path], dst: Union[str, Path]) -> bool:
         dest_path = dst / os.path.basename(file)  # get destination file path
 
         # returns file path to destination for each file moved
+        if dest_path.exists():
+            # delete it if exists
+            if dest_path.is_file():
+                dest_path.unlink()
+            else:
+                shutil.rmtree(dest_path)
         dst_return = shutil.move(str(file), str(dest_path))
         logger.debug(f"Moved {file.name} to {dst_return}")
 
@@ -412,8 +418,10 @@ def file_unarchiver(filename: Union[str, Path], extract_dir: Union[str, Path]):
     logger.info("Successfully Unarchive")
 
 
-def extract_one_to_bytes(uploaded_archive: UploadedFile, filename: str) -> bytes:
+def extract_one_to_bytes(uploaded_archive: UploadedFile, filepath: str) -> bytes:
     """Extract or read a single file from the archive, either from zipfile or tarfile.
+
+    `filepath` should be obtained from `list_files_in_archived()`.
 
     This function should only be used to extract one file, and not multiple files. If
     extracting multiple files, you should open the zipfile/tarfile and write the for loop
@@ -424,10 +432,10 @@ def extract_one_to_bytes(uploaded_archive: UploadedFile, filename: str) -> bytes
     uploaded_archive.seek(0)
     if uploaded_archive.name.endswith('.zip'):
         with ZipFile(file=uploaded_archive, mode='r') as zipObj:
-            file_content = zipObj.read(filename)
+            file_content = zipObj.read(filepath)
     else:
         with tarfile.open(fileobj=uploaded_archive) as tar:
-            f = tar.extractfile(filename)
+            f = tar.extractfile(filepath)
             file_content = f.read()
     uploaded_archive.seek(0)
     return file_content
@@ -669,7 +677,7 @@ def get_member(name: str, archived_filepath: Path = None, file_object: IO = None
         if file_object:
             fileobj = deepcopy(file_object)
             filename = None
-        logger.info(file_object)
+        logger.debug(file_object)
         with tarfile.open(name=filename,
                           fileobj=fileobj,
                           mode=tar_mode) as tarObj:
@@ -898,11 +906,11 @@ def create_tarfile(tarfile_name: str, target_path: Path, dest_dir: Path = None):
     try:
         with tarfile.open(tarfile_name, 'w:gz') as tar:
             if target_path.is_dir():
-                logger.debug("`target_path` is a directory")
+                logger.debug(f"'{target_path}' is a directory")
                 for p in os.listdir(target_path):
                     tar.add(p)
             else:
-                logger.debug("`target_path` is a file path")
+                logger.debug(f"'{target_path}' is a file path")
                 tar.add(target_path.name)
 
         # no need to move the tarfile if it is created at the same path as the dest_dir

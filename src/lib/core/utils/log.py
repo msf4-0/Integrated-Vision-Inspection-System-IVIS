@@ -5,9 +5,10 @@ Author: Chu Zhen Hao
 Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Development Centre (SHRDC)
 """
 import logging
+import os
 
-DEBUG = True
-if DEBUG:
+# environment variable should always be string
+if os.getenv('DEBUG', '1') == '1':
     # added module name, function name, and also line number
     FORMAT = '[%(levelname)s] %(asctime)s - [%(module)s.%(funcName)s: %(lineno)d] %(message)s'
     LEVEL = logging.DEBUG

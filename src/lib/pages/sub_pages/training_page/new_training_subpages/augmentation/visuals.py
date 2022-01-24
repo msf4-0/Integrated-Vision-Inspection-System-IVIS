@@ -40,6 +40,7 @@ def select_image(path_to_images: str, interface_type: str = "Simple", n_images: 
     """
     image_names_list, image_paths = get_images_list(path_to_images, n_images)
     if len(image_names_list) < 1:
+        logger.error(f"No images found in '{path_to_images}'")
         return 1, 0, None
     else:
         if interface_type == "Professional":
@@ -55,14 +56,17 @@ def select_image(path_to_images: str, interface_type: str = "Simple", n_images: 
                 idx = image_names_list.index(image_name)
                 image = load_image(image_paths[idx])
                 return 0, image, image_name
-            except cv2.error:
+            except cv2.error as e:
+                logger.error(
+                    f"Error loading image at '{image_paths[idx]}': {e}")
                 return 1, 0, image_name
         else:
             # all of these will return `image_name` of "Upload my image"
             try:
                 image = upload_image()
                 return 0, image, image_name
-            except cv2.error:
+            except cv2.error as e:
+                logger.error(f"Error loading the uploaded image")
                 return 1, 0, image_name
             except AttributeError:
                 return 2, 0, image_name
@@ -146,7 +150,7 @@ def show_credentials():
     )
 
 
-def get_transormations_params(transform_names: list, augmentations: dict) -> list:
+def get_transformations_params(transform_names: list, augmentations: dict) -> list:
     existing_aug = session_state.new_training.augmentation_config.augmentations
 
     transforms = []

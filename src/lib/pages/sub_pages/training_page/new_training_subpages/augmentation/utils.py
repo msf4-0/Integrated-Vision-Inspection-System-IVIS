@@ -13,7 +13,7 @@ from data_manager.dataset_management import Dataset
 CONFIG_PATH = "src/lib/pages/sub_pages/training_page/new_training_subpages/augmentation/augmentations.json"
 
 
-@st.experimental_memo
+@st.cache
 def get_image_dir():
     # originally this function takes the image_folder from the sample image folder
     # image_folder = "src/lib/pages/sub_pages/training_page/new_training_subpages/images"
@@ -22,17 +22,15 @@ def get_image_dir():
     return image_folder
 
 
-@st.experimental_memo
+@st.cache
 def get_images_list(path_to_folder: str, n_images: int = 10) -> Tuple[List[str], List[str]]:
     """Return the list of images from folder
     Args:
         path_to_folder (str): absolute or relative path to the folder with images
-        n_images (str): maximum number of images to display as options. Set to 0 to use all images
+        n_images (str): maximum number of images to display as options. 
+            Set to `None` to use all images. Defaults to 10.
     """
-    if n_images == 0:
-        image_paths = sorted(list_images(path_to_folder))
-    else:
-        image_paths = sorted(list_images(path_to_folder))[:n_images]
+    image_paths = sorted(list_images(path_to_folder))[:n_images]
     image_names_list = [os.path.basename(x) for x in image_paths]
     return image_names_list, image_paths
 

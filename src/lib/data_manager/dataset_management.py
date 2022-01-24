@@ -40,7 +40,7 @@ from pathlib import Path
 import tarfile
 from tempfile import mkdtemp
 from time import perf_counter, sleep
-from typing import Any, Dict, Iterator, List, NamedTuple, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, NamedTuple, Tuple, Union
 import xml.etree.ElementTree as ET
 
 import cv2
@@ -55,28 +55,17 @@ from streamlit import session_state as session_state
 from streamlit.uploaded_file_manager import UploadedFile
 from videoprops import get_audio_properties, get_video_properties
 
-# >>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>>
-
-SRC = Path(__file__).resolve().parents[2]  # ROOT folder -> ./src
-LIB_PATH = SRC / "lib"
-
-
-if str(LIB_PATH) not in sys.path:
-    sys.path.insert(0, str(LIB_PATH))  # ./lib
-else:
-    pass
-
 from core.utils.code_generator import get_random_string
 from core.utils.dataset_handler import get_image_size
 from core.utils.file_handler import (IMAGE_EXTENSIONS, create_folder_if_not_exist,
-                                     extract_archive, extract_one_to_bytes,
-                                     list_files_in_archived)
+                                     extract_one_to_bytes)
 from core.utils.form_manager import (check_if_exists, check_if_field_empty,
                                      reset_page_attributes)
 from core.utils.helper import get_directory_name, get_filetype, get_mime
-from core.utils.log import logger  # logger
+from core.utils.log import logger
+from deployment.utils import reset_camera_and_ports
 # >>>> User-defined Modules >>>>
-from path_desc import BASE_DATA_DIR, DATASET_DIR, MEDIA_ROOT, TEMP_DIR, chdir_root
+from path_desc import BASE_DATA_DIR, CAPTURED_IMAGES_DIR, DATASET_DIR, TEMP_DIR
 
 from data_manager.database_manager import (db_fetchall, db_fetchone, db_no_fetch,
                                            init_connection)
@@ -134,6 +123,28 @@ class FileTypes(IntEnum):
             raise ValueError()
 
 # <<<< Variable Declaration <<<<
+
+
+def get_items_from_indices(indices: List[int], input_items: Iterable) -> List[Any]:
+    if len(indices) == 1:
+        # rare case for only one item
+        items = [input_items[indices[0]]]
+    else:
+        items = list(itemgetter(*indices)(input_items))
+    return items
+
+
+def create_classification_result(label: str):
+    result = [
+        {
+            "id": get_random_string(length=6),
+            "type": "choices",
+            "value": {"choices": [label]},
+            "to_name": "image",
+            "from_name": "label"
+        }
+    ]
+    return result
 
 
 def convert_to_ls(x, y, width, height, original_width, original_height):
@@ -425,6 +436,7 @@ class NewDataset(BaseDataset):
                               uploaded_archive: UploadedFile,
                               filepaths: List[str],
                               deployment_type: str,
+                              classif_annot_type: str = 'CSV file',
                               return_annotations: bool = False
                               ) -> Union[List[str],
                                          Tuple[List[str], List[str]]]:
@@ -497,20 +509,22 @@ class NewDataset(BaseDataset):
                         st.warning("  \n".join(fnames))
                 st.stop()
 
-            xml_filepaths = list(itemgetter(*xml_idxs)(filepaths))
+            xml_filepaths = get_items_from_indices(xml_idxs, filepaths)
             image_idxs = set(range(len(filepaths))).difference(xml_idxs)
-            img_filepaths = list(itemgetter(*image_idxs)(filepaths))
+            img_filepaths = get_items_from_indices(list(image_idxs), filepaths)
 
             self.annotation_files = xml_filepaths
 
             if return_annotations:
                 return self.annotation_files, img_filepaths
             return img_filepaths
+
         # ***************** Checking Image Classification and Segmentation data *****************
         elif deployment_type == 'Image Classification':
-            # this is actually CSV format
-            required_filetype = '.csv'
-            filetype_name = 'CSV'
+            if classif_annot_type == 'CSV file':
+                # this is actually CSV format
+                required_filetype = '.csv'
+                filetype_name = 'CSV'
         elif deployment_type == 'Semantic Segmentation with Polygons':
             required_filetype = '.json'
             filetype_name = 'JSON'
@@ -522,7 +536,16 @@ class NewDataset(BaseDataset):
             if os.path.splitext(f)[-1] in IMAGE_EXTENSIONS:
                 img_filepaths.append(f)
                 img_names.append(os.path.basename(f))
-            elif f.endswith(required_filetype):
+                if classif_annot_type != 'CSV file':
+                    # try extracting label from folder name
+                    folder_path = os.path.dirname(f)
+                    if not folder_path:
+                        txt = (f"'{f}' does not appear to be in a folder, cannot "
+                               "extract label from folder name")
+                        logger.error(txt)
+                        st.error(txt)
+                        st.stop()
+            elif classif_annot_type == 'CSV file' and f.endswith(required_filetype):
                 st.success(f"Found a {filetype_name} file: {f}")
                 req_file_idx.append(i)
             else:
@@ -533,6 +556,16 @@ class NewDataset(BaseDataset):
             with st.expander("Unwanted files:"):
                 st.warning("  \n".join(error_filepaths))
             st.stop()
+
+        if classif_annot_type != 'CSV file':
+            # this is for image classification "Label by folder name"
+            if not img_names:
+                st.warning("No image uploaded")
+                logger.info("No image uploaded ")
+                st.stop()
+            if return_annotations:
+                return [], img_filepaths
+            return img_filepaths
 
         if not req_file_idx or not img_names:
             if not req_file_idx:
@@ -618,14 +651,16 @@ class NewDataset(BaseDataset):
             return self.annotation_files, img_filepaths
         return img_filepaths
 
-    def parse_annotation_files(self, deployment_type: str) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    def parse_annotation_files(
+            self, deployment_type: str, image_paths: List[str] = None,
+            classif_annot_type: str = 'CSV file') -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded annotation files based on the `deployment_type` and
         yield the image name and annotation result in Label Studio JSON result format
         to save in database annotations table"""
         if deployment_type == 'Object Detection with Bounding Boxes':
             return self.parse_bbox_annotations()
         elif deployment_type == 'Image Classification':
-            return self.parse_classification_annotations()
+            return self.parse_classification_annotations(image_paths, classif_annot_type)
         elif deployment_type == 'Semantic Segmentation with Polygons':
             return self.parse_segmentation_annotations()
 
@@ -640,6 +675,7 @@ class NewDataset(BaseDataset):
             except Exception as e:
                 st.error(f'Error parsing XML file "{xml_filepath}" with error: {e}  \n'
                          'Please try checking your annotation file(s) again before uploading.')
+                logger.error("Error parsing XML file")
                 # delete the invalid dataset
                 self.delete_dataset(self.id)
                 st.stop()
@@ -648,23 +684,25 @@ class NewDataset(BaseDataset):
             image_name = os.path.splitext(image_name)[0]
             yield image_name, annot_result
 
-    def parse_classification_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    def parse_classification_annotations(
+            self, image_paths: List[str] = None,
+            classif_annot_type: str = 'CSV file') -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded CSV and yield the image name and annotation result in
         Label Studio JSON result format"""
-        # only one CSV file after validation is passed
-        csv_path = self.archive_dir / self.annotation_files[0]
-        df = pd.read_csv(csv_path, dtype=str)
-        for img_name, label in df.values:
-            result = [
-                {
-                    "id": get_random_string(length=6),
-                    "type": "choices",
-                    "value": {"choices": [label]},
-                    "to_name": "image",
-                    "from_name": "label"
-                }
-            ]
-            yield img_name, result
+        if classif_annot_type == 'CSV file':
+            # only one CSV file after validation is passed
+            csv_path = self.archive_dir / self.annotation_files[0]
+            df = pd.read_csv(csv_path, dtype=str)
+            for img_name, label in df.values:
+                result = create_classification_result(label)
+                yield img_name, result
+        else:
+            for p in image_paths:
+                img_name = os.path.basename(p)
+                # get the label from folder name
+                label = os.path.basename(os.path.dirname(p))
+                result = create_classification_result(label)
+                yield img_name, result
 
     def parse_segmentation_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded JSON file and yield the image name and annotation result in
@@ -774,6 +812,8 @@ class NewDataset(BaseDataset):
     def reset_new_dataset_page():
         """Method to reset all widgets and attributes in the New Dataset Page when changing pages
         """
+
+        reset_camera_and_ports()
 
         new_dataset_attributes = [
             "new_dataset", "is_labeled", "dataset_chosen"]
@@ -1203,6 +1243,27 @@ def data_url_encoder(filetype: IntEnum, data_path: Union[str, Path]) -> str:
         pass
     elif filetype == FileTypes.Text:
         pass
+
+
+def get_latest_captured_image_path() -> Tuple[Path, int]:
+    """Returns the latest image path and image number based on existing 
+    images in the directory."""
+
+    def get_image_num(image_path: Path):
+        return int(image_path.stem)
+
+    existing_captured = sorted(
+        CAPTURED_IMAGES_DIR.rglob('*.png'),
+        key=get_image_num,
+        reverse=True)
+    if not existing_captured:
+        image_num = 1
+    else:
+        image_num = get_image_num(existing_captured[0]) + 1
+
+    filename = f'{image_num}.png'
+    save_path = CAPTURED_IMAGES_DIR / filename
+    return save_path, image_num
 
 
 def main():

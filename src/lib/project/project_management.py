@@ -35,6 +35,7 @@ from enum import IntEnum
 from glob import glob, iglob
 from itertools import chain
 
+from natsort import os_sorted
 import cv2
 import numpy as np
 import pandas as pd
@@ -673,15 +674,15 @@ class Project(BaseProject):
         then only the annotations associated with the `training_id` is queried.
 
         Note that the `image_path` queried from the database is generated in the same way
-        as the `helper.get_directory_name` function.
+        as the `helper.get_directory_name()` function.
         """
         if for_training_id > 0:
-            sql_query = """
+            sql_query = r"""
                 SELECT a.id AS id,
                     a.result AS result,
                     d.name AS dataset_name,
                     -- flag of 'g' to match every pattern instead of only the first
-                    CONCAT_WS('/', regexp_replace(trim(both from d.name), '\s+', '-', 'g'), t.name) AS image_path
+                    CONCAT_WS('/', regexp_replace(trim(both from d.name), '[?/\\*"><|\s]+', '-', 'g'), t.name) AS image_path
                 FROM annotations a
                         LEFT JOIN task t on a.id = t.annotation_id
                         LEFT JOIN training_dataset td on t.dataset_id = td.dataset_id
@@ -693,13 +694,13 @@ class Project(BaseProject):
             logger.info(f"""Querying annotations from database for Project ID: {self.id}
                         and Training ID: {for_training_id}""")
         else:
-            sql_query = """
+            sql_query = r"""
                     SELECT 
                         a.id AS id,
                         a.result AS result,
                         d.name AS dataset_name,
                         -- flag of 'g' to match every pattern instead of only the first
-                        CONCAT_WS('/', regexp_replace(trim(both from d.name),'\s+','-', 'g'), t.name) AS image_path
+                        CONCAT_WS('/', regexp_replace(trim(both from d.name),'[?/\\*"><|\s]+','-', 'g'), t.name) AS image_path
                     FROM annotations a
                             LEFT JOIN task t on a.id = t.annotation_id
                             LEFT JOIN dataset d on t.dataset_id = d.id
@@ -804,7 +805,7 @@ class Project(BaseProject):
         return project_dataset_dict
 
     def refresh_project_details(self):
-        """Redundant function to update project attributes
+        """Redundant function to update project attributes queried from database
         """
         self.datasets, self.column_names = self.query_project_dataset_list()
         self.dataset_dict = self.get_dataset_name_list()
@@ -910,8 +911,8 @@ class Project(BaseProject):
         """Method to reset all widgets and attributes in the Project Page when changing pages
         """
 
-        project_attributes = ["all_project_table", "project", "editor",
-                              "labelling_pagination", "existing_project_pagination"]
+        project_attributes = ["all_project_table", "project", "project_pagination",
+                              "editor", "labelling_pagination", "existing_project_pagination"]
 
         reset_page_attributes(project_attributes)
     # TODO #81 Add reset to project page *************************************************************************************
@@ -1012,8 +1013,11 @@ class NewProject(BaseProject):
         """Method to reset all widgets and attributes in the New Project Page when changing pages
         """
 
-        new_project_attributes = ["new_project", "new_editor", "new_project_name",
-                                  "new_project_desc", "annotation_type", "new_project_dataset_page", "new_project_dataset_chosen"]
+        new_project_attributes = [
+            "new_project", "new_project_pagination", "is_labeled",
+            "new_editor", "new_project_name", "new_project_desc",
+            "annotation_type", "new_project_dataset_page", "new_project_dataset_chosen"
+        ]
 
         reset_page_attributes(new_project_attributes)
 
@@ -1185,8 +1189,11 @@ def get_single_data_name_list(dataset_name: str) -> List:
     #     data_name = Path(data_path).name
     #     data_name_tmp.append(data_name)
 
-    data_name_list = [Path(data_path).name
-                      for data_path in iglob(str(dataset_path))]  # UPDATED with List comprehension
+    # `os_sorted` to sort like file browser
+    # to make the order of the files make more sense to the user
+    # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
+    paths = os_sorted(glob(str(dataset_path)))
+    data_name_list = [os.path.basename(data_path) for data_path in paths]
 
     return data_name_list
 
