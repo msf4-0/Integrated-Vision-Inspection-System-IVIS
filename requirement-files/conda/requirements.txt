@@ -76,7 +76,7 @@ humanize==3.11.0
 idna==3.2
 importlib-resources==5.2.2
 ipykernel==6.0.3
-ipython==7.26.0
+ipython==7.31.1
 ipython-genutils==0.2.0
 ipywidgets==7.6.3
 jedi==0.18.0
