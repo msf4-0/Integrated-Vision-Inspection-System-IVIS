@@ -320,11 +320,13 @@ def draw_tfod_bboxes(
     if is_checkpoint:
         # NOTE: Model loaded from TFOD Checkpoint seems to need this
         label_id_offset = 1
-        detections['detection_classes'] += label_id_offset
+        detection_classes = detections['detection_classes'] + label_id_offset
+    else:
+        detection_classes = detections['detection_classes']
     viz_utils.visualize_boxes_and_labels_on_image_array(
         image_np,
         detections['detection_boxes'],
-        detections['detection_classes'],
+        detection_classes,
         detections['detection_scores'],
         category_index,
         use_normalized_coordinates=True,

@@ -123,9 +123,6 @@ def install():
                '&& cp object_detection/packages/tf2/setup.py setup.py '
                '&& python -m pip install --use-feature=2020-resolver .')
         run_command(cmd)
-        # installing pycocotools here instead of in requirements.txt
-        # because Windows NEED to install pycocotools-windows instead
-        run_command('pip install pycocotools==2.0.2')
     elif os.name == 'nt':
         # 'nt' is for Windows
         # NOTE: Windows need to install COCO API first, but there is currently an ongoing issue
@@ -146,8 +143,6 @@ def install():
                '&& copy object_detection\\packages\\tf2\\setup.py setup.py '
                '&& python -m pip install --use-feature=2020-resolver .')
         run_command(cmd)
-        # reason explained above under Linux part
-        run_command('pip install pycocotools-windows==2.0.0.2')
 
     # remove unnecessary files
     folders_to_del = (TFOD_DIR, (TFOD_DIR / 'research'))
