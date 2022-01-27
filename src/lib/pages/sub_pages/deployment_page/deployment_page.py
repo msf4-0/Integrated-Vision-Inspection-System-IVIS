@@ -41,7 +41,7 @@ from paho.mqtt.client import Client
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state
-# this cannot be imported anymore as of Streamlit v1.4.0
+# this is changed from add_report_ctx as of Streamlit v1.4.0
 from streamlit.script_run_context import add_script_run_ctx
 import tensorflow as tf
 
@@ -1251,24 +1251,25 @@ def index(RELEASE=True):
         # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part P2/143
         # DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
         DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
-        run_func = dobot_demo.run
 
-        if DOBOT_TASK == dobot_demo.DobotTask.Box:
-            VIEW_LABELS = dobot_demo.BOX_VIEW_LABELS
-        elif DOBOT_TASK == dobot_demo.DobotTask.P2_143:
-            VIEW_LABELS = dobot_demo.P2_143_VIEW_LABELS
-        elif DOBOT_TASK == dobot_demo.DobotTask.P2_140:
-            VIEW_LABELS = dobot_demo.P2_140_VIEW_LABELS
-        elif DOBOT_TASK == dobot_demo.DobotTask.DEBUG:
-            VIEW_LABELS = dobot_demo.DEBUG_VIEW_LABELS
-            run_func = dobot_demo.debug_run
+        # if DOBOT_TASK == dobot_demo.DobotTask.Box:
+        #     VIEW_LABELS = dobot_demo.BOX_VIEW_LABELS
+        # elif DOBOT_TASK == dobot_demo.DobotTask.P2_143:
+        #     VIEW_LABELS = dobot_demo.P2_143_VIEW_LABELS
+        # elif DOBOT_TASK == dobot_demo.DobotTask.P2_140:
+        #     VIEW_LABELS = dobot_demo.P2_140_VIEW_LABELS
+        # elif DOBOT_TASK == dobot_demo.DobotTask.DEBUG:
+        #     VIEW_LABELS = dobot_demo.DEBUG_VIEW_LABELS
 
-        if st.button("Move DOBOT and detect", key='btn_move_dobot'):
+        if st.button(
+            "Move DOBOT and detect", key='btn_move_dobot',
+                help='This takes awhile to start up, please be patient'):
             with st.spinner("Preparing to run dobot ..."):
                 logger.info("Preparing to run dobot")
                 # this will take some time to connect to the dobot api
-                # and then start moving the dobot in another thread
-                dobot_connnect_success = run_func(mqtt_conf, DOBOT_TASK)
+                # and then start moving the dobot in another Process
+                dobot_connnect_success, dobot_process = dobot_demo.run(
+                    mqtt_conf, DOBOT_TASK)
                 if not dobot_connnect_success:
                     error_msg_place.error(
                         "Failed to connect to DOBOT for demo")
@@ -1599,6 +1600,8 @@ def index(RELEASE=True):
                     # and reset back to None
                     session_state.check_labels = None
                     logger.info("Label checking process has finished")
+                    # gracefully kill the dobot_demo's Process
+                    dobot_process.kill()
                     continue
 
                 if use_multi_cam:

@@ -12,7 +12,8 @@ if __name__ == '__main__':
 else:
     from .dobot_api import dobot_api_dashboard, dobot_api_feedback, MyType
 
-from threading import Thread
+# from threading import Thread
+from multiprocessing import Process
 import numpy as np
 from time import sleep
 
@@ -78,7 +79,7 @@ def get_labels_message(label_cnt_dict: Dict[str, List[Tuple[str, int]]],
 
     curr_labels = []
     for label, cnt in label_cnt_dict[view]:
-        curr_labels.extend([label for _ in range(cnt)])
+        curr_labels.extend([label] * cnt)
     msg = {'labels': curr_labels, 'view': view}
     return json.dumps(msg)
 
@@ -352,43 +353,38 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
     client.disconnect()
 
 
-def debug_run(conf: MQTTConfig, task: DobotTask) -> bool:
+def debug_publish(conf: MQTTConfig):
     """
     A debugging function to test publishing to the topic subscribed by our client
     in the deployment_page.
     """
-    def debug_publish():
-        cnt_dict = BOX_VIEW_LABELS
-        topic = conf.topics.dobot_view
-        qos = conf.qos
+    cnt_dict = BOX_VIEW_LABELS
+    topic = conf.topics.dobot_view
+    qos = conf.qos
 
-        client = get_mqtt_client()
-        client.connect(conf.broker, port=conf.port)
-        client.loop_start()
-        sleep(2)
+    client = get_mqtt_client('debug_dobot_demo')
+    client.connect(conf.broker, port=conf.port)
+    client.loop_start()
+    sleep(2)
 
-        # send the current view as the payload to our vision inspection app
-        client.publish(
-            topic, get_labels_message(cnt_dict, 'top'), qos)
-        sleep(2)
+    # send the current view as the payload to our vision inspection app
+    client.publish(
+        topic, get_labels_message(cnt_dict, 'top'), qos)
+    sleep(2)
 
-        client.publish(
-            topic, get_labels_message(cnt_dict, 'left'), qos)
-        sleep(2)
+    client.publish(
+        topic, get_labels_message(cnt_dict, 'left'), qos)
+    sleep(2)
 
-        client.publish(
-            topic, get_labels_message(cnt_dict, 'right'), qos)
-        sleep(2)
+    client.publish(
+        topic, get_labels_message(cnt_dict, 'right'), qos)
+    sleep(2)
 
-        client.publish(
-            topic, get_labels_message(cnt_dict, "end"), qos)
+    client.publish(
+        topic, get_labels_message(cnt_dict, "end"), qos)
 
-        client.loop_stop()
-        client.disconnect()
-
-    p1 = Thread(target=debug_publish)
-    p1.start()
-    return True
+    client.loop_stop()
+    client.disconnect()
 
 
 def data_feedback(client_feedback: dobot_api_feedback):
@@ -405,25 +401,29 @@ def data_feedback(client_feedback: dobot_api_feedback):
             print('q_actual', np.around(a['q_actual'], decimals=4))
 
 
-def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box) -> bool:
-    # Enable threads on ports 29999 and 30003
-    try:
-        client_dashboard = dobot_api_dashboard('192.168.5.1', 29999)
-        client_feedback = dobot_api_feedback('192.168.5.1', 30003)
-    except Exception as e:
-        logger.error(f"Error connecting to DOBOT with error: {e}")
-        return False
+def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box) -> Tuple[bool, Process]:
+    if task == DobotTask.DEBUG:
+        logger.debug("Running debug publishing")
+        move_fn = debug_publish
+        args = (conf,)
+    else:
+        # Enable threads on ports 29999 and 30003
+        try:
+            client_dashboard = dobot_api_dashboard('192.168.5.1', 29999)
+            client_feedback = dobot_api_feedback('192.168.5.1', 30003)
+        except Exception as e:
+            logger.error(f"Error connecting to DOBOT with error: {e}")
+            return False, None
+        move_fn = move_and_publish_view
+        args = (client_dashboard, client_feedback, conf, task)
 
-    p1 = Thread(
-        target=move_and_publish_view,
-        args=(client_dashboard, client_feedback, conf, task)
-    )
+    p1 = Process(target=move_fn, args=args)
     p1.start()
 
-    return True
+    return True, p1
 
     # Not using all these for our vision inspection app
-    # p2 = Thread(target=data_feedback, args=(client_feedback,))
+    # p2 = Process(target=data_feedback, args=(client_feedback,))
     # p2.daemon = True
     # p2.start()
     # p1.join()

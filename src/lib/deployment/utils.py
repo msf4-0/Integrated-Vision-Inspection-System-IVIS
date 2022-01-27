@@ -141,9 +141,9 @@ def on_publish(client, userdata, mid):
     pass
 
 
-def get_mqtt_client(client_id: str = ''):
+def get_mqtt_client(client_id: str = '', clean_session: bool = True):
     """Return the MQTT client object."""
-    client = Client(client_id, clean_session=True)
+    client = Client(client_id, clean_session=clean_session)
     # client.connected_flag = False  # set flag
     client.on_connect = on_connect
     client.on_publish = on_publish
