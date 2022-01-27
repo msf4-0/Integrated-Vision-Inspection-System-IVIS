@@ -1,7 +1,7 @@
 from itertools import zip_longest
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Set, Tuple, Union
 from pathlib import Path
 import numpy as np
 import cv2
@@ -146,9 +146,9 @@ class PrettyMetricPrinter:
 
     def __post_init__(self):
         # more loss names to check for inverse delta_color
-        self._extra_lossnames: List[str] = [
+        self._extra_lossnames: Set[str] = {
             'categorical_crossentropy', 'iou_seg',
-            'val_categorical_crossentropy', 'val_iou_seg']
+            'val_categorical_crossentropy', 'val_iou_seg'}
         self._first: bool = True
 
     def write(self, metrics: Dict[str, float]):
@@ -161,7 +161,7 @@ class PrettyMetricPrinter:
             if not self.delta_color:
                 self.delta_color = {}
                 for name in metrics:
-                    if 'loss' in name or name in self._extra_lossnames:
+                    if 'loss' in name.lower() or name in self._extra_lossnames:
                         self.delta_color[name] = 'inverse'
                     else:
                         self.delta_color[name] = 'normal'
