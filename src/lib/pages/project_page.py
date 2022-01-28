@@ -44,10 +44,6 @@ import tensorflow as tf
 #     sys.path.insert(0, str(LIB_PATH))  # ./lib
 
 # if 'setup' not in session_state:
-#     # to disable warning messages from OpenCV, must do this before import cv2
-#     os.environ['OPENCV_LOG_LEVEL'] = 'OFF'
-#     os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'
-
 #     gpus = tf.config.list_physical_devices('GPU')
 #     for gpu in gpus:
 #         try:

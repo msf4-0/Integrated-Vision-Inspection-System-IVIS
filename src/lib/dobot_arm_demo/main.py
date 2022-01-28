@@ -409,11 +409,13 @@ def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box) -> Tuple[bool, Proces
     else:
         # Enable threads on ports 29999 and 30003
         try:
+            logger.info(f"Connecting to DOBOT ...")
             client_dashboard = dobot_api_dashboard('192.168.5.1', 29999)
             client_feedback = dobot_api_feedback('192.168.5.1', 30003)
         except Exception as e:
             logger.error(f"Error connecting to DOBOT with error: {e}")
             return False, None
+        logger.info("Connected successfuly to DOBOT")
         move_fn = move_and_publish_view
         args = (client_dashboard, client_feedback, conf, task)
 

@@ -1261,6 +1261,8 @@ def index(RELEASE=True):
         # elif DOBOT_TASK == dobot_demo.DobotTask.DEBUG:
         #     VIEW_LABELS = dobot_demo.DEBUG_VIEW_LABELS
 
+        # initialize it just in case we are not using this button
+        dobot_process = None
         if st.button(
             "Move DOBOT and detect", key='btn_move_dobot',
                 help='This takes awhile to start up, please be patient'):
@@ -1600,8 +1602,9 @@ def index(RELEASE=True):
                     # and reset back to None
                     session_state.check_labels = None
                     logger.info("Label checking process has finished")
-                    # gracefully kill the dobot_demo's Process
-                    dobot_process.kill()
+                    if dobot_process is not None:
+                        # gracefully kill the dobot_demo's Process
+                        dobot_process.kill()
                     continue
 
                 if use_multi_cam:
