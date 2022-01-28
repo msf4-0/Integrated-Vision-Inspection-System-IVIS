@@ -34,7 +34,8 @@ from time import perf_counter, sleep
 from itertools import cycle
 
 import cv2
-from imutils.video.webcamvideostream import WebcamVideoStream
+# from imutils.video.webcamvideostream import WebcamVideoStream
+from core.webcam.webcamvideostream import WebcamVideoStream
 from matplotlib import pyplot as plt
 import numpy as np
 from paho.mqtt.client import Client
@@ -220,16 +221,18 @@ def index(RELEASE=True):
                 # reset them in reset_camera()
                 cam_type = conf.camera_types[i]
                 if cam_type == 'USB Camera':
-                    cam_key = f'camera_{i}'
+                    is_usb_camera = True
                 else:
-                    # using a different key for IP camera to avoid release it
-                    # during reset_camera()
-                    cam_key = f'camera_ip_{i}'
+                    # set this for IP camera to avoid release it
+                    # during reset_camera() to avoid error
+                    is_usb_camera = False
+
+                cam_key = f'camera_{i}'
                 conf.camera_keys.append(cam_key)
 
                 try:
                     session_state[cam_key] = WebcamVideoStream(
-                        src=src).start()
+                        src=src, is_usb_camera=is_usb_camera, name=cam_key).start()
                     if session_state[cam_key].read() is None:
                         raise Exception(
                             "Video source is not valid")

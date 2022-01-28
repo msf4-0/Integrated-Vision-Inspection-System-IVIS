@@ -10,7 +10,8 @@ from pathlib import Path
 import streamlit as st
 import numpy as np
 from paho.mqtt.client import Client
-from imutils.video.webcamvideostream import WebcamVideoStream
+# from imutils.video.webcamvideostream import WebcamVideoStream
+from core.webcam.webcamvideostream import WebcamVideoStream
 from streamlit import session_state
 
 from core.utils.log import logger
@@ -182,13 +183,9 @@ def reset_csv_file_and_writer():
 
 
 def reset_camera():
-    for k in filter(lambda x: x.startswith('camera'), session_state.keys()):
-        cap = session_state[k]
+    for k, cap in filter(lambda x: x[0].startswith('camera'), session_state.items()):
         if isinstance(cap, WebcamVideoStream):
             cap.stop()
-            if 'ip' not in k:
-                # IP camera seems like have issues if try to release like this
-                cap.stream.release()
         elif isinstance(cap, cv2.VideoCapture):
             # cv2.VideoCapture instance
             cap.release()
@@ -202,10 +199,11 @@ def reset_camera_and_ports():
 
 
 def reset_record_and_vid_writer():
-    for k in filter(lambda x: x.startswith('vid_writer'), session_state.keys()):
-        if isinstance(session_state[k], cv2.VideoWriter):
+    for k, vid_writer in filter(lambda x: x[0].startswith('vid_writer'),
+                                session_state.items()):
+        if isinstance(vid_writer, cv2.VideoWriter):
             # must release to properly close the video file
-            session_state[k].release()
+            vid_writer.release()
         del session_state[k]
     if 'record' in session_state:
         del session_state['record']
