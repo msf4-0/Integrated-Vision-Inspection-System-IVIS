@@ -1602,9 +1602,9 @@ def index(RELEASE=True):
                     # and reset back to None
                     session_state.check_labels = None
                     logger.info("Label checking process has finished")
-                    if dobot_process is not None:
-                        # gracefully kill the dobot_demo's Process
-                        dobot_process.kill()
+                    # if dobot_process is not None:
+                    #     # gracefully kill the dobot_demo's Process
+                    #     dobot_process.kill()
                     continue
 
                 if use_multi_cam:

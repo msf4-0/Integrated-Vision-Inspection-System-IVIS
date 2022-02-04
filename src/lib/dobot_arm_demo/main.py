@@ -12,8 +12,8 @@ if __name__ == '__main__':
 else:
     from .dobot_api import dobot_api_dashboard, dobot_api_feedback, MyType
 
-# from threading import Thread
-from multiprocessing import Process
+from threading import Thread
+# from multiprocessing import Process
 import numpy as np
 from time import sleep
 
@@ -328,7 +328,7 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
         DobotTask.P2_140: move_for_p2_140
     }
 
-    client = get_mqtt_client()
+    client = get_mqtt_client('dobot_demo')
     client.connect(conf.broker, port=conf.port)
     client.loop_start()
 
@@ -401,7 +401,7 @@ def data_feedback(client_feedback: dobot_api_feedback):
             print('q_actual', np.around(a['q_actual'], decimals=4))
 
 
-def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box) -> Tuple[bool, Process]:
+def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box) -> Tuple[bool, Thread]:
     if task == DobotTask.DEBUG:
         logger.debug("Running debug publishing")
         move_fn = debug_publish
@@ -419,13 +419,13 @@ def run(conf: MQTTConfig, task: DobotTask = DobotTask.Box) -> Tuple[bool, Proces
         move_fn = move_and_publish_view
         args = (client_dashboard, client_feedback, conf, task)
 
-    p1 = Process(target=move_fn, args=args)
+    p1 = Thread(target=move_fn, args=args)
     p1.start()
 
     return True, p1
 
     # Not using all these for our vision inspection app
-    # p2 = Process(target=data_feedback, args=(client_feedback,))
+    # p2 = Thread(target=data_feedback, args=(client_feedback,))
     # p2.daemon = True
     # p2.start()
     # p1.join()
