@@ -348,9 +348,6 @@ def new_project_entry_page(conn=None):
                     f"Failed to stored **{session_state.new_project.name}** project information in database")
         else:
             st.stop()
-    # TODO #72 Change to 'Update' when 'has_submitted' == True
-    if submit_col2.button("Submit", key="submit"):
-        new_project_submit()
 
     with upload_place.container():
         if st.button("Upload Labeled Dataset", key='btn_upload_labeled_data'):
@@ -359,6 +356,12 @@ def new_project_entry_page(conn=None):
             st.info("""If you choose to upload a labeled dataset, you must first fill
             up the project title and select a template for the deployment type of the
             computer vision task.""")
+
+    # put button at the bottom to allow other things to render first
+    # in case error happens and st.stop() earlier
+    # TODO #72 Change to 'Update' when 'has_submitted' == True
+    if submit_col2.button("Submit", key="submit"):
+        new_project_submit()
 
     # >>>> Removed
     # session_state.new_project.has_submitted = False

@@ -32,6 +32,7 @@ import shutil
 import sys
 from time import perf_counter, sleep
 from itertools import cycle
+import gc
 
 import cv2
 # from imutils.video.webcamvideostream import WebcamVideoStream
@@ -59,7 +60,9 @@ import tensorflow as tf
 
 from path_desc import TEMP_DIR, chdir_root
 from core.utils.log import logger
-from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_image
+from core.utils.helper import (Timer, get_all_timezones, get_now_string,
+                               list_available_cameras, save_image, get_ram_usage,
+                               get_cpu_usage)
 from user.user_management import User, UserRole
 from data_manager.database_manager import init_connection
 from project.project_management import Project
@@ -508,12 +511,9 @@ def index(RELEASE=True):
             imgs_info = ((img, filename),)
 
         if DEPLOYMENT_TYPE != 'Semantic Segmentation with Polygons':
-            ori_image_width = img.shape[1]
             display_width = st.sidebar.slider(
                 "Select width of image to resize for display",
                 35, 1000, 500, 5, key='display_width')
-            # help=f'Original image width is **{ori_image_width}**.')
-            st.sidebar.markdown(f"Original image width: **{ori_image_width}**")
 
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
@@ -529,6 +529,11 @@ def index(RELEASE=True):
                     If there is anything wrong, please do not proceed to video deployment.""")
 
         for img, filename in imgs_info:
+            st.subheader(filename)
+            ori_image_height, ori_image_width = img.shape[:2]
+            st.markdown(
+                f"Original image resolution: **{ori_image_width} x {ori_image_height}**")
+
             with st.spinner("Running inference ..."):
                 try:
                     with Timer("Inference on image"):
@@ -553,7 +558,6 @@ def index(RELEASE=True):
                 # convert to RGB for visualizing with Matplotlib
                 rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-                st.subheader(filename)
                 fig = plt.figure()
                 plt.subplot(121)
                 plt.title("Original Image")
@@ -567,11 +571,11 @@ def index(RELEASE=True):
 
                 plt.tight_layout()
                 st.pyplot(fig)
-                st.markdown("___")
             else:
                 img_with_detections, detections = inference_output
                 st.image(img_with_detections, width=display_width,
                          caption=f'Detection result for: {filename}')
+            st.markdown("___")
 
         if image_type == "From MQTT":
             st.button("Refresh page")
@@ -1472,6 +1476,11 @@ def index(RELEASE=True):
                         topics.publish_frame[i], qos=mqtt_conf.qos))
 
         starting_time = datetime.now()
+        logger.info(f"Starting RAM usage: {get_ram_usage()} %")
+        # use this to check when to clear memory
+        memory_clear_start = starting_time
+        # clear memory every 15 minutes (900 seconds)
+        MEMORY_CLEAR_INTERVAL = 900
         csv_path = deployment.get_csv_path(starting_time)
         csv_dir = csv_path.parent
         if not csv_dir.exists():
@@ -1608,6 +1617,14 @@ def index(RELEASE=True):
                     if dobot_process is not None:
                         # gracefully kill the dobot_demo's Process
                         dobot_process.kill()
+
+                    # NOTE: infinite loop for debugging purposes
+                    # dobot_connnect_success, dobot_process = dobot_demo.run(
+                    #     mqtt_conf, DOBOT_TASK)
+                    # if not dobot_connnect_success:
+                    #     error_msg_place.error(
+                    #         "Failed to connect to DOBOT for demo")
+                    #     logger.error("Failed to connect to DOBOT for demo")
                     continue
 
                 if use_multi_cam:
@@ -1676,6 +1693,18 @@ def index(RELEASE=True):
             else:
                 for row in results:
                     session_state.csv_writer.writerow(row)
+
+            # clear memory at an interval
+            if (now - memory_clear_start).seconds >= MEMORY_CLEAR_INTERVAL:
+                # restart clear interval
+                memory_clear_start = datetime.now()
+                logger.info(
+                    f"Clearing unused memory [Current RAM usage: {get_ram_usage()}%]")
+                with msg_place['top'].container():
+                    with st.spinner("Clearing memory ..."):
+                        gc.collect()
+                # seems like must rerun only can clear properly
+                st.experimental_rerun()
 
             # This below does not seem to work properly
             # if fps > max_allowed_fps:

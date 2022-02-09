@@ -738,8 +738,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                             NewDataset.reset_new_dataset_page()
                             # also could be coming from project dashboard
                             Project.reset_dashboard_page()
-                            project_pagination = ProjectPagination.Existing
-                            project_status = ProjectPagination.Existing
+                            session_state.project_pagination = ProjectPagination.Existing
+                            session_state.project_status = ProjectPagination.Existing
                             session_state.append_project_flag = ProjectPermission.ViewOnly
 
                             logger.info(

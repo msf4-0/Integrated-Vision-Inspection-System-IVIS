@@ -21,6 +21,7 @@ import numpy as np
 import pytz
 import cv2
 import pandas as pd
+from psutil import virtual_memory, cpu_percent
 import streamlit as st
 
 from colorutils import hex_to_hsv
@@ -102,6 +103,19 @@ class Timer:
         """Stop the context manager timer"""
         if not self._disabled:
             self.stop()
+
+
+def get_ram_usage():
+    """Return the current RAM usage in percentage."""
+    return virtual_memory().percent
+
+
+def get_cpu_usage(interval: float = 4):
+    """Get CPU utilization over a specified interval.
+
+    NOTE: this function is a blocking operation, e.g. interval=4 will
+    block for 4 seconds to calculate CPU usage over time"""
+    return cpu_percent(interval)
 
 
 class HSV(NamedTuple):
