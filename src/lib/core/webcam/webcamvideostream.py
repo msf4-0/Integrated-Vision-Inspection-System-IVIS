@@ -77,6 +77,8 @@ class WebcamVideoStream:
         if self.is_usb_camera:
             # cannot release for IP camera or error would occur
             self.stream.release()
+        # also reset the grabbed frame whenever stopped
+        self.frame = None
         self._stop_event.set()
         self.lock.release()
 

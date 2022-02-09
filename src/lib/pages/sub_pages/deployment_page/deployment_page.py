@@ -36,7 +36,7 @@ import gc
 
 import cv2
 # from imutils.video.webcamvideostream import WebcamVideoStream
-from core.webcam.webcamvideostream import WebcamVideoStream
+from core.webcam.webcamvideostream import CameraFailError, WebcamVideoStream
 from matplotlib import pyplot as plt
 import numpy as np
 from paho.mqtt.client import Client
@@ -216,7 +216,7 @@ def index(RELEASE=True):
         logger.info(f"Updated deployment config: {conf_attr} = {val}")
         setattr(conf, conf_attr, val)
 
-    def load_multi_webcams():
+    def load_multi_webcams(stop_on_error: bool = True):
         conf.camera_keys = []
         for i, src in enumerate(conf.camera_sources):
             with st.spinner(f"Loading up camera {i} ..."):
@@ -237,9 +237,9 @@ def index(RELEASE=True):
                     session_state[cam_key] = WebcamVideoStream(
                         src=src, is_usb_camera=is_usb_camera, name=cam_key).start()
                     if session_state[cam_key].read() is None:
-                        raise Exception(
+                        raise CameraFailError(
                             "Video source is not valid")
-                except Exception as e:
+                except CameraFailError as e:
                     if src == '':
                         error_msg_place.error(
                             f"Unable to read from empty IP camera address {i}.")
@@ -249,7 +249,10 @@ def index(RELEASE=True):
                     logger.error(
                         f"Unable to read from {cam_type} {i} from source {src}: {e}")
                     reset_camera()
-                    st.stop()
+                    if stop_on_error:
+                        st.stop()
+                    else:
+                        raise e
 
         session_state.deployed = True
         sleep(2)  # give the cameras some time to sink in
@@ -1531,10 +1534,20 @@ def index(RELEASE=True):
             if frame is None:
                 msg_place[i].error("""Unable to read camera frame from camera,
                     restarting the cameras ...""")
-                logger.error(f"Error reading frame from Camera {i}")
+                logger.error(f"Error reading frame from Camera {i}, "
+                             "trying to restart the cameras now ...")
                 reset_camera()
                 with msg_place['top'].container():
-                    load_multi_webcams()
+                    while True:
+                        try:
+                            load_multi_webcams(stop_on_error=False)
+                        except CameraFailError as e:
+                            logger.error(
+                                f"Failed opening camera: {e}. Retrying again ...")
+                            reset_camera()
+                            continue
+                        else:
+                            break
                 st.experimental_rerun()
 
             if use_multi_cam:

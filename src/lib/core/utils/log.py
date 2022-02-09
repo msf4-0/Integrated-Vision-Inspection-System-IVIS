@@ -29,7 +29,7 @@ if not LOG_DIR.exists():
     os.makedirs(LOG_DIR)
 
 # change this accordingly
-MAX_LOGFILES_TO_KEEP = 1
+MAX_LOGFILES_TO_KEEP = 10
 existing_logfiles = list(LOG_DIR.iterdir())
 total_logfiles = len(existing_logfiles)
 if total_logfiles > MAX_LOGFILES_TO_KEEP:
