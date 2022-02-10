@@ -533,15 +533,13 @@ def list_available_cameras(num_check_ports: int):
     """
     # https://stackoverflow.com/questions/57577445/list-available-cameras-opencv-python
 
-    dev_port = 0
     working_ports = []
     available_ports = []
-    while True:
+    # check one extra port because port starts from 0
+    for dev_port in range(num_check_ports + 1):
         cap = cv2.VideoCapture(dev_port)
         if not cap.isOpened():
             logger.info(f"Port {dev_port} is not working.")
-            if dev_port >= int(num_check_ports):
-                break
         is_reading, img = cap.read()
         w = cap.get(3)
         h = cap.get(4)
@@ -557,7 +555,6 @@ def list_available_cameras(num_check_ports: int):
                         "but does not reads.")
             available_ports.append(dev_port)
         cap.release()
-        dev_port += 1
     return available_ports, working_ports
 
 

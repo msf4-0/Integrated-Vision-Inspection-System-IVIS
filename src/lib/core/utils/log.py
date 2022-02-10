@@ -6,6 +6,7 @@ Organisation: Malaysian Smart Factory 4.0 Team at Selangor Human Resource Develo
 """
 from datetime import datetime
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
 from natsort import os_sorted
@@ -59,7 +60,8 @@ logger.addHandler(consoleHandler)
 
 # create file handler and setup for logger
 print(f"[INFO] Logging console outputs to {LOG_FILE}")
-fileHandler = logging.FileHandler(str(LOG_FILE))
+fileHandler = RotatingFileHandler(
+    str(LOG_FILE), maxBytes=300_000, backupCount=5)
 fileHandler.setLevel(LEVEL)
 fileHandler.setFormatter(formatter)
 logger.addHandler(fileHandler)

@@ -260,7 +260,8 @@ def index(RELEASE=True):
 
         with btn_stop_col:
             st.button("⛔ Stop Training", key='btn_stop_training',
-                      on_click=stop_run_training)
+                      on_click=stop_run_training,
+                      help="This takes a short while to stop the training")
             st.warning('✏️ **NOTE**: If you click this button, '
                        'the latest progress might not be saved.')
 

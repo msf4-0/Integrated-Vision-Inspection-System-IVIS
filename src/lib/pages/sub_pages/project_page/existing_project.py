@@ -114,11 +114,9 @@ def index():
     def existing_project_page_navigator():
 
         navigation_selected = session_state.existing_project_page_navigator_radio
-        session_state.existing_project_pagination = ExistingProjectPagination.from_string(
+        navigation_selected_idx = existing_project_page_options.index(
             navigation_selected)
-        # navigation_selected_idx = existing_project_page_options.index(
-        #     navigation_selected)
-        # session_state.existing_project_pagination = navigation_selected_idx
+        session_state.existing_project_pagination = navigation_selected_idx
 
         # NOTE: TO RESET SUB-PAGES AFTER EXIT
         # reset all pages except for the currently selected one
