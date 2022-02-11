@@ -655,7 +655,7 @@ def index(RELEASE=True):
                                             else conf.num_cameras)
                         with st.form("form_num_cameras", clear_on_submit=True):
                             st.number_input(
-                                "Number of cameras", 2, 5, conf.num_cameras, 1,
+                                "Number of cameras", 2, 10, conf.num_cameras, 1,
                                 key='num_cameras')
                             st.form_submit_button(
                                 "Update number of cameras",

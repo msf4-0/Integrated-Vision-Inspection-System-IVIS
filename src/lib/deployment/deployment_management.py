@@ -135,7 +135,7 @@ class DeploymentConfig:
 
     # ip_cam_addresses: List[str] = field(default_factory=list)
     # for TFOD
-    confidence_threshold: float = 0.4
+    confidence_threshold: float = 0.7
     # for segmentation
     ignore_background: bool = False
 
