@@ -966,9 +966,9 @@ class Project(BaseProject):
             # the existing_config_labels only contains the default
             #  editor_config template labels, so we get the unwanted
             #  default_labels came with the defaults,
-            #  but keep the ones from new_labels
+            #  but keep the ones from existing labels
             unwanted_labels = set(existing_config_labels).difference(
-                new_labels)
+                existing_annotated_labels)
 
             if unwanted_labels:
                 for label in unwanted_labels:

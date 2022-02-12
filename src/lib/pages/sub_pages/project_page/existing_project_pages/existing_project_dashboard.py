@@ -49,7 +49,7 @@ from core.utils.form_manager import remove_newline_trailing_whitespace
 from user.user_management import User
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
-from project.project_management import ProjectDashboardPagination, ProjectPermission, Project, insert_annotated_tasks, query_project_dataset_annotations, show_dataset_chosen_and_annotated_projects
+from project.project_management import ProjectDashboardPagination, ProjectPermission, Project, query_project_dataset_annotations, show_dataset_chosen_and_annotated_projects
 from data_editor.editor_management import Editor
 from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
@@ -68,6 +68,7 @@ def dashboard(RELEASE=True, **kwargs):
 
     label_count_dict = project.get_existing_unique_labels(
         return_counts=True)
+    logger.debug(f"{label_count_dict = }")
     df = project.editor.create_table_of_labels(label_count_dict)
     df.index.name = 'No.'
     df['Percentile (%)'] = df['Percentile (%)'].map("{:.2f}".format)
@@ -175,7 +176,7 @@ def index(RELEASE=True):
         if 'user' not in session_state:
             session_state.user = User(1)
 
-        project: Project = session_state.project
+    project: Project = session_state.project
     # ************************ TEST ************************
 
     if 'project_dashboard_pagination' not in session_state:

@@ -231,6 +231,7 @@ def new_project_entry_page(conn=None):
             annotated_dataset_id2_project_id = show_dataset_chosen_and_annotated_projects(
                 dataset_chosen, dataset_dict, new_project.deployment_type)
         else:
+            annotated_dataset_id2_project_id = None
             st.info("No dataset selected")
 
     # ******************************* Right Column to select dataset *******************************
@@ -287,9 +288,6 @@ def new_project_entry_page(conn=None):
     num_dataset_per_page = 10
     num_dataset_page = math.ceil(len(
         dataset_dict) / num_dataset_per_page)
-
-    print(f"{num_dataset_page = }")
-    print(f"{session_state.new_project_dataset_page = }")
 
     if num_dataset_page > 1:
         if session_state.new_project_dataset_page < num_dataset_page:

@@ -629,7 +629,7 @@ class BaseAnnotations:
             logger.error(f"{error}: Annotations already exist")
             return None
 
-    def submit_annotations(self, result: Dict, users_id: int) -> int:
+    def submit_annotations(self, result: Dict, users_id: int, conn=conn) -> int:
         """ Submit result for new annotations
 
         Args:

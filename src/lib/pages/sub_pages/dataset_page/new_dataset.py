@@ -496,25 +496,6 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             context, field_placeholder=place, name_key='name')
 
         if dataset.has_submitted:
-            # check for duplicated filenames
-            # NOTE: this is to avoid issues of replacing images of same name when
-            # moving/copying images
-            with st.spinner("Checking for duplicated filenames in the archive ..."):
-                image_names = [os.path.basename(p) for p in image_paths]
-                if len(set(image_names)) != len(image_names):
-                    txt = "Duplicated image filenames found!"
-                    logger.error(txt)
-                    st.error(txt)
-                    with st.spinner("Looking for duplicated filenames ..."):
-                        counts = Counter(image_names)
-                        duplicated_names = []
-                        for image_name, cnt in counts.items():
-                            if cnt > 1:
-                                duplicated_names.append(image_name)
-                    with st.expander("Duplicated filenames:"):
-                        st.markdown("  \n".join(duplicated_names))
-                    st.stop()
-
             if is_existing_dataset:
                 logger.info(
                     "Checking for duplicated filenames with existing dataset")
@@ -553,6 +534,25 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                     with st.spinner("Checking uploaded images ..."):
                         logger.info("Checking uploaded images")
                         image_paths = check_image_files(filepaths)
+
+            # check for duplicated filenames
+            # NOTE: this is to avoid issues of replacing images of same name when
+            # moving/copying images
+            with st.spinner("Checking for duplicated filenames in the archive ..."):
+                image_names = [os.path.basename(p) for p in image_paths]
+                if len(set(image_names)) != len(image_names):
+                    txt = "Duplicated image filenames found!"
+                    logger.error(txt)
+                    st.error(txt)
+                    with st.spinner("Looking for duplicated filenames ..."):
+                        counts = Counter(image_names)
+                        duplicated_names = []
+                        for image_name, cnt in counts.items():
+                            if cnt > 1:
+                                duplicated_names.append(image_name)
+                    with st.expander("Duplicated filenames:"):
+                        st.markdown("  \n".join(duplicated_names))
+                    st.stop()
 
             dataset.dataset = image_paths
 
