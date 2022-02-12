@@ -55,7 +55,7 @@ from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from data_manager.dataset_management import Dataset, NewDataset, query_dataset_list, get_dataset_name_list
-from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, new_project_nav, query_project_dataset_annotations, query_project_dataset_task_count, query_project_dataset_tasks
+from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, new_project_nav, query_project_dataset_annotations, query_project_dataset_task_count, query_project_dataset_tasks, show_dataset_chosen_and_annotated_projects
 from data_editor.editor_management import Editor, NewEditor
 from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
@@ -228,67 +228,8 @@ def new_project_entry_page(conn=None):
             use any existing labeled data if available.""")
 
         if dataset_chosen:
-            annotated_dataset_id2_project_id: Dict[int, int] = {}
-            for idx, data in enumerate(dataset_chosen):
-                st.write(f"{idx+1}. {data}")
-
-                # check related projects only if the user has chosen a deployment type
-                if new_project.deployment_type:
-                    dataset_id_chosen = dataset_dict[data].ID
-                    related_projects = Dataset.query_related_projects(
-                        dataset_id_chosen, new_project.deployment_type,
-                        is_labelled=True
-                    )
-                else:
-                    continue
-
-                if st.checkbox("Use existing labeled data?",
-                               key=f'use_existing_annotations_{idx}'):
-                    if not related_projects:
-                        st.info("There is no related project for this dataset "
-                                "with the same deployment type.")
-                        logger.info(f"There is no related projects for dataset {data} "
-                                    f"of ID {dataset_id_chosen} with the same deployment type")
-                        continue
-
-                    project_names = []
-                    project_ids = []
-                    display_names = []
-                    for r in related_projects:
-                        name = r.name
-                        project_id = r.id
-
-                        labeled_counts = query_project_dataset_task_count(
-                            project_id, dataset_id_chosen, is_labelled=True)
-                        if not labeled_counts:
-                            st.info(
-                                "There is no existing labeled data for this dataset.")
-                            logger.info(f"Project ID {project_id} has no labeled data "
-                                        f"for the dataset: {data}")
-                            continue
-
-                        display_names.append(f"{name} ({labeled_counts})")
-                        project_names.append(name)
-                        project_ids.append(project_id)
-
-                    if not project_ids:
-                        st.info(
-                            "There is no existing annotations for this dataset")
-                        continue
-
-                    selected_display_name = st.radio(
-                        "Select a project", options=display_names,
-                        key=f'selected_labeled_project_{idx}',
-                        help="The number in the brackets is the number of labeled images")
-                    selected_idx = display_names.index(
-                        selected_display_name)
-                    selected_project_id = project_ids[selected_idx]
-                    logger.info(f"Selected Project '{selected_display_name}' "
-                                f"of ID: {selected_project_id} for dataset '{data}'")
-                    # dataset_info = {
-                    #     'dataset_id': dataset_id_chosen,
-                    #     'project_id': selected_project_id}
-                    annotated_dataset_id2_project_id[dataset_id_chosen] = selected_project_id
+            annotated_dataset_id2_project_id = show_dataset_chosen_and_annotated_projects(
+                dataset_chosen, dataset_dict, new_project.deployment_type)
         else:
             st.info("No dataset selected")
 
@@ -424,6 +365,7 @@ def new_project_entry_page(conn=None):
                             logger.info(
                                 "Updating EditorConfig based on the annotations")
                             session_state.project.update_editor_config(
+                                is_new_project=True,
                                 refresh_project=True)
 
                             # enter the project overview page directly

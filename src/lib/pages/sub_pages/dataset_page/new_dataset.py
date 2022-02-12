@@ -694,7 +694,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                     f"Average {time_elapsed / total_images:.4f}s per image")
 
                         with st.spinner("Updating project labels and editor configuration ..."):
-                            project.update_editor_config(is_new_project)
+                            project.update_editor_config(
+                                is_new_project, refresh_project=True)
 
                         if error_imgs:
                             with st.expander("""NOTE: These images were unreadable and

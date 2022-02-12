@@ -290,6 +290,7 @@ class BaseProject:
             image_names (Optional[List[str]]): Optionally pass in the filenames of the images. 
                 Especially for updating existing dataset.
             annotated_dataset_info(Optional[Dict[int, int]]): annotated_dataset_id -> project_id.
+                This can be obtained from `show_dataset_chosen_and_annotated_projects()`.
                 Supply this to check for existing annotations from the project and insert
                 them together if available.
         """
@@ -306,7 +307,7 @@ class BaseProject:
             if existing_project_id:
                 logger.info(
                     f"Using existing annotations from Project {existing_project_id} "
-                    f"for current project {self.id} for dataset {dataset_id}")
+                    f"for current project {self.id} for dataset '{dataset_name}'")
                 # query tasks for the selected project dataset
                 annot_records: List[NamedTuple] = query_project_dataset_annotations(
                     existing_project_id, dataset_id)
@@ -387,6 +388,12 @@ class BaseProject:
             self.insert_new_project_task(
                 dataset_name, dataset_id,
                 annotated_dataset_info=annotated_dataset_info)
+
+        if isinstance(session_state.get('project'), Project):
+            logger.info(
+                "Updating Project's EditorConfig based on the annotations")
+            session_state.project.update_editor_config(
+                refresh_project=True)
 
 
 class Project(BaseProject):
@@ -926,6 +933,8 @@ class Project(BaseProject):
         """Update editor config with the unique labels from existing annotations.
 
         If `is_new_project` is True, also remove default labels came with the template.
+
+        If `refresh_project` is True, will refresh project details from database.
         """
         # get existing labels from editor_config to use to
         # compare and update editor_config with new labels
@@ -940,14 +949,6 @@ class Project(BaseProject):
         logger.info("Adding new labels to editor config: "
                     f"{new_labels}")
 
-        if is_new_project:
-            # the existing_config_labels only contains the default
-            #  editor_config template labels, so we get the unwanted
-            #  default_labels came with the defaults,
-            #  but keep the ones from new_labels
-            unwanted_labels = set(existing_config_labels).difference(
-                new_labels)
-
         # update editor_config with the new labels from the uploaded annotations
         for label in new_labels:
             newChild = self.editor.create_label(
@@ -958,21 +959,29 @@ class Project(BaseProject):
 
         # default_labels = self.editor.get_default_template_labels()
 
-        if is_new_project and unwanted_labels:
-            for label in unwanted_labels:
-                logger.debug(
-                    f"Removing label: {label}")
-                self.editor.labels.remove(
-                    label)
-                removedChild = self.editor.remove_label(
-                    'value', label)
-                logger.debug(
-                    f"removedChild: {removedChild}")
-            logger.debug(f"After removing default labels: "
-                         f"{self.editor.labels}")
+        if is_new_project:
+            # the existing_config_labels only contains the default
+            #  editor_config template labels, so we get the unwanted
+            #  default_labels came with the defaults,
+            #  but keep the ones from new_labels
+            unwanted_labels = set(existing_config_labels).difference(
+                new_labels)
+
+            if unwanted_labels:
+                for label in unwanted_labels:
+                    logger.debug(
+                        f"Removing label: {label}")
+                    self.editor.labels.remove(
+                        label)
+                    removedChild = self.editor.remove_label(
+                        'value', label)
+                    logger.debug(
+                        f"removedChild: {removedChild}")
+                logger.debug(f"After removing default labels: "
+                             f"{self.editor.labels}")
+
         self.editor.labels.sort()
-        logger.info("All labels after updating: "
-                    f"{self.editor.labels}")
+        logger.info(f"All labels after updating: {self.editor.labels}")
 
         self.editor.update_editor_config()
         if refresh_project:
@@ -1272,6 +1281,71 @@ def query_project_dataset_annotations(project_id: int, dataset_id: int) -> List[
     annotations = db_fetchall(sql_query, conn, query_vars)
     return annotations
 
+
+def show_dataset_chosen_and_annotated_projects(
+        dataset_chosen: List[str], dataset_dict: Dict[str, NamedTuple],
+        deployment_type: str) -> Dict[int, int]:
+    annotated_dataset_id2project_id: Dict[int, int] = {}
+
+    for idx, data in enumerate(dataset_chosen):
+        st.write(f"{idx+1}. {data}")
+
+        # check related projects only if the user has chosen a deployment type
+        if deployment_type:
+            dataset_id_chosen = dataset_dict[data].ID
+            related_projects = Dataset.query_related_projects(
+                dataset_id_chosen, deployment_type,
+                is_labelled=True)
+        else:
+            continue
+
+        if st.checkbox("Use existing labeled data?", key=f'use_existing_annots_{idx}'):
+            if not related_projects:
+                st.info("There is no related project for this dataset "
+                        "with the same deployment type.")
+                logger.info(f"There is no related projects for dataset {data} "
+                            f"of ID {dataset_id_chosen} with the same deployment type")
+                continue
+
+            project_names = []
+            project_ids = []
+            display_names = []
+            for r in related_projects:
+                name = r.name
+                project_id = r.id
+
+                labeled_counts = query_project_dataset_task_count(
+                    project_id, dataset_id_chosen, is_labelled=True)
+                if not labeled_counts:
+                    st.info(
+                        "There is no existing labeled data for this dataset.")
+                    logger.info(f"Project ID {project_id} has no labeled data "
+                                f"for the dataset: {data}")
+                    continue
+
+                display_names.append(f"{name} ({labeled_counts})")
+                project_names.append(name)
+                project_ids.append(project_id)
+
+            if not project_ids:
+                st.info(
+                    "There is no existing annotations for this dataset")
+                continue
+
+            selected_display_name = st.radio(
+                "Select a project", options=display_names,
+                key=f'selected_labeled_project_{idx}',
+                help="The number in the brackets is the number of labeled images")
+            selected_idx = display_names.index(
+                selected_display_name)
+            selected_project_id = project_ids[selected_idx]
+            logger.info(f"Selected Project '{selected_display_name}' "
+                        f"of ID: {selected_project_id} for dataset '{data}'")
+            # dataset_info = {
+            #     'dataset_id': dataset_id_chosen,
+            #     'project_id': selected_project_id}
+            annotated_dataset_id2project_id[dataset_id_chosen] = selected_project_id
+    return annotated_dataset_id2project_id
 
 # *********************NEW PROJECT PAGE NAVIGATOR ********************************************
 
