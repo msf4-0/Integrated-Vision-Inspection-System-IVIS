@@ -362,7 +362,8 @@ class BaseProject:
     def insert_project_dataset(
             self, dataset_chosen: List[str],
             dataset_dict: Dict[str, NamedTuple],
-            annotated_dataset_info: Dict[int, int] = None):
+            annotated_dataset_info: Dict[int, int] = None,
+            is_new_project: bool = False):
         insert_project_dataset_SQL = """
                                         INSERT INTO public.project_dataset (
                                             project_id,
@@ -389,11 +390,13 @@ class BaseProject:
                 dataset_name, dataset_id,
                 annotated_dataset_info=annotated_dataset_info)
 
-        if isinstance(session_state.get('project'), Project):
+        # update editor_config only if annotated_dataset_info is supplied
+        # to an existing project
+        if annotated_dataset_info and isinstance(session_state.get('project'), Project):
             logger.info(
                 "Updating Project's EditorConfig based on the annotations")
             session_state.project.update_editor_config(
-                refresh_project=True)
+                is_new_project, refresh_project=True)
 
 
 class Project(BaseProject):
