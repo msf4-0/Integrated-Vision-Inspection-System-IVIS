@@ -515,7 +515,7 @@ class Editor(BaseEditor):
             return removedChild
 
     def update_editor_config(self):
-
+        """Update editor config based on self.xml_doc, also update database"""
         self.editor_config = self.to_xml_string(pretty=True)
         labels_json = self.convert_labels_dict_to_JSON()
 

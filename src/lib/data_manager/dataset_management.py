@@ -290,7 +290,7 @@ class BaseDataset:
             # img_name = img.name
             img_name = os.path.basename(img_path)
             # logger.debug(img_name)
-            # save_path = Path(self.dataset_path) / img_name
+            # save_path = self.dataset_path / img_name
 
             # st.title(img.name)
             try:
@@ -1095,10 +1095,31 @@ class Dataset(BaseDataset):
 
         return filetype
 
+    @staticmethod
+    def query_related_projects(
+            dataset_id: int, deployment_type: str, is_labelled: bool = False
+    ) -> List[NamedTuple]:
+        sql_query = """
+            SELECT p.id, p.name
+            FROM project p
+                    LEFT JOIN deployment_type dt ON p.deployment_id = dt.id
+            WHERE dt.name = %s
+                AND p.id IN (
+                    SELECT DISTINCT project_id
+                    FROM task
+                    WHERE dataset_id = %s
+                        AND is_labelled = %s
+            );
+        """
+        query_vars = [deployment_type, dataset_id, is_labelled]
+        projects = db_fetchall(sql_query, conn, query_vars)
+        return projects
 
 # **************************** IMPORTANT ****************************
 # ************************ CANNOT CACHE !!!!!*************************
 # Will throw ValueError for selectbox dataset_sel because of session state (BUG)
+
+
 def query_dataset_list() -> List[NamedTuple]:
     """Query list of dataset from DB, Column Names: TRUE
 
@@ -1144,14 +1165,14 @@ def query_dataset_list() -> List[NamedTuple]:
 # Will throw ValueError for selectbox dataset_sel because of session state (BUG)
 
 
-def get_dataset_name_list(dataset_list: List[NamedTuple]) -> Dict[str, List[NamedTuple]]:
+def get_dataset_name_list(dataset_list: List[NamedTuple]) -> Dict[str, NamedTuple]:
     """Generate Dictionary of namedtuple
 
     Args:
-        dataset_list (List[namedtuple]): Query from database
+        dataset_list (List[Namedtuple]): Query from database
 
     Returns:
-        Dict: Dictionary of dataset_name -> dataset's List[NamedTuple]
+        Dict: Dictionary of dataset_name -> dataset's NamedTuple record from database
     """
 
     # dataset_name_list = {}  # list of dataset name for selectbox
@@ -1250,7 +1271,7 @@ def get_latest_captured_image_path() -> Tuple[Path, int]:
     images in the directory."""
 
     def get_image_num(image_path: Path):
-        return int(image_path.stem)
+        return int(image_path.name.split('_')[0])
 
     existing_captured = sorted(
         CAPTURED_IMAGES_DIR.rglob('*.png'),
@@ -1261,7 +1282,7 @@ def get_latest_captured_image_path() -> Tuple[Path, int]:
     else:
         image_num = get_image_num(existing_captured[0]) + 1
 
-    filename = f'{image_num}.png'
+    filename = f'{image_num}_{get_random_string(8)}.png'
     save_path = CAPTURED_IMAGES_DIR / filename
     return save_path, image_num
 

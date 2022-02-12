@@ -24,10 +24,13 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import gc
+import math
 import sys
 from pathlib import Path
 from enum import IntEnum
 from time import sleep
+from typing import Any, Dict, List
 import streamlit as st
 from streamlit import cli as stcli
 from streamlit import session_state as session_state
@@ -44,14 +47,15 @@ else:
     pass
 
 from path_desc import chdir_root
+from annotation.annotation_management import Annotations, NewTask, Task
 from core.utils.code_generator import get_random_string
 from core.utils.log import logger  # logger
 from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
 from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
-from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
-from project.project_management import NewProject, ProjectPagination, NewProjectPagination, new_project_nav
+from data_manager.dataset_management import Dataset, NewDataset, query_dataset_list, get_dataset_name_list
+from project.project_management import NewProject, Project, ProjectPagination, NewProjectPagination, new_project_nav, query_project_dataset_annotations, query_project_dataset_task_count, query_project_dataset_tasks
 from data_editor.editor_management import Editor, NewEditor
 from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
@@ -60,7 +64,6 @@ from pages.sub_pages.dataset_page.new_dataset import new_dataset
 
 
 # >>>> Variable Declaration >>>>
-new_project = {}  # store
 place = {}
 DEPLOYMENT_TYPE = ("", "Image Classification", "Object Detection with Bounding Boxes",
                    "Semantic Segmentation with Polygons")
@@ -97,8 +100,11 @@ def new_project_entry_page(conn=None):
         # to check whether user choose to upload a labeled dataset
         session_state.is_labeled = False
 
+    new_project: NewProject = session_state.new_project
+    new_editor: NewEditor = session_state.new_editor
+
     # ******** SESSION STATE *********************************************************
-    if session_state.new_project.has_submitted:
+    if new_project.has_submitted:
 
         def to_editor_config():
             session_state.new_project_pagination = NewProjectPagination.EditorConfig
@@ -131,7 +137,7 @@ def new_project_entry_page(conn=None):
 # >>>> New Project INFO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     id_right.write(
-        f"### __Project ID:__ {session_state.new_project.id}")
+        f"### __Project ID:__ {new_project.id}")
 
     infocol1.write("## __Project Information :__")
 
@@ -141,15 +147,15 @@ def new_project_entry_page(conn=None):
                    'value': session_state.new_project_name}
         logger.debug(context)
         if session_state.new_project_name:
-            if session_state.new_project.check_if_exists(context, conn):
-                session_state.new_project.name = None
+            if new_project.check_if_exists(context, conn):
+                new_project.name = None
                 field_placeholder['new_project_name'].error(
                     f"Project name used. Please enter a new name")
                 sleep(1)
                 field_placeholder['new_project_name'].empty()
                 logger.error(f"Project name used. Please enter a new name")
             else:
-                session_state.new_project.name = session_state.new_project_name
+                new_project.name = session_state.new_project_name
                 logger.info(f"Project name fresh and ready to rumble")
         else:
             pass
@@ -158,8 +164,8 @@ def new_project_entry_page(conn=None):
 
         # **** PROJECT TITLE****
         st.text_input(
-            "Project Title", key="new_project_name",
-            help="Enter the name of the project. Name should be less than 30 characters long",
+            "Project Title", max_chars=21, key="new_project_name",
+            help="Enter the name of the project. Name should be less than 21 characters long",
             on_change=check_if_name_exist, args=(place, conn,))
         place["new_project_name"] = st.empty()
 
@@ -169,7 +175,7 @@ def new_project_entry_page(conn=None):
             help="Enter the description of the project")
 
         if description:
-            session_state.new_project.desc = remove_newline_trailing_whitespace(
+            new_project.desc = remove_newline_trailing_whitespace(
                 description)
 
         # **** DEPLOYMENT TYPE and EDITOR BASE TEMPLATE LOAD ****
@@ -178,16 +184,16 @@ def new_project_entry_page(conn=None):
         if None not in v:
             (deployment_type, editor_base_config) = v
 
-            session_state.new_editor.editor_config = editor_base_config['config']
+            new_editor.editor_config = editor_base_config['config']
 
             # TODO Remove deployment id
-            session_state.new_project.deployment_type = deployment_type
-            session_state.new_project.query_deployment_id()
+            new_project.deployment_type = deployment_type
+            new_project.query_deployment_id()
 
         else:
-            session_state.new_editor.editor_config = None
-            session_state.new_project.deployment_type = None
-            session_state.new_project.deployment_id = None
+            new_editor.editor_config = None
+            new_project.deployment_type = None
+            new_project.deployment_id = None
 
         place["new_project_deployment_type"] = st.empty()
 
@@ -217,9 +223,72 @@ def new_project_entry_page(conn=None):
 
         # >>>> DISPLAY CHOSEN DATASET>>>>
         st.write("### Dataset chosen:")
+        if not new_project.deployment_type:
+            st.info("""You may select a deployment type first to be able to 
+            use any existing labeled data if available.""")
+
         if dataset_chosen:
+            annotated_dataset_id2_project_id: Dict[int, int] = {}
             for idx, data in enumerate(dataset_chosen):
                 st.write(f"{idx+1}. {data}")
+
+                # check related projects only if the user has chosen a deployment type
+                if new_project.deployment_type:
+                    dataset_id_chosen = dataset_dict[data].ID
+                    related_projects = Dataset.query_related_projects(
+                        dataset_id_chosen, new_project.deployment_type,
+                        is_labelled=True
+                    )
+                else:
+                    continue
+
+                if st.checkbox("Use existing labeled data?",
+                               key=f'use_existing_annotations_{idx}'):
+                    if not related_projects:
+                        st.info("There is no related project for this dataset "
+                                "with the same deployment type.")
+                        logger.info(f"There is no related projects for dataset {data} "
+                                    f"of ID {dataset_id_chosen} with the same deployment type")
+                        continue
+
+                    project_names = []
+                    project_ids = []
+                    display_names = []
+                    for r in related_projects:
+                        name = r.name
+                        project_id = r.id
+
+                        labeled_counts = query_project_dataset_task_count(
+                            project_id, dataset_id_chosen, is_labelled=True)
+                        if not labeled_counts:
+                            st.info(
+                                "There is no existing labeled data for this dataset.")
+                            logger.info(f"Project ID {project_id} has no labeled data "
+                                        f"for the dataset: {data}")
+                            continue
+
+                        display_names.append(f"{name} ({labeled_counts})")
+                        project_names.append(name)
+                        project_ids.append(project_id)
+
+                    if not project_ids:
+                        st.info(
+                            "There is no existing annotations for this dataset")
+                        continue
+
+                    selected_display_name = st.radio(
+                        "Select a project", options=display_names,
+                        key=f'selected_labeled_project_{idx}',
+                        help="The number in the brackets is the number of labeled images")
+                    selected_idx = display_names.index(
+                        selected_display_name)
+                    selected_project_id = project_ids[selected_idx]
+                    logger.info(f"Selected Project '{selected_display_name}' "
+                                f"of ID: {selected_project_id} for dataset '{data}'")
+                    # dataset_info = {
+                    #     'dataset_id': dataset_id_chosen,
+                    #     'project_id': selected_project_id}
+                    annotated_dataset_id2_project_id[dataset_id_chosen] = selected_project_id
         else:
             st.info("No dataset selected")
 
@@ -261,6 +330,7 @@ def new_project_entry_page(conn=None):
             # >>>>DATAFRAME
             st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
                 [dict(selector='th', props=[('text-align', 'center')])]))
+            # st.dataframe(styler, height=600)
 
     # ******************* Left Column to show full list of dataset and selection *******************
 
@@ -274,8 +344,11 @@ def new_project_entry_page(conn=None):
         session_state.new_project_dataset_page -= 1
 
     num_dataset_per_page = 10
-    num_dataset_page = len(
-        dataset_dict) // num_dataset_per_page
+    num_dataset_page = math.ceil(len(
+        dataset_dict) / num_dataset_per_page)
+
+    print(f"{num_dataset_page = }")
+    print(f"{session_state.new_project_dataset_page = }")
 
     if num_dataset_page > 1:
         if session_state.new_project_dataset_page < num_dataset_page:
@@ -297,8 +370,8 @@ def new_project_entry_page(conn=None):
     # ******************************** SUBMISSION *************************************************
     success_place = st.empty()
     context = {
-        'new_project_name': session_state.new_project.name,
-        'new_project_deployment_type': session_state.new_project.deployment_type,
+        'new_project_name': new_project.name,
+        'new_project_deployment_type': new_project.deployment_type,
         'new_project_dataset_chosen': dataset_chosen
     }
 
@@ -311,41 +384,64 @@ def new_project_entry_page(conn=None):
             session_state.is_labeled = labeled
             # if uploading labeled dataset, then no need to check the dataset_chosen field
             del context['new_project_dataset_chosen']
-        session_state.new_project.has_submitted = session_state.new_project.check_if_field_empty(
+        new_project.has_submitted = new_project.check_if_field_empty(
             context, field_placeholder=place, name_key='new_project_name')
 
-        if session_state.new_project.has_submitted:
+        if new_project.has_submitted:
             # TODO #13 Load Task into DB after creation of project
             # NOTE: dataset_dict is None when user choose to upload labeled dataset,
             #  this is to skip inserting project dataset that has not been chosen
             if labeled:
                 dataset_dict = None
                 dataset_chosen = None
-            if session_state.new_project.initialise_project(dataset_chosen, dataset_dict):
+            if new_project.initialise_project(
+                    dataset_chosen, dataset_dict, annotated_dataset_id2_project_id):
                 # Updated with Actual Project ID from DB
-                session_state.new_editor.project_id = session_state.new_project.id
+                new_editor.project_id = new_project.id
                 # deployment type now IntEnum
-                if session_state.new_editor.init_editor(session_state.new_project.deployment_type):
-                    session_state.new_project.editor = Editor(
-                        session_state.new_project.id, session_state.new_project.deployment_type)
+                if new_editor.init_editor(new_project.deployment_type):
+                    new_project.editor = Editor(
+                        new_project.id, new_project.deployment_type)
                     success_place.success(
-                        f"Successfully stored **{session_state.new_project.name}** project information in database")
+                        f"Successfully stored **{new_project.name}** project information in database")
                     sleep(1)
                     success_place.empty()
                     if labeled:
                         # send to the NewDataset page to upload labeled dataset
                         session_state.new_project_pagination = NewProjectPagination.NewDataset
                     else:
-                        # if not uploading new labeled dataset then go to Editor
-                        session_state.new_project_pagination = NewProjectPagination.EditorConfig
+                        if annotated_dataset_id2_project_id:
+                            # No need to insert project_dataset or update the tasks
+                            # as they are already done in initialise_project()
+
+                            # initialize Project and remove NewProject from session_states
+                            new_project_id = new_project.id
+                            NewProject.reset_new_project_page()
+                            session_state.project = Project(new_project_id)
+
+                            # update the current Project's EditorConfig based on
+                            # the inserted annotations
+                            logger.info(
+                                "Updating EditorConfig based on the annotations")
+                            session_state.project.update_editor_config(
+                                refresh_project=True)
+
+                            # enter the project overview page directly
+                            logger.info(
+                                f"Entering Project {session_state.project.id}")
+                            session_state.project_pagination = ProjectPagination.Existing
+                        else:
+                            # if not uploading new labeled dataset then go to Editor
+                            session_state.new_project_pagination = NewProjectPagination.EditorConfig
+                    gc.collect()
                     st.experimental_rerun()
                 else:
                     success_place.error(
-                        f"Failed to stored **{session_state.new_editor.name}** editor config in database")
+                        f"Failed to stored **{new_editor.name}** editor config in database")
 
             else:
                 success_place.error(
-                    f"Failed to stored **{session_state.new_project.name}** project information in database")
+                    f"Failed to stored **{new_project.name}** project information in database")
         else:
             st.stop()
 

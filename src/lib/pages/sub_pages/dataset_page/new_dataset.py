@@ -24,11 +24,13 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import gc
 import os
 from pathlib import Path
 import sys
 import shutil
 from time import perf_counter, sleep
+from collections import Counter
 
 from natsort import os_sorted
 import cv2
@@ -358,7 +360,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 cv2.imwrite(str(save_path), frame)
                 total_new_imgs += 1
                 image_num += 1
-                save_path = save_path.with_name(f'{image_num}.png')
+                save_path = save_path.with_name(
+                    f'{image_num}_{get_random_string(8)}.png')
                 # sleep to limit save rate a little bit
                 sleep(0.1)
 
@@ -493,10 +496,30 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             context, field_placeholder=place, name_key='name')
 
         if dataset.has_submitted:
+            # check for duplicated filenames
+            # NOTE: this is to avoid issues of replacing images of same name when
+            # moving/copying images
+            with st.spinner("Checking for duplicated filenames in the archive ..."):
+                image_names = [os.path.basename(p) for p in image_paths]
+                if len(set(image_names)) != len(image_names):
+                    txt = "Duplicated image filenames found!"
+                    logger.error(txt)
+                    st.error(txt)
+                    with st.spinner("Looking for duplicated filenames ..."):
+                        counts = Counter(image_names)
+                        duplicated_names = []
+                        for image_name, cnt in counts.items():
+                            if cnt > 1:
+                                duplicated_names.append(image_name)
+                    with st.expander("Duplicated filenames:"):
+                        st.markdown("  \n".join(duplicated_names))
+                    st.stop()
+
             if is_existing_dataset:
-                logger.info("Checking for duplicated filenames")
+                logger.info(
+                    "Checking for duplicated filenames with existing dataset")
                 with outercol2:
-                    with st.spinner("Checking for duplicated filenames ..."):
+                    with st.spinner("Checking for duplicated filenames with existing dataset ..."):
                         uploaded_files = [
                             os.path.basename(f) for f in filepaths]
                         existing_images = project.data_name_list[
@@ -625,7 +648,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                         for img_name, result in stqdm(result_generator, total=total_images,
                                                       st_container=st.sidebar,
                                                       unit=filetype, desc=message):
-                            start_task = perf_counter()
+                            # start_task = perf_counter()
 
                             task_row = task_df.loc[
                                 task_df['Task Name'] == img_name
@@ -658,9 +681,9 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                 annotation.submit_annotations(
                                     result, session_state.user.id, conn)
 
-                            time_elapsed = perf_counter() - start_task
-                            logger.debug(
-                                f"Annotation submitted successfully [{time_elapsed:.4f}s]")
+                            # time_elapsed = perf_counter() - start_task
+                            # logger.debug(
+                                # f"Annotation submitted successfully [{time_elapsed:.4f}s]")
 
                         time_elapsed = perf_counter() - start_t
                         st.success(
@@ -671,55 +694,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                                     f"Average {time_elapsed / total_images:.4f}s per image")
 
                         with st.spinner("Updating project labels and editor configuration ..."):
-                            # get existing labels from editor_config to use to
-                            # compare and update editor_config with new labels
-                            existing_config_labels = project.editor.get_labels()
-                            logger.debug("Existing labels found in "
-                                         f"editor config: {existing_config_labels}")
-                            # now the annotations will include new labels from the
-                            # new uploaded annotations
-                            existing_annotated_labels = project.get_existing_unique_labels()
-                            new_labels = set(existing_annotated_labels).difference(
-                                existing_config_labels)
-                            logger.info("After adding the new labels to editor config: "
-                                        f"{new_labels}")
-
-                            if is_new_project:
-                                # the existing_config_labels only contains the default
-                                #  editor_config template labels, so we get the unwanted
-                                #  default_labels came with the defaults,
-                                #  but keep the ones from new_labels
-                                unwanted_labels = set(existing_config_labels).difference(
-                                    new_labels)
-
-                            # update editor_config with the new labels from the uploaded annotations
-                            for label in new_labels:
-                                newChild = project.editor.create_label(
-                                    'value', label)
-                                logger.debug(
-                                    f"newChild: {newChild.attributes.items()}")
-                            project.editor.labels = project.editor.get_labels()
-
-                            # default_labels = project.editor.get_default_template_labels()
-
-                            if is_new_project and unwanted_labels:
-                                for label in unwanted_labels:
-                                    logger.debug(
-                                        f"Removing label: {label}")
-                                    project.editor.labels.remove(
-                                        label)
-                                    removedChild = project.editor.remove_label(
-                                        'value', label)
-                                    logger.debug(
-                                        f"removedChild: {removedChild}")
-                                logger.debug(f"After removing default labels: "
-                                             f"{project.editor.labels}")
-                            project.editor.labels.sort()
-                            logger.info("All labels after updating: "
-                                        f"{project.editor.labels}")
-
-                            project.editor.update_editor_config()
-                            project.refresh_project_details()
+                            project.update_editor_config(is_new_project)
 
                         if error_imgs:
                             with st.expander("""NOTE: These images were unreadable and
@@ -744,6 +719,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
                             logger.info(
                                 f"Entering Project {project.id}")
+                            gc.collect()
 
                         st.button("Enter Project", key="btn_enter_project",
                                   on_click=enter_project_cb)
