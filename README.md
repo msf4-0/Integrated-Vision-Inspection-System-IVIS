@@ -1,10 +1,13 @@
 # Integrated-Vision-Inspection-System
 
-<a href="https://github.com/msf4-0/Integrated-Vision-Inspection-System/releases">
-    <img alt="Downloads" src="https://img.shields.io/github/v/release/:user/:repo?display_name=tag/msf4-0/Integrated-Vision-Inspection-System?color=success" />
+<a href="https://github.com/msf4-0/Integrated-Vision-Inspection-System/blob/master/LICENSE">
+    <img alt="GitHub" src="https://img.shields.io/github/license/msf4-0/Integrated-Vision-Inspection-System.svg?color=blue">
 </a>
 <a href="https://github.com/msf4-0/Integrated-Vision-Inspection-System/releases">
-    <img alt="Downloads" src="https://img.shields.io/github/downloads/:user/:repo/total/msf4-0/Integrated-Vision-Inspection-System?color=success" />
+    <img alt="Releases" src="https://img.shields.io/github/release/msf4-0/Integrated-Vision-Inspection-System?color=success" />
+</a>
+<a href="https://github.com/msf4-0/Integrated-Vision-Inspection-System/releases">
+    <img alt="Downloads" src="https://img.shields.io/github/downloads/msf4-0/Integrated-Vision-Inspection-System/total.svg?color=success" />
 </a>
 <a href="https://github.com/msf4-0/Integrated-Vision-Inspection-System/issues">
       <img alt="Issues" src="https://img.shields.io/github/issues/msf4-0/Integrated-Vision-Inspection-System?color=blue" />
