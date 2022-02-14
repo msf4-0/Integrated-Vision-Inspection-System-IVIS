@@ -1161,6 +1161,8 @@ def index(RELEASE=True):
                     # to ensure the app only reads the new uploaded file
                     reset_video_deployment()
                     if TEMP_DIR.exists():
+                        logger.info("Removing and recreating temporary directory "
+                                    "for uploaded video")
                         shutil.rmtree(TEMP_DIR)
                     os.makedirs(TEMP_DIR)
                     st.stop()
@@ -1171,7 +1173,8 @@ def index(RELEASE=True):
                 if not os.path.exists(video_path):
                     # only creates it if not exists, to speed up the process when
                     # there is any widget changes besides the st.file_uploader
-                    logger.debug(f"{video_path = }")
+                    logger.info("Creating temporary video file for uploaded video at "
+                                f"{video_path = }")
                     with st.spinner("Copying video to a temporary directory ..."):
                         with open(video_path, 'wb') as f:
                             f.write(video_file.getvalue())
@@ -1481,9 +1484,9 @@ def index(RELEASE=True):
         starting_time = datetime.now()
         logger.info(f"Starting RAM usage: {get_ram_usage()} %")
         # use this to check when to clear memory
-        memory_clear_start = starting_time
+        memory_clear_start = perf_counter()
         # clear memory every 15 minutes (900 seconds)
-        MEMORY_CLEAR_INTERVAL = 900
+        MEMORY_CLEAR_INTERVAL = 10
         csv_path = deployment.get_csv_path(starting_time)
         csv_dir = csv_path.parent
         if not csv_dir.exists():
@@ -1512,6 +1515,18 @@ def index(RELEASE=True):
         # start the video deployment loop
         for i in cycle(range(conf.num_cameras)):
             start_time = perf_counter()
+
+            # clear memory at an interval
+            if (start_time - memory_clear_start) > MEMORY_CLEAR_INTERVAL:
+                # restart clear interval
+                memory_clear_start = perf_counter()
+                logger.info(
+                    f"Clearing unused memory [Current RAM usage: {get_ram_usage()}%]")
+                with msg_place['top'].container():
+                    with st.spinner("Clearing memory ..."):
+                        gc.collect()
+                # seems like must rerun only can clear properly
+                st.experimental_rerun()
 
             if session_state.refresh:
                 # refresh page once to refresh the widgets
@@ -1706,18 +1721,6 @@ def index(RELEASE=True):
             else:
                 for row in results:
                     session_state.csv_writer.writerow(row)
-
-            # clear memory at an interval
-            if (now - memory_clear_start).seconds >= MEMORY_CLEAR_INTERVAL:
-                # restart clear interval
-                memory_clear_start = datetime.now()
-                logger.info(
-                    f"Clearing unused memory [Current RAM usage: {get_ram_usage()}%]")
-                with msg_place['top'].container():
-                    with st.spinner("Clearing memory ..."):
-                        gc.collect()
-                # seems like must rerun only can clear properly
-                st.experimental_rerun()
 
             # This below does not seem to work properly
             # if fps > max_allowed_fps:
