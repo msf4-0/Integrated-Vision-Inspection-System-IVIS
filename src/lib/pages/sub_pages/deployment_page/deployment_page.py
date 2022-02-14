@@ -1486,7 +1486,7 @@ def index(RELEASE=True):
         # use this to check when to clear memory
         memory_clear_start = perf_counter()
         # clear memory every 15 minutes (900 seconds)
-        MEMORY_CLEAR_INTERVAL = 10
+        MEMORY_CLEAR_INTERVAL = 900
         csv_path = deployment.get_csv_path(starting_time)
         csv_dir = csv_path.parent
         if not csv_dir.exists():
@@ -1557,9 +1557,11 @@ def index(RELEASE=True):
                         try:
                             load_multi_webcams(stop_on_error=False)
                         except CameraFailError as e:
-                            logger.error(
-                                f"Failed opening camera: {e}. Retrying again ...")
+                            msg_place[i].error(f"Reopen failed for camera {i}. Retrying in 3 seconds ...")
+                            logger.error(f"Reopen failed: {e}. Retrying in 3 seconds ...")
+
                             reset_camera()
+                            sleep(3)
                             continue
                         else:
                             break
