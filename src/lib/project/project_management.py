@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import os
 import shutil
 import sys
@@ -63,7 +64,7 @@ from data_manager.database_manager import init_connection, db_fetchone, db_no_fe
 from core.utils.file_handler import create_folder_if_not_exist, file_archive_handler
 from core.utils.helper import get_directory_name, create_dataframe, dataframe2dict
 from core.utils.form_manager import check_if_exists, check_if_field_empty, reset_page_attributes
-from data_manager.dataset_management import Dataset, get_dataset_name_list
+from data_manager.dataset_management import Dataset, get_dataset_name_list, query_dataset_list
 # Add CLI so can run Python script directly
 from data_editor.editor_management import Editor
 from annotation.annotation_management import Annotations, NewTask, Task, get_task_row
@@ -280,7 +281,7 @@ class BaseProject:
     def insert_new_project_task(
             self, dataset_name: str, dataset_id: int,
             image_names: List[str] = None,
-            annotated_dataset_info: Dict[int, int] = None):
+            annotated_dataset_info: Dict[int, int] = None) -> Union[None, Dict[str, int]]:
         """Create New Task for Project
             - Insert into 'task' table
 
@@ -301,45 +302,36 @@ class BaseProject:
         else:
             data_name_list = get_single_data_name_list(dataset_name)
 
+        if not data_name_list:
+            logger.warning(
+                "No image names found to insert tasks into database")
+            return
+
         annot_records = None
         if annotated_dataset_info:
-            existing_project_id = annotated_dataset_info.get(dataset_id)
-            if existing_project_id:
-                logger.info(
-                    f"Using existing annotations from Project {existing_project_id} "
-                    f"for current project {self.id} for dataset '{dataset_name}'")
-                # query tasks for the selected project dataset
-                annot_records: List[NamedTuple] = query_project_dataset_annotations(
-                    existing_project_id, dataset_id)
-                # NOTE: currently it's assumed that the same project has unique
-                # task names (i.e. unique image filenames)
-                annot_records: Dict[str, NamedTuple] = {
-                    r.task_name: r for r in annot_records}
-            else:
-                logger.info(f"Dataset ID {dataset_id} is not found from the supplied "
-                            f"annotatated_dataset_info: {annotated_dataset_info}")
+            annot_records = get_related_project_annotations(
+                annotated_dataset_info, dataset_id)
 
-        if len(data_name_list):
-            logger.info(f"Inserting task into DB........")
-            for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
+        logger.info(f"Inserting task into DB........")
+        for data in stqdm(data_name_list, unit='data', st_container=st.sidebar, desc='Creating task in database'):
 
-                # >>>> Insert new task from NewTask class method
-                task_id = NewTask.insert_new_task(
-                    data, self.id, dataset_id)
-                # logger.debug(f"Loaded task {task_id} into DB for data: {data}")
+            # >>>> Insert new task from NewTask class method
+            task_id = NewTask.insert_new_task(
+                data, self.id, dataset_id)
+            # logger.debug(f"Loaded task {task_id} into DB for data: {data}")
 
-                if annot_records is None:
-                    continue
+            if not annot_records:
+                continue
 
-                existing_annot = annot_records.get(data)
-                if existing_annot:
-                    # each annotation only has one associated task,
-                    # so no worries
-                    annot_id = Annotations.insert_annotation(
-                        existing_annot.result, session_state.user.id,
-                        self.id, task_id)
-                    Task.update_task(task_id, annot_id,
-                                     is_labelled=True, skipped=False)
+            existing_annot = annot_records.get(data)
+            if existing_annot:
+                # each annotation only has one associated task,
+                # so no worries
+                annot_id = Annotations.insert_annotation(
+                    existing_annot.result, session_state.user.id,
+                    self.id, task_id)
+                Task.update_task(task_id, annot_id,
+                                 is_labelled=True, skipped=False)
 
     def update_project_task(self, dataset_name: str, dataset_id: int):
         """Create New Task for Project
@@ -361,9 +353,14 @@ class BaseProject:
 
     def insert_project_dataset(
             self, dataset_chosen: List[str],
-            dataset_dict: Dict[str, NamedTuple],
+            dataset_dict: Dict[str, NamedTuple] = None,
             annotated_dataset_info: Dict[int, int] = None,
-            is_new_project: bool = False):
+            insert_task: bool = True,
+            is_new_project: bool = False) -> Dict[str, Dict[str, int]]:
+        if not dataset_dict:
+            existing_dataset, _ = query_dataset_list()
+            dataset_dict = get_dataset_name_list(
+                existing_dataset)
         insert_project_dataset_SQL = """
                                         INSERT INTO public.project_dataset (
                                             project_id,
@@ -383,12 +380,12 @@ class BaseProject:
             db_no_fetch(insert_project_dataset_SQL, conn,
                         insert_project_dataset_vars)
 
-            # NEED TO ADD INSERT TASK
-            # get data name list
-            # loop data and add task
-            self.insert_new_project_task(
-                dataset_name, dataset_id,
-                annotated_dataset_info=annotated_dataset_info)
+            if insert_task:
+                self.insert_new_project_task(
+                    dataset_name, dataset_id,
+                    annotated_dataset_info=annotated_dataset_info)
+            else:
+                logger.info(f"Skip inserting tasks for '{dataset_name}'")
 
         # update editor_config only if annotated_dataset_info is supplied
         # to an existing project
@@ -532,12 +529,20 @@ class Project(BaseProject):
                 df['image'] = df['image'].apply(get_full_image_path)
                 df['class_path'] = df['label'].apply(get_class_path)
 
+                def copy_images(paths):
+                    image_path = paths[0]    # first row for image_path
+                    class_path = paths[-1]  # last row for class_path
+                    shutil.copy2(image_path, class_path)
+
                 logger.info(
                     f"Copying images into each class folder in {project_img_path}")
-                for row in stqdm(df.values, desc='Copying images into class folder'):
-                    image_path = row[0]    # first row for image_path
-                    class_path = row[-1]  # last row for class_path
-                    shutil.copy2(image_path, class_path)
+                with st.spinner("Copying images into each class folder ..."):
+                    paths_arr = df.values
+                    # use multithreading for much faster operation
+                    with ThreadPoolExecutor() as executor:
+                        # executor.map(copy_images, paths_arr)
+                        list(stqdm(executor.map(copy_images, paths_arr),
+                                   total=len(paths_arr)))
                 logger.info(
                     f"Image folders for each class {unique_labels} created successfully for Project ID {self.id}")
                 # done and directly return back
@@ -1068,6 +1073,7 @@ class NewProject(BaseProject):
     def insert_project(
             self, dataset_chosen: List[str] = None,
             dataset_dict: Dict[str, NamedTuple] = None,
+            insert_project_dataset: bool = True,
             annotated_dataset_info: Dict[int, int] = None):
         """Insert project into database. If `dataset_dict` is provied,
         then also insert the project_dataset based on `dataset_chosen`."""
@@ -1089,19 +1095,23 @@ class NewProject(BaseProject):
         self.id = db_fetchone(
             insert_project_SQL, conn, insert_project_vars).id
 
-        if all((dataset_chosen, dataset_dict)):
+        if not dataset_chosen:
+            logger.info(f"""`dataset_chosen` is not provided.
+            Thus, not inserting project dataset for Project ID {self.id}""")
+            return self.id
+
+        if insert_project_dataset:
+            assert dataset_chosen
             # only insert project_dataset when it is provided
             self.insert_project_dataset(
                 dataset_chosen, dataset_dict, annotated_dataset_info)
-        else:
-            logger.info(f"""Either `dataset_chosen` or `dataset_dict` is not provided.
-            Thus, not inserting project dataset for Project ID {self.id}""")
 
         return self.id
 
     def initialise_project(
             self, dataset_chosen: List[str] = None,
             dataset_dict: Dict[str, namedtuple] = None,
+            insert_project_dataset: bool = True,
             annotated_dataset_info: Dict[int, int] = None):
 
         # directory_name = get_directory_name(self.name)
@@ -1114,7 +1124,10 @@ class NewProject(BaseProject):
         logger.info(
             f"Successfully created **{self.name}** project at {str(self.project_path)}")
 
-        if self.insert_project(dataset_chosen, dataset_dict, annotated_dataset_info):
+        if self.insert_project(
+                dataset_chosen, dataset_dict,
+                insert_project_dataset=insert_project_dataset,
+                annotated_dataset_info=annotated_dataset_info):
 
             logger.info(
                 f"Successfully stored **{self.name}** project information in database")
@@ -1349,6 +1362,26 @@ def show_dataset_chosen_and_annotated_projects(
             #     'project_id': selected_project_id}
             annotated_dataset_id2project_id[dataset_id_chosen] = selected_project_id
     return annotated_dataset_id2project_id
+
+
+def get_related_project_annotations(
+        annotated_dataset_info: Dict[int, int], dataset_id: int) -> Dict[str, NamedTuple]:
+    existing_project_id = annotated_dataset_info.get(dataset_id)
+    if existing_project_id:
+        logger.info(
+            f"Using existing annotations from Project {existing_project_id} "
+            f"for current project for dataset of ID'{dataset_id}'")
+        # query tasks for the selected project dataset
+        annot_records = query_project_dataset_annotations(
+            existing_project_id, dataset_id)
+        # NOTE: currently it's assumed that the same project has unique
+        # task names (i.e. unique image filenames)
+        annot_records = {r.task_name: r for r in annot_records}
+        return annot_records
+
+    logger.info(f"Dataset ID {dataset_id} is not found from the supplied "
+                f"annotatated_dataset_info: {annotated_dataset_info}")
+    return {}
 
 # *********************NEW PROJECT PAGE NAVIGATOR ********************************************
 

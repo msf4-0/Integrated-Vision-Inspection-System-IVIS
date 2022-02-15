@@ -40,10 +40,11 @@ from pathlib import Path
 import tarfile
 from tempfile import mkdtemp
 from time import perf_counter, sleep
-from typing import Any, Dict, Iterable, Iterator, List, NamedTuple, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, NamedTuple, Set, Tuple, Union
 import xml.etree.ElementTree as ET
 
 import cv2
+from natsort import os_sorted
 import numpy as np
 from imutils.paths import list_images
 import pandas as pd
@@ -281,45 +282,25 @@ class BaseDataset:
 
         return exists_flag
 
-    def dataset_PNG_encoding(self, archive_dir: Path, verbose: bool = False):
+    def dataset_PNG_encoding(
+            self, archive_dir: Path,
+            verbose: bool = False) -> Tuple[bool, List[str], Dict[str, int]]:
         # archive_dir is the directory that contains the extracted tarfile contents
-        image_paths = sorted(list_images(archive_dir))
-        destination = self.dataset_path
+        # `os_sorted` is used to sort the files just like in file browser
+        # to make the order of the files make more sense to the user
+        # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
+        image_paths = os_sorted(list_images(archive_dir))
+        # use Set for faster membership checking
+        all_img_names = set()
+        error_img_paths = []
 
         for img_path in stqdm(image_paths, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading images"):
-            # img_name = img.name
-            img_name = os.path.basename(img_path)
-            # logger.debug(img_name)
-            # save_path = self.dataset_path / img_name
-
-            # st.title(img.name)
-            try:
-                # with Image.open(img) as pil_img:
-                #     pil_img.save(save_path)
-
-                # using OpenCV instead of Pillow for now because Pillow has a problem
-                #  of reading the image in a rotated shape sometimes,
-                #  i.e. width and height inverted
-                # cv_img = np.frombuffer(img.read(), dtype=np.uint8)
-                # cv_img = cv2.imdecode(cv_img, cv2.IMREAD_COLOR)
-                # cv2.imwrite(save_path, cv_img)
-                cv2.imread(img_path)  # test reading image
-                shutil.move(img_path, destination)
-            except ValueError as e:
-                logger.error(
-                    f"{e}: Could not resolve output format for '{img_name}'")
-            except OSError as e:
-                logger.error(
-                    f"{e}: Failed to create file '{img_name}'. File may exist or contain partial data")
-            except Exception as e:
-                logger.error(f"Unknown error occurred with '{img_path}': {e}")
-            else:
-                if verbose:
-                    relative_dataset_path = Path(
-                        self.dataset_path).relative_to(BASE_DATA_DIR)
-                    logger.debug(
-                        f"Successfully stored '{img_name}' in '{relative_dataset_path}'")
-        return True
+            success, ori_img_name, new_img_name = save_single_image(
+                img_path, self.dataset_path,
+                all_img_names=all_img_names, verbose=verbose)
+            if not success:
+                error_img_paths.append(img_path)
+        return error_img_paths
 
     def calc_total_filesize(self):
         if self.dataset:
@@ -339,26 +320,20 @@ class BaseDataset:
             dataset_name)  # change name to lowercase
         # join directory name with '-' dash
         dataset_path = DATASET_DIR / directory_name
-        logger.debug(f"Dataset Path: {dataset_path}")
+        # logger.debug(f"Dataset Path: {dataset_path}")
         return dataset_path
 
-    def save_dataset(self, archive_dir: Path) -> bool:
-        # archive_dir is the directory that contains the extracted tarfile contents
+    def save_dataset(self, archive_dir: Path, save_images_to_disk: bool = True):
+        """`archive_dir` is the directory that contains the extracted tarfile contents"""
 
         # Get absolute dataset folder path
         self.dataset_path = self.get_dataset_path(self.name)
 
-        # directory_name = get_directory_name(
-        #     self.name)
-        # self.dataset_path = Path.home() / '.local' / 'share' / \
-        #     'integrated-vision-inspection-system' / \
-        #     'app_media' / 'dataset' / str(directory_name)
-        # self.dataset_path = Path(self.dataset_path)
-
         create_folder_if_not_exist(self.dataset_path)
-        if self.dataset_PNG_encoding(archive_dir):
-            # st.success(f"Successfully created **{self.name}** dataset")
-            return self.dataset_path
+        if save_images_to_disk:
+            error_img_paths = self.dataset_PNG_encoding(archive_dir)
+            return error_img_paths
+        # st.success(f"Successfully created **{self.name}** dataset")
 
     @staticmethod
     def delete_dataset(id: int):
@@ -366,10 +341,6 @@ class BaseDataset:
         annotations associated with the dataset (of all associated projects), and remove
         from project_dataset table. Then finally, delete the dataset directory from the 
         system.
-
-        Only takes a `name` parameter instead of `id` because this could be used to 
-        delete a new uploaded labeled dataset that does not get an ID from database yet,
-        in case any error occurs while storing the uploaded annotations.
         """
         sql_delete = """
                     DELETE 
@@ -607,6 +578,13 @@ class NewDataset(BaseDataset):
                 st.dataframe(backslash_rows)
                 st.stop()
 
+            if len(df.iloc[:, 0].unique()) != len(df):
+                txt = ("Duplicated image filenames found, which would be confusing "
+                       "to interpret!")
+                st.error(txt)
+                logger.error(txt)
+                st.stop()
+
             # get the image names in the CSV file
             annot_img_names = df.iloc[:, 0].apply(
                 lambda x: os.path.basename(x)).tolist()
@@ -652,15 +630,17 @@ class NewDataset(BaseDataset):
         return img_filepaths
 
     def parse_annotation_files(
-            self, deployment_type: str, image_paths: List[str] = None,
-            classif_annot_type: str = 'CSV file') -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+            self, deployment_type: str, image_paths: List[str] = None, **kwargs) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded annotation files based on the `deployment_type` and
         yield the image name and annotation result in Label Studio JSON result format
         to save in database annotations table"""
+        if not image_paths:
+            # get from dataset attr which might contain the paths
+            image_paths = self.dataset
         if deployment_type == 'Object Detection with Bounding Boxes':
             return self.parse_bbox_annotations()
         elif deployment_type == 'Image Classification':
-            return self.parse_classification_annotations(image_paths, classif_annot_type)
+            return self.parse_classification_annotations(image_paths, **kwargs)
         elif deployment_type == 'Semantic Segmentation with Polygons':
             return self.parse_segmentation_annotations()
 
@@ -679,8 +659,7 @@ class NewDataset(BaseDataset):
                 # delete the invalid dataset
                 self.delete_dataset(self.id)
                 st.stop()
-            # taking only the filename without extension to consider the case of
-            #  Label Studio exported XML files without any file extension
+            # take only filename without extension, as explained above
             image_name = os.path.splitext(image_name)[0]
             yield image_name, annot_result
 
@@ -698,11 +677,11 @@ class NewDataset(BaseDataset):
                 yield img_name, result
         else:
             for p in image_paths:
-                img_name = os.path.basename(p)
+                # img_name = os.path.basename(p)
                 # get the label from folder name
                 label = os.path.basename(os.path.dirname(p))
                 result = create_classification_result(label)
-                yield img_name, result
+                yield p, result
 
     def parse_segmentation_annotations(self) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
         """Parse the uploaded JSON file and yield the image name and annotation result in
@@ -728,25 +707,26 @@ class NewDataset(BaseDataset):
             annot_id = annot['id']
             img_id = annot['image_id']
             img_info = image_id2info[img_id]
-            filename = os.path.basename(img_info['file_name'])
+            relative_fpath = img_info['file_name']
+            # filename = os.path.basename(relative_fpath)
 
             if first:
                 first = False
                 # initial image_id is always 0
                 prev_img_id = 0
                 result = []
-                prev_filename = filename
+                prev_fpath = relative_fpath
 
             if prev_img_id != img_id:
                 # generate the previous image filename and all the annotation results
                 # for the image of prev_img_id
                 logger.debug(f"Reached new image ID {img_id}, "
                              f"yielding result for previous img_id {prev_img_id}")
-                yield prev_filename, result
+                yield prev_fpath, result
                 # then reset the result list and update for new image_id
                 result = []
                 prev_img_id = img_id
-                prev_filename = filename
+                prev_fpath = relative_fpath
 
             original_width = img_info['width']
             original_height = img_info['height']
@@ -783,8 +763,8 @@ class NewDataset(BaseDataset):
             }
             result.append(current_annot_result)
         # yield the result for the final image
-        logger.debug(f"Yielding result for final image {filename}")
-        yield filename, result
+        logger.debug(f"Yielding result for final image {relative_fpath}")
+        yield relative_fpath, result
 
     def insert_dataset(self):
         insert_dataset_SQL = """
@@ -1187,6 +1167,47 @@ def get_dataset_name_list(dataset_list: List[NamedTuple]) -> Dict[str, NamedTupl
     return dataset_dict
 
 
+def save_single_image(img_path: str, dataset_path: Path,
+                      all_img_names: Set[str] = None, verbose: bool = False):
+    """Save a single image. Provide `all_img_names` to be able to check whether
+    the image names exist within existing img_names or not to generate a new one
+    if exists."""
+    ori_img_name = os.path.basename(img_path)
+    new_img_name = f"{get_random_string(8)}_{ori_img_name}"
+    if all_img_names:
+        # must compare with lowercase as filenames are usually case-insensitive in
+        # in most platforms, e.g. in Windows
+        lowercase_name = new_img_name.lower()
+        while lowercase_name in all_img_names:
+            # to ensure unique names
+            new_img_name = f"{get_random_string(8)}_{ori_img_name}"
+        all_img_names.add(lowercase_name)
+
+    save_path = dataset_path / new_img_name
+    success = True
+    try:
+        cv2.imread(img_path)  # test reading image
+        shutil.move(img_path, save_path)
+    except ValueError as e:
+        logger.error(
+            f"{e}: Could not resolve output format for '{ori_img_name}'")
+        success = False
+    except OSError as e:
+        logger.error(
+            f"{e}: Failed to create file '{new_img_name}'. File may exist or contain partial data")
+        success = False
+    except Exception as e:
+        logger.error(f"Unknown error occurred with '{img_path}': {e}")
+        success = False
+    else:
+        if verbose:
+            relative_dataset_path = Path(
+                dataset_path).relative_to(BASE_DATA_DIR)
+            logger.debug(
+                f"Successfully stored '{new_img_name}' in '{relative_dataset_path}'")
+    return success, ori_img_name, new_img_name
+
+
 def load_image(image_path: str, opencv_flag: bool = True) -> Union[Image.Image, np.ndarray]:
     """Loads image via OpenCV into Numpy arrays or through PIL into Image class object
 
@@ -1285,6 +1306,23 @@ def get_latest_captured_image_path() -> Tuple[Path, int]:
     filename = f'{image_num}_{get_random_string(8)}.png'
     save_path = CAPTURED_IMAGES_DIR / filename
     return save_path, image_num
+
+
+def find_image_path(
+        image_paths: List[str], query_image_name: str, deployment_type: str) -> Union[None, str]:
+    """Find the image_path for the `query_image_name` out of the `image_paths`.
+
+    Returns None if not found."""
+    for p in image_paths:
+        if deployment_type == 'Object Detection with Bounding Boxes':
+            # taking only the filename without extension to consider the case of
+            #  Label Studio exported XML files without any file extension
+            image_name = os.path.basename(os.path.splitext(p)[0])
+        else:
+            image_name = os.path.basename(p)
+        if query_image_name == image_name:
+            return p
+    logger.debug(f"Image file not found for {query_image_name}")
 
 
 def main():

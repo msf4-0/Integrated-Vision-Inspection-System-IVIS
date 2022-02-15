@@ -214,7 +214,8 @@ def dataset():
                      key='btn_confirm_delete_ds'):
             for id in selected_ids:
                 logger.info(f"Deleting dataset of ID: {id}")
-                Dataset.delete_dataset(id)
+                with st.spinner("Deleting the dataset from local storage and database ..."):
+                    Dataset.delete_dataset(id)
 
             session_state.project.refresh_project_details()
             if not session_state.project.datasets:

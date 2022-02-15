@@ -316,25 +316,28 @@ def new_project_entry_page(conn=None):
 
     submit_col1, _, submit_col2 = st.columns([2.5, 0.5, 0.5])
 
-    def new_project_submit(dataset_chosen=dataset_chosen, dataset_dict=dataset_dict, labeled=False):
+    def new_project_submit(labeled=False):
         # if this is True, we will send to New Dataset page for uploading
         if labeled:
             # set this to True to tell new_dataset page about uploading labeled data
-            session_state.is_labeled = labeled
+            session_state.is_labeled = True
             # if uploading labeled dataset, then no need to check the dataset_chosen field
             del context['new_project_dataset_chosen']
         new_project.has_submitted = new_project.check_if_field_empty(
             context, field_placeholder=place, name_key='new_project_name')
 
         if new_project.has_submitted:
-            # TODO #13 Load Task into DB after creation of project
-            # NOTE: dataset_dict is None when user choose to upload labeled dataset,
-            #  this is to skip inserting project dataset that has not been chosen
             if labeled:
-                dataset_dict = None
-                dataset_chosen = None
+                # skip inserting project dataset as the user will
+                #  upload labeled dataset later
+                insert_project_dataset = False
+            else:
+                insert_project_dataset = True
+
             if new_project.initialise_project(
-                    dataset_chosen, dataset_dict, annotated_dataset_id2_project_id):
+                    dataset_chosen, dataset_dict,
+                    insert_project_dataset=insert_project_dataset,
+                    annotated_dataset_info=annotated_dataset_id2_project_id):
                 # Updated with Actual Project ID from DB
                 new_editor.project_id = new_project.id
                 # deployment type now IntEnum
