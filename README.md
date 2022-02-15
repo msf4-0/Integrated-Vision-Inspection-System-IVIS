@@ -1,5 +1,7 @@
 # Integrated-Vision-Inspection-System
 
+![GitHub Contributors Image](https://contrib.rocks/image?repo=msf4-0/Integrated-Vision-Inspection-System-IVIS)
+
 <a href="https://github.com/msf4-0/Integrated-Vision-Inspection-System/blob/master/LICENSE">
     <img alt="GitHub" src="https://img.shields.io/github/license/msf4-0/Integrated-Vision-Inspection-System.svg?color=blue">
 </a>
@@ -79,7 +81,10 @@ The ***Integrated-Vision-Inspection-System (IVIS)*** is a computer vision app th
   url={https://github.com/msf4-0/Integrated-Vision-Inspection-System},
   author={
     Chu Zhen Hao,
-    Anson},
+    Anson,
+    Yap Jun Kang,
+    Lee Shi-Hau
+    Nicholas Tan Chien Yuan},
   year={2021},
 }
 ```
