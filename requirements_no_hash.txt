@@ -103,7 +103,7 @@ py==1.10.0; python_full_version >= "3.6.1" and python_version >= "3.7" and imple
 pyarrow==5.0.0; python_version >= "3.6" and python_version < "4.0"
 pyasn1-modules==0.2.8; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.6"
 pyasn1==0.4.8; python_version >= "3.6" and python_full_version < "3.0.0" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.6") or python_full_version >= "3.6.0" and python_version >= "3.6" and python_version < "4" and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.6")
-pycocotools==2.0.2
+pycocotools==2.0.3
 pycparser==2.20; python_version >= "3.6" and python_full_version < "3.0.0" and python_version < "4.0" or python_version >= "3.6" and python_version < "4.0" and python_full_version >= "3.4.0"
 pydub==0.25.1
 pydeck==0.7.0; python_version >= "3.7" and python_version < "4.0"
