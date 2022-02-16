@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import Counter
 import gc
 import json
 import os
@@ -52,6 +53,29 @@ def check_unique_label_counts(labels: List[int], encoded_label_dict: Dict[int, s
     return True
 
 
+def get_class_distribution(
+        train_labels: List[str], val_labels: List[str] = None,
+        test_labels: List[str] = None,
+        encoded_label_dict: Dict[int, str] = None) -> pd.DataFrame:
+    train_label_cnts = Counter(train_labels)
+    sorted_train_label_cnts = dict(sorted(train_label_cnts.items()))
+    cnt_dict = {"Training Set": sorted_train_label_cnts}
+
+    if val_labels is not None:
+        val_label_cnts = Counter(val_labels)
+        cnt_dict["Validation Set"] = val_label_cnts
+    if test_labels is not None:
+        test_label_cnts = Counter(test_labels)
+        cnt_dict["Test Set"] = test_label_cnts
+
+    df = pd.DataFrame(cnt_dict)
+    df.index.rename('Classes', inplace=True)
+    if encoded_label_dict:
+        # change integers to class labels
+        df.index = df.index.map(lambda x: encoded_label_dict[x])
+    return df
+
+
 def custom_train_test_split(image_paths: List[Path],
                             test_size: float,
                             *,
@@ -60,6 +84,8 @@ def custom_train_test_split(image_paths: List[Path],
                             val_size: Optional[float] = 0.0,
                             train_size: Optional[float] = 0.0,
                             stratify: Optional[bool] = False,
+                            show_class_distribution: Optional[bool] = False,
+                            encoded_label_dict: Optional[Dict[int, str]] = None,
                             random_seed: Optional[int] = None
                             ) -> Tuple[List[str], ...]:
     """
@@ -75,6 +101,7 @@ def custom_train_test_split(image_paths: List[Path],
         val_size (Optional[float]): Size of validation split, only needed if `no_validation` is False. Defaults to 0.0.
         train_size (Optional[float]): This is only used for logging, can be inferred, thus not required. Defaults to 0.0.
         stratify (Optional[bool]): stratification should only be used for image classification. Defaults to False
+        show_class_distribution (Optional[bool]): whether to show class distribution in a Streamlit table. Defaults to False.
         random_seed (Optional[int]): random seed to use for splitting. Defaults to None.
 
     Returns:
@@ -112,6 +139,14 @@ def custom_train_test_split(image_paths: List[Path],
             stratify=stratify,
             random_state=random_seed
         )
+
+        if show_class_distribution:
+            df = get_class_distribution(
+                train_labels=y_train, test_labels=y_test,
+                encoded_label_dict=encoded_label_dict)
+            st.subheader("Class Distribution")
+            st.table(df)
+
         return X_train, X_test, y_train, y_test
     else:
         train_size = train_size if train_size else round(
@@ -137,6 +172,14 @@ def custom_train_test_split(image_paths: List[Path],
             stratify=stratify,
             random_state=random_seed,
         )
+
+        if show_class_distribution:
+            df = get_class_distribution(
+                train_labels=y_train, val_labels=y_val, test_labels=y_test,
+                encoded_label_dict=encoded_label_dict)
+            st.subheader("Class Distribution")
+            st.table(df)
+
         return X_train, X_val, X_test, y_train, y_val, y_test
 
 
@@ -203,11 +246,19 @@ def get_transform(augmentation_config: AugmentationConfig, deployment_type: str)
     return transform
 
 
-def preprocess_image(image: np.ndarray, image_size: int, bgr2rgb: bool = True) -> np.ndarray:
+def preprocess_image(
+        image: np.ndarray, image_size: int,
+        bgr2rgb: bool = True, preprocess_fn: Callable = None) -> np.ndarray:
+    """Please note that this function should follow the preprocessing function 
+    used during training."""
     if bgr2rgb:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = cv2.resize(image, (image_size, image_size))
-    image = image.astype(np.float32) / 255.
+    # using bilinear to follow tensorflow default
+    image = cv2.resize(image, (image_size, image_size),
+                       interpolation=cv2.INTER_LINEAR)
+    if preprocess_fn is not None:
+        image = preprocess_fn(image)
+    # image = image.astype(np.float32) / 255.0
     return image
 
 
@@ -688,35 +739,46 @@ NASNET_IMAGENET_INPUT_SHAPES: Dict[str, Tuple[int, int, int]] = {
 # to get the architecture's module name to obtain preprocess_input func
 # for image classification models
 ARCHITECTURE2MODULE_NAME: Dict[str, str] = {
-    "DenseNet121": "densenet",
-    "DenseNet169": "densenet",
-    "DenseNet201": "densenet",
-    "EfficientNetB0": "efficientnet",
-    "EfficientNetB1": "efficientnet",
-    "EfficientNetB2": "efficientnet",
-    "EfficientNetB3": "efficientnet",
-    "EfficientNetB4": "efficientnet",
-    "EfficientNetB5": "efficientnet",
-    "EfficientNetB6": "efficientnet",
-    "EfficientNetB7": "efficientnet",
-    "InceptionResNetV2": "inception_resnet_v2",
-    "InceptionV3": "inception_v3",
-    "MobileNet": "mobilenet",
-    "MobileNetV2": "mobilenet_v2",
-    "MobileNetV3Large": "mobilenet_v3",
-    "MobileNetV3Small": "mobilenet_v3",
-    "NASNetLarge": "nasnet",
-    "NASNetMobile": "nasnet",
-    "ResNet101": "resnet",
-    "ResNet101V2": "resnet_v2",
-    "ResNet152": "resnet",
-    "ResNet152V2": "resnet_v2",
-    "ResNet50": "resnet",
-    "ResNet50V2": "resnet_v2",
-    "VGG16": "vgg16",
-    "VGG19": "vgg19",
-    "Xception": "xception"
+    "densenet121": "densenet",
+    "densenet169": "densenet",
+    "densenet201": "densenet",
+    "efficientnetb0": "efficientnet",
+    "efficientnetb1": "efficientnet",
+    "efficientnetb2": "efficientnet",
+    "efficientnetb3": "efficientnet",
+    "efficientnetb4": "efficientnet",
+    "efficientnetb5": "efficientnet",
+    "efficientnetb6": "efficientnet",
+    "efficientnetb7": "efficientnet",
+    "inceptionresnetv2": "inception_resnet_v2",
+    "inceptionv3": "inception_v3",
+    "mobilenet": "mobilenet",
+    "mobilenetv2": "mobilenet_v2",
+    "mobilenetv3large": "mobilenet_v3",
+    "mobilenetv3small": "mobilenet_v3",
+    "nasnetlarge": "nasnet",
+    "nasnetmobile": "nasnet",
+    "resnet101": "resnet",
+    "resnet101v2": "resnet_v2",
+    "resnet152": "resnet",
+    "resnet152v2": "resnet_v2",
+    "resnet50": "resnet",
+    "resnet50v2": "resnet_v2",
+    "vgg16": "vgg16",
+    "vgg19": "vgg19",
+    "xception": "xception"
 }
+
+
+def find_architecture_name(keras_model: tf.keras.Model):
+    # for all our classification models built in our app,
+    # the architecture name can be found from the second layer
+    try:
+        model_name = keras_model.layers[1].name
+    except IndexError:
+        logger.error("Model has only one layer, which is not possible...?")
+        return
+    return model_name
 
 
 def get_classif_model_preprocess_func(arch_name: str) -> Callable:
@@ -724,26 +786,31 @@ def get_classif_model_preprocess_func(arch_name: str) -> Callable:
 
     e.g. Architecture name (or `attached_model_name`) = `arch_name` = `"ResNet50"`
     """
-    preprocess_module = ARCHITECTURE2MODULE_NAME.get(arch_name)
+    preprocess_module = ARCHITECTURE2MODULE_NAME.get(arch_name.lower())
     if not preprocess_module:
         logger.warning(f'Could not obtain preprocess_input function for "{arch_name}". '
-                       'Defaulting to preprocessing with "resnet" module')
-        preprocess_module = "resnet"
+                       'Skipping preprocessing function')
+        return lambda x: x
+
     preprocess_input = attrgetter(
         f'{preprocess_module}.preprocess_input')(tf.keras.applications)
     return preprocess_input
 
 
 def tf_classification_preprocess_input(imagePath: str, label: int,
-                                       image_size: int, preprocess_fn: Callable):
+                                       image_size: int, preprocess_fn: Callable = None):
     """Using the `preprocess_fn` function obtained from
     `get_classif_model_preprocess_func()`"""
     raw = tf.io.read_file(imagePath)
-    image = tf.io.decode_image(
-        raw, channels=3, expand_animations=False)
-    image = tf.image.resize(image, (image_size, image_size))
-    image = preprocess_fn(image)
-    # image = tf.cast(image / 255.0, tf.float32)
+    # decode using "INTEGER_ACCURATE" to achieve identical results with OpenCV
+    # https://towardsdatascience.com/image-read-and-resize-with-opencv-tensorflow-and-pil-3e0f29b992be
+    image = tf.image.decode_jpeg(
+        raw, channels=3, dct_method='INTEGER_ACCURATE')
+    image = tf.image.resize(image, (image_size, image_size), method='bilinear')
+    if preprocess_fn:
+        image = preprocess_fn(image)
+    # image = tf.cast(image, tf.float32) / 255.0
+
     label = tf.cast(label, dtype=tf.int32)
     return image, label
 
@@ -887,7 +954,9 @@ def hybrid_loss(y_true, y_pred):
 
 
 def preprocess_mask(mask: np.ndarray, image_size: int, num_classes: int) -> tf.Tensor:
-    mask = cv2.resize(mask, (image_size, image_size))
+    # using bilinear to follow tensorflow default
+    mask = cv2.resize(mask, (image_size, image_size),
+                      interpolation=cv2.INTER_LINEAR)
 
     # this is a very important step to one-hot encode the mask
     # based on the number of classes, and keep in mind that
@@ -919,8 +988,9 @@ def segmentation_predict(model: Any,
     pred_mask = pred_mask[0].astype(np.uint8)
     # resize it to original size after making prediction
     # take note of the order of width and height
+    # using bilinear to follow tensorflow default
     pred_mask = cv2.resize(pred_mask, (original_width, original_height),
-                           interpolation=cv2.INTER_NEAREST)
+                           interpolation=cv2.INTER_LINEAR)
     return pred_mask
 
 # ************************ Segmentation model funcs ************************

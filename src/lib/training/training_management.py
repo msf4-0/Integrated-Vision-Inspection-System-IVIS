@@ -60,6 +60,7 @@ from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
+from machine_learning.command_utils import rename_folder
 from project.project_management import Project
 from training.model_management import BaseModel, Model, ModelType, NewModel
 from training.utils import get_segmentation_model_func2params, get_segmentation_model_name2func
@@ -421,7 +422,7 @@ class BaseTraining:
 
                 logger.info("Renaming existing training path to new path: "
                             f"{current_training_path} -> {new_path}")
-                os.rename(current_training_path, new_path)
+                rename_folder(current_training_path, new_path)
             self.name = name
 
         if desc is not None:

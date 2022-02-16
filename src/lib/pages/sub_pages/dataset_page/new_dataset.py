@@ -691,10 +691,16 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
         if error_imgs:
             if len(error_imgs) == total_images:
-                st.error("""All annotations were not saved successfully. 
-                Please check again for any errors with the images""")
+                st.error("""All annotations were not saved successfully. Please check
+                again for any errors with the images. Then please go back to project
+                creation page and try again.""")
                 dataset.delete_dataset(dataset.id)
                 project.delete_project(project.id)
+                NewProject.reset_new_project_page()
+                NewDataset.reset_new_dataset_page()
+                # also could be coming from project dashboard
+                Project.reset_dashboard_page()
+                session_state.project_pagination = ProjectPagination.Dashboard
                 st.stop()
             txt = """NOTE: These images were not found/unreadable and
                 thus skipped, but others are stored successfully in the

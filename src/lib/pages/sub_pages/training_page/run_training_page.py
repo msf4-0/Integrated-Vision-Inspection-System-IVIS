@@ -51,7 +51,7 @@ import tensorflow as tf
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 from machine_learning.trainer import Trainer
-from machine_learning.command_utils import kill_process, run_tensorboard
+from machine_learning.command_utils import kill_process, kill_tensorboard, run_tensorboard
 from machine_learning.visuals import pretty_format_param
 from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training, TrainingPagination

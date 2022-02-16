@@ -644,9 +644,9 @@ class Project(BaseProject):
             return json_path, dataset_names
         return json_path
 
-    def get_existing_unique_labels(self,
-                                   return_counts: bool = False) -> Union[List[str],
-                                                                         Dict[str, int]]:
+    def get_existing_unique_labels(
+            self, return_counts: bool = False,
+            for_training_id: int = 0) -> Union[List[str], Dict[str, int]]:
         """Extracting the unique label names used in existing annotations.
         Note that segmentation task will add a 'background' class later when building
         mask images for training.
@@ -654,6 +654,8 @@ class Project(BaseProject):
         Args:
             return_counts (bool, optional): If True, returns Dict with counts as values. 
                 Defaults to False.
+            for_training_id (int, optional): If `for_training_id` is provided,
+                then only the annotations associated with the `training_id` is checked.
 
         Returns:
             Union[List[str], Dict[str, int]]: Returns List of unique label names, 
@@ -676,7 +678,8 @@ class Project(BaseProject):
         ```
         """
         # `all_annots` is a list of dictionaries for each annotation
-        all_annots, col_names = self.query_annotations(return_dict=True)
+        all_annots, col_names = self.query_annotations(
+            for_training_id=for_training_id, return_dict=True)
         if not all_annots:
             # there is no existing annotation
             logger.error(f"No existing annotations for Project {self.id}")

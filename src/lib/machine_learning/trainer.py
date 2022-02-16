@@ -33,7 +33,7 @@ import sys
 import shutil
 from pathlib import Path
 from time import perf_counter, sleep
-from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Tuple, TYPE_CHECKING
 import cv2
 import numpy as np
 import pickle
@@ -45,6 +45,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import wget
+from sklearn.utils import shuffle
 import streamlit as st
 from streamlit import session_state
 
@@ -76,7 +77,7 @@ from path_desc import DATASET_DIR, TFOD_DIR, PRE_TRAINED_MODEL_DIR, TFOD_MODELS_
 from .command_utils import (export_tfod_savedmodel, find_tfod_eval_metrics, run_command,
                             run_command_update_metrics, find_tfod_metric)
 from .utils import (NASNET_IMAGENET_INPUT_SHAPES, check_unique_label_counts, classification_predict, copy_images,
-                    custom_train_test_split, generate_tfod_xml_csv, get_bbox_label_info, get_ckpt_cnt,
+                    custom_train_test_split, find_architecture_name, generate_tfod_xml_csv, get_bbox_label_info, get_ckpt_cnt,
                     get_classif_model_preprocess_func, get_test_images_labels,
                     get_tfod_last_ckpt_path, get_tfod_test_set_data, get_transform,
                     load_image_into_numpy_array, load_keras_model, load_labelmap,
@@ -123,7 +124,8 @@ class Trainer:
         self.has_valid_set = True if self.partition_ratio['test'] > 0 else False
         self.dataset_export_path: Path = project.get_export_path()
         self.training_param: Dict[str, Any] = new_training.training_param_dict
-        self.class_names: List[str] = project.get_existing_unique_labels()
+        self.class_names: List[str] = project.get_existing_unique_labels(
+            for_training_id=self.training_id)
         if self.deployment_type == 'Semantic Segmentation with Polygons':
             # NOTE: must do it this way instead of using `get_coco_classes()` because
             #  the user might not use all classes when annotating (although rare case)
@@ -139,6 +141,13 @@ class Trainer:
         self.metrics, self.metric_names = new_training.get_training_metrics()
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.get_paths()
+
+    def __repr__(self):
+        return "<{klass} {attrs}>".format(
+            klass=self.__class__.__name__,
+            attrs=" ".join("{}={!r}".format(k, v)
+                           for k, v in self.__dict__.items() if v),
+        )
 
     def train(self, is_resume: bool = False, stdout_output: bool = False,
               train_one_batch: bool = False):
@@ -771,16 +780,29 @@ class Trainer:
 
     # ********************* METHODS FOR KERAS TRAINING *********************
 
+    def get_preprocess_fn(self, keras_model: tf.keras.Model = None) -> Callable:
+        # NOTE: this preprocess_input function makes a huge difference on
+        # the model performance
+        if self.is_not_pretrained:
+            assert keras_model is not None, (
+                "Need Keras model to find architecture name for non-pretrained model")
+            architecture_name = find_architecture_name(keras_model)
+        else:
+            architecture_name = self.attached_model_name
+        preprocess_fn = get_classif_model_preprocess_func(
+            architecture_name)
+        return preprocess_fn
+
     def create_tf_dataset(self, X_train: List[str], y_train: List[str],
                           X_test: List[str], y_test: List[str],
-                          X_val: List[str] = None, y_val: List[str] = None):
+                          X_val: List[str] = None, y_val: List[str] = None,
+                          keras_model: tf.keras.Model = None):
         """Create tf.data.Dataset for training set and testing set; also optionally
         create for validation set if passed in."""
         logger.debug(f"Creating TF dataset for {self.deployment_type}")
         image_size = self.training_param['image_size']
         if self.deployment_type == 'Image Classification':
-            preprocess_fn = get_classif_model_preprocess_func(
-                self.attached_model_name)
+            preprocess_fn = self.get_preprocess_fn(keras_model)
 
             def tf_preprocess_fn(image):
                 # wrap the function and use it as a TF operation
@@ -790,6 +812,7 @@ class Trainer:
                 return image
             tf_preprocess_data = partial(tf_classification_preprocess_input,
                                          image_size=image_size,
+                                         #  preprocess_fn=None)
                                          preprocess_fn=tf_preprocess_fn)
         else:
             num_classes = len(self.class_names)
@@ -809,38 +832,40 @@ class Trainer:
                 )
                 return image, mask
 
-        # get the Albumentations transform
-        transform = get_transform(self.augmentation_config,
-                                  self.deployment_type)
+        if self.augmentation_config.exists():
+            # get the Albumentations transform
+            transform = get_transform(self.augmentation_config,
+                                      self.deployment_type)
+
+            if self.deployment_type == 'Image Classification':
+                # https://albumentations.ai/docs/examples/tensorflow-example/
+                def aug_fn(image):
+                    aug_data = transform(image=image)
+                    aug_img = aug_data["image"]
+                    return aug_img
+
+                def augment(image, label):
+                    aug_img = tf.numpy_function(
+                        func=aug_fn, inp=[image], Tout=tf.float32)
+                    return aug_img, label
+            else:
+                def aug_fn(image, mask):
+                    aug_data = transform(image=image, mask=mask)
+                    aug_img = aug_data["image"]
+                    aug_mask = aug_data["mask"]
+                    return aug_img, aug_mask
+
+                def augment(image, mask):
+                    aug_img, aug_mask = tf.numpy_function(
+                        func=aug_fn, inp=[image, mask], Tout=[tf.float32, tf.int32])
+                    return aug_img, aug_mask
 
         if self.deployment_type == 'Image Classification':
-            # https://albumentations.ai/docs/examples/tensorflow-example/
-            def aug_fn(image):
-                aug_data = transform(image=image)
-                aug_img = aug_data["image"]
-                return aug_img
-
-            def augment(image, label):
-                aug_img = tf.numpy_function(
-                    func=aug_fn, inp=[image], Tout=tf.float32)
-                return aug_img, label
-
             def set_shapes(img, label, img_shape=(image_size, image_size, 3)):
                 img.set_shape(img_shape)
                 label.set_shape([])
                 return img, label
         else:
-            def aug_fn(image, mask):
-                aug_data = transform(image=image, mask=mask)
-                aug_img = aug_data["image"]
-                aug_mask = aug_data["mask"]
-                return aug_img, aug_mask
-
-            def augment(image, mask):
-                aug_img, aug_mask = tf.numpy_function(
-                    func=aug_fn, inp=[image, mask], Tout=[tf.float32, tf.int32])
-                return aug_img, aug_mask
-
             def set_shapes(img, mask):
                 # set the shape to let TensorFlow knows about the shape
                 # just like `assert` statements to ensure the shapes are correct
@@ -850,7 +875,8 @@ class Trainer:
                 return img, mask
 
         # randomly shuffle once here, then shuffle with smaller buffer size later
-        np.random.shuffle(X_train)
+        # NOTE: must shuffle both image_paths and labels together!!
+        X_train, y_train = shuffle(X_train, y_train)
 
         # only train set is augmented and shuffled
         AUTOTUNE = tf.data.AUTOTUNE
@@ -859,11 +885,12 @@ class Trainer:
         # NOTE: large shuffle takes up too much memory and could be very slow
         # cache() also takes up too much memory on large dataset
         shuffle_size = len(X_train) if len(X_train) < 1000 else 1000
+        train_ds = train_ds.map(
+            tf_preprocess_data, num_parallel_calls=AUTOTUNE)
+        if self.augmentation_config.exists():
+            train_ds = train_ds.map(augment, num_parallel_calls=AUTOTUNE)
         train_ds = (
-            train_ds.map(tf_preprocess_data,
-                         num_parallel_calls=AUTOTUNE)
-            .map(augment, num_parallel_calls=AUTOTUNE)
-            .map(set_shapes, num_parallel_calls=AUTOTUNE)
+            train_ds.map(set_shapes, num_parallel_calls=AUTOTUNE)
             .shuffle(shuffle_size)
             # .cache()
             .batch(batch_size)
@@ -950,7 +977,7 @@ class Trainer:
             else:
                 error = False
                 logger.info(
-                    f"[INFO] Using AveragePooling2D with pool_size = {pool_size}")
+                    f"Using AveragePooling2D with pool_size = {pool_size}")
                 headModel = pooled
 
                 headModel = Flatten(name="flatten")(headModel)
@@ -1112,6 +1139,7 @@ class Trainer:
             logger.debug(f"{encoded_label_dict = }")
             ok = check_unique_label_counts(labels, encoded_label_dict)
             stratify = True if ok else False
+            show_class_distribution = True
         elif segmentation:
             labelstudio_json = json.load(open(self.project_json_path))
             # using these paths instead to allow removing the 'images' folder later
@@ -1123,6 +1151,9 @@ class Trainer:
             mask_dir = self.dataset_export_path / 'masks'
             labels = sorted(list_images(mask_dir))
             stratify = False
+            # initialize this to pass to custom_train_test_split()
+            encoded_label_dict = None
+            show_class_distribution = False
             # coco_json_path = self.dataset_export_path / 'result.json'
             # json_file = json.load(open(coco_json_path))
 
@@ -1136,7 +1167,9 @@ class Trainer:
                     val_size=self.partition_ratio['eval'],
                     labels=labels,
                     no_validation=False,
-                    stratify=stratify
+                    stratify=stratify,
+                    encoded_label_dict=encoded_label_dict,
+                    show_class_distribution=show_class_distribution,
                 )
 
             col, _ = st.columns([1, 1])
@@ -1156,12 +1189,14 @@ class Trainer:
                     labels=labels,
                     no_validation=True,
                     stratify=stratify,
+                    encoded_label_dict=encoded_label_dict,
+                    show_class_distribution=show_class_distribution,
                 )
 
             col, _ = st.columns([1, 1])
             with col:
                 st.info("""No test size was selected in the training config page.
-                So there's no test set image.""")
+                So validation set is used as the test set instead.""")
                 st.code(f"Total training images = {len(X_train)}  \n"
                         f"Total validation images = {len(X_test)}")
 
@@ -1175,7 +1210,35 @@ class Trainer:
                              f"in {self.training_path['test_set_pkl_file']}")
                 pickle.dump(images_and_labels, f)
 
+        # *********************** Build model ***********************
+        if not is_resume:
+            model_name = self.attached_model_name
+            with st.spinner(f"Building the model based on '{model_name}' architecture ..."):
+                if self.is_not_pretrained:
+                    logger.info("Loading model from uploaded or project model from "
+                                "other projects")
+                    model = self.load_and_modify_trained_model()
+                else:
+                    logger.info(
+                        f"Building model based on '{model_name}' architecture")
+                    if classification:
+                        model = self.build_classification_model()
+                    else:
+                        model = self.build_segmentation_model()
+        else:
+            logger.info(f"Loading Model ID {self.training_model_id} "
+                        "to resume training ...")
+            with st.spinner("Loading trained model to resume training ..."):
+                # load the full Keras model instead of weights to easily resume training
+                logger.info(
+                    f"Loading trained Keras model for {self.deployment_type}")
+                model = load_keras_model(
+                    self.training_path['output_keras_model_file'],
+                    self.metrics, self.training_param)
+
         # ***************** Preparing tf.data.Dataset *****************
+        # this comes after building model to be able to pass the model
+        # into self.create_tf_dataset()
         with st.spinner("Creating TensorFlow dataset ..."):
             logger.info("Creating TensorFlow dataset")
             batch_size = self.training_param['batch_size']
@@ -1187,7 +1250,8 @@ class Trainer:
                         y_test[:batch_size], X_val[:batch_size], y_val[:batch_size]
                     )
                 train_ds, val_ds, test_ds = self.create_tf_dataset(
-                    X_train, y_train, X_test, y_test, X_val, y_val)
+                    X_train, y_train, X_test, y_test, X_val, y_val,
+                    keras_model=model)
             else:
                 if train_one_batch:
                     # take only one batch for test run
@@ -1196,37 +1260,9 @@ class Trainer:
                         X_test[:batch_size], y_test[:batch_size]
                     )
                 train_ds, test_ds = self.create_tf_dataset(
-                    X_train, y_train, X_test, y_test)
+                    X_train, y_train, X_test, y_test, keras_model=model)
 
-        # ***************** Build model and callbacks *****************
-        if not is_resume:
-            with st.spinner("Building the model ..."):
-                if self.is_not_pretrained:
-                    logger.info("Loading model from uploaded or project model from "
-                                "other projects")
-                    model = self.load_and_modify_trained_model()
-                else:
-                    logger.info("Building the model")
-                    if classification:
-                        model = self.build_classification_model()
-                    else:
-                        model = self.build_segmentation_model()
-            initial_epoch = 0
-            num_epochs = self.training_param['num_epochs']
-        else:
-            logger.info(f"Loading Model ID {self.training_model_id} "
-                        "to resume training ...")
-            with st.spinner("Loading trained model to resume training ..."):
-                # load the full Keras model instead of weights to easily resume training
-                logger.info(
-                    f"Loading trained Keras model for {self.deployment_type}")
-                model = load_keras_model(
-                    self.training_path['output_keras_model_file'],
-                    self.metrics, self.training_param)
-            initial_epoch = session_state.new_training.progress['Epoch']
-            logger.debug(f"{initial_epoch = }")
-            num_epochs = initial_epoch + self.training_param['num_epochs']
-
+        # ***************** Preparing callbacks *****************
         progress_placeholder = {}
         progress_placeholder['epoch'] = st.empty()
         progress_placeholder['batch'] = st.empty()
@@ -1237,6 +1273,13 @@ class Trainer:
             num_epochs=num_epochs, update_metrics=update_metrics)
 
         # ********************** Train the model **********************
+        if not is_resume:
+            initial_epoch = 0
+            num_epochs = self.training_param['num_epochs']
+        else:
+            initial_epoch = session_state.new_training.progress['Epoch']
+            logger.debug(f"{initial_epoch = }")
+            num_epochs = initial_epoch + self.training_param['num_epochs']
         if self.has_valid_set:
             validation_data = val_ds
         else:

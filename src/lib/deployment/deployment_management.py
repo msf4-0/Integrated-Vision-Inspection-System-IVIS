@@ -56,18 +56,20 @@ if str(LIB_PATH) not in sys.path:
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 from core.utils.helper import Timer, get_identifier_str_IntEnum, get_now_string
-from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
+from data_manager.database_manager import init_connection, db_fetchall
 from core.utils.form_manager import reset_page_attributes
-from machine_learning.utils import (classification_predict, get_label_dict_from_labelmap,
-                                    load_keras_model, load_labelmap, load_tfod_model, load_trained_keras_model,
-                                    preprocess_image, segmentation_predict, tfod_detect)
+from machine_learning.utils import (
+    classification_predict, find_architecture_name, get_classif_model_preprocess_func, get_label_dict_from_labelmap,
+    load_keras_model, load_labelmap, load_tfod_model, load_trained_keras_model,
+    preprocess_image, segmentation_predict, tfod_detect)
 if TYPE_CHECKING:
     from machine_learning.trainer import Trainer
     from training.model_management import Model
 from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
 from machine_learning.command_utils import export_tfod_savedmodel
-from deployment.utils import (reset_video_deployment, reset_client,
-                              reset_csv_file_and_writer, reset_record_and_vid_writer)
+from deployment.utils import (
+    reset_video_deployment, reset_client,
+    reset_csv_file_and_writer, reset_record_and_vid_writer)
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -177,7 +179,9 @@ class Deployment(BaseDeployment):
                  class_names: List[str] = None,
                  is_uploaded: bool = False,
                  category_index: Dict[int, Dict[str, Any]] = None,
-                 training_param: Dict[str, Any] = None) -> None:
+                 training_param: Dict[str, Any] = None,
+                 preprocess_fn: Callable = None,
+                 architecture_name: str = None) -> None:
         super().__init__()
         # project_path is currently only used to get the path to save CSV file
         # or captured frames
@@ -191,6 +195,13 @@ class Deployment(BaseDeployment):
         self.metrics = metrics
         self.metric_names = metric_names
         self.class_names = class_names
+
+        # preprocess_input function for classification, should be obtained
+        # from self.run_preparation_pipeline()
+        self.preprocess_fn = preprocess_fn
+        # need attached model name to get the preprocess function
+        # will skip preprocessing if not provided
+        self.architecture_name = architecture_name
 
         # for segmentation to get results faster
         self.class_names_arr: np.ndarray = np.array(class_names)
@@ -218,6 +229,8 @@ class Deployment(BaseDeployment):
         metric_names = trainer.metric_names
         # maybe class_names can get from labelmap directly for user-uploaded models??
         class_names = trainer.class_names
+        # need this name to get preprocess_input function for classification model
+        architecture_name = trainer.attached_model_name
         if deployment_type != 'Object Detection with Bounding Boxes':
             image_size = trainer.training_param['image_size']
         else:
@@ -228,6 +241,7 @@ class Deployment(BaseDeployment):
             training_param = None
         return cls(project_path, deployment_type, training_path, image_size,
                    metrics, metric_names, class_names,
+                   architecture_name=architecture_name,
                    training_param=training_param)
 
     @classmethod
@@ -311,6 +325,11 @@ class Deployment(BaseDeployment):
             if self.is_uploaded:
                 model_fpath = next(paths['uploaded_model_dir'].rglob('*.h5'))
                 self.model = load_trained_keras_model(model_fpath)
+                # attempt to find the uploaded model's architecture name
+                # to use for preprocess_input function
+                self.architecture_name = find_architecture_name(self.model)
+                self.preprocess_fn = get_classif_model_preprocess_func(
+                    self.architecture_name)
             else:
                 model_fpath = paths['output_keras_model_file']
                 self.model = load_keras_model(model_fpath, self.metrics,
@@ -337,7 +356,8 @@ class Deployment(BaseDeployment):
 
     def classification_inference_pipeline(
             self, img: np.ndarray, **kwargs) -> Tuple[str, float]:
-        preprocessed_img = preprocess_image(img, self.image_size)
+        preprocessed_img = preprocess_image(
+            img, self.image_size, self.preprocess_fn)
         y_pred, y_proba = classification_predict(
             preprocessed_img,
             self.model,

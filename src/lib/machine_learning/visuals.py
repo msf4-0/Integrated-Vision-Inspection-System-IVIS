@@ -34,7 +34,7 @@ def pretty_format_param(param_dict: Dict[str, Any], float_format: str = '.5g',
     Set them to False to display as one line, especially useful for table/dataframe.
     """
     config_info = []
-    for k, v in param_dict.items():
+    for k, v in sorted(param_dict.items()):
         if "_" in k:
             param_name = ' '.join(k.split('_')).capitalize()
         else:

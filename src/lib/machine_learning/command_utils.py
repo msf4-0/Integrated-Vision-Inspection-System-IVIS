@@ -23,16 +23,40 @@ from .visuals import pretty_st_metric, PrettyMetricPrinter
 from core.utils.log import logger
 
 
+def rename_folder(prev_path: Union[str, Path], new_path: Union[str, Path]):
+    # kill tensorboard to avoid ACCESS DENIED just in case of
+    # renaming any folders
+    kill_tensorboard()
+
+    try:
+        os.rename(prev_path, new_path)
+    except Exception as e:
+        logger.error(
+            f"Error renaming folder path, probably due to access error: {e}")
+        st.error(
+            f"""Error renaming folder path, probably due to access error. Please
+            make sure there is nothing accessing the previous folder path at:
+            {prev_path}, then press *'R'* to refresh current page.""")
+        st.stop()
+
+
+def kill_tensorboard():
+    logger.debug("Killing tensorboard process")
+    if os.name == 'nt':
+        run_command('taskkill /IM "tensorboard.exe" /F')
+    else:
+        run_command('killall -KILL "tensorboard"')
+    # wait for two seconds to allow the system to process
+    sleep(2)
+
+
 def run_tensorboard(logdir: Path, port: int = 6007, width: int = 1080):
     """Run and show TensorBoard interface as a Streamlit component"""
     # TODO: test whether this TensorBoard works after deployed the app
     # stop TensoBoard process and remove tensorboard-info folder to properly
     #  run tensorboard on different logdirs
     logger.info("Stopping any existing running TensorBoard")
-    if os.name == 'nt':
-        run_command('taskkill /IM "tensorboard.exe" /F')
-    else:
-        run_command('killall -KILL "tensorboard"')
+    kill_tensorboard()
 
     tb_info_dir = os.path.join(gettempdir(), '.tensorboard-info')
     if os.path.exists(tb_info_dir):

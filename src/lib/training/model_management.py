@@ -61,6 +61,7 @@ from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import (COMPUTER_VISION_LIST, Deployment,
                                               DeploymentType)
+from machine_learning.command_utils import rename_folder
 from machine_learning.utils import load_trained_keras_model, modify_trained_model_layers
 from machine_learning.visuals import prettify_db_metrics
 
@@ -1033,20 +1034,11 @@ class BaseModel:
             model_type=self.model_type,
             new_model_flag=True)
 
-        if prev_model_path.exists():
+        if prev_model_path.exists() and prev_model_path != model_path:
             # rename the existing directory to the new name
             logger.info("Renaming existing model path to new path:"
                         f"{prev_model_path} -> {model_path}")
-            try:
-                os.rename(prev_model_path, model_path)
-            except Exception as e:
-                logger.error(
-                    f"Error renaming model path, probably due to access error: {e}")
-                st.error(
-                    f"""Error renaming model path, probably due to access error. Please
-                    make sure there is nothing accessing the previous model path at:
-                    {prev_model_path}, then press *'R'* to refresh current page.""")
-                st.stop()
+            rename_folder(prev_model_path, model_path)
         logger.info(f"New Updated Model Path: {model_path}")
 
         # update new name if no error

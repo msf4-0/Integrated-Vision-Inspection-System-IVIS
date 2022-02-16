@@ -1173,15 +1173,19 @@ def save_single_image(img_path: str, dataset_path: Path,
     the image names exist within existing img_names or not to generate a new one
     if exists."""
     ori_img_name = os.path.basename(img_path)
-    new_img_name = f"{get_random_string(8)}_{ori_img_name}"
+    lowercase_ori_name = ori_img_name.lower()
+    # must compare with lowercase as filenames are usually case-insensitive in
+    # in most platforms, e.g. in Windows
+    allowed_chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
+    def get_code():
+        return get_random_string(length=8, allowed_chars=allowed_chars)
+    new_img_name = f"{get_code()}_{lowercase_ori_name}"
     if all_img_names:
-        # must compare with lowercase as filenames are usually case-insensitive in
-        # in most platforms, e.g. in Windows
-        lowercase_name = new_img_name.lower()
-        while lowercase_name in all_img_names:
+        while new_img_name in all_img_names:
             # to ensure unique names
-            new_img_name = f"{get_random_string(8)}_{ori_img_name}"
-        all_img_names.add(lowercase_name)
+            new_img_name = f"{get_code()}_{lowercase_ori_name}"
+        all_img_names.add(new_img_name)
 
     save_path = dataset_path / new_img_name
     success = True
