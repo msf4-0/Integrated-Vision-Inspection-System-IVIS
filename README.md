@@ -21,10 +21,12 @@
 
 The ***Integrated-Vision-Inspection-System (IVIS)*** is a computer vision app that allows users to train/customize/deploy their own model to fit various application.
 
+![image](https://user-images.githubusercontent.com/99409981/154192831-e42e7380-aa3f-4a63-9951-45c0b304947f.png)
+
 ## Installation :computer:
 1. This application is supported on both Windows and Linux OS. 
 2. This application supports both navtive and docker installation. 
-3. This application has version with GPU support and without GPU support.
+3. This application has version with GPU and without GPU support.
 4. Only installation on Ubuntu have been tested for Linux OS.
 5. For Windows OS, native installation is recommended while Linux OS, docker installation is recommended. 
 
@@ -33,7 +35,7 @@ The ***Integrated-Vision-Inspection-System (IVIS)*** is a computer vision app th
 - [Windows Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069494/Native.installation.on.windows.system.docx)
 - [Linux Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069286/IntegrateVisionSystemNativeInstall.Linux.docx)
 - [Windows Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069282/IntegrateVisionSystemDockerInstall.Windows.docx)
-- [Linux Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069255/IntegrateVisionSystemDockerInstall.Linux.docx)
+- [Linux Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8076594/IntegrateVisionSystemDockerInstall.Linux.docx)
 
 
 ## Basic User Guide :open_book:
@@ -62,11 +64,12 @@ The ***Integrated-Vision-Inspection-System (IVIS)*** is a computer vision app th
  3. When setting up the training parameters, beware of the PC resources and make sure it can handle.
  4. Start the training. Once the training is done, the model will be saved.
  5. Adjust the training parameters and continue the training if necessary.
- 6. If desired, uploading a user model is possible as well.
+ 6. If desired, uploading a user model is possible as well if the file format is compatible.
 
 ### Deployment 
  1. Once a training is done, proceed to deployment page and select the desired model.
  2. Deploy the model and select the media for deployment. (image upload/camera/mqtt) 
+ 3. If desired, deploying a user model is possible as well.
 
 ### Settings
  1. This section will allow for deletion of object.
