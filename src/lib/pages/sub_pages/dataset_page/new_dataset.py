@@ -505,26 +505,6 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         if not dataset.has_submitted:
             st.stop()
 
-        if is_existing_dataset:
-            logger.info(
-                "Checking for duplicated filenames with existing dataset")
-            with outercol2:
-                with st.spinner("Checking for duplicated filenames with existing dataset ..."):
-                    uploaded_files = [
-                        os.path.basename(f) for f in filepaths]
-                    existing_images = project.data_name_list[
-                        session_state.dataset_chosen]
-                    duplicates = set(uploaded_files).intersection(
-                        existing_images)
-                if duplicates:
-                    logger.error("Duplicated image filenames found")
-                    st.error("Found image filenames in the archive that are identical to "
-                             "the current project dataset. Please make sure to use "
-                             "different names to avoid overwriting existing images.")
-                    with st.expander("List of duplicates:"):
-                        st.markdown("  \n".join(duplicates))
-                    st.stop()
-
         with outercol2:
             if session_state.is_labeled:
                 with st.spinner("Checking uploaded dataset and annotations ..."):
@@ -557,18 +537,6 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             with st.spinner("Extracting uploaded archive contents ..."):
                 extract_archive(TEMP_DIR, file_object=uploaded_archive)
 
-        success_place.success(
-            f"Successfully created **{dataset.name}** dataset")
-
-        if is_existing_dataset:
-            if dataset.update_dataset_size():
-                success_place.success(
-                    f"Successfully updated **{dataset.name}** dataset size information")
-        else:
-            if dataset.insert_dataset():
-                success_place.success(
-                    f"Successfully stored **{dataset.name}** dataset information in database")
-
         # For labeled dataset, don't save the images to disk because it's
         # easier to store together with annotations later
         save_images_to_disk = False if session_state.is_labeled else True
@@ -581,14 +549,37 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             dataset.delete_dataset(dataset.id)
             st.stop()
 
+        txt = f"Successfully created and saved **{dataset.name}** dataset"
+        success_place.success(txt)
+        logger.info(txt)
+
+        txt = ""
+        if is_existing_dataset:
+            if dataset.update_dataset_size():
+                txt = f"Successfully updated **{dataset.name}** dataset size information"
+        else:
+            if dataset.insert_dataset():
+                txt = f"Successfully stored **{dataset.name}** dataset information in database"
+        if txt:
+            success_place.success(txt)
+            logger.info(txt)
+        else:
+            logger.error("Unable to update/insert dataset information")
+
+        if isinstance(session_state.get('project'), Project):
+            # must refresh project details to update dataset info
+            session_state.project.refresh_project_details()
+
         # NOTE: stop here if not uploading any labeled dataset
         if not session_state.is_labeled:
             txt = ("Successfully stored the new dataset in database "
                    "and local storage.")
             logger.info(txt)
-            st.success(txt)
+            success_place.success(txt)
             clean_archive_dir()
             st.stop()
+
+        # ******************** FOR LABELED DATASET **********************
 
         # We need to insert the project_dataset here after the dataset
         # has been stored
@@ -710,7 +701,7 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             with st.expander(txt):
                 st.warning("  \n".join(error_imgs))
         else:
-            st.success("""🎉 All images and annotations are successfully
+            success_place.success("""🎉 All images and annotations are successfully
             stored in database. You may now proceed to enter the current project.""")
 
         # clear out the "Submit" button to avoid further interactions

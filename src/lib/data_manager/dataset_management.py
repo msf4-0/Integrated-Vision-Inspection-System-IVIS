@@ -283,15 +283,27 @@ class BaseDataset:
         return exists_flag
 
     def dataset_PNG_encoding(
-            self, archive_dir: Path,
-            verbose: bool = False) -> Tuple[bool, List[str], Dict[str, int]]:
+            self, archive_dir: Path, verbose: bool = False,
+            all_img_names: Set[str] = None) -> List[str]:
+        """Save all the images found in the `archive_dir` into `self.dataset_path`.
+
+        `all_img_names` (Optional[Set[str]]): Provide this to check for existing image names
+        to avoid duplicate names. Even if not provided, will still generate random code to
+        prepend to the image names and compare with existing generated image names. 
+
+        Returns `error_img_paths` (List[str]) for any images that were not saved successfully.
+        """
         # archive_dir is the directory that contains the extracted tarfile contents
         # `os_sorted` is used to sort the files just like in file browser
         # to make the order of the files make more sense to the user
         # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
         image_paths = os_sorted(list_images(archive_dir))
-        # use Set for faster membership checking
-        all_img_names = set()
+        if not all_img_names:
+            # use Set for faster membership checking
+            all_img_names = set()
+        if not isinstance(all_img_names, set):
+            # just in case... to avoid errors
+            all_img_names = set(all_img_names)
         error_img_paths = []
 
         for img_path in stqdm(image_paths, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading images"):
@@ -323,15 +335,31 @@ class BaseDataset:
         # logger.debug(f"Dataset Path: {dataset_path}")
         return dataset_path
 
-    def save_dataset(self, archive_dir: Path, save_images_to_disk: bool = True):
-        """`archive_dir` is the directory that contains the extracted tarfile contents"""
+    @staticmethod
+    def get_image_paths(dataset_name: str) -> List[str]:
+        dataset_path = BaseDataset.get_dataset_path(dataset_name)
+        image_paths = list(list_images(dataset_path))
+        return image_paths
+
+    def save_dataset(
+            self, archive_dir: Path,
+            save_images_to_disk: bool = True) -> Union[None, List[str]]:
+        """`archive_dir` is the directory that contains the extracted tarfile contents
+
+        If `save_images_to_disk` is True, also returns `error_img_paths` (List[str]) 
+        for any images that were not saved successfully.
+        """
 
         # Get absolute dataset folder path
         self.dataset_path = self.get_dataset_path(self.name)
 
         create_folder_if_not_exist(self.dataset_path)
         if save_images_to_disk:
-            error_img_paths = self.dataset_PNG_encoding(archive_dir)
+            existing_image_paths = self.get_image_paths(self.name)
+            existing_image_names = set(
+                os.path.basename(p) for p in existing_image_paths)
+            error_img_paths = self.dataset_PNG_encoding(
+                archive_dir, all_img_names=existing_image_names)
             return error_img_paths
         # st.success(f"Successfully created **{self.name}** dataset")
 
@@ -387,9 +415,11 @@ class BaseDataset:
             if new_dataset_size_return
             else self.dataset_size)
         if new_dataset_size_return:
-            logger.info(f"Dataset size updated successfully for ID {self.id}")
+            logger.info(
+                f"Dataset size updated successfully for ID {self.id}. "
+                f"New size: {new_dataset_size}")
             return True
-        logger.error("Dataset size update failed for ID {self.id}")
+        logger.error(f"Dataset size update failed for ID {self.id}")
         return False
 
 
@@ -1167,11 +1197,17 @@ def get_dataset_name_list(dataset_list: List[NamedTuple]) -> Dict[str, NamedTupl
     return dataset_dict
 
 
-def save_single_image(img_path: str, dataset_path: Path,
-                      all_img_names: Set[str] = None, verbose: bool = False):
-    """Save a single image. Provide `all_img_names` to be able to check whether
-    the image names exist within existing img_names or not to generate a new one
-    if exists."""
+def save_single_image(
+        img_path: str, dataset_path: Path,
+        all_img_names: Set[str] = None, verbose: bool = False) -> Tuple[bool, str, str]:
+    """Save a single image from `img_path` to `dataset_path`. A random string
+    is always prepended to the image filename before saving to `dataset_path`. 
+
+    Provide `all_img_names` to be able to check whether the image names 
+    exist within the `all_img_names` or not to generate another new one if exists.
+
+    Returns Tuple[bool, str ,str] for `(success, original_image_name, new_image_name)`
+    """
     ori_img_name = os.path.basename(img_path)
     lowercase_ori_name = ori_img_name.lower()
     # must compare with lowercase as filenames are usually case-insensitive in
@@ -1188,22 +1224,20 @@ def save_single_image(img_path: str, dataset_path: Path,
         all_img_names.add(new_img_name)
 
     save_path = dataset_path / new_img_name
-    success = True
+    success = False
     try:
         cv2.imread(img_path)  # test reading image
         shutil.move(img_path, save_path)
     except ValueError as e:
         logger.error(
             f"{e}: Could not resolve output format for '{ori_img_name}'")
-        success = False
     except OSError as e:
         logger.error(
             f"{e}: Failed to create file '{new_img_name}'. File may exist or contain partial data")
-        success = False
     except Exception as e:
         logger.error(f"Unknown error occurred with '{img_path}': {e}")
-        success = False
     else:
+        success = True
         if verbose:
             relative_dataset_path = Path(
                 dataset_path).relative_to(BASE_DATA_DIR)
