@@ -31,7 +31,11 @@ class WebcamVideoStream:
         """
         self.name = name
         self.is_usb_camera = is_usb_camera
+        # Only works on Windows, faster loading speed but lower fps
+        #self.stream = cv2.VideoCapture(src + cv2.CAP_DSHOW)
+
         self.stream = cv2.VideoCapture(src)
+
         if not self.stream.isOpened():
             raise CameraFailError(f"Error opening camera from source: {src}")
         else:

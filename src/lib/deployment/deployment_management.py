@@ -451,6 +451,8 @@ class Deployment(BaseDeployment):
             dirname = 'video-recordings'
         elif save_type == 'NG':
             dirname = 'NG-images'
+        elif save_type == 'csv-labels':
+            dirname = 'labels_to_check'
         else:
             dirname = 'saved-frames'
         record_dir = self.project_path / dirname

@@ -73,9 +73,11 @@ from deployment.utils import (ORI_PUBLISH_FRAME_TOPIC, MQTTConfig, MQTTTopics,
                               create_csv_file_and_writer, image_from_buffer, image_to_bytes,
                               get_mqtt_client, read_images_from_uploaded, reset_camera, reset_video_deployment)
 from dobot_arm_demo import main as dobot_demo
+from csv_label_inspection import csv_label_check as csv_labels
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
+
 conn = init_connection(**st.secrets["postgres"])
 
 
@@ -1260,10 +1262,10 @@ def index(RELEASE=True):
             st.stop()
 
         # *********************** DOBOT arm demo ***********************
-        # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
+        DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
         # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part P2/143
         # DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
-        DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
+        # DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
 
         # if DOBOT_TASK == dobot_demo.DobotTask.Box:
         #     VIEW_LABELS = dobot_demo.BOX_VIEW_LABELS
@@ -1289,6 +1291,21 @@ def index(RELEASE=True):
                     error_msg_place.error(
                         "Failed to connect to DOBOT for demo")
                     logger.error("Failed to connect to DOBOT for demo")
+                    st.stop()
+
+        # *********************** Inspection using labels from CSV file ***********************
+        csv_process = None
+        if st.button(
+                "Start Inspection", key='start_inspection', help='This takes awhile to start up, please be patient'):
+            with st.spinner("Starting Inspection"):
+                logger.info("Starting Inspection")
+                csv_process_connnect_success, csv_process = csv_labels.run((
+                    deployment.get_frame_save_dir('csv-labels'),))
+
+                if not csv_process_connnect_success:
+                    error_msg_place.error(
+                        "Failed to read from csv file")
+                    logger.error("Failed to read from csv file")
                     st.stop()
 
         # *********************** Deployment video loop ***********************
@@ -1644,9 +1661,9 @@ def index(RELEASE=True):
                     # and reset back to None
                     session_state.check_labels = None
                     logger.info("Label checking process has finished")
-                    if dobot_process is not None:
+                    if csv_process is not None:
                         # gracefully kill the dobot_demo's Process
-                        dobot_process.kill()
+                        csv_process.kill()
 
                     # NOTE: infinite loop for debugging purposes
                     # dobot_connnect_success, dobot_process = dobot_demo.run(

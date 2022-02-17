@@ -1198,6 +1198,17 @@ def get_single_data_name_list(dataset_name: str) -> List:
     return data_name_list
 
 
+def create_csv_folder(title):
+    # Creates CSV file for the project
+    PROJECT_DATA_DIR = Project.get_project_path(title) / 'labels_to_check'
+
+    if not PROJECT_DATA_DIR.exists():
+        os.makedirs(PROJECT_DATA_DIR)
+
+    df = pd.DataFrame(['{"labels":["circle","circle"],"view":"right"}']).T
+    df.to_csv(PROJECT_DATA_DIR / 'views_labels.csv', index=False)
+
+
 def main():
     print("Hi")
 

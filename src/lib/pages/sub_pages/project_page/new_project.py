@@ -51,7 +51,7 @@ from core.utils.form_manager import remove_newline_trailing_whitespace
 from data_manager.database_manager import init_connection
 from data_manager.annotation_type_select import annotation_sel
 from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
-from project.project_management import NewProject, ProjectPagination, NewProjectPagination, new_project_nav
+from project.project_management import NewProject, ProjectPagination, NewProjectPagination, new_project_nav, create_csv_folder
 from data_editor.editor_management import Editor, NewEditor
 from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
@@ -157,7 +157,7 @@ def new_project_entry_page(conn=None):
     with infocol2:
 
         # **** PROJECT TITLE****
-        st.text_input(
+        title = st.text_input(
             "Project Title", key="new_project_name",
             help="Enter the name of the project. Name should be less than 30 characters long",
             on_change=check_if_name_exist, args=(place, conn,))
@@ -332,6 +332,10 @@ def new_project_entry_page(conn=None):
                         f"Successfully stored **{session_state.new_project.name}** project information in database")
                     sleep(1)
                     success_place.empty()
+
+                    # Creates CSV file for the project
+                    create_csv_folder(title)
+
                     if labeled:
                         # send to the NewDataset page to upload labeled dataset
                         session_state.new_project_pagination = NewProjectPagination.NewDataset
