@@ -613,7 +613,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             classif_annot_type=classif_annot_type
         )
         # use this to keep track of existing task names (i.e. image names)
-        all_img_names = set()
+        all_img_names = set(dataset.get_image_paths(
+            dataset.name, return_names=True))
         message = "Inserting uploaded annotations into database"
         for relative_img_path, result in stqdm(result_generator, total=total_images,
                                                st_container=st.sidebar,

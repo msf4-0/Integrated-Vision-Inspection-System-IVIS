@@ -336,9 +336,16 @@ class BaseDataset:
         return dataset_path
 
     @staticmethod
-    def get_image_paths(dataset_name: str) -> List[str]:
+    def get_image_paths(
+            dataset_name: str, return_names: bool = False) -> List[str]:
+        """Get all the image paths from the dataset path. 
+
+        If `return_names` is True, return only the image filenames.
+        """
         dataset_path = BaseDataset.get_dataset_path(dataset_name)
         image_paths = list(list_images(dataset_path))
+        if return_names:
+            return [os.path.basename(p) for p in image_paths]
         return image_paths
 
     def save_dataset(
@@ -355,9 +362,8 @@ class BaseDataset:
 
         create_folder_if_not_exist(self.dataset_path)
         if save_images_to_disk:
-            existing_image_paths = self.get_image_paths(self.name)
             existing_image_names = set(
-                os.path.basename(p) for p in existing_image_paths)
+                self.get_image_paths(self.name, return_names=True))
             error_img_paths = self.dataset_PNG_encoding(
                 archive_dir, all_img_names=existing_image_names)
             return error_img_paths

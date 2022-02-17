@@ -1368,7 +1368,7 @@ class Model(BaseModel):
             return False
 
     @staticmethod
-    def delete_model(model_id: int = None):
+    def delete_model(model_id: int):
         """Delete model directories, delete model row from 'models' table, and
         reset the training_model's info at 'training' table"""
         # need model_id to get the project_model path from DB to delete the directories
@@ -1593,7 +1593,8 @@ def query_current_project_models(
     `prettify_metrics` is to prettify the Metrics into one line especially for displaying
     with a table.
 
-    `trained` = True means `is_started` = True in the 'training' table.
+    `trained` = True means `is_started` = True in the 'training' table. Note that if
+    `trained` = False, both `is_started` (True or False) will also be queried.
     """
     ID_string = "id" if for_data_table else "ID"
 

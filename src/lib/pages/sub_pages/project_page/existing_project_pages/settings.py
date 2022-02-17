@@ -81,6 +81,13 @@ def project():
         if st.button("Confirm deletion?", key='btn_confirm_delete_project'):
             logger.info("Deleting project")
             project_id = session_state.project.id
+            # need to delete project models too
+            project_model_records, _ = query_current_project_models(
+                project_id, return_dict=True)
+            for r in project_model_records:
+                model_id = r['Model ID']
+                Model.delete_model(model_id)
+
             Project.delete_project(project_id)
 
             # reset all session_states except for user and pagination
