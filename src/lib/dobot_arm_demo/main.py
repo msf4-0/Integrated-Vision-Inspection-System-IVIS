@@ -52,11 +52,11 @@ P2_143_VIEW_LABELS: Dict[str, List[Tuple[str, int]]] = {
 }
 
 DEBUG_VIEW_LABELS: Dict[str, List[Tuple[str, int]]] = {
-    'top': [('raccoon', 1)],
+    'top': [('No_Obj', 1)],
     'top left': [('raccoon', 1)],
     'top right': [('raccoon', 1)],
     'left': [('raccoon', 1)],
-    'right': [('raccoon', 1)],
+    'right': [('No_Obj', 1)],
     'back': [('raccoon', 1)],
     'front': [('raccoon', 1)]
 }
@@ -139,18 +139,19 @@ def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str
     sleep(1)
 
     # move to back side
-    client_feedback.JointMovJ(
-        (0.54), (-50.16), (-153.78), (114.97), (89.54), (-178))
-    # allow time for the dobot arm to move to the position
-    sleep(3.5)
+    # client_feedback.JointMovJ(
+    #     (0.54), (-50.16), (-153.78), (114.97), (89.54), (-178))
+    # # allow time for the dobot arm to move to the position
+    # sleep(4)
+
     client.publish(
         topic, get_labels_message(cnt_dict, "back"), qos)
     sleep(1)
 
     # move to right side
-    client_feedback.JointMovJ(
-        (27.478), (-47.836), (-111.595), (70.479), (89.5876), (-63.62))
-    sleep(2.5)
+    # client_feedback.JointMovJ(
+    #     (27.478), (-47.836), (-111.595), (70.479), (89.5876), (-63.62))
+    # sleep(2.5)
     client.publish(
         topic, get_labels_message(cnt_dict, "right"), qos)
     sleep(1)
@@ -158,7 +159,7 @@ def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str
     # move to front side
     client_feedback.JointMovJ(
         (0.56), (-76.07), (-37.9), (25.09), (90.11), (-2.21))
-    sleep(2.5)
+    sleep(3)
     client.publish(
         topic, get_labels_message(cnt_dict, "front"), qos)
     sleep(1)
@@ -174,7 +175,7 @@ def move_for_box(client_feedback: dobot_api_feedback, client: Client, topic: str
     # move back to origin (top view)
     client_feedback.JointMovJ(
         (0.05), (-38.74), (-118.19), (157.46), (87.44), (0))
-    sleep(3)
+    sleep(2)
     client.publish(topic, get_labels_message(cnt_dict, "end"), qos)
 
     sleep(1)
@@ -358,7 +359,7 @@ def debug_publish(conf: MQTTConfig):
     A debugging function to test publishing to the topic subscribed by our client
     in the deployment_page.
     """
-    cnt_dict = BOX_VIEW_LABELS
+    cnt_dict = DEBUG_VIEW_LABELS
     topic = conf.topics.dobot_view
     qos = conf.qos
 
@@ -370,6 +371,14 @@ def debug_publish(conf: MQTTConfig):
     # send the current view as the payload to our vision inspection app
     client.publish(
         topic, get_labels_message(cnt_dict, 'top'), qos)
+    sleep(2)
+
+    client.publish(
+        topic, get_labels_message(cnt_dict, 'back'), qos)
+    sleep(2)
+
+    client.publish(
+        topic, get_labels_message(cnt_dict, 'front'), qos)
     sleep(2)
 
     client.publish(

@@ -34,7 +34,7 @@ RUN mkdir /home/TFOD && git clone https://github.com/tensorflow/models /home/TFO
     git clone https://github.com/cocodataset/cocoapi.git && \
     cd cocoapi/PythonAPI && make && cp -r pycocotools /home/TFOD/models/research && \
     # need to upgrade pip to be able to use the '--use-feature' option later to install TFOD
-    pip install pycocotools==2.0.2 && \
+    pip install pycocotools==2.0.3 && \
     pip install --upgrade pip
 
 # TFOD installation

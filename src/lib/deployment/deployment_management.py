@@ -135,7 +135,7 @@ class DeploymentConfig:
 
     # ip_cam_addresses: List[str] = field(default_factory=list)
     # for TFOD
-    confidence_threshold: float = 0.4
+    confidence_threshold: float = 0.7
     # for segmentation
     ignore_background: bool = False
 
@@ -451,6 +451,8 @@ class Deployment(BaseDeployment):
             dirname = 'video-recordings'
         elif save_type == 'NG':
             dirname = 'NG-images'
+        elif save_type == 'csv-labels':
+            dirname = 'labels_to_check'
         else:
             dirname = 'saved-frames'
         record_dir = self.project_path / dirname

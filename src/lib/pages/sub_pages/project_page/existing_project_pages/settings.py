@@ -47,6 +47,7 @@ from core.utils.log import logger  # logger
 from core.utils.helper import create_dataframe
 from data_manager.data_table_component.data_table import data_table
 from data_manager.dataset_management import Dataset
+from main_page_management import MainPagination
 from training.model_management import Model, query_current_project_models, query_uploaded_models
 from user.user_management import UserRole
 from project.project_management import (ExistingProjectPagination, SettingsPagination,
@@ -82,10 +83,12 @@ def project():
             project_id = session_state.project.id
             Project.delete_project(project_id)
 
-            # reset all session_states
+            # reset all session_states except for user and pagination
+            current_user = session_state.user
             session_state.clear()
+            session_state.user = current_user
 
-            session_state.existing_project_pagination = ExistingProjectPagination.Dashboard
+            session_state.main_pagination = MainPagination.Projects
             st.experimental_rerun()
 
 

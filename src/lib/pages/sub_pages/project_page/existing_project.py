@@ -105,6 +105,8 @@ def index():
 
     session_state.append_project_flag = ProjectPermission.ViewOnly
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # note that this must follow the exact order of ExistingProjectPagination,
+    # check the callback function to understand why
     existing_project_page_options = (
         "Overview", "Labelling", "Training", "Deployment", "Settings")
 
@@ -156,11 +158,22 @@ def index():
             Training.reset_training_page()
             Deployment.reset_deployment_page()
 
-    if session_state.project.datasets:
-        # only show this if project has already selected a dataset
-        with st.sidebar.expander("Project Navigation", expanded=True):
-            st.radio("Sections", options=existing_project_page_options,
-                     index=session_state.existing_project_pagination, on_change=existing_project_page_navigator, key="existing_project_page_navigator_radio")
+    if not session_state.project.datasets:
+        # only show overview and settings navigation (to allow project deletion)
+        available_options = ("Overview", "Settings")
+        if session_state.existing_project_pagination == ExistingProjectPagination.Dashboard:
+            idx = 0
+        else:
+            idx = 1
+    else:
+        available_options = existing_project_page_options
+        idx = session_state.existing_project_pagination
+    with st.sidebar.expander("Project Navigation", expanded=True):
+        st.radio(
+            "Sections", options=available_options,
+            index=idx,
+            on_change=existing_project_page_navigator,
+            key="existing_project_page_navigator_radio")
     st.sidebar.markdown("___")
     # >>>> Pagination RADIO >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 

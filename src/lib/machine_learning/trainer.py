@@ -1527,7 +1527,6 @@ class Trainer:
                 for i, (img_path, mask_path) in enumerate(zip(current_image_paths, current_labels)):
                     logger.debug(f"Image path: {img_path}")
                     filename = os.path.basename(img_path)
-                    logger.info(f)
 
                     image = cv2.imread(img_path)
                     orig_H, orig_W = image.shape[:2]

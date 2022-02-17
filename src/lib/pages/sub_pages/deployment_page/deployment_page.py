@@ -32,9 +32,11 @@ import shutil
 import sys
 from time import perf_counter, sleep
 from itertools import cycle
+import gc
 
 import cv2
-from imutils.video.webcamvideostream import WebcamVideoStream
+# from imutils.video.webcamvideostream import WebcamVideoStream
+from core.webcam.webcamvideostream import CameraFailError, WebcamVideoStream
 from matplotlib import pyplot as plt
 import numpy as np
 from paho.mqtt.client import Client
@@ -58,7 +60,9 @@ import tensorflow as tf
 
 from path_desc import TEMP_DIR, chdir_root
 from core.utils.log import logger
-from core.utils.helper import Timer, get_all_timezones, get_now_string, list_available_cameras, save_image
+from core.utils.helper import (Timer, get_all_timezones, get_now_string,
+                               list_available_cameras, save_image, get_ram_usage,
+                               get_cpu_usage)
 from user.user_management import User, UserRole
 from data_manager.database_manager import init_connection
 from project.project_management import Project
@@ -69,9 +73,11 @@ from deployment.utils import (ORI_PUBLISH_FRAME_TOPIC, MQTTConfig, MQTTTopics,
                               create_csv_file_and_writer, image_from_buffer, image_to_bytes,
                               get_mqtt_client, read_images_from_uploaded, reset_camera, reset_video_deployment)
 from dobot_arm_demo import main as dobot_demo
+from csv_label_inspection import csv_label_check as csv_labels
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
+
 conn = init_connection(**st.secrets["postgres"])
 
 
@@ -212,7 +218,7 @@ def index(RELEASE=True):
         logger.info(f"Updated deployment config: {conf_attr} = {val}")
         setattr(conf, conf_attr, val)
 
-    def load_multi_webcams():
+    def load_multi_webcams(stop_on_error: bool = True):
         conf.camera_keys = []
         for i, src in enumerate(conf.camera_sources):
             with st.spinner(f"Loading up camera {i} ..."):
@@ -220,20 +226,22 @@ def index(RELEASE=True):
                 # reset them in reset_camera()
                 cam_type = conf.camera_types[i]
                 if cam_type == 'USB Camera':
-                    cam_key = f'camera_{i}'
+                    is_usb_camera = True
                 else:
-                    # using a different key for IP camera to avoid release it
-                    # during reset_camera()
-                    cam_key = f'camera_ip_{i}'
+                    # set this for IP camera to avoid release it
+                    # during reset_camera() to avoid error
+                    is_usb_camera = False
+
+                cam_key = f'camera_{i}'
                 conf.camera_keys.append(cam_key)
 
                 try:
                     session_state[cam_key] = WebcamVideoStream(
-                        src=src).start()
+                        src=src, is_usb_camera=is_usb_camera, name=cam_key).start()
                     if session_state[cam_key].read() is None:
-                        raise Exception(
+                        raise CameraFailError(
                             "Video source is not valid")
-                except Exception as e:
+                except CameraFailError as e:
                     if src == '':
                         error_msg_place.error(
                             f"Unable to read from empty IP camera address {i}.")
@@ -243,7 +251,10 @@ def index(RELEASE=True):
                     logger.error(
                         f"Unable to read from {cam_type} {i} from source {src}: {e}")
                     reset_camera()
-                    st.stop()
+                    if stop_on_error:
+                        st.stop()
+                    else:
+                        raise e
 
         session_state.deployed = True
         sleep(2)  # give the cameras some time to sink in
@@ -505,12 +516,9 @@ def index(RELEASE=True):
             imgs_info = ((img, filename),)
 
         if DEPLOYMENT_TYPE != 'Semantic Segmentation with Polygons':
-            ori_image_width = img.shape[1]
             display_width = st.sidebar.slider(
                 "Select width of image to resize for display",
                 35, 1000, 500, 5, key='display_width')
-            # help=f'Original image width is **{ori_image_width}**.')
-            st.sidebar.markdown(f"Original image width: **{ori_image_width}**")
 
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
@@ -526,6 +534,11 @@ def index(RELEASE=True):
                     If there is anything wrong, please do not proceed to video deployment.""")
 
         for img, filename in imgs_info:
+            st.subheader(filename)
+            ori_image_height, ori_image_width = img.shape[:2]
+            st.markdown(
+                f"Original image resolution: **{ori_image_width} x {ori_image_height}**")
+
             with st.spinner("Running inference ..."):
                 try:
                     with Timer("Inference on image"):
@@ -550,7 +563,6 @@ def index(RELEASE=True):
                 # convert to RGB for visualizing with Matplotlib
                 rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-                st.subheader(filename)
                 fig = plt.figure()
                 plt.subplot(121)
                 plt.title("Original Image")
@@ -564,11 +576,11 @@ def index(RELEASE=True):
 
                 plt.tight_layout()
                 st.pyplot(fig)
-                st.markdown("___")
             else:
                 img_with_detections, detections = inference_output
                 st.image(img_with_detections, width=display_width,
                          caption=f'Detection result for: {filename}')
+            st.markdown("___")
 
         if image_type == "From MQTT":
             st.button("Refresh page")
@@ -645,7 +657,7 @@ def index(RELEASE=True):
                                             else conf.num_cameras)
                         with st.form("form_num_cameras", clear_on_submit=True):
                             st.number_input(
-                                "Number of cameras", 2, 5, conf.num_cameras, 1,
+                                "Number of cameras", 2, 10, conf.num_cameras, 1,
                                 key='num_cameras')
                             st.form_submit_button(
                                 "Update number of cameras",
@@ -1151,6 +1163,8 @@ def index(RELEASE=True):
                     # to ensure the app only reads the new uploaded file
                     reset_video_deployment()
                     if TEMP_DIR.exists():
+                        logger.info("Removing and recreating temporary directory "
+                                    "for uploaded video")
                         shutil.rmtree(TEMP_DIR)
                     os.makedirs(TEMP_DIR)
                     st.stop()
@@ -1161,7 +1175,8 @@ def index(RELEASE=True):
                 if not os.path.exists(video_path):
                     # only creates it if not exists, to speed up the process when
                     # there is any widget changes besides the st.file_uploader
-                    logger.debug(f"{video_path = }")
+                    logger.info("Creating temporary video file for uploaded video at "
+                                f"{video_path = }")
                     with st.spinner("Copying video to a temporary directory ..."):
                         with open(video_path, 'wb') as f:
                             f.write(video_file.getvalue())
@@ -1247,10 +1262,10 @@ def index(RELEASE=True):
             st.stop()
 
         # *********************** DOBOT arm demo ***********************
-        # DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
+        DOBOT_TASK = dobot_demo.DobotTask.Box  # for box shapes
         # DOBOT_TASK = dobot_demo.DobotTask.P2_143  # for machine part P2/143
         # DOBOT_TASK = dobot_demo.DobotTask.P2_140  # for machine part P2/140
-        DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
+        # DOBOT_TASK = dobot_demo.DobotTask.DEBUG  # for debugging publishing MQTT
 
         # if DOBOT_TASK == dobot_demo.DobotTask.Box:
         #     VIEW_LABELS = dobot_demo.BOX_VIEW_LABELS
@@ -1276,6 +1291,24 @@ def index(RELEASE=True):
                     error_msg_place.error(
                         "Failed to connect to DOBOT for demo")
                     logger.error("Failed to connect to DOBOT for demo")
+                    st.stop()
+
+        # *********************** Inspection using labels from CSV file ***********************
+        csv_process = None
+        if st.button(
+                "Start Inspection", key='start_inspection', help='This takes awhile to start up, please be patient'):
+            with st.spinner("Starting Inspection"):
+                logger.info("Starting Inspection")
+
+                # runs the function to get the labels from the csv file and use them for inspection
+                csv_process_connnect_success, csv_process = csv_labels.run((
+                    deployment.get_frame_save_dir('csv-labels'),))
+
+                # Checks if the function has run
+                if not csv_process_connnect_success:
+                    error_msg_place.error(
+                        "Failed to read from csv file")
+                    logger.error("Failed to read from csv file")
                     st.stop()
 
         # *********************** Deployment video loop ***********************
@@ -1469,6 +1502,11 @@ def index(RELEASE=True):
                         topics.publish_frame[i], qos=mqtt_conf.qos))
 
         starting_time = datetime.now()
+        logger.info(f"Starting RAM usage: {get_ram_usage()} %")
+        # use this to check when to clear memory
+        memory_clear_start = perf_counter()
+        # clear memory every 15 minutes (900 seconds)
+        MEMORY_CLEAR_INTERVAL = 900
         csv_path = deployment.get_csv_path(starting_time)
         csv_dir = csv_path.parent
         if not csv_dir.exists():
@@ -1498,6 +1536,18 @@ def index(RELEASE=True):
         for i in cycle(range(conf.num_cameras)):
             start_time = perf_counter()
 
+            # clear memory at an interval
+            if (start_time - memory_clear_start) > MEMORY_CLEAR_INTERVAL:
+                # restart clear interval
+                memory_clear_start = perf_counter()
+                logger.info(
+                    f"Clearing unused memory [Current RAM usage: {get_ram_usage()}%]")
+                with msg_place['top'].container():
+                    with st.spinner("Clearing memory ..."):
+                        gc.collect()
+                # seems like must rerun only can clear properly
+                st.experimental_rerun()
+
             if session_state.refresh:
                 # refresh page once to refresh the widgets
                 logger.debug("REFRESHING PAGEE")
@@ -1519,10 +1569,24 @@ def index(RELEASE=True):
             if frame is None:
                 msg_place[i].error("""Unable to read camera frame from camera,
                     restarting the cameras ...""")
-                logger.error(f"Error reading frame from Camera {i}")
+                logger.error(f"Error reading frame from Camera {i}, "
+                             "trying to restart the cameras now ...")
                 reset_camera()
                 with msg_place['top'].container():
-                    load_multi_webcams()
+                    while True:
+                        try:
+                            load_multi_webcams(stop_on_error=False)
+                        except CameraFailError as e:
+                            msg_place[i].error(
+                                f"Reopen failed for camera {i}. Retrying in 3 seconds ...")
+                            logger.error(
+                                f"Reopen failed: {e}. Retrying in 3 seconds ...")
+
+                            reset_camera()
+                            sleep(3)
+                            continue
+                        else:
+                            break
                 st.experimental_rerun()
 
             if use_multi_cam:
@@ -1602,9 +1666,17 @@ def index(RELEASE=True):
                     # and reset back to None
                     session_state.check_labels = None
                     logger.info("Label checking process has finished")
-                    # if dobot_process is not None:
-                    #     # gracefully kill the dobot_demo's Process
-                    #     dobot_process.kill()
+                    if csv_process is not None:
+                        # gracefully kill the dobot_demo's Process
+                        csv_process.kill()
+
+                    # NOTE: infinite loop for debugging purposes
+                    # dobot_connnect_success, dobot_process = dobot_demo.run(
+                    #     mqtt_conf, DOBOT_TASK)
+                    # if not dobot_connnect_success:
+                    #     error_msg_place.error(
+                    #         "Failed to connect to DOBOT for demo")
+                    #     logger.error("Failed to connect to DOBOT for demo")
                     continue
 
                 if use_multi_cam:
