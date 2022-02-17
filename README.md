@@ -1,6 +1,6 @@
 # Integrated-Vision-Inspection-System :camera:
 
-![GitHub Contributors Image](https://contrib.rocks/image?repo=msf4-0/Integrated-Vision-Inspection-System-IVIS)
+![GitHub Contributors Image](https://contrib.rocks/image?repo=msf4-0/Integrated-Vision-Inspection-System)
 
 <a href="https://github.com/msf4-0/Integrated-Vision-Inspection-System/blob/master/LICENSE">
     <img alt="GitHub" src="https://img.shields.io/github/license/msf4-0/Integrated-Vision-Inspection-System.svg?color=blue">

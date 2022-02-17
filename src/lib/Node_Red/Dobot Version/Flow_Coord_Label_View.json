@@ -1,0 +1,2012 @@
+[
+    {
+        "id": "5d09d44b507d75ac",
+        "type": "tab",
+        "label": "Inputs",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "dd5cc6248fef90b9",
+        "type": "ui_form",
+        "z": "5d09d44b507d75ac",
+        "name": "Coordinates _Labels",
+        "label": "Coordinates & Labels",
+        "group": "b8b12c9e48ea9286",
+        "order": 2,
+        "width": 15,
+        "height": 1,
+        "options": [
+            {
+                "label": "J1",
+                "value": "J1",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J2",
+                "value": "J2",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J3",
+                "value": "J3",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J4",
+                "value": "J4",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J5",
+                "value": "J5",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J6",
+                "value": "J6",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "View",
+                "value": "view",
+                "type": "text",
+                "required": false,
+                "rows": null
+            },
+            {
+                "label": "Required Labels",
+                "value": "labels",
+                "type": "text",
+                "required": false,
+                "rows": null
+            }
+        ],
+        "formValue": {
+            "J1": "",
+            "J2": "",
+            "J3": "",
+            "J4": "",
+            "J5": "",
+            "J6": "",
+            "view": "",
+            "labels": ""
+        },
+        "payload": "",
+        "submit": "submit",
+        "cancel": "cancel",
+        "topic": "inputs",
+        "topicType": "str",
+        "splitLayout": true,
+        "className": "",
+        "x": 220,
+        "y": 820,
+        "wires": [
+            [
+                "c621732df556409b",
+                "d5015811986a5016"
+            ]
+        ]
+    },
+    {
+        "id": "c621732df556409b",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "form output",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 430,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "5255e4a806e4a491",
+        "type": "ui_form",
+        "z": "5d09d44b507d75ac",
+        "name": "Export Filename",
+        "label": "Filename:",
+        "group": "ae21a53b603f6ad3",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "options": [
+            {
+                "label": "Filename",
+                "value": "filename",
+                "type": "text",
+                "required": true,
+                "rows": null
+            }
+        ],
+        "formValue": {
+            "filename": ""
+        },
+        "payload": "",
+        "submit": "submit",
+        "cancel": "cancel",
+        "topic": "topic",
+        "topicType": "msg",
+        "splitLayout": "",
+        "className": "",
+        "x": 180,
+        "y": 320,
+        "wires": [
+            [
+                "a4d4c735624d1608",
+                "bf44f9fe83eed91e",
+                "c1a5581c212192cb",
+                "7159c378dae6cd97",
+                "c2a4e235cc86c7e5",
+                "6966c2ba4bceb26f",
+                "312d937821e327fc"
+            ]
+        ]
+    },
+    {
+        "id": "a4d4c735624d1608",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Hide Inputs",
+        "func": "if (msg.payload == \"Hide\")\n{\n    msg.payload = {\"group\": {\"hide\": [\"Coordinates_&_Labels_Label_Checking\"]}}\n}\nelse \n{\n    msg.payload = {\"group\": {\"show\": [\"Coordinates_&_Labels_Label_Checking\"]}}\n}\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1130,
+        "y": 220,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "bd0efc47e6fa296f",
+        "type": "ui_ui_control",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "events": "all",
+        "x": 1620,
+        "y": 300,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "bf44f9fe83eed91e",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "filename",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 620,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "eb514c5968c61d68",
+        "type": "inject",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "Hide",
+        "payloadType": "str",
+        "x": 210,
+        "y": 240,
+        "wires": [
+            [
+                "a4d4c735624d1608",
+                "c1a5581c212192cb",
+                "7159c378dae6cd97",
+                "6966c2ba4bceb26f",
+                "dab4b46c002a64f9",
+                "312d937821e327fc",
+                "ac49ed7cb1487d50"
+            ]
+        ]
+    },
+    {
+        "id": "5eef4edcf534e18e",
+        "type": "comment",
+        "z": "5d09d44b507d75ac",
+        "name": "Get Filename",
+        "info": "",
+        "x": 90,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "391907f35f1e3498",
+        "type": "mqtt out",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "topic": "topic/filename",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "3010ea4435b1a8fe",
+        "x": 840,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "38c8cb5e3fa5a550",
+        "type": "comment",
+        "z": "5d09d44b507d75ac",
+        "name": "Get Coordinates And Labels",
+        "info": "",
+        "x": 500,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "f49a889cbbc6b8d8",
+        "type": "ui_table",
+        "z": "5d09d44b507d75ac",
+        "group": "b8b12c9e48ea9286",
+        "name": "Inputed Coordinates & Labels",
+        "order": 1,
+        "width": 15,
+        "height": 7,
+        "columns": [],
+        "outputs": 1,
+        "cts": true,
+        "x": 1390,
+        "y": 960,
+        "wires": [
+            [
+                "dd5cc6248fef90b9",
+                "cddbbad2d1a47048"
+            ]
+        ]
+    },
+    {
+        "id": "ee1d05a927b57fa4",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "Table output",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1050,
+        "y": 860,
+        "wires": []
+    },
+    {
+        "id": "9f54c3672f32d1be",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "counter",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 880,
+        "y": 1240,
+        "wires": [
+            [
+                "7aed8ebf7941242f"
+            ]
+        ]
+    },
+    {
+        "id": "5a74e3116276a158",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "Table Cleared",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1420,
+        "y": 1240,
+        "wires": []
+    },
+    {
+        "id": "83ee02f0ed183de5",
+        "type": "inject",
+        "z": "5d09d44b507d75ac",
+        "name": "Intialize Counter & Clear Table",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "x": 550,
+        "y": 1240,
+        "wires": [
+            [
+                "9f54c3672f32d1be",
+                "7977a26cb7ec9fcc"
+            ]
+        ]
+    },
+    {
+        "id": "7aed8ebf7941242f",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Clear Table",
+        "func": "return {payload: \"Table Cleared\"}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1090,
+        "y": 1240,
+        "wires": [
+            [
+                "5a74e3116276a158",
+                "f49a889cbbc6b8d8"
+            ]
+        ]
+    },
+    {
+        "id": "90a19783eeb954fc",
+        "type": "template",
+        "z": "5d09d44b507d75ac",
+        "name": "parse inputs",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n    \"J1\": {{payload.J1}},\n    \"J2\": {{payload.J2}},\n    \"J3\": {{payload.J3}},\n    \"J4\": {{payload.J4}},\n    \"J5\": {{payload.J5}},\n    \"J6\": {{payload.J6}},\n    \"labels\": \"{{payload.labels}}\",\n    \"view\": \"{{payload.view}}\"\n}",
+        "output": "json",
+        "x": 410,
+        "y": 1020,
+        "wires": [
+            [
+                "d96259cd84f8c68e"
+            ]
+        ]
+    },
+    {
+        "id": "d15657394f1094cf",
+        "type": "mqtt in",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "topic": "topic/recv_joint",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "1f03b356e5177986",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 440,
+        "y": 1100,
+        "wires": [
+            [
+                "e5f8d2c6590afb24",
+                "60cf63bf3cae08cb"
+            ]
+        ]
+    },
+    {
+        "id": "b99011077f0fa8e1",
+        "type": "ui_button",
+        "z": "5d09d44b507d75ac",
+        "name": "Save",
+        "group": "6fb65a5eb9768291",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Save",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "outputs",
+        "payloadType": "flow",
+        "topic": "output",
+        "topicType": "str",
+        "x": 390,
+        "y": 1380,
+        "wires": [
+            [
+                "a4b2221341a94c89",
+                "0660f8230308e93e"
+            ]
+        ]
+    },
+    {
+        "id": "d96259cd84f8c68e",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "input",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            },
+            {
+                "t": "set",
+                "p": "topic",
+                "pt": "msg",
+                "to": "inputData",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 580,
+        "y": 1020,
+        "wires": [
+            [
+                "7334e1af077fb283"
+            ]
+        ]
+    },
+    {
+        "id": "e5f8d2c6590afb24",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "MQTT out",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 640,
+        "y": 1160,
+        "wires": []
+    },
+    {
+        "id": "098b4105267759bc",
+        "type": "mqtt out",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "topic": "topic/recv_data",
+        "qos": "2",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "3010ea4435b1a8fe",
+        "x": 780,
+        "y": 1460,
+        "wires": []
+    },
+    {
+        "id": "a4b2221341a94c89",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "Parsed outputs",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 780,
+        "y": 1380,
+        "wires": []
+    },
+    {
+        "id": "a38f7f699e5a1246",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Arange Inputs",
+        "func": "let input = flow.get(\"input\");\nlet counter = flow.get(\"counter\");\nvar delete_rowNum = global.get(\"delete_rowNum\") || 0; \nvar cover_rowNum = global.get(\"cover_rowNum\") || 0;\nvar selected_row = flow.get(\"selectedRow\") || 0;\n\nlet output =[];\nif (msg.topic == \"clearTable\")\n{\n    output = flow.get(\"outputs\");\n    output = [];\n    counter = 0;\n    flow.set(\"outputs\", output);\n}\nelse if (selected_row != 0 && msg.topic != \"deletePoint\")\n{\n    output = flow.get(\"outputs\");\n    output[selected_row -1]= input;\n    flow.set(\"outputs\", output);\n    selected_row = 0;\n    flow.set(\"selectedRow\",selected_row);\n}\nelse if (msg.topic == \"inputData\")\n{\n    if (counter == 0)\n    {\n        output =[input];\n        flow.set(\"outputs\", output);\n        counter++;\n    \n    }\n    else\n    {\n        output = flow.get(\"outputs\");\n        output[counter]= input;\n        counter++;\n    }\n}\nelse if(msg.topic == \"deletePoint\")\n{\n    output = flow.get(\"outputs\");\n    output.splice(selected_row-1,1);\n    flow.set(\"outputs\", output);\n    \n    counter--; \n    \n    if(output.length == 0)\n    {\n        counter = 0;\n    }\n\n}\n\n\nmsg.payload = output;\n//counter++;\nflow.set(\"counter\", counter);\n\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 840,
+        "y": 960,
+        "wires": [
+            [
+                "ee1d05a927b57fa4",
+                "f49a889cbbc6b8d8"
+            ]
+        ]
+    },
+    {
+        "id": "c1a5581c212192cb",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Hide Save Button",
+        "func": "if (msg.payload == \"Hide\")\n{\n    msg.payload = {\"group\": {\"hide\": [\"Coordinates_&_Labels_Save_Labels\"]}}\n}\nelse \n{\n    msg.payload = {\"group\": {\"show\": [\"Coordinates_&_Labels_Save_Labels\"]}}\n}\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1150,
+        "y": 100,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "5c96ed946c395645",
+        "type": "comment",
+        "z": "5d09d44b507d75ac",
+        "name": "Save Labels",
+        "info": "",
+        "x": 410,
+        "y": 1300,
+        "wires": []
+    },
+    {
+        "id": "7159c378dae6cd97",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Hide Filename",
+        "func": "if (msg.payload == \"Hide\")\n{\n    msg.payload = {\"group\": {\"show\": [\"Coordinates_&_Labels_Export_Data\"]}}\n}\nelse \n{\n    msg.payload = {\"group\": {\"hide\": [\"Coordinates_&_Labels_Export_Data\"]}}\n    \n}\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1140,
+        "y": 380,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "c2a4e235cc86c7e5",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "func": "filename = msg.payload.filename;\nemptyarr = \"\";\nfullname = emptyarr.concat(\"/\",filename,\".csv\");\nmsg.payload = fullname;\nreturn msg;\n\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 540,
+        "wires": [
+            [
+                "391907f35f1e3498"
+            ]
+        ]
+    },
+    {
+        "id": "e8a847b28fe1e435",
+        "type": "ui_button",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "group": "6fb65a5eb9768291",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Close",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "Hide",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 210,
+        "y": 160,
+        "wires": [
+            [
+                "c1a5581c212192cb",
+                "a4d4c735624d1608",
+                "7159c378dae6cd97",
+                "6966c2ba4bceb26f",
+                "dab4b46c002a64f9",
+                "ce03bd655177d581",
+                "312d937821e327fc",
+                "15a9124e4114f95b",
+                "ac49ed7cb1487d50"
+            ]
+        ]
+    },
+    {
+        "id": "6966c2ba4bceb26f",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Hide Filename",
+        "func": "if (msg.payload == \"Hide\")\n{\n    msg.payload = {\"group\": {\"show\": [\"Coordinates_&_Labels_Import_Data\"]}}\n}\nelse \n{\n    msg.payload = {\"group\": {\"hide\": [\"Coordinates_&_Labels_Import_Data\"]}}\n    \n}\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1140,
+        "y": 440,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "ef1852260e69549d",
+        "type": "ui_form",
+        "z": "5d09d44b507d75ac",
+        "name": "Import Filename",
+        "label": "Filename:",
+        "group": "750f8588c83e9228",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "options": [
+            {
+                "label": "Filename",
+                "value": "filename",
+                "type": "text",
+                "required": true,
+                "rows": null
+            }
+        ],
+        "formValue": {
+            "filename": ""
+        },
+        "payload": "",
+        "submit": "submit",
+        "cancel": "cancel",
+        "topic": "topic",
+        "topicType": "msg",
+        "splitLayout": "",
+        "className": "",
+        "x": 180,
+        "y": 400,
+        "wires": [
+            [
+                "c2a4e235cc86c7e5",
+                "bf44f9fe83eed91e",
+                "7159c378dae6cd97",
+                "6966c2ba4bceb26f",
+                "dab4b46c002a64f9",
+                "5db825a9c05f8c60",
+                "312d937821e327fc",
+                "ac49ed7cb1487d50"
+            ]
+        ]
+    },
+    {
+        "id": "dab4b46c002a64f9",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "View Label",
+        "func": "if (msg.payload == \"Hide\")\n{\n    msg.payload = {\"group\": {\"hide\": [\"Coordinates_&_Labels_View_Label\"]}}\n}\nelse \n{\n    msg.payload = {\"group\": {\"show\": [\"Coordinates_&_Labels_View_Label\"]}}\n}\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1130,
+        "y": 300,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "5db825a9c05f8c60",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "func": "if (msg)\n{\n    msg.payload = \"GetData\"\n}\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 600,
+        "wires": [
+            [
+                "7092517c8a6632fc"
+            ]
+        ]
+    },
+    {
+        "id": "7092517c8a6632fc",
+        "type": "delay",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 620,
+        "y": 600,
+        "wires": [
+            [
+                "c5ef0479f967bd3b"
+            ]
+        ]
+    },
+    {
+        "id": "c5ef0479f967bd3b",
+        "type": "mqtt out",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "topic": "topic/CoreFunc",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "8f6f8c09749e6d95",
+        "x": 840,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "0660f8230308e93e",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "func": "let input = msg.payload;\nlet counter = flow.get(\"counter\");\nlet counterRecv = flow.get(\"counterRecv\");\n\nif (msg.topic == \"output\")\n{\ninput[counter]= \"end\";\ncounter++\nflow.set(\"counter\", counter);\n}\n\nif (msg.topic == \"update\")\n{\ninput[counterRecv]= \"end\";\ncounterRecv++\nflow.set(\"counterRecv\", counterRecv);\n}\n\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 580,
+        "y": 1420,
+        "wires": [
+            [
+                "098b4105267759bc"
+            ]
+        ]
+    },
+    {
+        "id": "7977a26cb7ec9fcc",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "counterRecv",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 900,
+        "y": 1300,
+        "wires": [
+            [
+                "7aed8ebf7941242f"
+            ]
+        ]
+    },
+    {
+        "id": "60cf63bf3cae08cb",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "data",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 650,
+        "y": 1100,
+        "wires": [
+            [
+                "9df18169b5fb7c79"
+            ]
+        ]
+    },
+    {
+        "id": "9df18169b5fb7c79",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "View Inputs",
+        "func": "input = flow.get(\"data\");\nlet counter = flow.get(\"counterRecv\");\n\n\nlet angleStr = input.slice(8,input.length-3);\nlet angleArray = angleStr.split(\",\");\n\nlet ArrJ1 = angleArray[0]\nlet ArrJ2 = angleArray[1]\nlet ArrJ3 = angleArray[2]\nlet ArrJ4 = angleArray[3]\nlet ArrJ5 = angleArray[4]\nlet ArrJ6 = angleArray[5]\nlet ArrLab = angleArray[6]\nlet ArrView = angleArray[7]\n\nArrJ1 = ArrJ1.split(\":\");\nArrJ2 = ArrJ2.split(\":\");\nArrJ3 = ArrJ3.split(\":\");\nArrJ4 = ArrJ4.split(\":\");\nArrJ5 = ArrJ5.split(\":\");\nArrJ6 = ArrJ6.split(\":\");\nArrLab = ArrLab.split(\":\");\nArrView = ArrView.split(\":\");\nArrLab = ArrLab[1];\nArrView = ArrView[1];\nArrLab = ArrLab.slice(2,ArrLab.length-1);\nArrView = ArrView.slice(2,ArrView.length-1);\n\nFinalArr = [ArrJ1[1],ArrJ2[1],ArrJ3[1],ArrJ4[1],ArrJ5[1],ArrJ6[1],ArrLab,ArrView]\n\nstoreArray = flow.get(\"storeArr\");\nif (counter == 0)\n{\n    storeArray = [\n        {\n            J1 : parseFloat(FinalArr[0]),\n            J2 : parseFloat(FinalArr[1]),\n            J3 : parseFloat(FinalArr[2]),\n            J4 : parseFloat(FinalArr[3]),\n            J5 : parseFloat(FinalArr[4]),\n            J6 : parseFloat(FinalArr[5]),\n            labels : FinalArr[6],\n            view : FinalArr[7]\n            \n        }\n        ]\n\n}\nelse\n{\n        //optionsArr.push(counter);\n        storeArray.push(\n            {\n            J1 : parseFloat(FinalArr[0]),\n            J2 : parseFloat(FinalArr[1]),\n            J3 : parseFloat(FinalArr[2]),\n            J4 : parseFloat(FinalArr[3]),\n            J5 : parseFloat(FinalArr[4]),\n            J6 : parseFloat(FinalArr[5]),\n            labels : FinalArr[6],\n            view : FinalArr[7]\n                \n            }\n            )\n}\ncounter++;\nmsg.payload = storeArray;\nflow.set(\"storeArr\", storeArray);\nflow.set(\"counterRecv\", counter);\nstoreArray = {}\n\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 850,
+        "y": 1100,
+        "wires": [
+            [
+                "973546b14c48be82",
+                "6e02a59ff7d35cd9"
+            ]
+        ]
+    },
+    {
+        "id": "ce03bd655177d581",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "func": "let Arr = [];\nlet counter = 0;\nflow.set(\"counterRecv\",counter);\nflow.set(\"counter\",counter);\nflow.set(\"outputs\", Arr);\nflow.set(\"storeArr\",Arr);\nflow.set(\"selectedRow\",counter);\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 40,
+        "wires": [
+            [
+                "8773f9e205327386"
+            ]
+        ]
+    },
+    {
+        "id": "0ca437d09c1226e2",
+        "type": "ui_button",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "group": "0ec98605595e707b",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Delete",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "deletePoint",
+        "topicType": "str",
+        "x": 610,
+        "y": 820,
+        "wires": [
+            [
+                "a38f7f699e5a1246",
+                "7334e1af077fb283"
+            ]
+        ]
+    },
+    {
+        "id": "312d937821e327fc",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Hide Augment Data",
+        "func": "if (msg.payload == \"Hide\")\n{\n    msg.payload = {\"group\": {\"hide\": [\"Coordinates_&_Labels_Augment_Data\"]}}\n}\nelse \n{\n    msg.payload = {\"group\": {\"show\": [\"Coordinates_&_Labels_Augment_Data\"]}}\n}\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1150,
+        "y": 500,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "cddbbad2d1a47048",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "func": "let rowNum = 0;\nrowNum = msg.row;\nrowNum = rowNum + 1; \n\nflow.set(\"selectedRow\",rowNum);\nmsg.payload = rowNum; \nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\nrowNum = 0;\nflow.set(\"selectedRow\",rowNum);",
+        "finalize": "",
+        "libs": [],
+        "x": 1700,
+        "y": 1040,
+        "wires": [
+            [
+                "7c03e475b62a1873",
+                "2c5fa6f2d8e91ad8"
+            ]
+        ]
+    },
+    {
+        "id": "7c03e475b62a1873",
+        "type": "ui_text",
+        "z": "5d09d44b507d75ac",
+        "group": "0ec98605595e707b",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Selected point:",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "className": "",
+        "x": 1900,
+        "y": 1040,
+        "wires": []
+    },
+    {
+        "id": "15a9124e4114f95b",
+        "type": "link out",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "mode": "link",
+        "links": [
+            "f4b00391f35bc66d"
+        ],
+        "x": 355,
+        "y": 20,
+        "wires": []
+    },
+    {
+        "id": "f4b00391f35bc66d",
+        "type": "link in",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "links": [
+            "15a9124e4114f95b"
+        ],
+        "x": 875,
+        "y": 760,
+        "wires": [
+            [
+                "885f25a74e891513"
+            ]
+        ]
+    },
+    {
+        "id": "8773f9e205327386",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "topic",
+                "pt": "msg",
+                "to": "clearTable",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 750,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ff3c947db6b2c80e",
+        "type": "ui_form",
+        "z": "5d09d44b507d75ac",
+        "name": "Augment Labels",
+        "label": "Coordinates  & Labels",
+        "group": "7d5260e86e81548a",
+        "order": 2,
+        "width": 15,
+        "height": 1,
+        "options": [
+            {
+                "label": "J1",
+                "value": "J1",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J2",
+                "value": "J2",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J3",
+                "value": "J3",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J4",
+                "value": "J4",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J5",
+                "value": "J5",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "J6",
+                "value": "J6",
+                "type": "number",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "View",
+                "value": "view",
+                "type": "text",
+                "required": false,
+                "rows": null
+            },
+            {
+                "label": "Required Labels",
+                "value": "labels",
+                "type": "text",
+                "required": false,
+                "rows": null
+            }
+        ],
+        "formValue": {
+            "J1": "",
+            "J2": "",
+            "J3": "",
+            "J4": "",
+            "J5": "",
+            "J6": "",
+            "view": "",
+            "labels": ""
+        },
+        "payload": "",
+        "submit": "submit",
+        "cancel": "cancel",
+        "topic": "inputs",
+        "topicType": "str",
+        "splitLayout": true,
+        "className": "",
+        "x": 200,
+        "y": 1020,
+        "wires": [
+            [
+                "90a19783eeb954fc"
+            ]
+        ]
+    },
+    {
+        "id": "7334e1af077fb283",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Arange Inputs",
+        "func": "let input = flow.get(\"input\");\nlet counter = flow.get(\"counterRecv\");\nvar delete_rowNum = global.get(\"delete_rowNum\") || 0; \nvar cover_rowNum = global.get(\"cover_rowNum\") || 0;\nvar selected_row = flow.get(\"selectedRow\") || 0;\n\nlet output =[];\nif (msg.topic == \"clearTable\")\n{\n    output = flow.get(\"storeArr\");\n    output = [];\n    counter = 0;\n    flow.set(\"storeArr\", output);\n}\nelse if (selected_row != 0 && msg.topic != \"deletePoint\")\n{\n    output = flow.get(\"storeArr\");\n    output[selected_row -1]= input;\n    flow.set(\"storeArr\", output);\n    selected_row = 0;\n    flow.set(\"selectedRow\",selected_row);\n}\nelse if (msg.topic == \"inputData\")\n{\n    if (counter == 0)\n    {\n        output =[input];\n        flow.set(\"storeArr\", output);\n        counter++;\n    \n    }\n    else\n    {\n        output = flow.get(\"storeArr\");\n        output[counter]= input;\n        counter++;\n    }\n}\nelse if(msg.topic == \"deletePoint\")\n{\n    output = flow.get(\"storeArr\");\n    output.splice(selected_row-1,1);\n    flow.set(\"storeArr\", output);\n    \n    counter--; \n    \n    if(output.length == 0)\n    {\n        counter = 0;\n    }\n    \n}\n\n//output = selected_row\nmsg.payload = output;\n//counter++;\nflow.set(\"counterRecv\", counter);\n\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 840,
+        "y": 1020,
+        "wires": [
+            [
+                "b468c7bb771c53d6",
+                "6e02a59ff7d35cd9"
+            ]
+        ]
+    },
+    {
+        "id": "b468c7bb771c53d6",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "Table output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1050,
+        "y": 1000,
+        "wires": []
+    },
+    {
+        "id": "973546b14c48be82",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1410,
+        "y": 1180,
+        "wires": []
+    },
+    {
+        "id": "fe5fd6b587c6257e",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "func": "let output = flow.get(\"output\") || 0;\nlet input = flow.get(\"input\") || 0;\n\n//var clearArray = flow.get(\"clearArray\") || \"\";\nvar counter = flow.get(\"counter\") || 0;\nvar delete_rowNum = global.get(\"delete_rowNum\") || 0; \nvar cover_rowNum = global.get(\"cover_rowNum\") || 0;\n\n\nif (msg.payload == \"deletePoint\")\n{\n    output[delete_rowNum].J1 =0;\n    output[delete_rowNum].J2 =0;\n    output[delete_rowNum].J3 =0;\n    output[delete_rowNum].J4 =0;\n    output[delete_rowNum].J5 =0;\n    output[delete_rowNum].J6 =0;\n    \n\n}\nelse if(msg.payload == \"cover\")\n{\n    output[cover_rowNum]= input;\n\n}\n\n\nflow.set(\"output\", output);\nflow.set(\"counter\",counter);\nflow.set(\"output\", output); \n\nmsg.payload = output;\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1710,
+        "y": 1260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6e02a59ff7d35cd9",
+        "type": "ui_table",
+        "z": "5d09d44b507d75ac",
+        "group": "7d5260e86e81548a",
+        "name": "Received  Coordinates & Labels",
+        "order": 1,
+        "width": 15,
+        "height": 7,
+        "columns": [],
+        "outputs": 1,
+        "cts": true,
+        "x": 1390,
+        "y": 1100,
+        "wires": [
+            [
+                "ff3c947db6b2c80e",
+                "cddbbad2d1a47048"
+            ]
+        ]
+    },
+    {
+        "id": "2c5fa6f2d8e91ad8",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1890,
+        "y": 1000,
+        "wires": []
+    },
+    {
+        "id": "d5015811986a5016",
+        "type": "template",
+        "z": "5d09d44b507d75ac",
+        "name": "parse inputs",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n    \"J1\": {{payload.J1}},\n    \"J2\": {{payload.J2}},\n    \"J3\": {{payload.J3}},\n    \"J4\": {{payload.J4}},\n    \"J5\": {{payload.J5}},\n    \"J6\": {{payload.J6}},\n    \"labels\": \"{{payload.labels}}\",\n    \"view\": \"{{payload.view}}\"\n}",
+        "output": "json",
+        "x": 410,
+        "y": 960,
+        "wires": [
+            [
+                "b1c39b616d4fbb98"
+            ]
+        ]
+    },
+    {
+        "id": "b1c39b616d4fbb98",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "input",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            },
+            {
+                "t": "set",
+                "p": "topic",
+                "pt": "msg",
+                "to": "inputData",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 580,
+        "y": 960,
+        "wires": [
+            [
+                "a38f7f699e5a1246"
+            ]
+        ]
+    },
+    {
+        "id": "885f25a74e891513",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "ClearTableAfterClose",
+        "func": "msg.payload = [];\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1040,
+        "y": 760,
+        "wires": [
+            [
+                "f49a889cbbc6b8d8",
+                "6e02a59ff7d35cd9"
+            ]
+        ]
+    },
+    {
+        "id": "b6cbbe875b0adc93",
+        "type": "ui_button",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "group": "f9b1b4189949ee7c",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Close",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "Hide",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 210,
+        "y": 100,
+        "wires": [
+            [
+                "15a9124e4114f95b",
+                "ce03bd655177d581",
+                "ac49ed7cb1487d50",
+                "c1a5581c212192cb",
+                "a4d4c735624d1608",
+                "dab4b46c002a64f9",
+                "7159c378dae6cd97",
+                "6966c2ba4bceb26f",
+                "312d937821e327fc"
+            ]
+        ]
+    },
+    {
+        "id": "26a5b479067186aa",
+        "type": "ui_button",
+        "z": "5d09d44b507d75ac",
+        "name": "Save",
+        "group": "f9b1b4189949ee7c",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Save",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "storeArr",
+        "payloadType": "flow",
+        "topic": "update",
+        "topicType": "str",
+        "x": 390,
+        "y": 1460,
+        "wires": [
+            [
+                "0660f8230308e93e"
+            ]
+        ]
+    },
+    {
+        "id": "ac49ed7cb1487d50",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Hide Save Button",
+        "func": "if (msg.payload == \"Hide\")\n{\n    msg.payload = {\"group\": {\"hide\": [\"Coordinates_&_Labels_Update_CSV\"]}}\n}\nelse \n{\n    msg.payload = {\"group\": {\"show\": [\"Coordinates_&_Labels_Update_CSV\"]}}\n}\nreturn msg",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1150,
+        "y": 160,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "adb790c2d56a43e9",
+        "type": "ui_button",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "group": "7d5260e86e81548a",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Run",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "Run",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 130,
+        "y": 1600,
+        "wires": [
+            [
+                "4b0bd17d6b19f198"
+            ]
+        ]
+    },
+    {
+        "id": "4b79f74bd6481f91",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "func": "let Run = flow.get(\"Run\") || 0;\nlet loopCount= flow.get(\"counterRecv\");\nlet counter = flow.get(\"count\") || 0;\n\nif (Run == \"Run\" && counter != loopCount)\n{\n    Arr = flow.get(\"storeArr\");\n    msg.payload = Arr[counter];\n    flow.set(\"count\", counter+1);\n    counter = flow.get(\"count\")\n\n    if(counter == loopCount){\n        flow.set(\"count\", 0);\n        flow.set(\"Run\", 0);\n    }\n    \n    return msg;\n}\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 1600,
+        "wires": [
+            [
+                "cb151c3b65e9e6c6"
+            ]
+        ]
+    },
+    {
+        "id": "cb151c3b65e9e6c6",
+        "type": "mqtt out",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "topic": "topic/runCSV",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "8f6f8c09749e6d95",
+        "x": 770,
+        "y": 1600,
+        "wires": []
+    },
+    {
+        "id": "7f7c41ac0ea5fb83",
+        "type": "inject",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "props": [
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "10",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 270,
+        "y": 1700,
+        "wires": [
+            [
+                "4b79f74bd6481f91"
+            ]
+        ]
+    },
+    {
+        "id": "245251cc4f62c752",
+        "type": "mqtt in",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "topic": "topic/runCSV",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "8f6f8c09749e6d95",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 770,
+        "y": 1540,
+        "wires": [
+            [
+                "b646bff208886da2"
+            ]
+        ]
+    },
+    {
+        "id": "b646bff208886da2",
+        "type": "debug",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 930,
+        "y": 1540,
+        "wires": []
+    },
+    {
+        "id": "4b0bd17d6b19f198",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "Run",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 310,
+        "y": 1600,
+        "wires": [
+            [
+                "4b79f74bd6481f91"
+            ]
+        ]
+    },
+    {
+        "id": "74f62c4fcf7f95f3",
+        "type": "inject",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "x": 130,
+        "y": 1660,
+        "wires": [
+            [
+                "4b0bd17d6b19f198"
+            ]
+        ]
+    },
+    {
+        "id": "19dc39a9c62af5c6",
+        "type": "change",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "count",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 320,
+        "y": 1760,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "4fc49c3c683c15df",
+        "type": "inject",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "x": 130,
+        "y": 1760,
+        "wires": [
+            [
+                "19dc39a9c62af5c6"
+            ]
+        ]
+    },
+    {
+        "id": "72152230cb17bcc8",
+        "type": "ui_switch",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "label": "Dobot",
+        "tooltip": "",
+        "group": "e608f74d7f84b6ba",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "topic",
+        "topicType": "msg",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 1610,
+        "y": 140,
+        "wires": [
+            [
+                "ff6877e11c20a0e7"
+            ]
+        ]
+    },
+    {
+        "id": "ff6877e11c20a0e7",
+        "type": "function",
+        "z": "5d09d44b507d75ac",
+        "name": "Dashboard Mode",
+        "func": "let mode = msg.payload;\n\nif(mode){\n    msg.payload= {\n        \"tabs\": {\n            \"show\": [\"Dobot_CR5 Control\", \"Jog\", \"Teach Points\"]\n        }\n    }\n    \n}else{\n    msg.payload= {\n        \"tabs\": {\n            \"hide\": [\"Dobot_CR5 Control\", \"Jog\", \"Teach Points\"]\n        }\n    }\n}\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1610,
+        "y": 220,
+        "wires": [
+            [
+                "bd0efc47e6fa296f"
+            ]
+        ]
+    },
+    {
+        "id": "dbaac5885fc1337c",
+        "type": "inject",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 1610,
+        "y": 60,
+        "wires": [
+            [
+                "72152230cb17bcc8"
+            ]
+        ]
+    },
+    {
+        "id": "d20976d995cc579f",
+        "type": "ui_clock",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "group": "9bb15370d645b47b",
+        "order": 2,
+        "width": "4",
+        "height": "4",
+        "x": 1990,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "8fd5c94f5b81d598",
+        "type": "inject",
+        "z": "5d09d44b507d75ac",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "1",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payloadType": "date",
+        "x": 1830,
+        "y": 60,
+        "wires": [
+            [
+                "d20976d995cc579f"
+            ]
+        ]
+    },
+    {
+        "id": "224e7684e61df067",
+        "type": "ui_spacer",
+        "z": "5d09d44b507d75ac",
+        "name": "spacer",
+        "group": "9bb15370d645b47b",
+        "order": 1,
+        "width": "1",
+        "height": "2"
+    },
+    {
+        "id": "b8b12c9e48ea9286",
+        "type": "ui_group",
+        "name": "Label Checking",
+        "tab": "968579d614b6da08",
+        "order": 4,
+        "disp": true,
+        "width": "15",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "ae21a53b603f6ad3",
+        "type": "ui_group",
+        "name": "Export Data",
+        "tab": "968579d614b6da08",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "3010ea4435b1a8fe",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+    {
+        "id": "1f03b356e5177986",
+        "type": "mqtt-broker",
+        "name": "localhost:1883",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+    {
+        "id": "6fb65a5eb9768291",
+        "type": "ui_group",
+        "name": "Save Labels",
+        "tab": "968579d614b6da08",
+        "order": 6,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "750f8588c83e9228",
+        "type": "ui_group",
+        "name": "Import Data",
+        "tab": "968579d614b6da08",
+        "order": 3,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "8f6f8c09749e6d95",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+    {
+        "id": "0ec98605595e707b",
+        "type": "ui_group",
+        "name": "Augment Data",
+        "tab": "968579d614b6da08",
+        "order": 5,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "7d5260e86e81548a",
+        "type": "ui_group",
+        "name": "View Label",
+        "tab": "968579d614b6da08",
+        "order": 2,
+        "disp": true,
+        "width": "15",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "f9b1b4189949ee7c",
+        "type": "ui_group",
+        "name": "Update CSV",
+        "tab": "968579d614b6da08",
+        "order": 7,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "e608f74d7f84b6ba",
+        "type": "ui_group",
+        "name": "Dashboard Mode",
+        "tab": "eb1b98256d9fd1f0",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "9bb15370d645b47b",
+        "type": "ui_group",
+        "name": "Time",
+        "tab": "eb1b98256d9fd1f0",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "968579d614b6da08",
+        "type": "ui_tab",
+        "name": "Coordinates & Labels",
+        "icon": "mi-my_location",
+        "order": 5,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "eb1b98256d9fd1f0",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "mi-home",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    }
+]
