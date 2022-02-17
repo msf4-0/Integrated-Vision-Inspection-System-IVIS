@@ -1299,9 +1299,12 @@ def index(RELEASE=True):
                 "Start Inspection", key='start_inspection', help='This takes awhile to start up, please be patient'):
             with st.spinner("Starting Inspection"):
                 logger.info("Starting Inspection")
+
+                #runs the function to get the labels from the csv file and use them for inspection 
                 csv_process_connnect_success, csv_process = csv_labels.run((
                     deployment.get_frame_save_dir('csv-labels'),))
 
+                #Checks if the function has run
                 if not csv_process_connnect_success:
                     error_msg_place.error(
                         "Failed to read from csv file")
