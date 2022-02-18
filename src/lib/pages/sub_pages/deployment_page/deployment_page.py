@@ -1705,11 +1705,17 @@ def index(RELEASE=True):
                     logger.info(f"All labels present at '{view}' view")
                     msg_place[src_idx].success(
                         f"### {view.capitalize()} view: OK")
+                    client.publish(MQTTConfig.send_result_okng,payload = "OK")
+                    client.publish(MQTTConfig.current_view,payload = view)
+                    client.publish(MQTTConfig.detected_labels,payload = results)
                 else:
                     logger.warning("Required labels are not detected at "
                                    f"'{view}' view")
                     msg_place[src_idx].error(
                         f"### {view.capitalize()} view: NG")
+                    client.publish(MQTTConfig.send_result_okng,payload = "NG")
+                    client.publish(MQTTConfig.current_view,payload = view)
+                    client.publish(MQTTConfig.detected_labels,payload = results)
                     save_image(output_img, ng_frame_dir,
                                channels, timezone=timezone, prefix=view)
                     logger.info(f"NG image saved successfully")

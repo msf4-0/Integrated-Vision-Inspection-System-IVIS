@@ -111,6 +111,9 @@ class MQTTConfig:
         start_record=CONFIG['save-captures']['start_record_topic'],
         stop_record=CONFIG['save-captures']['stop_record_topic'],
         dobot_view='dobot/view'
+        send_result_okng='cvssystem/main/publish_OKNG'
+        current_view='cvssystem/main/current_view'
+        detected_labels='cvssystem/main/detected_labels'
     )
 
 
