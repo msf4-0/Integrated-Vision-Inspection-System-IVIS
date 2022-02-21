@@ -1,0 +1,223 @@
+[
+    {
+        "id": "fe860bc1b05b750a",
+        "type": "tab",
+        "label": "Day 4 Advance Flow",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "ebb3cc7681a2cc05",
+        "type": "mqtt in",
+        "z": "fe860bc1b05b750a",
+        "name": "",
+        "topic": "cvssystem/main/publish_frame_0",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "8f6f8c09749e6d95",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 350,
+        "y": 440,
+        "wires": [
+            [
+                "0263b955d34bacb5"
+            ]
+        ]
+    },
+    {
+        "id": "0263b955d34bacb5",
+        "type": "ui_template",
+        "z": "fe860bc1b05b750a",
+        "group": "83133f5972a81972",
+        "name": "",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "format": "<img width=\"1920\" height=\"1072\" alt=\"\" src=\"data:image/jpg;base64,{{msg.payload}}\"/>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 580,
+        "y": 440,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6f8b0cba27e9dda3",
+        "type": "mqtt in",
+        "z": "fe860bc1b05b750a",
+        "name": "",
+        "topic": "cvssystem/main/publish_OKNG",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "8f6f8c09749e6d95",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 370,
+        "y": 540,
+        "wires": [
+            [
+                "de877aeb0ab40812"
+            ]
+        ]
+    },
+    {
+        "id": "de877aeb0ab40812",
+        "type": "ui_text",
+        "z": "fe860bc1b05b750a",
+        "group": "a667afb8c38a7a90",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Result",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 650,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "a17ec14d43a71ba1",
+        "type": "ui_text",
+        "z": "fe860bc1b05b750a",
+        "group": "a667afb8c38a7a90",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "View",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 650,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "7c1fdbe947493b92",
+        "type": "ui_text",
+        "z": "fe860bc1b05b750a",
+        "group": "a667afb8c38a7a90",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Labels",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 650,
+        "y": 660,
+        "wires": []
+    },
+    {
+        "id": "2039c88e287130ef",
+        "type": "mqtt in",
+        "z": "fe860bc1b05b750a",
+        "name": "",
+        "topic": "cvssystem/main/current_view",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "8f6f8c09749e6d95",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 360,
+        "y": 600,
+        "wires": [
+            [
+                "a17ec14d43a71ba1"
+            ]
+        ]
+    },
+    {
+        "id": "708bec8b70c0b4c9",
+        "type": "mqtt in",
+        "z": "fe860bc1b05b750a",
+        "name": "",
+        "topic": "cvssystem/main/detected_labels",
+        "qos": "2",
+        "datatype": "auto",
+        "broker": "8f6f8c09749e6d95",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 370,
+        "y": 660,
+        "wires": [
+            [
+                "7c1fdbe947493b92"
+            ]
+        ]
+    },
+    {
+        "id": "8f6f8c09749e6d95",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+    {
+        "id": "83133f5972a81972",
+        "type": "ui_group",
+        "name": "Camera Display",
+        "tab": "92046145467c0ba4",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "a667afb8c38a7a90",
+        "type": "ui_group",
+        "name": "Result",
+        "tab": "92046145467c0ba4",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "92046145467c0ba4",
+        "type": "ui_tab",
+        "name": "CSV Feedback",
+        "icon": "dashboard",
+        "order": 6,
+        "disabled": false,
+        "hidden": false
+    }
+]

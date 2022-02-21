@@ -82,6 +82,9 @@ class MQTTTopics:
 
     # NOTE: currently this is only used for dobot_arm_demo !
     dobot_view: str
+    send_result_okng: str
+    current_view: str
+    detected_labels: str
 
 
 CONFIG = load_mqtt_config()
@@ -110,7 +113,10 @@ class MQTTConfig:
         save_frame=CONFIG['save-captures']["save_frame_topic"],
         start_record=CONFIG['save-captures']['start_record_topic'],
         stop_record=CONFIG['save-captures']['stop_record_topic'],
-        dobot_view='dobot/view'
+        dobot_view='dobot/view',
+        send_result_okng='cvssystem/main/publish_OKNG',
+        current_view='cvssystem/main/current_view',
+        detected_labels='cvssystem/main/detected_labels'
     )
 
 
