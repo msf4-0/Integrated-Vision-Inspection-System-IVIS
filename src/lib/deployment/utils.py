@@ -142,9 +142,12 @@ def on_publish(client, userdata, mid):
     pass
 
 
-def get_mqtt_client(client_id: str = '', clean_session: bool = True):
+def get_mqtt_client():
     """Return the MQTT client object."""
-    client = Client(client_id, clean_session=clean_session)
+    # NOTE: client_id is not provided to use unique ID all the time!
+    # this is to avoid clashing with other clients of the same ID,
+    # which would make it stuck in a disconnect and reconnect loop
+    client = Client(clean_session=True)
     # client.connected_flag = False  # set flag
     client.on_connect = on_connect
     client.on_publish = on_publish

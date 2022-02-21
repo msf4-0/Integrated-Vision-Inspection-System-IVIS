@@ -329,7 +329,7 @@ def move_and_publish_view(client_dashboard: dobot_api_dashboard, client_feedback
         DobotTask.P2_140: move_for_p2_140
     }
 
-    client = get_mqtt_client('dobot_demo')
+    client = get_mqtt_client()
     client.connect(conf.broker, port=conf.port)
     client.loop_start()
 
@@ -363,7 +363,7 @@ def debug_publish(conf: MQTTConfig):
     topic = conf.topics.dobot_view
     qos = conf.qos
 
-    client = get_mqtt_client('debug_dobot_demo')
+    client = get_mqtt_client()
     client.connect(conf.broker, port=conf.port)
     client.loop_start()
     sleep(2)

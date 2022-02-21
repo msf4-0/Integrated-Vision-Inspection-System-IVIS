@@ -106,9 +106,7 @@ def index(RELEASE=True):
         # to store the config in case the user needs to go to another page during deployment
         session_state.deployment_conf = DeploymentConfig()
     if 'client' not in session_state:
-        # NOTE: using project ID as the client ID for now
-        session_state.client = get_mqtt_client(
-            str(session_state.project.id))
+        session_state.client = get_mqtt_client()
         session_state.client_connected = False
         # to check whether video callbacks have been added to MQTT client
         session_state.added_video_cbs = False
