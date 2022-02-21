@@ -1,4 +1,4 @@
-from threading import Thread
+from multiprocessing import Process
 import time
 import json
 import paho.mqtt.client as mqtt
@@ -82,7 +82,7 @@ def main():
         if recv_topic == "topic/CoreFunc" and recv_msg == "GetData" and recvfile == 1:
             df = pd.read_csv(fullpath)
             # minus 2 because it will have data + 2 more lines
-            lines = len(df)-2
+            lines = len(df) - 2
 
             print(lines)
             print(row)
@@ -101,6 +101,7 @@ def main():
 
 
 # Enable threads on ports 29999 and 30003
-if __name__ == '__main__':
-    p1 = Thread(target=main)
+def run():
+    p1 = Process(target=main)
     p1.start()
+    return True, p1

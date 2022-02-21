@@ -74,6 +74,8 @@ from deployment.utils import (ORI_PUBLISH_FRAME_TOPIC, MQTTConfig, MQTTTopics,
                               get_mqtt_client, read_images_from_uploaded, reset_camera, reset_video_deployment)
 from dobot_arm_demo import main as dobot_demo
 from csv_label_inspection import csv_label_check as csv_labels
+from Node_Red.Not_dobot_version import Label_View
+# from Node_Red.Dobot_Version import Dobot_Version
 
 # >>>>>>>>>>>>>>>>>>>>>>>TEMP>>>>>>>>>>>>>>>>>>>>>>>
 # initialise connection to Database
@@ -1311,6 +1313,26 @@ def index(RELEASE=True):
                     logger.error("Failed to read from csv file")
                     st.stop()
 
+        # *********************** Inspection using labels from CSV file ***********************
+        node_red_process = None
+        if st.button(
+                "Start Node-Red Inspection", key='start_ndoe_red_inspection', help='This takes awhile to start up, please be patient'):
+            with st.spinner("Starting Inspection"):
+                logger.info("Starting Inspection")
+
+                # runs the function to get the labels from the non dobot version of the node-red flow and use them for inspection
+                node_red_process_connnect_success, node_red_process = Label_View.run()
+
+                # # runs the function to get the labels from the dobot version of the node-red flow and use them for inspection
+                # node_red_process_connnect_success, node_red_process = Dobot_Version.run()
+
+                # Checks if the function has run
+                if not node_red_process_connnect_success:
+                    error_msg_place.error(
+                        "Failed to read from Node-red file")
+                    logger.error("Failed to read from Node-red file")
+                    st.stop()
+
         # *********************** Deployment video loop ***********************
         def create_video_writer_if_not_exists(video_idx: int):
             vid_writer_key = f'vid_writer_{video_idx}'
@@ -1705,17 +1727,17 @@ def index(RELEASE=True):
                     logger.info(f"All labels present at '{view}' view")
                     msg_place[src_idx].success(
                         f"### {view.capitalize()} view: OK")
-                    client.publish(MQTTConfig.send_result_okng,payload = "OK")
-                    client.publish(MQTTConfig.current_view,payload = view)
-                    client.publish(MQTTConfig.detected_labels,payload = results)
+                    client.publish(MQTTConfig.send_result_okng, payload="OK")
+                    client.publish(MQTTConfig.current_view, payload=view)
+                    client.publish(MQTTConfig.detected_labels, payload=results)
                 else:
                     logger.warning("Required labels are not detected at "
                                    f"'{view}' view")
                     msg_place[src_idx].error(
                         f"### {view.capitalize()} view: NG")
-                    client.publish(MQTTConfig.send_result_okng,payload = "NG")
-                    client.publish(MQTTConfig.current_view,payload = view)
-                    client.publish(MQTTConfig.detected_labels,payload = results)
+                    client.publish(MQTTConfig.send_result_okng, payload="NG")
+                    client.publish(MQTTConfig.current_view, payload=view)
+                    client.publish(MQTTConfig.detected_labels, payload=results)
                     save_image(output_img, ng_frame_dir,
                                channels, timezone=timezone, prefix=view)
                     logger.info(f"NG image saved successfully")
