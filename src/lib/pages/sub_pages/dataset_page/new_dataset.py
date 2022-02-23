@@ -174,9 +174,13 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
+        input_name = session_state.name.strip()
+        # NOTE: MUST BE LOWERCASE TO AVOID REPLACING EXISTING DIRECTORIES
+        # as directory name is case-insensitive
+        lower_input_name = input_name.lower()
         context = {'column_name': 'name',
-                   'value': session_state.name}
-        if session_state.name:
+                   'value': lower_input_name}
+        if lower_input_name:
             if dataset.check_if_exists(context, conn):
                 dataset.name = None
                 field_placeholder['name'].error(
@@ -184,7 +188,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 sleep(1)
                 logger.error(f"Dataset name used. Please enter a new name")
             else:
-                dataset.name = session_state.name
+                # save the user's input one but check with lowercase one
+                dataset.name = input_name
                 logger.info(f"Dataset name fresh and ready to rumble")
 
     # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -494,7 +499,11 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         submit_button = button_place.button("Submit", key="submit")
 
     if submit_button:
-        context = {'name': dataset.name,
+        input_name = session_state.name.strip()
+        lower_input_name = input_name.lower()
+
+        # check lowercase name, but insert user input name later
+        context = {'name': lower_input_name,
                    'upload': session_state.upload_widget}
         if is_existing_dataset:
             # don't need to check for dataset name for existing dataset
@@ -504,6 +513,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             context, field_placeholder=place, name_key='name')
         if not dataset.has_submitted:
             st.stop()
+        # save the user input name, not the lowercase one
+        dataset.name = input_name
 
         with outercol2:
             if session_state.is_labeled:

@@ -733,16 +733,21 @@ class Project(BaseProject):
         """Query annotations for this project. If `for_training_id` is provided,
         then only the annotations associated with the `training_id` is queried.
 
-        Note that the `image_path` queried from the database is generated in the same way
-        as the `helper.get_directory_name()` function.
         """
+        # NOTE: that the `image_path` queried from the database is generated in 
+        # the same way as the `helper.get_directory_name()` function.
         if for_training_id > 0:
             sql_query = r"""
-                SELECT a.id AS id,
-                    a.result AS result,
-                    d.name AS dataset_name,
+                SELECT  a.id AS id,
+                        a.result AS result,
+                        d.name AS dataset_name,
                     -- flag of 'g' to match every pattern instead of only the first
-                    CONCAT_WS('/', regexp_replace(trim(both from d.name), '[?/\\*"><|\s]+', '-', 'g'), t.name) AS image_path
+                        CONCAT_WS
+                            (
+                                '/',
+                                LOWER(REGEXP_REPLACE(TRIM(BOTH FROM d.name), '[?/\\*"><|\s]+', '-', 'g')),
+                                t.name
+                            )    AS image_path
                 FROM annotations a
                         LEFT JOIN task t on a.id = t.annotation_id
                         LEFT JOIN training_dataset td on t.dataset_id = td.dataset_id
@@ -755,17 +760,21 @@ class Project(BaseProject):
                         and Training ID: {for_training_id}""")
         else:
             sql_query = r"""
-                    SELECT 
-                        a.id AS id,
+                SELECT  a.id     AS id,
                         a.result AS result,
-                        d.name AS dataset_name,
-                        -- flag of 'g' to match every pattern instead of only the first
-                        CONCAT_WS('/', regexp_replace(trim(both from d.name),'[?/\\*"><|\s]+','-', 'g'), t.name) AS image_path
-                    FROM annotations a
-                            LEFT JOIN task t on a.id = t.annotation_id
-                            LEFT JOIN dataset d on t.dataset_id = d.id
-                    WHERE a.project_id = %s
-                    ORDER BY id;
+                        d.name   AS dataset_name,
+                    -- flag of 'g' to match every pattern instead of only the first
+                        CONCAT_WS
+                            (
+                                '/',
+                                LOWER(REGEXP_REPLACE(TRIM(BOTH FROM d.name), '[?/\\*"><|\s]+', '-', 'g')),
+                                t.name
+                            )    AS image_path
+                FROM annotations a
+                        LEFT JOIN task t on a.id = t.annotation_id
+                        LEFT JOIN dataset d on t.dataset_id = d.id
+                WHERE a.project_id = %s
+                ORDER BY id;
             """
             query_vars = [self.id]
             logger.info(

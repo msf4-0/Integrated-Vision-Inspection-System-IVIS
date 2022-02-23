@@ -411,19 +411,21 @@ class BaseTraining:
         Returns:
             bool: True is successful, otherwise False
         """
-        # only need to rename the path if it's new name
-        if name is not None and name != self.name:
-            current_training_path = self.get_training_path(
-                self.project_path, self.name)
-            if current_training_path.exists():
-                # rename the existing training directory if it already exists
-                new_path = self.get_training_path(
-                    self.project_path, name)
-
-                logger.info("Renaming existing training path to new path: "
-                            f"{current_training_path} -> {new_path}")
-                rename_folder(current_training_path, new_path)
+        if name is not None:
             self.name = name
+
+            # only need to rename the path if it's new name
+            if name != self.name:
+                current_training_path = self.get_training_path(
+                    self.project_path, self.name)
+                if current_training_path.exists():
+                    # rename the existing training directory if it already exists
+                    new_path = self.get_training_path(
+                        self.project_path, name)
+
+                    logger.info("Renaming existing training path to new path: "
+                                f"{current_training_path} -> {new_path}")
+                    rename_folder(current_training_path, new_path)
 
         if desc is not None:
             self.desc = desc
@@ -890,6 +892,7 @@ class NewTraining(BaseTraining):
     #     return self.id
 
 # TODO #133 Add New Training Reset
+
 
     @staticmethod
     def reset_new_training_page():
@@ -1385,6 +1388,7 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
+
 
     @staticmethod
     def progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],

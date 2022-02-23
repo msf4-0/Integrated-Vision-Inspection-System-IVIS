@@ -143,10 +143,13 @@ def new_project_entry_page(conn=None):
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
+        input_name = session_state.new_project_name.strip()
+        lower_input_name = input_name.lower()
+        # check the lowercase one
         context = {'column_name': 'name',
-                   'value': session_state.new_project_name}
+                   'value': lower_input_name}
         logger.debug(context)
-        if session_state.new_project_name:
+        if lower_input_name:
             if new_project.check_if_exists(context, conn):
                 new_project.name = None
                 field_placeholder['new_project_name'].error(
@@ -155,7 +158,8 @@ def new_project_entry_page(conn=None):
                 field_placeholder['new_project_name'].empty()
                 logger.error(f"Project name used. Please enter a new name")
             else:
-                new_project.name = session_state.new_project_name
+                # check lowercase name, but insert/update user input name
+                new_project.name = input_name
                 logger.info(f"Project name fresh and ready to rumble")
         else:
             pass
@@ -308,15 +312,19 @@ def new_project_entry_page(conn=None):
 
     # ******************************** SUBMISSION *************************************************
     success_place = st.empty()
-    context = {
-        'new_project_name': new_project.name,
-        'new_project_deployment_type': new_project.deployment_type,
-        'new_project_dataset_chosen': dataset_chosen
-    }
 
     submit_col1, _, submit_col2 = st.columns([2.5, 0.5, 0.5])
 
     def new_project_submit(labeled=False):
+        input_name = session_state.new_project_name.strip()
+        lower_input_name = input_name.lower()
+        # check lowercase name, but insert/update with user input name
+        context = {
+            'new_project_name': lower_input_name,
+            'new_project_deployment_type': new_project.deployment_type,
+            'new_project_dataset_chosen': dataset_chosen
+        }
+
         # if this is True, we will send to New Dataset page for uploading
         if labeled:
             # set this to True to tell new_dataset page about uploading labeled data
@@ -326,67 +334,70 @@ def new_project_entry_page(conn=None):
         new_project.has_submitted = new_project.check_if_field_empty(
             context, field_placeholder=place, name_key='new_project_name')
 
-        if new_project.has_submitted:
-            if labeled:
-                # skip inserting project dataset as the user will
-                #  upload labeled dataset later
-                insert_project_dataset = False
-            else:
-                insert_project_dataset = True
+        if not new_project.has_submitted:
+            st.stop()
 
-            if new_project.initialise_project(
-                    dataset_chosen, dataset_dict,
-                    insert_project_dataset=insert_project_dataset,
-                    annotated_dataset_info=annotated_dataset_id2_project_id):
-                # Updated with Actual Project ID from DB
-                new_editor.project_id = new_project.id
-                # deployment type now IntEnum
-                if new_editor.init_editor(new_project.deployment_type):
-                    new_project.editor = Editor(
-                        new_project.id, new_project.deployment_type)
-                    success_place.success(
-                        f"Successfully stored **{new_project.name}** project information in database")
-                    sleep(1)
-                    success_place.empty()
-                    if labeled:
-                        # send to the NewDataset page to upload labeled dataset
-                        session_state.new_project_pagination = NewProjectPagination.NewDataset
-                    else:
-                        if annotated_dataset_id2_project_id:
-                            # No need to insert project_dataset or update the tasks
-                            # as they are already done in initialise_project()
+        # update with user input name, not lowercase name
+        new_project.name = input_name
 
-                            # initialize Project and remove NewProject from session_states
-                            new_project_id = new_project.id
-                            NewProject.reset_new_project_page()
-                            session_state.project = Project(new_project_id)
+        if labeled:
+            # skip inserting project dataset as the user will
+            #  upload labeled dataset later
+            insert_project_dataset = False
+        else:
+            insert_project_dataset = True
 
-                            # update the current Project's EditorConfig based on
-                            # the inserted annotations
-                            logger.info(
-                                "Updating EditorConfig based on the annotations")
-                            session_state.project.update_editor_config(
-                                is_new_project=True,
-                                refresh_project=True)
-
-                            # enter the project overview page directly
-                            logger.info(
-                                f"Entering Project {session_state.project.id}")
-                            session_state.project_pagination = ProjectPagination.Existing
-                        else:
-                            # if not uploading new labeled dataset then go to Editor
-                            session_state.new_project_pagination = NewProjectPagination.EditorConfig
-                    gc.collect()
-                    st.experimental_rerun()
+        if new_project.initialise_project(
+                dataset_chosen, dataset_dict,
+                insert_project_dataset=insert_project_dataset,
+                annotated_dataset_info=annotated_dataset_id2_project_id):
+            # Updated with Actual Project ID from DB
+            new_editor.project_id = new_project.id
+            # deployment type now IntEnum
+            if new_editor.init_editor(new_project.deployment_type):
+                new_project.editor = Editor(
+                    new_project.id, new_project.deployment_type)
+                success_place.success(
+                    f"Successfully stored **{new_project.name}** project information in database")
+                sleep(1)
+                success_place.empty()
+                if labeled:
+                    # send to the NewDataset page to upload labeled dataset
+                    session_state.new_project_pagination = NewProjectPagination.NewDataset
                 else:
-                    success_place.error(
-                        f"Failed to stored **{new_editor.name}** editor config in database")
+                    if annotated_dataset_id2_project_id:
+                        # No need to insert project_dataset or update the tasks
+                        # as they are already done in initialise_project()
 
+                        # initialize Project and remove NewProject from session_states
+                        new_project_id = new_project.id
+                        NewProject.reset_new_project_page()
+                        session_state.project = Project(new_project_id)
+
+                        # update the current Project's EditorConfig based on
+                        # the inserted annotations
+                        logger.info(
+                            "Updating EditorConfig based on the annotations")
+                        session_state.project.update_editor_config(
+                            is_new_project=True,
+                            refresh_project=True)
+
+                        # enter the project overview page directly
+                        logger.info(
+                            f"Entering Project {session_state.project.id}")
+                        session_state.project_pagination = ProjectPagination.Existing
+                    else:
+                        # if not uploading new labeled dataset then go to Editor
+                        session_state.new_project_pagination = NewProjectPagination.EditorConfig
+                gc.collect()
+                st.experimental_rerun()
             else:
                 success_place.error(
-                    f"Failed to stored **{new_project.name}** project information in database")
+                    f"Failed to stored **{new_editor.name}** editor config in database")
+
         else:
-            st.stop()
+            success_place.error(
+                f"Failed to stored **{new_project.name}** project information in database")
 
     with upload_place.container():
         if st.button("Upload Labeled Dataset", key='btn_upload_labeled_data'):

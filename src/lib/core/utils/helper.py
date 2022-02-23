@@ -217,6 +217,7 @@ def get_directory_name(name: str) -> str:
 
     e.g. ' Dummy dataset 1 ' -> 'dummy-dataset-1'
     """
+    # NOTE: this function is directly related to the Project.query_annotations()
     directory_name = join_string(split_string(
         remove_newline_trailing_whitespace(str(name)))).lower()
     # replace symbols that are unwanted in file/folder names

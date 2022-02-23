@@ -114,15 +114,16 @@ def infodataset():
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
-        new_training_name = session_state.new_training_name
+        input_name = session_state.new_training_name.strip()
+        lower_input_name = input_name.lower()
 
         context = {'column_name': 'name',
-                   'value': new_training_name}
+                   'value': lower_input_name}
 
         logger.debug(f"New Training: {context}")
 
-        if new_training_name:
-            if training.name == new_training_name:
+        if lower_input_name:
+            if training.name.lower() == lower_input_name:
                 logger.debug("Not changing name")
                 return
 
@@ -136,7 +137,7 @@ def infodataset():
                 logger.error(f"Training name used. Please enter a new name")
 
             # else:
-            #     training.name = session_state.new_training_name
+            #     training.name = input_name
             #     logger.info(f"Training name fresh and ready to rumble")
 
     with infocol2.container():
@@ -307,7 +308,10 @@ def infodataset():
         else:
             insert_function = training.insert_training_info_dataset
 
-        if training.name == session_state.new_training_name:
+        input_name = session_state.new_training_name.strip()
+        lower_input_name = input_name.lower()
+
+        if training.name.lower() == lower_input_name:
             # no need to check whether the name exists if the user is using the same
             # existing submitted name
             logger.info("Existing training name is not changed")
@@ -320,7 +324,8 @@ def infodataset():
             insert=insert_function,
             update=training.update_training_info_dataset,
             context={
-                'new_training_name': session_state.new_training_name,
+                # check the lowercase input name, but insert user input name later
+                'new_training_name': lower_input_name,
                 'new_training_dataset_chosen': dataset_chosen
             },
             name_key=name_key
@@ -338,7 +343,8 @@ def infodataset():
             # Training Name,Desc, Dataset chosen, Partition Size
             training.dataset_chosen = dataset_chosen
             if new_training_infodataset_submission_dict.insert(
-                    session_state.new_training_name,
+                    # insert the user input one, not the lowercase one
+                    input_name,
                     description, partition_ratio):
                 session_state.new_training_pagination = NewTrainingPagination.Model
                 # must set this to tell the models_page.py to move to stay in its page
@@ -354,7 +360,8 @@ def infodataset():
             if new_training_infodataset_submission_dict.update(
                     partition_ratio, dataset_chosen,
                     session_state.project.dataset_dict,
-                    name=session_state.new_training_name,
+                    # update with the user input one, not the lowercase one
+                    name=input_name,
                     desc=description):
                 # session_state.new_training_pagination = NewTrainingPagination.Model
                 # # must set this to tell the models_page.py to move to stay in its page
