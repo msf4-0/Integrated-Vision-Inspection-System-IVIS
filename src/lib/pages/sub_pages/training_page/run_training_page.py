@@ -498,17 +498,16 @@ def index(RELEASE=True):
                     st.warning("""**WARNING**: You don't have access to GPU. Inference time
                     will be slower depending on the capability of your CPU and system.""")
 
-                with st.spinner("Running evaluation ..."):
-                    try:
-                        trainer.evaluate()
-                    except Exception as e:
-                        if os.getenv('DEBUG', '1') == '1':
-                            st.exception(e)
-                        st.error(
-                            "Some error has occurred. Please try checking the terminal "
-                            "output for the error. Or just try pressing *'R'* to refresh the page. "
-                            "If it still doesn't work, please try training the model again.")
-                        logger.error(f"Error evaluating: {e}")
+                try:
+                    trainer.evaluate()
+                except Exception as e:
+                    if os.getenv('DEBUG', '1') == '1':
+                        st.exception(e)
+                    st.error(
+                        "Some error has occurred. Please try checking the terminal "
+                        "output for the error. Or just try pressing *'R'* to refresh the page. "
+                        "If it still doesn't work, please try training the model again.")
+                    logger.error(f"Error evaluating: {e}")
             else:
                 logger.info(f"Model {training.training_model_id} "
                             "is not exported yet. Skipping evaluation")
@@ -522,9 +521,6 @@ def index(RELEASE=True):
             is_resume = False if retrain else True
             with retrain_place.container():
                 start_training_callback(is_resume)
-
-    if session_state.get('trainer'):
-        st.write(session_state.trainer)
 
     # st.write("vars(training)")
     # st.write(vars(training))

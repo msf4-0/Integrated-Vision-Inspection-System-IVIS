@@ -1262,7 +1262,15 @@ class Trainer:
                 train_ds, test_ds = self.create_tf_dataset(
                     X_train, y_train, X_test, y_test, keras_model=model)
 
-        # ***************** Preparing callbacks *****************
+        # ********* Preparing for training, including callbacks *********
+        if not is_resume:
+            initial_epoch = 0
+            num_epochs = self.training_param['num_epochs']
+        else:
+            initial_epoch = session_state.new_training.progress['Epoch']
+            logger.debug(f"{initial_epoch = }")
+            num_epochs = initial_epoch + self.training_param['num_epochs']
+
         progress_placeholder = {}
         progress_placeholder['epoch'] = st.empty()
         progress_placeholder['batch'] = st.empty()
@@ -1273,13 +1281,6 @@ class Trainer:
             num_epochs=num_epochs, update_metrics=update_metrics)
 
         # ********************** Train the model **********************
-        if not is_resume:
-            initial_epoch = 0
-            num_epochs = self.training_param['num_epochs']
-        else:
-            initial_epoch = session_state.new_training.progress['Epoch']
-            logger.debug(f"{initial_epoch = }")
-            num_epochs = initial_epoch + self.training_param['num_epochs']
         if self.has_valid_set:
             validation_data = val_ds
         else:

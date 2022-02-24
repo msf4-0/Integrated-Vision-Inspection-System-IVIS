@@ -628,7 +628,6 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             dataset.name, return_names=True))
         message = "Inserting uploaded annotations into database"
         for relative_img_path, result in stqdm(result_generator, total=total_images,
-                                               st_container=st.sidebar,
                                                unit=filetype, desc=message):
             # start_task = perf_counter()
             full_image_path = os.path.join(

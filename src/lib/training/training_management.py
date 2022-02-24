@@ -336,6 +336,8 @@ class BaseTraining:
         else:
             logger.info(
                 f"There are no change in the dataset chosen {self.dataset_chosen}")
+        # update self
+        self.dataset_chosen = submitted_dataset_chosen.copy()
 
     def remove_training_dataset(self, removed_dataset: List, dataset_dict: Dict):
         """Remove dataset from training_dataset table in the Database
@@ -546,14 +548,15 @@ class BaseTraining:
             assert partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
 
             self.partition_ratio = partition_ratio.copy()
+            # update dataset_chosen first before calculate partition size
+            self.update_dataset_chosen(submitted_dataset_chosen=submitted_dataset_chosen,
+                                       dataset_dict=dataset_dict)
+
             self.partition_size = self.calc_dataset_partition_size(
                 partition_ratio, self.dataset_chosen,
                 session_state.project.dataset_dict)
 
             self.update_training_info(name, desc)
-
-            self.update_dataset_chosen(submitted_dataset_chosen=submitted_dataset_chosen,
-                                       dataset_dict=dataset_dict)
 
             return True
 
