@@ -309,6 +309,7 @@ class BaseTraining:
             partition_size['train'] = ceil(num_train_eval * (partition_ratio['train']) / (
                 partition_ratio['train'] + partition_ratio['eval']))
             partition_size['eval'] = num_train_eval - partition_size['train']
+            logger.debug(f"{partition_size = }")
             return partition_size
         else:
             logger.warning(
