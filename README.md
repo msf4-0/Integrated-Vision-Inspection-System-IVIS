@@ -32,10 +32,11 @@ The ***Integrated-Vision-Inspection-System (IVIS)*** is a computer vision app th
 
 <br>
 
-- [Windows Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069494/Native.installation.on.windows.system.docx)
-- [Linux Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069286/IntegrateVisionSystemNativeInstall.Linux.docx)
-- [Windows Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069282/IntegrateVisionSystemDockerInstall.Windows.docx)
-- [Linux Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8076594/IntegrateVisionSystemDockerInstall.Linux.docx)
+- [Windows Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137897/IntegrateVisionSystemNativeInstall.Windows.pdf)
+- [Linux Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137899/IntegrateVisionSystemNativeInstall.Linux.pdf)
+- [Windows Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137900/IntegrateVisionSystemDockerInstall.Windows.pdf)
+- [Linux Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137902/IntegrateVisionSystemDockerInstall.Linux.pdf)
+
 
 
 ## Basic User Guide :open_book:
