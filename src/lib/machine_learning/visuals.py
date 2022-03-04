@@ -231,7 +231,8 @@ def draw_gt_bboxes(
     box_coordinates: Sequence[Tuple[int, int, int, int]],
     class_names: Union[List[str], str] = None,
     color: Tuple[int, int, int] = (0, 150, 0),
-    class_colors: Dict[str, Tuple[int, int, int]] = None
+    class_colors: Dict[str, Tuple[int, int, int]] = None,
+    copy_image: bool = True,
 ) -> np.ndarray:
     """Draw bounding boxes on the image and return the drawn image as a copy.
 
@@ -250,7 +251,8 @@ def draw_gt_bboxes(
     Returns:
         np.ndarray: the image drawn with bounding boxes
     """
-    image_with_gt_box = image_np.copy()
+    if copy_image:
+        image_np = image_np.copy()
     logger.debug(f"Total annotations for the image: {len(box_coordinates)}")
     logger.debug(f"{class_names = }")
 
@@ -269,7 +271,7 @@ def draw_gt_bboxes(
         if class_colors:
             color = class_colors[class_name]
         cv2.rectangle(
-            image_with_gt_box,
+            image_np,
             (xmin, ymin),
             (xmax, ymax),
             color=color,
@@ -282,7 +284,7 @@ def draw_gt_bboxes(
             )
 
             cv2.rectangle(
-                image_with_gt_box,
+                image_np,
                 (xmin - 1, y),
                 (
                     int(xmin + label_width * 1.02),
@@ -293,7 +295,7 @@ def draw_gt_bboxes(
             )
 
             cv2.putText(
-                image_with_gt_box,
+                image_np,
                 class_name,
                 (
                     int(xmin + label_width * 0.02),
@@ -304,7 +306,7 @@ def draw_gt_bboxes(
                 color=(255, 255, 255),
                 thickness=2,
             )
-    return image_with_gt_box
+    return image_np
 
 
 def draw_tfod_bboxes(

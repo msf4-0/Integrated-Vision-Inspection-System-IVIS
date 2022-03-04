@@ -248,17 +248,24 @@ def get_transform(augmentation_config: AugmentationConfig, deployment_type: str)
 
 def preprocess_image(
         image: np.ndarray, image_size: int,
-        bgr2rgb: bool = True, preprocess_fn: Callable = None) -> np.ndarray:
+        bgr2rgb: bool = True, preprocess_fn: Callable = None,
+        rescale: bool = True) -> np.ndarray:
     """Please note that this function should follow the preprocessing function 
     used during training."""
     if bgr2rgb:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    # using bilinear to follow tensorflow default
+    # using INTER_NEAREST_EXACT to be identical with tensorflow's 'nearest' method
     image = cv2.resize(image, (image_size, image_size),
-                       interpolation=cv2.INTER_LINEAR)
+                       interpolation=cv2.INTER_NEAREST_EXACT)
     if preprocess_fn is not None:
         image = preprocess_fn(image)
-    # image = image.astype(np.float32) / 255.0
+        # rescale must be False when using preprocess_fn, otherwise
+        # the results would be very poor
+        rescale = False
+    if rescale:
+        # NOTE: segmentation needs rescale, classif model does not need
+        # because they have their own preprocess_fn
+        image = image.astype(np.float32) / 255.0
     return image
 
 
@@ -710,6 +717,22 @@ def tfod_detect(detect_fn: Callable[[tf.Tensor], Dict[str, Any]],
     return detections
 
 
+def get_detection_classes(
+        detections: Dict[str, Any], category_index: Dict[int, Any],
+        is_checkpoint: bool = False):
+    # logger.debug(f"{detections['detection_classes'] = }")
+    if is_checkpoint:
+        # need offset for checkpoint
+        unique_classes = np.unique(
+            detections['detection_classes'] + 1)
+    else:
+        unique_classes = np.unique(
+            detections['detection_classes'])
+    pred_classes = [category_index[c]['name']
+                    for c in unique_classes]
+    return pred_classes
+
+
 @st.cache
 def get_tfod_test_set_data(test_data_dir: Path, return_xml_df: bool = True):
     with st.spinner("Getting images and annotations ..."):
@@ -781,11 +804,16 @@ def find_architecture_name(keras_model: tf.keras.Model):
     return model_name
 
 
-def get_classif_model_preprocess_func(arch_name: str) -> Callable:
+def get_classif_model_preprocess_func(
+        arch_name: str = None, keras_model: tf.keras.Model = None) -> Callable:
     """Get the preprocess_input function for the Keras pretrained classification model
 
     e.g. Architecture name (or `attached_model_name`) = `arch_name` = `"ResNet50"`
     """
+    if not arch_name:
+        assert keras_model is not None, (
+            "Need Keras model to find architecture name for non-pretrained model")
+        arch_name = find_architecture_name(keras_model)
     preprocess_module = ARCHITECTURE2MODULE_NAME.get(arch_name.lower())
     if not preprocess_module:
         logger.warning(f'Could not obtain preprocess_input function for "{arch_name}". '
@@ -797,8 +825,10 @@ def get_classif_model_preprocess_func(arch_name: str) -> Callable:
     return preprocess_input
 
 
-def tf_classification_preprocess_input(imagePath: str, label: int,
-                                       image_size: int, preprocess_fn: Callable = None):
+def tf_classification_preprocess_input(
+        imagePath: str, label: int,
+        image_size: int, preprocess_fn: Callable = None,
+        rescale: bool = False):
     """Using the `preprocess_fn` function obtained from
     `get_classif_model_preprocess_func()`"""
     raw = tf.io.read_file(imagePath)
@@ -806,10 +836,13 @@ def tf_classification_preprocess_input(imagePath: str, label: int,
     # https://towardsdatascience.com/image-read-and-resize-with-opencv-tensorflow-and-pil-3e0f29b992be
     image = tf.image.decode_jpeg(
         raw, channels=3, dct_method='INTEGER_ACCURATE')
-    image = tf.image.resize(image, (image_size, image_size), method='bilinear')
+    image = tf.image.resize(image, (image_size, image_size), method='nearest')
     if preprocess_fn:
         image = preprocess_fn(image)
-    # image = tf.cast(image, tf.float32) / 255.0
+        # don't rescale when using preprocess_fn
+        rescale = False
+    if rescale:
+        image = tf.cast(image, tf.float32) / 255.0
 
     label = tf.cast(label, dtype=tf.int32)
     return image, label
@@ -971,7 +1004,7 @@ def segmentation_read_and_preprocess(
         image_size: int, num_classes: int) -> Tuple[np.ndarray, tf.Tensor]:
     # must decode the paths because they are in bytes format in TF operations
     image = cv2.imread(imagePath.decode())
-    image = preprocess_image(image, image_size)
+    image = preprocess_image(image, image_size, rescale=True)
 
     mask = cv2.imread(maskPath.decode(), cv2.IMREAD_GRAYSCALE)
     mask = preprocess_mask(mask, image_size, num_classes)

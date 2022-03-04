@@ -78,7 +78,7 @@ from .command_utils import (export_tfod_savedmodel, find_tfod_eval_metrics, run_
                             run_command_update_metrics, find_tfod_metric)
 from .utils import (NASNET_IMAGENET_INPUT_SHAPES, check_unique_label_counts, classification_predict, copy_images,
                     custom_train_test_split, find_architecture_name, generate_tfod_xml_csv, get_bbox_label_info, get_ckpt_cnt,
-                    get_classif_model_preprocess_func, get_test_images_labels,
+                    get_classif_model_preprocess_func, get_detection_classes, get_test_images_labels,
                     get_tfod_last_ckpt_path, get_tfod_test_set_data, get_transform,
                     load_image_into_numpy_array, load_keras_model, load_labelmap,
                     load_tfod_checkpoint, load_tfod_model, load_trained_keras_model, modify_trained_model_layers, preprocess_image,
@@ -87,6 +87,7 @@ from .utils import (NASNET_IMAGENET_INPUT_SHAPES, check_unique_label_counts, cla
 from .visuals import (PrettyMetricPrinter, create_class_colors, create_color_legend, draw_gt_bboxes,
                       draw_tfod_bboxes, get_colored_mask_image)
 from .callbacks import LRTensorBoard, StreamlitOutputCallback
+from deployment.utils import classification_inference_pipeline, tfod_inference_pipeline, segment_inference_pipeline
 
 
 def create_labelmap_file(class_names: List[str], output_dir: Path, deployment_type: str):
@@ -141,6 +142,9 @@ class Trainer:
         self.metrics, self.metric_names = new_training.get_training_metrics()
         self.augmentation_config: AugmentationConfig = new_training.augmentation_config
         self.training_path: Dict[str, Path] = new_training.get_paths()
+        # preprocess function specifically for image classification, to obtain later
+        # on evaluation in run_keras_eval()
+        self.preprocess_fn: Callable = None
 
     def __repr__(self):
         return "<{klass} {attrs}>".format(
@@ -630,19 +634,16 @@ class Trainer:
         exist_dict = self.check_model_exists()
         with st.spinner("Loading model ... This might take awhile ..."):
             # only use the full exported model after the user has exported it
-            # NOTE: take note of the tensor_dtype to convert to work in both ways
             if exist_dict['exported_model']:
                 if not hasattr(self, 'model'):
                     self.model = load_tfod_model(
                         self.training_path['export'] / 'saved_model')
-                tensor_dtype = tf.uint8
                 is_checkpoint = False
             else:
                 if not hasattr(self, 'model'):
                     self.model = load_tfod_checkpoint(
                         ckpt_dir=self.training_path['models'],
                         pipeline_config_path=self.training_path['config_file'])
-                tensor_dtype = tf.float32
                 is_checkpoint = True
         category_index = load_labelmap(paths['labelmap_file'])
         logger.debug(f"{category_index = }")
@@ -736,39 +737,26 @@ class Trainer:
             for i, p in enumerate(current_image_paths):
                 # current_img_idx = start_idx + i + 1
                 logger.debug(f"Detecting on image at: {p}")
-                img = load_image_into_numpy_array(str(p))
-
+                img = cv2.imread(str(p))
                 filename = os.path.basename(p)
-                class_names, bboxes = get_bbox_label_info(gt_xml_df, filename)
 
                 start_t = perf_counter()
-                detections = tfod_detect(self.model, img,
-                                         tensor_dtype=tensor_dtype)
+                img_with_detections, detections = tfod_inference_pipeline(
+                    self.model, img,
+                    is_checkpoint=is_checkpoint)
                 time_elapsed = perf_counter() - start_t
                 logger.info(f"Done inference on {filename}. "
                             f"[{time_elapsed:.2f} secs]")
 
-                img_with_detections = img.copy()
-                # logger.debug(f"{detections['detection_classes'] = }")
-                if is_checkpoint:
-                    # need offset for checkpoint
-                    unique_classes = np.unique(
-                        detections['detection_classes'] + 1)
-                else:
-                    unique_classes = np.unique(
-                        detections['detection_classes'])
-                pred_classes = [category_index[c]['name']
-                                for c in unique_classes]
+                pred_classes = get_detection_classes(
+                    detections, category_index, is_checkpoint=is_checkpoint)
                 logger.info(f"Detected classes: {pred_classes}")
-                draw_tfod_bboxes(
-                    detections, img_with_detections, category_index,
-                    conf_threshold,
-                    is_checkpoint=is_checkpoint)
 
+                class_names, bboxes = get_bbox_label_info(gt_xml_df, filename)
                 img = draw_gt_bboxes(img, bboxes,
                                      class_names=class_names,
                                      class_colors=class_colors)
-                true_img_col.image(img, channels='RGB',
+                true_img_col.image(img, channels='BGR',
                                    caption=f'{start + i}. Ground Truth: {filename}')
                 pred_img_col.image(img_with_detections, channels='RGB',
                                    caption=f'Prediction: {filename}')
@@ -1443,6 +1431,10 @@ class Trainer:
             else:
                 self.model = load_keras_model(self.training_path['output_keras_model_file'],
                                               self.metrics, self.training_param)
+            if self.deployment_type == 'Image Classification':
+                # use preprocess_fn if available
+                self.preprocess_fn: Callable = self.get_preprocess_fn(
+                    self.model)
 
         options_col, _ = st.columns([1, 1])
         prev_btn_col_1, next_btn_col_1, _ = st.columns([1, 1, 3])
@@ -1537,14 +1529,13 @@ class Trainer:
 
                     img = cv2.imread(p)
                     start_t = perf_counter()
-                    preprocessed_img = preprocess_image(img, image_size)
-                    y_pred, y_proba = classification_predict(
-                        preprocessed_img, self.model, return_proba=True)
+                    pred_classname, y_proba = classification_inference_pipeline(
+                        self.model, img, image_size, encoded_label_dict,
+                        preprocess_fn=self.preprocess_fn)
                     time_elapsed = perf_counter() - start_t
                     logger.info(f"Inference on image: {filename} "
                                 f"[{time_elapsed:.4f}s]")
 
-                    pred_classname = encoded_label_dict[y_pred]
                     true_classname = encoded_label_dict[label]
 
                     caption = (f"{start + i}. {filename}; "
@@ -1573,11 +1564,10 @@ class Trainer:
                     filename = os.path.basename(img_path)
 
                     image = cv2.imread(img_path)
-                    orig_H, orig_W = image.shape[:2]
                     start_t = perf_counter()
-                    preprocessed_img = preprocess_image(image, image_size)
-                    pred_mask = segmentation_predict(
-                        self.model, preprocessed_img, orig_W, orig_H)
+                    pred_output, _ = segment_inference_pipeline(
+                        self.model, image, image_size, class_colors=class_colors,
+                        ignore_background=ignore_background)
                     time_elapsed = perf_counter() - start_t
                     logger.info(f"Inference on image: {filename} "
                                 f"[{time_elapsed:.4f}s]")
@@ -1604,9 +1594,6 @@ class Trainer:
 
                     plt.subplot(133)
                     plt.title("Predicted")
-                    pred_output = get_colored_mask_image(
-                        image, pred_mask, class_colors,
-                        ignore_background=ignore_background)
                     plt.imshow(pred_output)
                     plt.axis('off')
 

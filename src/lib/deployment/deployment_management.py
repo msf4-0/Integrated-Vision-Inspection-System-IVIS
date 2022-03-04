@@ -68,8 +68,8 @@ if TYPE_CHECKING:
 from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
 from machine_learning.command_utils import export_tfod_savedmodel
 from deployment.utils import (
-    reset_video_deployment, reset_client,
-    reset_csv_file_and_writer, reset_record_and_vid_writer)
+    classification_inference_pipeline, reset_video_deployment, reset_client,
+    reset_csv_file_and_writer, reset_record_and_vid_writer, segment_inference_pipeline, tfod_inference_pipeline)
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -354,62 +354,20 @@ class Deployment(BaseDeployment):
         tf.keras.backend.clear_session()
         gc.collect()
 
-    def classification_inference_pipeline(
-            self, img: np.ndarray, **kwargs) -> Tuple[str, float]:
-        preprocessed_img = preprocess_image(
-            img, self.image_size, self.preprocess_fn)
-        y_pred, y_proba = classification_predict(
-            preprocessed_img,
-            self.model,
-            return_proba=True)
-        pred_classname = self.encoded_label_dict.get(y_pred, 'Unknown')
-        return pred_classname, y_proba
-
-    def tfod_inference_pipeline(
-            self, img: np.ndarray, conf_threshold: float = 0.6,
-            draw_result: bool = True, **kwargs) -> Union[
-                Tuple[np.ndarray, Dict[str, Any]],
-                Dict[str, Any]]:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        detections = tfod_detect(self.model, img,
-                                 tensor_dtype=tf.uint8)
-        if draw_result:
-            draw_tfod_bboxes(detections, img,
-                             self.category_index,
-                             conf_threshold)
-            return img, detections
-        return detections
-
-    def segment_inference_pipeline(
-            self, img: np.ndarray,
-            draw_result: bool = True, class_colors: np.ndarray = None,
-            ignore_background: bool = False, **kwargs) -> Union[
-                Tuple[np.ndarray, np.ndarray],
-                np.ndarray]:
-        orig_H, orig_W = img.shape[:2]
-        # converting here instead of inside preprocess_image() to pass RGB image to
-        # get_colored_mask_image() to avoid converting back and forth
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        preprocessed_img = preprocess_image(
-            img, self.image_size, bgr2rgb=False)
-        pred_mask = segmentation_predict(
-            self.model, preprocessed_img, orig_W, orig_H)
-        if draw_result:
-            # must provide class_colors
-            drawn_output = get_colored_mask_image(
-                img, pred_mask, class_colors,
-                ignore_background=ignore_background)
-            return drawn_output, pred_mask
-        return pred_mask
-
     def get_inference_pipeline(self, **kwargs) -> Callable:
         assert 'img' not in kwargs, "Image should only be passed in during inference time"
         if self.deployment_type == 'Image Classification':
-            return partial(self.classification_inference_pipeline, **kwargs)
+            return partial(
+                classification_inference_pipeline, model=self.model,
+                image_size=self.image_size, preprocess_fn=self.preprocess_fn, **kwargs)
         elif self.deployment_type == 'Object Detection with Bounding Boxes':
-            return partial(self.tfod_inference_pipeline, **kwargs)
+            return partial(
+                tfod_inference_pipeline, model=self.model,
+                category_index=self.category_index, is_checkpoint=False, **kwargs)
         elif self.deployment_type == 'Semantic Segmentation with Polygons':
-            return partial(self.segment_inference_pipeline, **kwargs)
+            return partial(
+                segment_inference_pipeline, model=self.model,
+                image_size=self.image_size, **kwargs)
 
     def get_classification_results(self, pred_classname: str, probability: float,
                                    timezone: str, camera_title: str = ''):
