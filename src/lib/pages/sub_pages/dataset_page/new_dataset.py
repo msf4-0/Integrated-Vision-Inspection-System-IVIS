@@ -127,7 +127,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         project_id = session_state.new_project.id
         del session_state['new_project']
         session_state.project = Project(project_id)
-        logger.info(f"Project ID {project_id} initialized")
+        logger.info(f"Project ID {project_id} initialized from NewProject"
+                    "to accept uploaded labeled dataset")
 
     dataset: NewDataset = session_state.new_dataset
     # ******** SESSION STATE ********
@@ -499,7 +500,10 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         submit_button = button_place.button("Submit", key="submit")
 
     if submit_button:
-        input_name = session_state.name.strip()
+        if not is_existing_dataset:
+            input_name = session_state.name.strip()
+        else:
+            input_name = dataset.name
         lower_input_name = input_name.lower()
 
         # check lowercase name, but insert user input name later
@@ -551,10 +555,10 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         # For labeled dataset, don't save the images to disk because it's
         # easier to store together with annotations later
         save_images_to_disk = False if session_state.is_labeled else True
-        error_img_paths = dataset.save_dataset(
+        _, new_img_names, error_img_paths = dataset.save_dataset(
             dataset.archive_dir, save_images_to_disk=save_images_to_disk)
         if error_img_paths:
-            st.error("Failed to save dataset")
+            st.error("Failed to save dataset!")
             with st.expander("The following images cannot be read:"):
                 st.markdown("\n  ".join(error_img_paths))
             dataset.delete_dataset(dataset.id)
@@ -565,50 +569,67 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         logger.info(txt)
 
         txt = ""
-        if is_existing_dataset:
-            if dataset.update_dataset_size():
-                txt = f"Successfully updated **{dataset.name}** dataset size information"
-        else:
+        if not is_existing_dataset:
+            # NEW dataset
             if dataset.insert_dataset():
                 txt = f"Successfully stored **{dataset.name}** dataset information in database"
-        if txt:
-            success_place.success(txt)
-            logger.info(txt)
-        else:
-            logger.error("Unable to update/insert dataset information")
+                logger.info(txt)
+                success_place.success(txt)
+            else:
+                txt = "Unable to update/insert dataset information"
+                logger.error(txt)
+                success_place.error(txt)
+                st.stop()
 
-        if isinstance(session_state.get('project'), Project):
-            # must refresh project details to update dataset info
-            session_state.project.refresh_project_details()
+            # We need to insert the NEW project_dataset here after the dataset
+            # has been stored in database
+            if isinstance(session_state.get('project'), Project):
+                with st.spinner("Inserting the project dataset ..."):
+                    # add the uploaded dataset as the dataset_chosen, to
+                    # allow the insert_project_dataset to work
+                    dataset_name = dataset.name
+                    dataset_chosen = [dataset_name]
+                    # if uploading labeled dataset, skip inserting task here because
+                    # we will insert them later to easily rename and link images
+                    insert_task = False if session_state.is_labeled else True
+                    project.insert_project_dataset(
+                        dataset_chosen, insert_task=insert_task)
+                    logger.info(f"Inserted project dataset '{dataset_name}' for "
+                                f"Project {project.id} into project_dataset table")
+                    # must refresh all the dataset details
+                    project.refresh_project_details()
 
         # NOTE: stop here if not uploading any labeled dataset
         if not session_state.is_labeled:
+            # NOTE: currently existing dataset in this module is assumed
+            #  to be linked with a project.
+            # so insert the new image info into the `task` table for existing dataset,
+            # only insert if it is not labeled, because images, tasks,
+            # and annotations will be stored together later for labeled dataset
+            if is_existing_dataset:
+                # `os_sorted` is used to sort the files just like in file browser
+                # to make the order of the files make more sense to the user
+                # especially in the labelling pages ('data_labelling.py'
+                # & 'labelling_dashboard.py')
+                image_names = os_sorted(new_img_names)
+                project.insert_new_project_task(
+                    dataset.name,
+                    dataset.id,
+                    image_names=image_names)
+                # update dataset size here before stopping
+                if dataset.update_dataset_size():
+                    txt = f"Successfully updated {dataset.name} dataset size information"
+                    logger.info(txt)
+                    project.refresh_project_details()
             txt = ("Successfully stored the new dataset in database "
                    "and local storage.")
             logger.info(txt)
             success_place.success(txt)
-            clean_archive_dir()
+            with st.spinner("Cleaning temporary archive files ..."):
+                clean_archive_dir()
             st.stop()
 
         # ******************** FOR LABELED DATASET **********************
-
-        # We need to insert the project_dataset here after the dataset
-        # has been stored
-        if not is_existing_dataset:
-            # if not updating, then we insert the new project_dataset
-            with st.spinner("Inserting the project dataset ..."):
-                # add the uploaded dataset as the dataset_chosen, to
-                # allow the insert_project_dataset to work
-                dataset_name = dataset.name
-                dataset_chosen = [dataset_name]
-                # skip inserting task to insert them later when submitting
-                # annotations
-                project.insert_project_dataset(
-                    dataset_chosen, insert_task=False)
-                logger.info(f"Inserted project dataset '{dataset_name}' for "
-                            f"Project {project.id} into project_dataset table")
-                # must refresh all the dataset details
-                project.refresh_project_details()
 
         total_images = len(image_paths)
         logger.info(
@@ -687,10 +708,6 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                     f"Took {time_elapsed:.2f} seconds. "
                     f"Average {time_elapsed / total_images:.4f}s per image")
 
-        with st.spinner("Updating project labels and editor configuration ..."):
-            project.update_editor_config(
-                is_new_project, refresh_project=True)
-
         if error_imgs:
             if len(error_imgs) == total_images:
                 st.error("""All annotations were not saved successfully. Please check
@@ -714,6 +731,15 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         else:
             success_place.success("""🎉 All images and annotations are successfully
             stored in database. You may now proceed to enter the current project.""")
+
+        if is_existing_dataset:
+            if dataset.update_dataset_size():
+                txt = f"Successfully updated **{dataset.name}** dataset size information"
+                logger.info(txt)
+
+        with st.spinner("Updating project labels and editor configuration ..."):
+            project.update_editor_config(
+                is_new_project, refresh_project=True)
 
         # clear out the "Submit" button to avoid further interactions
         button_place.empty()

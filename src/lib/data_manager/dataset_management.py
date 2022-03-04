@@ -305,14 +305,18 @@ class BaseDataset:
             # just in case... to avoid errors
             all_img_names = set(all_img_names)
         error_img_paths = []
+        ori_img_names = []
+        new_img_names = []
 
         for img_path in stqdm(image_paths, unit=self.filetype, ascii='123456789#', st_container=st.sidebar, desc="Uploading images"):
             success, ori_img_name, new_img_name = save_single_image(
                 img_path, self.dataset_path,
                 all_img_names=all_img_names, verbose=verbose)
+            ori_img_names.append(ori_img_name)
+            new_img_names.append(new_img_name)
             if not success:
                 error_img_paths.append(img_path)
-        return error_img_paths
+        return ori_img_names, new_img_names, error_img_paths
 
     def calc_total_filesize(self):
         if self.dataset:
@@ -350,11 +354,12 @@ class BaseDataset:
 
     def save_dataset(
             self, archive_dir: Path,
-            save_images_to_disk: bool = True) -> Union[None, List[str]]:
+            save_images_to_disk: bool = True) -> Tuple[List[str], List[str], List[str]]:
         """`archive_dir` is the directory that contains the extracted tarfile contents
 
-        If `save_images_to_disk` is True, also returns `error_img_paths` (List[str]) 
-        for any images that were not saved successfully.
+        If `save_images_to_disk` is True, also returns Tuple of List[str] of
+        `ori_img_names`, `new_img_names` (new generated names saved in disk),
+        and `error_img_paths` for any images that were not saved successfully.
         """
 
         # Get absolute dataset folder path
@@ -364,9 +369,10 @@ class BaseDataset:
         if save_images_to_disk:
             existing_image_names = set(
                 self.get_image_paths(self.name, return_names=True))
-            error_img_paths = self.dataset_PNG_encoding(
+            ori_img_names, new_img_names, error_img_paths = self.dataset_PNG_encoding(
                 archive_dir, all_img_names=existing_image_names)
-            return error_img_paths
+            return ori_img_names, new_img_names, error_img_paths
+        return [], [], []
         # st.success(f"Successfully created **{self.name}** dataset")
 
     @staticmethod
