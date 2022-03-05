@@ -60,6 +60,7 @@ from core.utils.log import logger  # logger
 from data_manager.database_manager import (db_fetchall, db_fetchone,
                                            db_no_fetch, init_connection)
 from deployment.deployment_management import Deployment, DeploymentType
+from machine_learning.command_utils import rename_folder
 from project.project_management import Project
 from training.model_management import BaseModel, Model, ModelType, NewModel
 from training.utils import get_segmentation_model_func2params, get_segmentation_model_name2func
@@ -308,6 +309,7 @@ class BaseTraining:
             partition_size['train'] = ceil(num_train_eval * (partition_ratio['train']) / (
                 partition_ratio['train'] + partition_ratio['eval']))
             partition_size['eval'] = num_train_eval - partition_size['train']
+            logger.debug(f"{partition_size = }")
             return partition_size
         else:
             logger.warning(
@@ -334,6 +336,8 @@ class BaseTraining:
         else:
             logger.info(
                 f"There are no change in the dataset chosen {self.dataset_chosen}")
+        # update self
+        self.dataset_chosen = submitted_dataset_chosen.copy()
 
     def remove_training_dataset(self, removed_dataset: List, dataset_dict: Dict):
         """Remove dataset from training_dataset table in the Database
@@ -410,19 +414,21 @@ class BaseTraining:
         Returns:
             bool: True is successful, otherwise False
         """
-        # only need to rename the path if it's new name
-        if name is not None and name != self.name:
-            current_training_path = self.get_training_path(
-                self.project_path, self.name)
-            if current_training_path.exists():
-                # rename the existing training directory if it already exists
-                new_path = self.get_training_path(
-                    self.project_path, name)
-
-                logger.info("Renaming existing training path to new path: "
-                            f"{current_training_path} -> {new_path}")
-                os.rename(current_training_path, new_path)
+        if name is not None:
             self.name = name
+
+            # only need to rename the path if it's new name
+            if name != self.name:
+                current_training_path = self.get_training_path(
+                    self.project_path, self.name)
+                if current_training_path.exists():
+                    # rename the existing training directory if it already exists
+                    new_path = self.get_training_path(
+                        self.project_path, name)
+
+                    logger.info("Renaming existing training path to new path: "
+                                f"{current_training_path} -> {new_path}")
+                    rename_folder(current_training_path, new_path)
 
         if desc is not None:
             self.desc = desc
@@ -542,14 +548,15 @@ class BaseTraining:
             assert partition_ratio['eval'] > 0.0, "Dataset Evaluation Ratio needs to be > 0"
 
             self.partition_ratio = partition_ratio.copy()
+            # update dataset_chosen first before calculate partition size
+            self.update_dataset_chosen(submitted_dataset_chosen=submitted_dataset_chosen,
+                                       dataset_dict=dataset_dict)
+
             self.partition_size = self.calc_dataset_partition_size(
                 partition_ratio, self.dataset_chosen,
                 session_state.project.dataset_dict)
 
             self.update_training_info(name, desc)
-
-            self.update_dataset_chosen(submitted_dataset_chosen=submitted_dataset_chosen,
-                                       dataset_dict=dataset_dict)
 
             return True
 
@@ -889,6 +896,7 @@ class NewTraining(BaseTraining):
     #     return self.id
 
 # TODO #133 Add New Training Reset
+
 
     @staticmethod
     def reset_new_training_page():
@@ -1384,6 +1392,7 @@ class Training(BaseTraining):
     #             f"Failed to stored **{self.name}** training information in database")
     #         return False
 # NOTE ******************* DEPRECATED *********************************************
+
 
     @staticmethod
     def progress_preprocessing(all_project_training: Union[List[NamedTuple], List[Dict]],

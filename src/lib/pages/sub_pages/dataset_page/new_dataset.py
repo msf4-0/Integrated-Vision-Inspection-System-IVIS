@@ -24,11 +24,13 @@ SPDX-License-Identifier: Apache-2.0
 
 """
 
+import gc
 import os
 from pathlib import Path
 import sys
 import shutil
 from time import perf_counter, sleep
+from collections import Counter
 
 from natsort import os_sorted
 import cv2
@@ -57,10 +59,10 @@ from core.utils.helper import Timer, list_available_cameras
 from core.utils.file_handler import extract_archive, list_files_in_archived, check_image_files
 from core.utils.log import logger
 from data_manager.database_manager import init_connection
-from data_manager.dataset_management import NewDataset, get_dataset_name_list, get_latest_captured_image_path, query_dataset_list
+from data_manager.dataset_management import NewDataset, find_image_path, get_dataset_name_list, get_latest_captured_image_path, query_dataset_list, save_single_image
 from path_desc import TEMP_DIR, chdir_root
 from project.project_management import NewProject, Project, ProjectPagination, ProjectPermission
-from annotation.annotation_management import NewAnnotations, Task
+from annotation.annotation_management import Annotations, NewAnnotations, NewTask, Task
 from user.user_management import User
 from deployment.utils import reset_camera, reset_camera_and_ports
 
@@ -125,7 +127,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         project_id = session_state.new_project.id
         del session_state['new_project']
         session_state.project = Project(project_id)
-        logger.info(f"Project ID {project_id} initialized")
+        logger.info(f"Project ID {project_id} initialized from NewProject"
+                    "to accept uploaded labeled dataset")
 
     dataset: NewDataset = session_state.new_dataset
     # ******** SESSION STATE ********
@@ -135,6 +138,13 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         deployment_type = project.deployment_type
     elif 'new_project' in session_state:
         deployment_type = session_state.new_project.deployment_type
+
+    def clean_archive_dir():
+        # remove the unneeded extracted archive dir contents
+        with st.spinner("Removing the unwanted extracted files ..."):
+            shutil.rmtree(dataset.archive_dir)
+            logger.info(
+                "Removed temporary directory for extracted contents")
 
     if is_existing_dataset:
         # session_state.dataset_chosen should be obtained from existing_project_dashboard
@@ -165,9 +175,13 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
     # >>>> CHECK IF NAME EXISTS CALLBACK >>>>
     def check_if_name_exist(field_placeholder, conn):
+        input_name = session_state.name.strip()
+        # NOTE: MUST BE LOWERCASE TO AVOID REPLACING EXISTING DIRECTORIES
+        # as directory name is case-insensitive
+        lower_input_name = input_name.lower()
         context = {'column_name': 'name',
-                   'value': session_state.name}
-        if session_state.name:
+                   'value': lower_input_name}
+        if lower_input_name:
             if dataset.check_if_exists(context, conn):
                 dataset.name = None
                 field_placeholder['name'].error(
@@ -175,7 +189,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 sleep(1)
                 logger.error(f"Dataset name used. Please enter a new name")
             else:
-                dataset.name = session_state.name
+                # save the user's input one but check with lowercase one
+                dataset.name = input_name
                 logger.info(f"Dataset name fresh and ready to rumble")
 
     # >>>>>>> DATASET INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -358,7 +373,8 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 cv2.imwrite(str(save_path), frame)
                 total_new_imgs += 1
                 image_num += 1
-                save_path = save_path.with_name(f'{image_num}.png')
+                save_path = save_path.with_name(
+                    f'{image_num}_{get_random_string(8)}.png')
                 # sleep to limit save rate a little bit
                 sleep(0.1)
 
@@ -396,14 +412,17 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
                 st.info(
                     "#### Compatible Annotation Format:  \n"
                     "- Object detection should have one XML file for each uploaded image.  \n"
+                    "**Filenames** should be **unique** for the best results.  \n"
                     "- Image classification can have two types:  \n"
                     "1. CSV file: should only have images and only one CSV file, "
                     "the first row of CSV file should be the filename with extension, while "
                     "the second row should be the class label name.  \n"
+                    "Note that the filenames **must be unique**.  \n"
                     "2. Label by folder names: Each image is labeled by the folder name they "
                     "reside in. E.g. *cat1.jpg* image is in a folder named as *cat*, this "
                     "image will be labeled as *cat*  \n"
-                    "- Image segmentation should only have images and only one COCO JSON file.  \n")
+                    "- Image segmentation should only have images and only one COCO JSON file.  \n"
+                    "**Filenames** should also be **unique** for the best results.")
 
         # default to CSV file for everything else
         classif_annot_type = 'CSV file'
@@ -480,10 +499,15 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
         button_place = st.empty()
         submit_button = button_place.button("Submit", key="submit")
 
-    # st.write(session_state)
-
     if submit_button:
-        context = {'name': dataset.name,
+        if not is_existing_dataset:
+            input_name = session_state.name.strip()
+        else:
+            input_name = dataset.name
+        lower_input_name = input_name.lower()
+
+        # check lowercase name, but insert user input name later
+        context = {'name': lower_input_name,
                    'upload': session_state.upload_widget}
         if is_existing_dataset:
             # don't need to check for dataset name for existing dataset
@@ -491,274 +515,252 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
 
         dataset.has_submitted = dataset.check_if_field_empty(
             context, field_placeholder=place, name_key='name')
+        if not dataset.has_submitted:
+            st.stop()
+        # save the user input name, not the lowercase one
+        dataset.name = input_name
 
-        if dataset.has_submitted:
-            if is_existing_dataset:
-                logger.info("Checking for duplicated filenames")
-                with outercol2:
-                    with st.spinner("Checking for duplicated filenames ..."):
-                        uploaded_files = [
-                            os.path.basename(f) for f in filepaths]
-                        existing_images = project.data_name_list[
-                            session_state.dataset_chosen]
-                        duplicates = set(uploaded_files).intersection(
-                            existing_images)
-                    if duplicates:
-                        logger.error("Duplicated image filenames found")
-                        st.error("Found image filenames in the archive that are identical to "
-                                 "the current project dataset. Please make sure to use "
-                                 "different names to avoid overwriting existing images.")
-                        with st.expander("List of duplicates:"):
-                            st.markdown("  \n".join(duplicates))
-                        st.stop()
-
-            with outercol2:
-                if session_state.is_labeled:
-                    with st.spinner("Checking uploaded dataset and annotations ..."):
-                        logger.info(
-                            "Checking uploaded dataset and annotations")
-                        start = perf_counter()
-                        image_paths = dataset.validate_labeled_data(
-                            uploaded_archive, filepaths, deployment_type,
-                            classif_annot_type=classif_annot_type)
-                        time_elapsed = perf_counter() - start
-                        logger.info(
-                            f"Done. [{time_elapsed:.4f} seconds]")
-                        st.success("""🎉 Annotations are verified to be compatible and
-                        in the correct format.""")
-                else:
-                    with st.spinner("Checking uploaded images ..."):
-                        logger.info("Checking uploaded images")
-                        image_paths = check_image_files(filepaths)
-
-            dataset.dataset = image_paths
-
-            # create a temporary directory for extracting the archive contents
-            if TEMP_DIR.exists():
-                shutil.rmtree(TEMP_DIR)
-            os.makedirs(TEMP_DIR)
-            dataset.archive_dir = TEMP_DIR
-
-            with outercol3:
-                with st.spinner("Extracting uploaded archive contents ..."):
-                    extract_archive(TEMP_DIR, file_object=uploaded_archive)
-
-            if dataset.save_dataset(dataset.archive_dir):
-
-                success_place.success(
-                    f"Successfully created **{dataset.name}** dataset")
-
-                if is_existing_dataset:
-                    dataset_func = dataset.update_dataset_size
-                else:
-                    dataset_func = dataset.insert_dataset
-
-                if dataset_func():
-
-                    success_place.success(
-                        f"Successfully stored **{dataset.name}** dataset information in database")
-
-                    if is_existing_dataset:
-                        # insert the new image info into the `task` table for existing dataset,
-                        # `os_sorted` is used to sort the files just like in file browser
-                        # to make the order of the files make more sense to the user
-                        # especially in the labelling pages ('data_labelling.py' & 'labelling_dashboard.py')
-                        image_names = [os.path.basename(p)
-                                       for p in os_sorted(image_paths)]
-                        project.insert_new_project_task(
-                            dataset.name,
-                            dataset.id,
-                            image_names=image_names)
-
-                    if session_state.is_labeled:
-                        # We need to insert the project_dataset here after the dataset
-                        # has been stored
-                        if not is_existing_dataset:
-                            # if not updating, then we insert the new project_dataset
-                            with st.spinner("Inserting the project dataset ..."):
-                                # similar to `new_project.py`
-                                existing_dataset, _ = query_dataset_list()
-                                dataset_dict = get_dataset_name_list(
-                                    existing_dataset)
-                                # add the uploaded dataset as the dataset_chosen, to
-                                # allow the insert_project_dataset to work
-                                dataset_name = dataset.name
-                                dataset_chosen = [dataset_name]
-                                project.insert_project_dataset(
-                                    dataset_chosen, dataset_dict)
-                                project_id = project.id
-                                logger.info(f"Inserted project dataset '{dataset_name}' for "
-                                            f"Project {project_id} into project_dataset table")
-                                # must refresh all the dataset details
-                                project.refresh_project_details()
-
-                        with st.spinner("Querying all the labeled images ..."):
-                            all_task, all_task_column_names = Task.query_all_task(
-                                project.id,
-                                return_dict=True,
-                                # using True to use 'id' instead of 'ID' for the first column name
-                                for_data_table=True)
-                            task_df = Task.create_all_task_dataframe(
-                                all_task, all_task_column_names)
-
-                            # taking only the filename without extension to consider the
-                            #  case of Label Studio exported XML filenames without
-                            #  any file extension
-                            if project.deployment_type == 'Object Detection with Bounding Boxes':
-                                task_df['Task Name'] = task_df['Task Name'].apply(
-                                    lambda filename: os.path.splitext(filename)[0])
-
-                        total_images = len(task_df)
-                        filetype = dataset.filetype
-                        logger.info("Submitting uploaded annotations ...")
-
-                        start_t = perf_counter()
-                        error_imgs = []
-                        # set this to False to check how long each process takes
-                        disable_timer = True
-
-                        result_generator = dataset.parse_annotation_files(
-                            project.deployment_type, image_paths,
-                            classif_annot_type=classif_annot_type
-                        )
-                        message = "Inserting uploaded annotations into database"
-                        for img_name, result in stqdm(result_generator, total=total_images,
-                                                      st_container=st.sidebar,
-                                                      unit=filetype, desc=message):
-                            start_task = perf_counter()
-
-                            task_row = task_df.loc[
-                                task_df['Task Name'] == img_name
-                            ].to_dict(orient='records')
-
-                            if task_row:
-                                # index into the List of Dict of task
-                                task_row = task_row[0]
-                            else:
-                                logger.error(
-                                    f"Image '{img_name}' not found. Probably removed "
-                                    "because unable to read the image. Skipping from "
-                                    "submitting to database.")
-                                # these images were skipped in dataset_PNG_encoding()
-                                error_imgs.append(img_name)
-                                continue
-
-                            with Timer("Task instantiated", disable_timer):
-                                task = Task(task_row,
-                                            project.dataset_dict,
-                                            project.id,
-                                            generate_data_url=False)
-
-                            with Timer("Annotation instantiated", disable_timer):
-                                annotation = NewAnnotations(
-                                    task, session_state.user)
-
-                            # Submit annotations to DB
-                            with Timer(f"Annotation ID {annotation.id} submitted", disable_timer):
-                                annotation.submit_annotations(
-                                    result, session_state.user.id, conn)
-
-                            time_elapsed = perf_counter() - start_task
-                            logger.debug(
-                                f"Annotation submitted successfully [{time_elapsed:.4f}s]")
-
-                        time_elapsed = perf_counter() - start_t
-                        st.success(
-                            "🎉 Successfully stored the uploaded annotations!")
-                        logger.info("Successfully inserted all annotations for "
-                                    f"{total_images} images into database. "
-                                    f"Took {time_elapsed:.2f} seconds. "
-                                    f"Average {time_elapsed / total_images:.4f}s per image")
-
-                        with st.spinner("Updating project labels and editor configuration ..."):
-                            # get existing labels from editor_config to use to
-                            # compare and update editor_config with new labels
-                            existing_config_labels = project.editor.get_labels()
-                            logger.debug("Existing labels found in "
-                                         f"editor config: {existing_config_labels}")
-                            # now the annotations will include new labels from the
-                            # new uploaded annotations
-                            existing_annotated_labels = project.get_existing_unique_labels()
-                            new_labels = set(existing_annotated_labels).difference(
-                                existing_config_labels)
-                            logger.info("After adding the new labels to editor config: "
-                                        f"{new_labels}")
-
-                            if is_new_project:
-                                # the existing_config_labels only contains the default
-                                #  editor_config template labels, so we get the unwanted
-                                #  default_labels came with the defaults,
-                                #  but keep the ones from new_labels
-                                unwanted_labels = set(existing_config_labels).difference(
-                                    new_labels)
-
-                            # update editor_config with the new labels from the uploaded annotations
-                            for label in new_labels:
-                                newChild = project.editor.create_label(
-                                    'value', label)
-                                logger.debug(
-                                    f"newChild: {newChild.attributes.items()}")
-                            project.editor.labels = project.editor.get_labels()
-
-                            # default_labels = project.editor.get_default_template_labels()
-
-                            if is_new_project and unwanted_labels:
-                                for label in unwanted_labels:
-                                    logger.debug(
-                                        f"Removing label: {label}")
-                                    project.editor.labels.remove(
-                                        label)
-                                    removedChild = project.editor.remove_label(
-                                        'value', label)
-                                    logger.debug(
-                                        f"removedChild: {removedChild}")
-                                logger.debug(f"After removing default labels: "
-                                             f"{project.editor.labels}")
-                            project.editor.labels.sort()
-                            logger.info("All labels after updating: "
-                                        f"{project.editor.labels}")
-
-                            project.editor.update_editor_config()
-                            project.refresh_project_details()
-
-                        if error_imgs:
-                            with st.expander("""NOTE: These images were unreadable and
-                                skipped, but others are stored successfully in the
-                                database. You may now proceed to enter the current project."""):
-                                st.warning("  \n".join(error_imgs))
-                        else:
-                            st.success("""🎉 All images and annotations are successfully
-                            stored in database. You may now proceed to enter the current project.""")
-
-                        # clear out the "Submit" button to avoid further interactions
-                        button_place.empty()
-
-                        def enter_project_cb():
-                            NewProject.reset_new_project_page()
-                            NewDataset.reset_new_dataset_page()
-                            # also could be coming from project dashboard
-                            Project.reset_dashboard_page()
-                            session_state.project_pagination = ProjectPagination.Existing
-                            session_state.project_status = ProjectPagination.Existing
-                            session_state.append_project_flag = ProjectPermission.ViewOnly
-
-                            logger.info(
-                                f"Entering Project {project.id}")
-
-                        st.button("Enter Project", key="btn_enter_project",
-                                  on_click=enter_project_cb)
-                else:
-                    st.error(
-                        f"Failed to stored **{dataset.name}** dataset information in database")
+        with outercol2:
+            if session_state.is_labeled:
+                with st.spinner("Checking uploaded dataset and annotations ..."):
+                    logger.info(
+                        "Checking uploaded dataset and annotations")
+                    start = perf_counter()
+                    image_paths = dataset.validate_labeled_data(
+                        uploaded_archive, filepaths, deployment_type,
+                        classif_annot_type=classif_annot_type)
+                    time_elapsed = perf_counter() - start
+                    logger.info(
+                        f"Done. [{time_elapsed:.4f} seconds]")
+                    st.success("""🎉 Annotations are verified to be compatible and
+                    in the correct format.""")
             else:
-                st.error(
-                    f"Failed to created **{dataset.name}** dataset")
+                with st.spinner("Checking uploaded images ..."):
+                    logger.info("Checking uploaded images")
+                    image_paths = check_image_files(filepaths)
 
-            # remove the unneeded extracted archive dir contents
-            with st.spinner("Removing the unwanted extracted files ..."):
-                shutil.rmtree(dataset.archive_dir)
-                logger.info(
-                    "Removed temporary directory for extracted contents")
+        logger.info(f"Found {len(image_paths)} images in the archive.")
+        dataset.dataset = image_paths
+
+        # create a temporary directory for extracting the archive contents
+        if TEMP_DIR.exists():
+            shutil.rmtree(TEMP_DIR)
+        os.makedirs(TEMP_DIR)
+        dataset.archive_dir = TEMP_DIR
+
+        with outercol3:
+            with st.spinner("Extracting uploaded archive contents ..."):
+                extract_archive(TEMP_DIR, file_object=uploaded_archive)
+
+        # For labeled dataset, don't save the images to disk because it's
+        # easier to store together with annotations later
+        save_images_to_disk = False if session_state.is_labeled else True
+        _, new_img_names, error_img_paths = dataset.save_dataset(
+            dataset.archive_dir, save_images_to_disk=save_images_to_disk)
+        if error_img_paths:
+            st.error("Failed to save dataset!")
+            with st.expander("The following images cannot be read:"):
+                st.markdown("\n  ".join(error_img_paths))
+            dataset.delete_dataset(dataset.id)
+            st.stop()
+
+        txt = f"Successfully created and saved **{dataset.name}** dataset"
+        success_place.success(txt)
+        logger.info(txt)
+
+        txt = ""
+        if not is_existing_dataset:
+            # NEW dataset
+            if dataset.insert_dataset():
+                txt = f"Successfully stored **{dataset.name}** dataset information in database"
+                logger.info(txt)
+                success_place.success(txt)
+            else:
+                txt = "Unable to update/insert dataset information"
+                logger.error(txt)
+                success_place.error(txt)
+                st.stop()
+
+            # We need to insert the NEW project_dataset here after the dataset
+            # has been stored in database
+            if isinstance(session_state.get('project'), Project):
+                with st.spinner("Inserting the project dataset ..."):
+                    # add the uploaded dataset as the dataset_chosen, to
+                    # allow the insert_project_dataset to work
+                    dataset_name = dataset.name
+                    dataset_chosen = [dataset_name]
+                    # if uploading labeled dataset, skip inserting task here because
+                    # we will insert them later to easily rename and link images
+                    insert_task = False if session_state.is_labeled else True
+                    project.insert_project_dataset(
+                        dataset_chosen, insert_task=insert_task)
+                    logger.info(f"Inserted project dataset '{dataset_name}' for "
+                                f"Project {project.id} into project_dataset table")
+                    # must refresh all the dataset details
+                    project.refresh_project_details()
+
+        # NOTE: stop here if not uploading any labeled dataset
+        if not session_state.is_labeled:
+            # NOTE: currently existing dataset in this module is assumed
+            #  to be linked with a project.
+            # so insert the new image info into the `task` table for existing dataset,
+            # only insert if it is not labeled, because images, tasks,
+            # and annotations will be stored together later for labeled dataset
+            if is_existing_dataset:
+                # `os_sorted` is used to sort the files just like in file browser
+                # to make the order of the files make more sense to the user
+                # especially in the labelling pages ('data_labelling.py'
+                # & 'labelling_dashboard.py')
+                image_names = os_sorted(new_img_names)
+                project.insert_new_project_task(
+                    dataset.name,
+                    dataset.id,
+                    image_names=image_names)
+                # update dataset size here before stopping
+                if dataset.update_dataset_size():
+                    txt = f"Successfully updated {dataset.name} dataset size information"
+                    logger.info(txt)
+                    project.refresh_project_details()
+            txt = ("Successfully stored the new dataset in database "
+                   "and local storage.")
+            logger.info(txt)
+            success_place.success(txt)
+            with st.spinner("Cleaning temporary archive files ..."):
+                clean_archive_dir()
+            st.stop()
+
+        # ******************** FOR LABELED DATASET **********************
+
+        total_images = len(image_paths)
+        logger.info(
+            f"Found {total_images} images in the database.")
+        filetype = dataset.filetype
+        logger.info("Submitting uploaded annotations ...")
+
+        start_t = perf_counter()
+        error_imgs = []
+        result_generator = dataset.parse_annotation_files(
+            project.deployment_type,
+            image_paths=image_paths,
+            classif_annot_type=classif_annot_type
+        )
+        # use this to keep track of existing task names (i.e. image names)
+        all_img_names = set(dataset.get_image_paths(
+            dataset.name, return_names=True))
+        message = "Inserting uploaded annotations into database"
+        for relative_img_path, result in stqdm(result_generator, total=total_images,
+                                               unit=filetype, desc=message):
+            # start_task = perf_counter()
+            full_image_path = os.path.join(
+                dataset.archive_dir, relative_img_path)
+            if not os.path.exists(full_image_path):
+                error_txt = (
+                    f"Image '{relative_img_path}' not found. Maybe the image "
+                    "does not exist, or was removed "
+                    "because unable to read the image. Skipping from "
+                    "submitting to database.")
+                if deployment_type == 'Object Detection with Bounding Boxes':
+                    # check without file extension
+                    image_name = os.path.basename(
+                        os.path.splitext(relative_img_path)[0])
+                else:
+                    image_name = os.path.basename(relative_img_path)
+
+                # attempt to find the image path
+                image_fpath = find_image_path(
+                    image_paths, image_name, deployment_type)
+                if not image_fpath:
+                    logger.error(error_txt)
+                    error_imgs.append(relative_img_path)
+                    continue
+
+                full_image_path = os.path.join(
+                    dataset.archive_dir, image_fpath)
+                if not os.path.exists(full_image_path):
+                    logger.error(error_txt)
+                    error_imgs.append(relative_img_path)
+                    continue
+
+            success, ori_img_name, new_img_name = save_single_image(
+                full_image_path, dataset.dataset_path, all_img_names)
+            if not success:
+                txt = f"Unable to read or save the image for: {relative_img_path}"
+                logger.error(txt)
+                st.error(txt)
+                dataset.delete_dataset(dataset.id)
+                st.stop()
+
+            task_id = NewTask.insert_new_task(
+                new_img_name, project.id, dataset.id)
+            annot_id = Annotations.insert_annotation(
+                result, session_state.user.id,
+                project.id, task_id)
+            Task.update_task(task_id, annot_id,
+                             is_labelled=True, skipped=False)
+
+            # time_elapsed = perf_counter() - start_task
+            # logger.debug(
+            # f"Annotation submitted successfully [{time_elapsed:.4f}s]")
+
+        time_elapsed = perf_counter() - start_t
+        logger.info("Done inserting all annotations for "
+                    f"{total_images} images into database. "
+                    f"Took {time_elapsed:.2f} seconds. "
+                    f"Average {time_elapsed / total_images:.4f}s per image")
+
+        if error_imgs:
+            if len(error_imgs) == total_images:
+                st.error("""All annotations were not saved successfully. Please check
+                again for any errors with the images. Then please go back to project
+                creation page and try again.""")
+                dataset.delete_dataset(dataset.id)
+                project.delete_project(project.id)
+                NewProject.reset_new_project_page()
+                NewDataset.reset_new_dataset_page()
+                # also could be coming from project dashboard
+                Project.reset_dashboard_page()
+                session_state.project_pagination = ProjectPagination.Dashboard
+                st.stop()
+            txt = """NOTE: These images were not found/unreadable and
+                thus skipped, but others are stored successfully in the
+                database. You should check that the annotation file points 
+                to the correct image path. If you think it's safe to ignore, then 
+                you may now proceed to enter the current project."""
+            with st.expander(txt):
+                st.warning("  \n".join(error_imgs))
+        else:
+            success_place.success("""🎉 All images and annotations are successfully
+            stored in database. You may now proceed to enter the current project.""")
+
+        if is_existing_dataset:
+            if dataset.update_dataset_size():
+                txt = f"Successfully updated **{dataset.name}** dataset size information"
+                logger.info(txt)
+
+        with st.spinner("Updating project labels and editor configuration ..."):
+            project.update_editor_config(
+                is_new_project, refresh_project=True)
+
+        # clear out the "Submit" button to avoid further interactions
+        button_place.empty()
+
+        def enter_project_cb():
+            NewProject.reset_new_project_page()
+            NewDataset.reset_new_dataset_page()
+            # also could be coming from project dashboard
+            Project.reset_dashboard_page()
+            session_state.project_pagination = ProjectPagination.Existing
+            session_state.project_status = ProjectPagination.Existing
+            session_state.append_project_flag = ProjectPermission.ViewOnly
+
+            logger.info(
+                f"Entering Project {project.id}")
+            gc.collect()
+
+        st.button("Enter Project", key="btn_enter_project",
+                  on_click=enter_project_cb)
+
+        clean_archive_dir()
 
     # FOR DEBUGGING:
     # st.write("vars(dataset)")

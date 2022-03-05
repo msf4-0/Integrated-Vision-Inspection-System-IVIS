@@ -14,20 +14,37 @@ from data_manager.database_manager import db_fetchone, init_connection
 conn = init_connection(**st.secrets["postgres"])
 
 
-def check_if_exists(table: str, column_name: str, condition, conn=conn):
-
+def check_if_exists(table: str, column_name: str,
+                    condition, conn=conn, lowercase: bool = False):
+    if column_name == "name" or lowercase:
+        # NOTE: compare lowercase to avoid duplicated directory names
+        # as they are case-insensitive
+        sql_query = sql.SQL("""
+            SELECT
+                EXISTS (
+                    SELECT
+                        *
+                    FROM
+                        {}
+                    WHERE
+                        LOWER({}) = %s);
+        """)
+    else:
+        sql_query = sql.SQL("""
+            SELECT
+                EXISTS (
+                    SELECT
+                        *
+                    FROM
+                        {}
+                    WHERE
+                        {} = %s);
+        """)
     # Separate schema and tablename from 'table'
     schema, tablename = [i for i in table.split('.')]
-    check_if_exists_SQL = sql.SQL("""
-        SELECT
-            EXISTS (
-                SELECT
-                    *
-                FROM
-                    {}
-                WHERE
-                    {} = %s);
-    """).format(sql.Identifier(schema, tablename), sql.Identifier(column_name))
+    check_if_exists_SQL = sql_query.format(
+        sql.Identifier(schema, tablename),
+        sql.Identifier(column_name))
     check_if_exists_vars = [condition]
     exist_flag = db_fetchone(check_if_exists_SQL, conn,
                              check_if_exists_vars).exists

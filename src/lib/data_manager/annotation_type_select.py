@@ -19,7 +19,7 @@ def annotation_sel():
     annotationType_list = (" ", "Image Classification", "Object Detection with Bounding Boxes",
                            "Semantic Segmentation with Polygons")
     annotationType_index = list(range(len(annotationType_list)))
-    annotationType = st.selectbox("Template", annotationType_list, index=0, format_func=lambda x: 'Select an option' if x == ' ' else x,
+    annotationType = st.selectbox("Deployment Type", annotationType_list, index=0, format_func=lambda x: 'Select an option' if x == ' ' else x,
                                   key="annotation_type", help="Please select the desired type of annotation")
     if annotationType != " ":
         annotationConfig_template = load_annotation_template(

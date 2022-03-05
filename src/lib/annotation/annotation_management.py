@@ -143,13 +143,21 @@ class NewTask(BaseTask):
 
     # create new Task
     @staticmethod
-    def insert_new_task(image_name: str, project_id: int, dataset_id: int) -> int:
+    def insert_new_task(image_name: str, project_id: int,
+                        dataset_id: int, is_labelled: bool = False,
+                        skipped: bool = False) -> int:
+        """Insert task and returns the newly inserted task's ID returned 
+        from the database."""
         insert_new_task_SQL = """
                                 INSERT INTO public.task (
                                     name,
                                     project_id,
-                                    dataset_id)
+                                    dataset_id,
+                                    is_labelled,
+                                    skipped)
                                 VALUES (
+                                    %s,
+                                    %s,
                                     %s,
                                     %s,
                                     %s)
@@ -157,10 +165,10 @@ class NewTask(BaseTask):
 
                                 RETURNING id;
                                         """
-        insert_new_task_vars = [image_name, project_id, dataset_id]
+        insert_new_task_vars = [image_name, project_id,
+                                dataset_id, is_labelled, skipped]
         task_id = db_fetchone(insert_new_task_SQL, conn,
                               insert_new_task_vars).id
-
         return task_id
 
 
@@ -521,6 +529,27 @@ class Task(BaseTask):
                          f"{project_id} :)")
         return record
 
+    @staticmethod
+    def update_task(task_id: int, annotation_id: int, is_labelled: bool, skipped: bool):
+        # NOTE: Update 'task' table with annotation id and set is_labelled flag as True
+        update_task_SQL = """
+                            UPDATE
+                                public.task
+                            SET
+                                annotation_id = %s,
+                                is_labelled = %s,
+                                skipped = %s
+                            WHERE
+                                id = %s
+                            RETURNING is_labelled;
+                        """
+
+        update_task_vars = [annotation_id, is_labelled, skipped, task_id]
+        try:
+            db_fetchone(update_task_SQL, conn, update_task_vars)
+        except TypeError as e:
+            logger.error(f"{e}: Task update for Submit failed")
+
 
 class Result:
     def __init__(self, from_name, to_name, type, value) -> None:
@@ -569,6 +598,37 @@ class BaseAnnotations:
         self.result: List[Dict, Result] = []  # or Dict?
         self.predictions: List[Dict, Predictions] = None
 
+    @staticmethod
+    def insert_annotation(result: Dict, users_id: int,
+                          project_id: int, task_id: int, conn=conn):
+        # TODO is it neccessary to have annotation type id?
+        insert_annotations_SQL = """
+                                    INSERT INTO public.annotations (
+                                        result,
+                                        project_id,
+                                        users_id,
+                                        task_id)
+                                    VALUES (
+                                        %s::JSONB[],
+                                        %s,
+                                        %s,
+                                        %s)
+                                    RETURNING id;
+                                """
+        # insert_annotations_vars = [json.dumps(
+        #     result), self.task.project_id, users_id, self.task.id]
+        result_serialised = [json.dumps(x) for x in result]
+        insert_annotations_vars = [result_serialised,
+                                   project_id, users_id, task_id]
+        try:
+            annotation_id = db_fetchone(
+                insert_annotations_SQL, conn, insert_annotations_vars)
+            return annotation_id
+        except psycopg2.Error as e:
+            error = e.pgcode
+            logger.error(f"{error}: Annotations already exist")
+            return None
+
     def submit_annotations(self, result: Dict, users_id: int, conn=conn) -> int:
         """ Submit result for new annotations
 
@@ -583,58 +643,17 @@ class BaseAnnotations:
         Returns:
             [type]: [description]
         """
-        logger.debug(f"Submitting results.......")
+        # logger.debug(f"Submitting results.......")
         # NOTE: Update class object: result + task
         self.result = result if result else None
         self.task.is_labelled = True
-        # TODO is it neccessary to have annotation type id?
-        insert_annotations_SQL = """
-                                    INSERT INTO public.annotations (
-                                        result,
-                                        project_id,
-                                        users_id,
-                                        task_id)
-                                    VALUES (
-                                        %s::JSONB[],
-                                        %s,
-                                        %s,
-                                        %s)
-                                    RETURNING id,result;
-                                """
-        # insert_annotations_vars = [json.dumps(
-        #     result), self.task.project_id, users_id, self.task.id]
-        result_serialised = [json.dumps(x) for x in result]
-        insert_annotations_vars = [result_serialised,
-                                   self.task.project_id, users_id, self.task.id]
-        try:
-            self.id, self.result = db_fetchone(
-                insert_annotations_SQL, conn, insert_annotations_vars)
-        except psycopg2.Error as e:
-            error = e.pgcode
-            logger.error(f"{error}: Annotations already exist")
 
-        # NOTE: Update 'task' table with annotation id and set is_labelled flag as True
-        update_task_SQL = """
-                            UPDATE
-                                public.task
-                            SET
-                                annotation_id = %s,
-                                is_labelled = True,
-                                skipped = False
-                            WHERE
-                                id = %s
-                            RETURNING is_labelled;
-                        """
+        self.id = self.insert_annotation(result, users_id,
+                                         self.task.project_id, self.task.id)
 
-        update_task_vars = [self.id, self.task.id]
+        self.task.update_task(self.task.id, self.id,
+                              is_labelled=True, skipped=False)
 
-        try:
-            self.task.is_labelled = db_fetchone(
-                update_task_SQL, conn, update_task_vars)
-        except TypeError as e:
-            logger.error(f"{e}: Task update for Submit failed")
-
-        # sleep(1)
         return self.result
 
     def update_annotations(self, result: Dict, users_id: int, conn=conn) -> tuple:

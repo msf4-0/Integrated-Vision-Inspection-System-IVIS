@@ -51,7 +51,7 @@ import tensorflow as tf
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 from machine_learning.trainer import Trainer
-from machine_learning.command_utils import kill_process, run_tensorboard
+from machine_learning.command_utils import kill_process, kill_tensorboard, run_tensorboard
 from machine_learning.visuals import pretty_format_param
 from project.project_management import Project
 from training.training_management import NewTrainingPagination, Training, TrainingPagination
@@ -130,9 +130,32 @@ def index(RELEASE=True):
                 nonlocal trainer
                 trainer = session_state.trainer
 
+    def show_edit_training_btn():
+        def back_train_info_page():
+            # reset it in case the user decided to change any info
+            reset_trainer()
+            session_state.new_training_pagination = NewTrainingPagination.InfoDataset
+
+        st.button('⚙️ Edit Training Info', key='btn_edit_train_info',
+                  on_click=back_train_info_page)
+
+    def show_edit_model_btn():
+        def back_model_page_cb():
+            reset_trainer()
+            session_state.new_training_pagination = NewTrainingPagination.Model
+
+        st.button('⚙️ Edit Model Info', key='btn_edit_model_info',
+                  on_click=back_model_page_cb)
+
     st.markdown("### Training Info:")
 
     dataset_chosen = training.dataset_chosen
+    if not dataset_chosen:
+        st.warning("""This training session **does not have any training dataset** 
+        chosen yet. Please proceed to the training info page to select it.""")
+        show_edit_training_btn()
+        st.stop()
+
     if len(dataset_chosen) == 1:
         dataset_chosen_str = dataset_chosen[0]
     else:
@@ -148,9 +171,9 @@ def index(RELEASE=True):
     **Partition Ratio**: training : validation : test -> 
     {partition_ratio['train']} : {partition_ratio['eval']} : {partition_ratio['test']}  \n
     **Partition Size**: training : validation : test -> 
-    {session_state.new_training.partition_size['train']} :
-    {session_state.new_training.partition_size['eval']} :
-    {session_state.new_training.partition_size['test']}  \n
+    {training.partition_size['train']} :
+    {training.partition_size['eval']} :
+    {training.partition_size['test']}  \n
     **Selected Model Name**: {training.attached_model.name}  \n
     **Model Name**: {training.training_model.name}  \n
     **Model Description**: {training.training_model.desc}
@@ -158,22 +181,11 @@ def index(RELEASE=True):
 
     train_info_btn, model_info_btn, _ = st.columns([2, 1, 4])
 
-    def back_train_info_page():
-        # reset it in case the user decided to change any info
-        reset_trainer()
-        session_state.new_training_pagination = NewTrainingPagination.InfoDataset
-
     with train_info_btn:
-        st.button('⚙️ Edit Training Info', key='btn_edit_train_info',
-                  on_click=back_train_info_page)
-
-    def back_model_page():
-        reset_trainer()
-        session_state.new_training_pagination = NewTrainingPagination.Model
+        show_edit_training_btn()
 
     with model_info_btn:
-        st.button('⚙️ Edit Model Info', key='btn_edit_model_info',
-                  on_click=back_model_page)
+        show_edit_model_btn()
 
     if training.is_started:
         st.warning("✏️ **NOTE**: Only edit the model selection"
@@ -188,12 +200,12 @@ def index(RELEASE=True):
         st.markdown('### Training Config:')
         st.info(config_info)
 
-        def back_config_page():
+        def back_config_page_cb():
             reset_trainer()
             session_state.new_training_pagination = NewTrainingPagination.TrainingConfig
 
         st.button('⚙️ Edit Training Config', key='btn_edit_config',
-                  on_click=back_config_page)
+                  on_click=back_config_page_cb)
 
     with aug_config_col:
         # TODO: confirm that this works for image classification and segmentation
@@ -206,12 +218,12 @@ def index(RELEASE=True):
         else:
             st.info("No augmentation config selected.")
 
-        def back_aug_config_page():
+        def back_aug_config_page_cb():
             reset_trainer()
             session_state.new_training_pagination = NewTrainingPagination.AugmentationConfig
 
         st.button('⚙️ Edit Augmentation Config', key='btn_edit_aug_config',
-                  on_click=back_aug_config_page)
+                  on_click=back_aug_config_page_cb)
 
     if training.is_started:
         st.warning(
@@ -486,17 +498,16 @@ def index(RELEASE=True):
                     st.warning("""**WARNING**: You don't have access to GPU. Inference time
                     will be slower depending on the capability of your CPU and system.""")
 
-                with st.spinner("Running evaluation ..."):
-                    try:
-                        trainer.evaluate()
-                    except Exception as e:
-                        if os.getenv('DEBUG', '1') == '1':
-                            st.exception(e)
-                        st.error(
-                            "Some error has occurred. Please try checking the terminal "
-                            "output for the error. Or just try pressing *'R'* to refresh the page. "
-                            "If it still doesn't work, please try training the model again.")
-                        logger.error(f"Error evaluating: {e}")
+                try:
+                    trainer.evaluate()
+                except Exception as e:
+                    if os.getenv('DEBUG', '1') == '1':
+                        st.exception(e)
+                    st.error(
+                        "Some error has occurred. Please try checking the terminal "
+                        "output for the error. Or just try pressing *'R'* to refresh the page. "
+                        "If it still doesn't work, please try training the model again.")
+                    logger.error(f"Error evaluating: {e}")
             else:
                 logger.info(f"Model {training.training_model_id} "
                             "is not exported yet. Skipping evaluation")

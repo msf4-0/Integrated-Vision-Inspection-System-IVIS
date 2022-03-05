@@ -385,11 +385,13 @@ def existing_models():
 
     # CALLBACK: CHECK IF MODEL NAME EXISTS
     def check_if_name_exist(field_placeholder, conn):
+        input_name = session_state.training_model_name.strip()
+        lower_input_name = input_name.lower()
         context = {'column_name': 'name',
-                   'value': session_state.training_model_name}
+                   'value': lower_input_name}
 
         with field_placeholder['training_model_name'].container():
-            if session_state.training_model_name:
+            if lower_input_name:
                 if training.training_model.check_if_exists(context, conn):
                     # training.training_model.name = ''
                     st.error("Model name used. Please enter a new name")
@@ -399,9 +401,10 @@ def existing_models():
                         f"Training Model name used. Please enter a new name")
                     st.stop()
                 else:
-                    # training.training_model.name = session_state.training_model_name
+                    # save the user's input one but check with lowercase one
+                    # training.training_model.name = input_name
                     logger.info("Training Model name fresh and ready to rumble: "
-                                f"'{session_state.training_model_name}'")
+                                f"'{input_name}'")
             else:
                 st.error("Please enter a model name!")
                 st.stop()
@@ -417,7 +420,7 @@ def existing_models():
                   )
     session_state.new_training_place['training_model_name'] = st.empty(
     )
-    # st.write(session_state.training_model_name)
+    # st.write(lower_input_name)
 
     # ************************* MODEL DESCRIPTION (OPTIONAL) *************************
     description = st.text_area(
@@ -440,9 +443,11 @@ def existing_models():
     # *************************************CALLBACK: NEXT BUTTON *************************************
     def to_training_configuration_page():
         # check_if_name_exist(session_state.new_training_place, conn)
+        input_name = session_state.training_model_name.strip()
+        lower_input_name = input_name.lower()
 
         if training.has_submitted[NewTrainingPagination.Model] and \
-                training.training_model.name == session_state.training_model_name:
+                training.training_model.name.lower() == lower_input_name:
             # no need to check whether the name exists if the user is using the same
             # existing submitted name
             logger.info("Existing model name is not changed")
@@ -453,8 +458,9 @@ def existing_models():
         new_training_model_submission_dict = NewTrainingSubmissionHandlers(
             insert=training.training_model.create_new_project_model_pipeline,
             update=training.training_model.update_new_project_model_pipeline,
+            # check the lowercase input name, but insert user input name later
             context={
-                'training_model_name': session_state.training_model_name,
+                'training_model_name': lower_input_name,
                 # 'attached_model_selection': session_state.existing_models_table
             },
             name_key=name_key
@@ -481,7 +487,8 @@ def existing_models():
                     project_name=session_state.project.name,
                     training_name=training.name,
                     training_id=training.id,
-                    new_model_name=session_state.training_model_name
+                    # insert/update the user input one, not the lowercase one
+                    new_model_name=input_name
             ):
                 if training.attached_model is not None and \
                         selected_model.name != training.attached_model.name:

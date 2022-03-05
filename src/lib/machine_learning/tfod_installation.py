@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 ========================================================================================
  """
 import os
+import shlex
 import shutil
 import stat
 import sys
@@ -45,14 +46,17 @@ PROTOC_PATH = TFOD_DIR.parent / 'protoc_installation'
 
 def run_command(command_line_args):
     logger.info(f"Running command: '{command_line_args}'")
-    # shell=True to work on String instead of list
-    process = subprocess.Popen(command_line_args, shell=True,
+    if isinstance(command_line_args, str):
+        # must pass in list to the subprocess when shell=False, which
+        # is required to work properly in Linux
+        command_line_args = shlex.split(command_line_args)
+    process = subprocess.Popen(command_line_args, shell=False,
                                # stdout to capture all output
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                # text to directly decode the output
                                text=True)
     for line in process.stdout:
-        line = line.strip()
+        line = line.rstrip()
         # print the live stdout output from the script
         if line:
             print(line)
@@ -62,21 +66,26 @@ def run_command(command_line_args):
 
 
 def install_protoc():
-    if not (PROTOC_PATH / "bin").exists():
-        logger.info("Downloading protobuf dependencies ...")
-        protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
-        protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
-        url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
-        # download the protoc zipfile into the desired path, PROTOC_PATH
-        wget.download(url, str(PROTOC_PATH))
-        # unzip the zip file
-        if os.name == "posix":
-            run_command(
-                f'cd "{PROTOC_PATH}" && unzip {protoc_zipfilename}')
-        else:
-            run_command(
-                f'cd "{PROTOC_PATH}" && tar -xf {protoc_zipfilename}')
-        os.remove(PROTOC_PATH / protoc_zipfilename)
+    logger.info(f"{PROTOC_PATH = }")
+    if PROTOC_PATH.exists():
+        shutil.rmtree(PROTOC_PATH)
+    os.makedirs(PROTOC_PATH)
+
+    logger.info("Downloading protobuf dependencies ...")
+    protoc_version = "3.19.1"  # updated from 3.15.6 -> 3.19.1
+    protoc_zipfilename = f"protoc-{protoc_version}-win64.zip"
+    url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{protoc_version}/{protoc_zipfilename}"
+    # download the protoc zipfile into the desired path, PROTOC_PATH
+    wget.download(url, str(PROTOC_PATH))
+    # unzip the zip file
+    os.chdir(PROTOC_PATH)
+    if os.name == "posix":
+        run_command(f'unzip {protoc_zipfilename}')
+    else:
+        run_command(f'tar -xf {protoc_zipfilename}')
+    chdir_root()
+    os.remove(PROTOC_PATH / protoc_zipfilename)
+
     # add the path of $PROTOC_PATH/bin into the PATH in environment variable
     # to be able to run `protoc` as a command in terminal
     os.environ['PATH'] += os.pathsep + str((PROTOC_PATH / 'bin').resolve())
@@ -92,14 +101,21 @@ def install():
     for path in (TFOD_DIR, PROTOC_PATH):
         os.makedirs(path, exist_ok=True)
 
-    if not (TFOD_DIR / 'research' / 'object_detection').exists():
-        logger.info(
-            "Cloning TFOD API from https://github.com/tensorflow/models...")
-        run_command(
-            f'git clone https://github.com/tensorflow/models "{TFOD_DIR}"')
+    # remove any existing TFOD stuff
+    if TFOD_DIR.exists():
+        shutil.rmtree(TFOD_DIR, onerror=del_rw)
+    os.makedirs(TFOD_DIR)
 
-    # uninstall any existing pycocotools and install specific pycocotools library here
-    run_command("pip uninstall -y pycocotools")
+    logger.info(
+        "Cloning TFOD API from https://github.com/tensorflow/models...")
+    run_command(
+        f'git clone https://github.com/tensorflow/models "{TFOD_DIR}"')
+    # reset to a commit for TensorFlow 2.7.0 right before update to 2.8.0
+    # https://github.com/tensorflow/models/commit/cd21e8ff34b4e389fcdddf04045b14aad8c8a91b
+    os.chdir(TFOD_DIR)
+    run_command(
+        'git reset --hard cd21e8ff34b4e389fcdddf04045b14aad8c8a91b')
+    chdir_root()
 
     # Install Tensorflow Object Detection and dependencies such as protobuf and protoc
     # NOTE: Install COCO API ONLY if you want to perform evaluation
@@ -113,16 +129,6 @@ def install():
         os.chdir(cwd)
         # removed the unused cloned files from COCO API
         shutil.rmtree("cocoapi")
-        # 'posix' is for Linux (also to use in Colab Notebook)
-        logger.info("Installing protobuf ...")
-        install_protoc()
-        logger.info("Installing TFOD API ...")
-        # NEW: --use-feature=2020-resolver
-        cmd = (f'cd "{TFOD_DIR / "research"}" '
-               '&& protoc object_detection/protos/*.proto --python_out=. '
-               '&& cp object_detection/packages/tf2/setup.py setup.py '
-               '&& python -m pip install --use-feature=2020-resolver .')
-        run_command(cmd)
     elif os.name == 'nt':
         # 'nt' is for Windows
         # NOTE: Windows need to install COCO API first, but there is currently an ongoing issue
@@ -130,19 +136,23 @@ def install():
         # Instructions for COCO API Installation: https://github.com/ansonnn07/object-detection#coco-api-installation
         #  (under the COCO API installation section)
         # NOTE: using this new repo created to fix Windows installation for now
-        run_command(
-            "pip install git+https://github.com/gautamchitnis/cocoapi.git@cocodataset-master#subdirectory=PythonAPI")
+        # run_command(
+        #     "pip install git+https://github.com/gautamchitnis/cocoapi.git@cocodataset-master#subdirectory=PythonAPI")
+        pass
 
-        install_protoc()
+    install_protoc()
 
-        # run the `protoc` command and install all the dependencies for TFOD API
-        logger.info("Installing TFOD API ...")
-        # NEW: --use-feature=2020-resolver
-        cmd = (f'cd "{TFOD_DIR / "research"}" '
-               '&& protoc object_detection/protos/*.proto --python_out=. '
-               '&& copy object_detection\\packages\\tf2\\setup.py setup.py '
-               '&& python -m pip install --use-feature=2020-resolver .')
-        run_command(cmd)
+    # run the `protoc` command and install all the dependencies for TFOD API
+    logger.info("Installing TFOD API ...")
+    os.chdir(TFOD_DIR / "research")
+    run_command('protoc object_detection/protos/*.proto --python_out=.')
+    shutil.copy2('object_detection/packages/tf2/setup.py', './setup.py')
+    # NEW: --use-feature=2020-resolver
+    run_command('python -m pip install --use-feature=2020-resolver .')
+    chdir_root()
+
+    # run the requirements installation again to make sure all the versions are correct
+    run_command('pip install -r requirements_no_hash.txt')
 
     # remove unnecessary files
     folders_to_del = (TFOD_DIR, (TFOD_DIR / 'research'))

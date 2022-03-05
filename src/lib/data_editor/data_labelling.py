@@ -131,7 +131,7 @@ def editor(data_id: List[int] = None):
             # NOTE ************************TEST**************************************
             session_state.labelling_prev_result = []
             logger.info(
-                f"Task instantiated for id: {session_state.task.id} for {session_state.task.name}🏃")
+                f"Task instantiated for id: {session_state.task.id} for {session_state.task.name}")
         # >>>> INSTANTIATE TASK >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
             # Check if annotation exist

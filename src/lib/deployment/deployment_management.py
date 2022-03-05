@@ -56,18 +56,20 @@ if str(LIB_PATH) not in sys.path:
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
 from core.utils.helper import Timer, get_identifier_str_IntEnum, get_now_string
-from data_manager.database_manager import init_connection, db_fetchone, db_no_fetch, db_fetchall
+from data_manager.database_manager import init_connection, db_fetchall
 from core.utils.form_manager import reset_page_attributes
-from machine_learning.utils import (classification_predict, get_label_dict_from_labelmap,
-                                    load_keras_model, load_labelmap, load_tfod_model, load_trained_keras_model,
-                                    preprocess_image, segmentation_predict, tfod_detect)
+from machine_learning.utils import (
+    classification_predict, find_architecture_name, get_classif_model_preprocess_func, get_label_dict_from_labelmap,
+    load_keras_model, load_labelmap, load_tfod_model, load_trained_keras_model,
+    preprocess_image, segmentation_predict, tfod_detect)
 if TYPE_CHECKING:
     from machine_learning.trainer import Trainer
     from training.model_management import Model
 from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
 from machine_learning.command_utils import export_tfod_savedmodel
-from deployment.utils import (reset_video_deployment, reset_client,
-                              reset_csv_file_and_writer, reset_record_and_vid_writer)
+from deployment.utils import (
+    classification_inference_pipeline, reset_video_deployment, reset_client,
+    reset_csv_file_and_writer, reset_record_and_vid_writer, segment_inference_pipeline, tfod_inference_pipeline)
 # <<<<<<<<<<<<<<<<<<<<<<TEMP<<<<<<<<<<<<<<<<<<<<<<<
 
 # >>>> Variable Declaration >>>>
@@ -177,7 +179,9 @@ class Deployment(BaseDeployment):
                  class_names: List[str] = None,
                  is_uploaded: bool = False,
                  category_index: Dict[int, Dict[str, Any]] = None,
-                 training_param: Dict[str, Any] = None) -> None:
+                 training_param: Dict[str, Any] = None,
+                 preprocess_fn: Callable = None,
+                 architecture_name: str = None) -> None:
         super().__init__()
         # project_path is currently only used to get the path to save CSV file
         # or captured frames
@@ -191,6 +195,13 @@ class Deployment(BaseDeployment):
         self.metrics = metrics
         self.metric_names = metric_names
         self.class_names = class_names
+
+        # preprocess_input function for classification, should be obtained
+        # from self.run_preparation_pipeline()
+        self.preprocess_fn = preprocess_fn
+        # need attached model name to get the preprocess function
+        # will skip preprocessing if not provided
+        self.architecture_name = architecture_name
 
         # for segmentation to get results faster
         self.class_names_arr: np.ndarray = np.array(class_names)
@@ -218,6 +229,8 @@ class Deployment(BaseDeployment):
         metric_names = trainer.metric_names
         # maybe class_names can get from labelmap directly for user-uploaded models??
         class_names = trainer.class_names
+        # need this name to get preprocess_input function for classification model
+        architecture_name = trainer.attached_model_name
         if deployment_type != 'Object Detection with Bounding Boxes':
             image_size = trainer.training_param['image_size']
         else:
@@ -228,6 +241,7 @@ class Deployment(BaseDeployment):
             training_param = None
         return cls(project_path, deployment_type, training_path, image_size,
                    metrics, metric_names, class_names,
+                   architecture_name=architecture_name,
                    training_param=training_param)
 
     @classmethod
@@ -311,6 +325,11 @@ class Deployment(BaseDeployment):
             if self.is_uploaded:
                 model_fpath = next(paths['uploaded_model_dir'].rglob('*.h5'))
                 self.model = load_trained_keras_model(model_fpath)
+                # attempt to find the uploaded model's architecture name
+                # to use for preprocess_input function
+                self.architecture_name = find_architecture_name(self.model)
+                self.preprocess_fn = get_classif_model_preprocess_func(
+                    self.architecture_name)
             else:
                 model_fpath = paths['output_keras_model_file']
                 self.model = load_keras_model(model_fpath, self.metrics,
@@ -335,61 +354,20 @@ class Deployment(BaseDeployment):
         tf.keras.backend.clear_session()
         gc.collect()
 
-    def classification_inference_pipeline(
-            self, img: np.ndarray, **kwargs) -> Tuple[str, float]:
-        preprocessed_img = preprocess_image(img, self.image_size)
-        y_pred, y_proba = classification_predict(
-            preprocessed_img,
-            self.model,
-            return_proba=True)
-        pred_classname = self.encoded_label_dict.get(y_pred, 'Unknown')
-        return pred_classname, y_proba
-
-    def tfod_inference_pipeline(
-            self, img: np.ndarray, conf_threshold: float = 0.6,
-            draw_result: bool = True, **kwargs) -> Union[
-                Tuple[np.ndarray, Dict[str, Any]],
-                Dict[str, Any]]:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        detections = tfod_detect(self.model, img,
-                                 tensor_dtype=tf.uint8)
-        if draw_result:
-            draw_tfod_bboxes(detections, img,
-                             self.category_index,
-                             conf_threshold)
-            return img, detections
-        return detections
-
-    def segment_inference_pipeline(
-            self, img: np.ndarray,
-            draw_result: bool = True, class_colors: np.ndarray = None,
-            ignore_background: bool = False, **kwargs) -> Union[
-                Tuple[np.ndarray, np.ndarray],
-                np.ndarray]:
-        orig_H, orig_W = img.shape[:2]
-        # converting here instead of inside preprocess_image() to pass RGB image to
-        # get_colored_mask_image() to avoid converting back and forth
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        preprocessed_img = preprocess_image(
-            img, self.image_size, bgr2rgb=False)
-        pred_mask = segmentation_predict(
-            self.model, preprocessed_img, orig_W, orig_H)
-        if draw_result:
-            # must provide class_colors
-            drawn_output = get_colored_mask_image(
-                img, pred_mask, class_colors,
-                ignore_background=ignore_background)
-            return drawn_output, pred_mask
-        return pred_mask
-
     def get_inference_pipeline(self, **kwargs) -> Callable:
         assert 'img' not in kwargs, "Image should only be passed in during inference time"
         if self.deployment_type == 'Image Classification':
-            return partial(self.classification_inference_pipeline, **kwargs)
+            return partial(
+                classification_inference_pipeline, model=self.model,
+                image_size=self.image_size, preprocess_fn=self.preprocess_fn, **kwargs)
         elif self.deployment_type == 'Object Detection with Bounding Boxes':
-            return partial(self.tfod_inference_pipeline, **kwargs)
+            return partial(
+                tfod_inference_pipeline, model=self.model,
+                category_index=self.category_index, is_checkpoint=False, **kwargs)
         elif self.deployment_type == 'Semantic Segmentation with Polygons':
-            return partial(self.segment_inference_pipeline, **kwargs)
+            return partial(
+                segment_inference_pipeline, model=self.model,
+                image_size=self.image_size, **kwargs)
 
     def get_classification_results(self, pred_classname: str, probability: float,
                                    timezone: str, camera_title: str = ''):

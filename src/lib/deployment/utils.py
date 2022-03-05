@@ -1,7 +1,7 @@
 from csv import DictWriter
 from dataclasses import dataclass
 import os
-from typing import Any, Callable, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Tuple, Union
 import cv2
 from streamlit.uploaded_file_manager import UploadedFile
 from yaml import full_load
@@ -13,9 +13,72 @@ from paho.mqtt.client import Client
 # from imutils.video.webcamvideostream import WebcamVideoStream
 from core.webcam.webcamvideostream import WebcamVideoStream
 from streamlit import session_state
+import tensorflow as tf
 
 from core.utils.log import logger
+from machine_learning.utils import classification_predict, preprocess_image, segmentation_predict, tfod_detect
+from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
 from path_desc import MQTT_CONFIG_PATH
+
+
+def classification_inference_pipeline(
+        model: tf.keras.Model, img: np.ndarray, image_size: int,
+        encoded_label_dict: Dict[int, str],
+        preprocess_fn: Callable = None, **kwargs) -> Tuple[str, float]:
+    preprocessed_img = preprocess_image(
+        img, image_size, preprocess_fn=preprocess_fn)
+    y_pred, y_proba = classification_predict(
+        preprocessed_img, model, return_proba=True)
+    pred_classname = encoded_label_dict.get(y_pred, 'Unknown')
+    return pred_classname, y_proba
+
+
+def tfod_inference_pipeline(
+        model: tf.keras.Model, img: np.ndarray,
+        conf_threshold: float = 0.6,
+        draw_result: bool = True,
+        category_index: Dict[int, Dict[str, Any]] = None,
+        is_checkpoint: bool = False, **kwargs) -> Union[
+            Tuple[np.ndarray, Dict[str, Any]],
+            Dict[str, Any]]:
+    """Note that if `draw_result` = True, the `img` will be converted to RGB and 
+    overwritten with the visuals."""
+    # NOTE: This step is required for TFOD!
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # take note of this tensor_dtype!
+    tensor_dtype = tf.float32 if is_checkpoint else tf.uint8
+    detections = tfod_detect(model, img, tensor_dtype=tensor_dtype)
+    if draw_result:
+        draw_tfod_bboxes(detections, img,
+                         category_index,
+                         conf_threshold,
+                         is_checkpoint=is_checkpoint)
+        return img, detections
+    return detections
+
+
+def segment_inference_pipeline(
+        model: tf.keras.Model, img: np.ndarray, image_size: int,
+        draw_result: bool = True, class_colors: np.ndarray = None,
+        ignore_background: bool = False, **kwargs) -> Union[
+            Tuple[np.ndarray, np.ndarray],
+            np.ndarray]:
+    """class_colors can be obtained from create_class_colors()"""
+    orig_H, orig_W = img.shape[:2]
+    # converting here instead of inside preprocess_image() to pass RGB image to
+    # get_colored_mask_image() to avoid converting back and forth
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    preprocessed_img = preprocess_image(
+        img, image_size, bgr2rgb=False)
+    pred_mask = segmentation_predict(
+        model, preprocessed_img, orig_W, orig_H)
+    if draw_result:
+        # must provide class_colors
+        drawn_output = get_colored_mask_image(
+            img, pred_mask, class_colors,
+            ignore_background=ignore_background)
+        return drawn_output, pred_mask
+    return pred_mask
 
 
 def image_from_buffer(buffer: bytes) -> np.ndarray:

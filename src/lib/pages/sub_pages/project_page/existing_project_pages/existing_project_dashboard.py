@@ -41,6 +41,7 @@ if str(LIB_PATH) not in sys.path:
 else:
     pass
 
+from annotation.annotation_management import Annotations, NewTask, Task
 from path_desc import chdir_root
 from core.utils.log import logger
 from core.utils.helper import create_dataframe, get_df_row_highlight_color, get_textColor, current_page, non_current_page
@@ -48,7 +49,7 @@ from core.utils.form_manager import remove_newline_trailing_whitespace
 from user.user_management import User
 from data_manager.database_manager import init_connection
 from data_manager.dataset_management import NewDataset, query_dataset_list, get_dataset_name_list
-from project.project_management import ProjectDashboardPagination, ProjectPermission, Project
+from project.project_management import ProjectDashboardPagination, ProjectPermission, Project, query_project_dataset_annotations, show_dataset_chosen_and_annotated_projects
 from data_editor.editor_management import Editor
 from data_editor.editor_config import editor_config
 from pages.sub_pages.dataset_page.new_dataset import new_dataset
@@ -59,23 +60,28 @@ chdir_root()  # change to root directory
 
 
 def dashboard(RELEASE=True, **kwargs):
+    project: Project = session_state.project
+
     st.write(f"## **Overview:**")
     # TODO #79 Add dashboard to show types of labels and number of datasets
     # >>>>>>>>>>PANDAS DATAFRAME for LABEL DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    label_count_dict = session_state.project.get_existing_unique_labels(
+    label_count_dict = project.get_existing_unique_labels(
         return_counts=True)
-    df = session_state.project.editor.create_table_of_labels(label_count_dict)
+    logger.debug(f"{label_count_dict = }")
+    df = project.editor.create_table_of_labels(label_count_dict)
     df.index.name = 'No.'
     df['Percentile (%)'] = df['Percentile (%)'].map("{:.2f}".format)
     styler = df.style
 
     # >>>> Annotation table placeholders
+    st.write("### **Annotations**")
     annotation_col1, annotation_col2 = st.columns([3, 0.5])
 
-    annotation_col1.write("### **Annotations**")
     annotation_col1.write(
-        f"#### Total labels : {len(session_state.project.editor.labels_results)}")
+        f"#### Total labels : {len(project.editor.labels_results)}")
+    annotation_col1.write(
+        f"#### Total annotations : {sum(label_count_dict.values())}")
 
     # st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
     #     [dict(selector='th', props=[('text-align', 'center')])]))
@@ -87,8 +93,8 @@ def dashboard(RELEASE=True, **kwargs):
 
     # >>>>>>>>>>PANDAS DATAFRAME for DATASET DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # only show the dataset table if project has selected a dataset
-    if session_state.project.datasets:
-        df = create_dataframe(session_state.project.datasets, column_names=session_state.project.column_names,
+    if project.datasets:
+        df = create_dataframe(project.datasets, column_names=project.column_names,
                               sort=True, sort_by='ID', asc=True, date_time_format=True)
         df_loc = df.loc[:, "ID":"Date/Time"]
 
@@ -99,7 +105,7 @@ def dashboard(RELEASE=True, **kwargs):
 
         dataset_table_col1.write("### **Datasets**")
         dataset_table_col1.write(
-            f"#### Total datasets: {len(session_state.project.datasets)}")
+            f"#### Total datasets: {len(project.datasets)}")
 
         # st.table(styler.set_properties(**{'text-align': 'center'}).set_table_styles(
         #     [dict(selector='th', props=[('text-align', 'center')])]))    # >>>>>>>>>>PANDAS DATAFRAME for DATASET DETAILS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -133,9 +139,9 @@ def dashboard(RELEASE=True, **kwargs):
               args=(ProjectDashboardPagination.AddExistingDataset,))
 
     # only show this option if already has project_dataset
-    if session_state.project.datasets:
+    if project.datasets:
         project_dataset_chosen = list(
-            session_state.project.dataset_dict.keys())
+            project.dataset_dict.keys())
         st.subheader("Option 4: Select a project dataset to add more images")
         selected_dataset = st.selectbox("Project datasets", options=project_dataset_chosen,
                                         key='selected_dataset')
@@ -169,6 +175,8 @@ def index(RELEASE=True):
             logger.debug("Inside")
         if 'user' not in session_state:
             session_state.user = User(1)
+
+    project: Project = session_state.project
     # ************************ TEST ************************
 
     if 'project_dashboard_pagination' not in session_state:
@@ -185,7 +193,7 @@ def index(RELEASE=True):
             st.stop()
         dataset_dict = get_dataset_name_list(existing_dataset)
         project_dataset_chosen = list(
-            session_state.project.dataset_dict.keys())
+            project.dataset_dict.keys())
         all_datasets = list(dataset_dict.keys())
         for d in project_dataset_chosen:
             # avoid showing selected project datasets to the user to add again
@@ -220,10 +228,10 @@ def index(RELEASE=True):
             help="""Add more dataset to the project. The colored rows in the
             table are the datasets that have already been added to the current project.""")
 
+        st.write("### Dataset chosen:")
         if datasets_to_add:
-            st.write("### Dataset chosen:")
-            for idx, data in enumerate(datasets_to_add):
-                st.write(f"{idx+1}. {data}")
+            annotated_dataset_id2project_id = show_dataset_chosen_and_annotated_projects(
+                datasets_to_add, dataset_dict, project.deployment_type)
         else:
             st.info("No dataset selected")
 
@@ -232,13 +240,15 @@ def index(RELEASE=True):
                 st.warning("No dataset selected to add yet.")
                 st.stop()
 
-            session_state.project.insert_project_dataset(
-                datasets_to_add, dataset_dict)
+            project.insert_project_dataset(
+                datasets_to_add, dataset_dict, annotated_dataset_id2project_id)
+
             logger.info(f"Inserted project datasets '{datasets_to_add}' "
-                        f"for Project {session_state.project.id} into project_dataset table")
+                        f"for Project {project.id} into project_dataset table")
             st.success("Successfully added the selected datasets into project.")
+
             with st.spinner("Refreshing page ..."):
-                session_state.project.refresh_project_details()
+                project.refresh_project_details()
                 session_state.project_dashboard_pagination = ProjectDashboardPagination.ExistingProjectDashboard
             # rerun to show the refreshed details
             st.experimental_rerun()
