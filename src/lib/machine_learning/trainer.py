@@ -742,7 +742,7 @@ class Trainer:
 
                 start_t = perf_counter()
                 img_with_detections, detections = tfod_inference_pipeline(
-                    self.model, img,
+                    img, model=self.model,
                     is_checkpoint=is_checkpoint)
                 time_elapsed = perf_counter() - start_t
                 logger.info(f"Done inference on {filename}. "
@@ -1530,7 +1530,8 @@ class Trainer:
                     img = cv2.imread(p)
                     start_t = perf_counter()
                     pred_classname, y_proba = classification_inference_pipeline(
-                        self.model, img, image_size, encoded_label_dict,
+                        img, model=self.model, image_size=image_size,
+                        encoded_label_dict=encoded_label_dict,
                         preprocess_fn=self.preprocess_fn)
                     time_elapsed = perf_counter() - start_t
                     logger.info(f"Inference on image: {filename} "
@@ -1566,7 +1567,8 @@ class Trainer:
                     image = cv2.imread(img_path)
                     start_t = perf_counter()
                     pred_output, _ = segment_inference_pipeline(
-                        self.model, image, image_size, class_colors=class_colors,
+                        image, model=self.model, image_size=image_size,
+                        class_colors=class_colors,
                         ignore_background=ignore_background)
                     time_elapsed = perf_counter() - start_t
                     logger.info(f"Inference on image: {filename} "

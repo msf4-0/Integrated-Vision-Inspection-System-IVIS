@@ -22,7 +22,7 @@ from path_desc import MQTT_CONFIG_PATH
 
 
 def classification_inference_pipeline(
-        model: tf.keras.Model, img: np.ndarray, image_size: int,
+        img: np.ndarray, model: tf.keras.Model, image_size: int,
         encoded_label_dict: Dict[int, str],
         preprocess_fn: Callable = None, **kwargs) -> Tuple[str, float]:
     preprocessed_img = preprocess_image(
@@ -34,7 +34,7 @@ def classification_inference_pipeline(
 
 
 def tfod_inference_pipeline(
-        model: tf.keras.Model, img: np.ndarray,
+        img: np.ndarray, model: tf.keras.Model,
         conf_threshold: float = 0.6,
         draw_result: bool = True,
         category_index: Dict[int, Dict[str, Any]] = None,
@@ -58,12 +58,13 @@ def tfod_inference_pipeline(
 
 
 def segment_inference_pipeline(
-        model: tf.keras.Model, img: np.ndarray, image_size: int,
+        img: np.ndarray, model: tf.keras.Model, image_size: int,
         draw_result: bool = True, class_colors: np.ndarray = None,
         ignore_background: bool = False, **kwargs) -> Union[
             Tuple[np.ndarray, np.ndarray],
             np.ndarray]:
-    """class_colors can be obtained from create_class_colors()"""
+    """`class_colors` can be obtained from `create_class_colors()` and MUST convert
+    to `np.ndarray` format for fast computation!"""
     orig_H, orig_W = img.shape[:2]
     # converting here instead of inside preprocess_image() to pass RGB image to
     # get_colored_mask_image() to avoid converting back and forth

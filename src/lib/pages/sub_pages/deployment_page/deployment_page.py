@@ -376,11 +376,6 @@ def index(RELEASE=True):
     if DEPLOYMENT_TYPE == 'Image Classification':
         pipeline_kwargs = {}
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-        if not hasattr(deployment, 'class_colors'):
-            class_colors = create_class_colors(deployment.class_names)
-            deployment.class_colors = class_colors
-        else:
-            class_colors = deployment.class_colors
         ignore_background = st.sidebar.checkbox(
             "Ignore background", value=conf.ignore_background,
             key='ignore_background',
@@ -388,14 +383,11 @@ def index(RELEASE=True):
             "Note that turning this on could significantly reduce the FPS.",
             on_change=update_deploy_conf, args=('ignore_background',))
         legend = create_color_legend(
-            class_colors, bgr2rgb=False, ignore_background=ignore_background)
+            deployment.class_colors, bgr2rgb=False,
+            ignore_background=ignore_background)
         st.sidebar.markdown("**Legend**")
         st.sidebar.image(legend)
-        # convert to array
-        class_colors = np.array(list(class_colors.values()),
-                                dtype=np.uint8)
-        pipeline_kwargs = {'class_colors': class_colors,
-                           'ignore_background': ignore_background}
+        pipeline_kwargs = {'ignore_background': ignore_background}
     else:
         if has_access:
             options_col.slider(

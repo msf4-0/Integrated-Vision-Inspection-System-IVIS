@@ -65,7 +65,7 @@ from machine_learning.utils import (
 if TYPE_CHECKING:
     from machine_learning.trainer import Trainer
     from training.model_management import Model
-from machine_learning.visuals import draw_tfod_bboxes, get_colored_mask_image
+from machine_learning.visuals import create_class_colors, draw_tfod_bboxes, get_colored_mask_image
 from machine_learning.command_utils import export_tfod_savedmodel
 from deployment.utils import (
     classification_inference_pipeline, reset_video_deployment, reset_client,
@@ -350,6 +350,11 @@ class Deployment(BaseDeployment):
                 labelmap_path = paths['labelmap_file']
             self.encoded_label_dict = get_label_dict_from_labelmap(
                 labelmap_path)
+        elif self.deployment_type == 'Semantic Segmentation with Polygons':
+            self.class_colors = create_class_colors(self.class_names)
+            # convert to array to use for segment_inference_pipeline()
+            self.class_colors_arr: np.ndarray = np.array(
+                list(self.class_colors.values()), dtype=np.uint8)
 
         tf.keras.backend.clear_session()
         gc.collect()
@@ -359,7 +364,8 @@ class Deployment(BaseDeployment):
         if self.deployment_type == 'Image Classification':
             return partial(
                 classification_inference_pipeline, model=self.model,
-                image_size=self.image_size, preprocess_fn=self.preprocess_fn, **kwargs)
+                image_size=self.image_size, preprocess_fn=self.preprocess_fn,
+                encoded_label_dict=self.encoded_label_dict, **kwargs)
         elif self.deployment_type == 'Object Detection with Bounding Boxes':
             return partial(
                 tfod_inference_pipeline, model=self.model,
@@ -367,7 +373,8 @@ class Deployment(BaseDeployment):
         elif self.deployment_type == 'Semantic Segmentation with Polygons':
             return partial(
                 segment_inference_pipeline, model=self.model,
-                image_size=self.image_size, **kwargs)
+                image_size=self.image_size, class_colors=self.class_colors_arr,
+                **kwargs)
 
     def get_classification_results(self, pred_classname: str, probability: float,
                                    timezone: str, camera_title: str = ''):
