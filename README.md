@@ -32,10 +32,11 @@ The ***Integrated-Vision-Inspection-System (IVIS)*** is a computer vision app th
 
 <br>
 
-- [Windows Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069494/Native.installation.on.windows.system.docx)
-- [Linux Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069286/IntegrateVisionSystemNativeInstall.Linux.docx)
-- [Windows Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8069282/IntegrateVisionSystemDockerInstall.Windows.docx)
-- [Linux Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8076594/IntegrateVisionSystemDockerInstall.Linux.docx)
+- [Windows Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137897/IntegrateVisionSystemNativeInstall.Windows.pdf)
+- [Linux Native Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137899/IntegrateVisionSystemNativeInstall.Linux.pdf)
+- [Windows Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137900/IntegrateVisionSystemDockerInstall.Windows.pdf)
+- [Linux Docker Installation](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/files/8137902/IntegrateVisionSystemDockerInstall.Linux.pdf)
+
 
 
 ## Basic User Guide :open_book:
@@ -85,6 +86,13 @@ The ***Integrated-Vision-Inspection-System (IVIS)*** is a computer vision app th
 
  2. This option allows addition/deletion/check info of a user.
  3. It is also possible to alter the user password in this option.
+
+## Node-RED:link:
+This repo also features some integration with Node-RED. Camera feeds can be sent to an MQTT broker where it can be fetched and displayed in Node-RED dashboard.
+Example flows can be found [here](https://github.com/msf4-0/Integrated-Vision-Inspection-System-IVIS/tree/main/src/lib/Node_Red).
+
+![image](https://user-images.githubusercontent.com/99409981/155087587-3c5e7dba-fdaa-4d16-87ee-104578ce9e93.png)
+
 
 ## Citation
 ```tex
