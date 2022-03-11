@@ -35,6 +35,23 @@ def get_images_list(path_to_folder: str, n_images: int = 10) -> Tuple[List[str],
     return image_names_list, image_paths
 
 
+@st.cache
+def get_images_list_from_masks(
+        mask_folder: List[str], ori_image_folder: str) -> Tuple[List[str], List[str]]:
+    image_names, image_paths = [], []
+    ori_image_paths = list_images(ori_image_folder)
+    mask_names_set = set(os.path.basename(p) for p in list_images(mask_folder))
+    for p in ori_image_paths:
+        ori_fname = os.path.basename(p)
+        fname_no_ext = os.path.splitext(ori_fname)[0]
+        # mask images must end with .png in this case
+        mask_fname = f"{fname_no_ext}.png"
+        if mask_fname in mask_names_set:
+            image_names.append(ori_fname)
+            image_paths.append(p)
+    return image_names, image_paths
+
+
 def load_image(path_to_image: str, bgr2rgb: bool = True):
     """Load the image
     Args:

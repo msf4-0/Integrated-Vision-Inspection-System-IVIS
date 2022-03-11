@@ -163,9 +163,11 @@ def augmentation_configuration(RELEASE=True):
             session_state.project.export_tasks(generate_mask=False)
     if DEPLOYMENT_TYPE == 'Image Classification':
         image_folder = exported_dataset_dir
+        mask_folder = None
     elif DEPLOYMENT_TYPE == 'Object Detection with Bounding Boxes':
         image_folder = exported_dataset_dir / "images"
         bbox_label_folder = exported_dataset_dir / "Annotations"
+        mask_folder = None
 
         # NOTE: Only cache for augmentation demo for fast loading
         if not hasattr(session_state.project, 'xml_df'):
@@ -175,10 +177,10 @@ def augmentation_configuration(RELEASE=True):
     elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
         image_folder = exported_dataset_dir / "images"
         coco_json_path = exported_dataset_dir / "result.json"
-        sample_mask_folder = exported_dataset_dir / "sample_masks"
+        mask_folder = exported_dataset_dir / "sample_masks"
         # generate only the mask images required for the sample demo
-        if not sample_mask_folder.exists():
-            generate_mask_images(coco_json_path, sample_mask_folder,
+        if not mask_folder.exists():
+            generate_mask_images(coco_json_path, mask_folder,
                                  NUM_IMAGES, verbose=True, st_container=st.sidebar)
 
     if not os.path.isdir(image_folder):
@@ -214,7 +216,8 @@ def augmentation_configuration(RELEASE=True):
 
     # select image
     status, image, image_name = select_image(
-        image_folder, interface_type, NUM_IMAGES)
+        image_folder, DEPLOYMENT_TYPE, interface_type, NUM_IMAGES,
+        mask_folder=mask_folder)
     if status == 1:
         st.title("Sorry, Can't load image")
         st.stop()
@@ -260,7 +263,7 @@ def augmentation_configuration(RELEASE=True):
                     )(image=image, bboxes=bboxes, class_names=class_names)
                 elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
                     try:
-                        mask = load_mask_image(image_name, sample_mask_folder)
+                        mask = load_mask_image(image_name, mask_folder)
                         logger.info(
                             f"Transforming mask image for {image_name}")
                         data = A.ReplayCompose(transforms)(

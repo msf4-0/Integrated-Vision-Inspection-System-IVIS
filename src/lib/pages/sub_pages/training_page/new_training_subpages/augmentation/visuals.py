@@ -1,14 +1,16 @@
 import sys
 from typing import Tuple
-import cv2
 from pathlib import Path
+
+import albumentations as A
+import cv2
+from imutils.paths import list_images
 import streamlit as st
 from streamlit import session_state
 
-import albumentations as A
 
 from .control import param2func
-from .utils import get_images_list, load_image, upload_image
+from .utils import get_images_list, get_images_list_from_masks, load_image, upload_image
 
 SRC = Path(__file__).resolve().parents[5]  # ROOT folder -> ./src
 LIB_PATH = SRC / "lib"
@@ -23,13 +25,20 @@ from core.utils.log import logger
 DEBUG = False
 
 
-def select_image(path_to_images: str, interface_type: str = "Simple", n_images: int = 10):
+def select_image(
+    path_to_images: str, deployment_type: str,
+    interface_type: str = "Simple", n_images: int = 10,
+    mask_folder: str = None
+):
     """ Show interface to choose the image, and load it
 
     Args:
-        path_to_images (dict): path ot folder with images
+        path_to_images (dict): path to folder with images
+        deployment_type (str): deployment type of project
         interface_type (dict): mode of the interface used
         n_images (int): maximum number of images to display as options
+        mask_folder (Optional[str]): path to the folder containing the mask images,
+            only required for deployment_type == 'Semantic Segmentation with Polygons'
 
     Returns:
         (status, image)
@@ -38,7 +47,15 @@ def select_image(path_to_images: str, interface_type: str = "Simple", n_images: 
             1 - if there is error during loading of image file
             2 - if user hasn't uploaded photo yet
     """
-    image_names_list, image_paths = get_images_list(path_to_images, n_images)
+    if deployment_type == "Semantic Segmentation with Polygons":
+        assert mask_folder is not None, (
+            "Please pass in mask_folder for semantic segmentation")
+        image_names_list, image_paths = get_images_list_from_masks(
+            mask_folder, path_to_images)
+    else:
+        image_names_list, image_paths = get_images_list(
+            path_to_images, n_images)
+
     if len(image_names_list) < 1:
         logger.error(f"No images found in '{path_to_images}'")
         return 1, 0, None

@@ -78,7 +78,7 @@ from .command_utils import (export_tfod_savedmodel, find_tfod_eval_metrics, run_
                             run_command_update_metrics, find_tfod_metric)
 from .utils import (NASNET_IMAGENET_INPUT_SHAPES, check_unique_label_counts, classification_predict, copy_images,
                     custom_train_test_split, find_architecture_name, generate_tfod_xml_csv, get_bbox_label_info, get_ckpt_cnt,
-                    get_classif_model_preprocess_func, get_detection_classes, get_test_images_labels,
+                    get_classif_model_preprocess_func, get_detection_classes, get_mask_path_from_image_path, get_test_images_labels,
                     get_tfod_last_ckpt_path, get_tfod_test_set_data, get_transform,
                     load_image_into_numpy_array, load_keras_model, load_labelmap,
                     load_tfod_checkpoint, load_tfod_model, load_trained_keras_model, modify_trained_model_layers, preprocess_image,
@@ -1137,7 +1137,8 @@ class Trainer:
             # image_dir = self.dataset_export_path / 'images'
             # image_paths = sorted(list_images(image_dir))
             mask_dir = self.dataset_export_path / 'masks'
-            labels = sorted(list_images(mask_dir))
+            labels = [str(get_mask_path_from_image_path(
+                p, mask_dir)) for p in image_paths]
             stratify = False
             # initialize this to pass to custom_train_test_split()
             encoded_label_dict = None
@@ -1562,6 +1563,7 @@ class Trainer:
             with st.spinner("Running segmentation ..."):
                 for i, (img_path, mask_path) in enumerate(zip(current_image_paths, current_labels)):
                     logger.debug(f"Image path: {img_path}")
+                    logger.debug(f"Mask path: {mask_path}")
                     filename = os.path.basename(img_path)
 
                     image = cv2.imread(img_path)
@@ -1604,7 +1606,7 @@ class Trainer:
                     figure_row_place.markdown("___")
 
                 unique_pixels = np.unique(mask)
-                logger.debug(f"{unique_pixels = }")
+                # logger.debug(f"{unique_pixels = }")
 
         prev_btn_col_2.button('⏮️ Previous samples', key='btn_prev_images_2',
                               on_click=previous_samples)

@@ -861,12 +861,19 @@ def classification_predict(preprocessed_img: np.ndarray, model: Any,
 
 # ************************ Segmentation model funcs ************************
 
+def get_mask_path_from_image_path(image_path: str, mask_dir: Path):
+    fname_no_ext = os.path.splitext(os.path.basename(image_path))[0]
+    mask_image_name = f"{fname_no_ext}.png"
+    mask_path = mask_dir / mask_image_name
+    return mask_path
+
 
 def load_mask_image(ori_image_name: str, mask_dir: Path) -> np.ndarray:
     """Given the `ori_image_name` (refers to the original non-mask image),
     parse the mask image filename and find and load it from the `mask_dir` folder."""
     mask_image_name = os.path.splitext(ori_image_name)[0] + ".png"
     mask_path = mask_dir / mask_image_name
+    logger.info(f"{mask_path = }")
     # MUST read in GRAYSCALE format to accurately preserve all the pixel values
     mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
     return mask
@@ -967,10 +974,9 @@ def generate_mask_images(coco_json_path: Union[str, Path] = None,
         mask_filename = os.path.splitext(filename)[0] + ".png"
         mask_path = os.path.join(output_dir, mask_filename)
         success = cv2.imwrite(mask_path, mask)
-        if success:
-            logger.debug(f"Generated mask image for {mask_filename}")
 
         if verbose:
+            logger.debug(f"Generated mask image for {mask_filename}")
             logger.debug(
                 f"{filename} | "
                 f"Unique pixel values = {np.unique(mask)} | "
