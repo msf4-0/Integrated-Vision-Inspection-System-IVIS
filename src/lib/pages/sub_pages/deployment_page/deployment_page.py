@@ -247,7 +247,10 @@ def index(RELEASE=True):
                             f"Unable to read from empty IP camera address {i}.")
                     else:
                         error_msg_place.error(
-                            f"Unable to read from {cam_type} {i}: '{src}'")
+                            f"Unable to read from {cam_type} {i}: '{src}'. Most likely "
+                            "because the camera port is incorrect and you need to try "
+                            "to refresh it. Or maybe the camera is disconnected or "
+                            "being occupied by another process.")
                     logger.error(
                         f"Unable to read from {cam_type} {i} from source {src}: {e}")
                     reset_camera()
@@ -268,7 +271,8 @@ def index(RELEASE=True):
             try:
                 client.connect(mqtt_conf.broker, port=mqtt_conf.port)
             except Exception as e:
-                st.error("Error connecting to MQTT broker")
+                st.error("Error connecting to MQTT broker. Please make sure MQTT "
+                         "broker is installed and turned on in your system.")
                 if os.getenv('DEBUG', '1') == '1':
                     st.exception(e)
                 logger.error(
@@ -1180,8 +1184,9 @@ def index(RELEASE=True):
                         with st.spinner("Showing the uploaded video ..."):
                             st.video(video_path)
                     except Exception as e:
-                        error_msg_place.error(f"Unable to read from the video file: "
-                                              f"'{video_file.name}'")
+                        error_msg_place.error(
+                            f"Unable to read from the video file: '{video_file.name}'. "
+                            "Please make sure to provide a valid video file.")
                         logger.error(f"Unable to read from the video file: "
                                      f"'{video_file.name}' with error: {e}")
                         st.stop()
