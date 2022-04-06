@@ -657,9 +657,9 @@ netifaces==0.11.0; python_version >= "3.6" and python_version < "4.0" \
     --hash=sha256:841aa21110a20dc1621e3dd9f922c64ca64dd1eb213c47267a2c324d823f6c8f \
     --hash=sha256:e76c7f351e0444721e85f975ae92718e21c1f361bda946d60a214061de1f00a1 \
     --hash=sha256:043a79146eb2907edf439899f262b3dfe41717d34124298ed281139a8b93ca32
-notebook==6.4.3; python_version >= "3.7" \
-    --hash=sha256:b50eafa8208d5db966efd1caa4076b4dfc51815e02a805b32ecd717e9e6cc071 \
-    --hash=sha256:e6b6dfed36b00cf950f63c0d42e947c101d4258aec21624de62b9e0c11ed5c0d
+notebook==6.4.10; python_version >= "3.7" \
+    --hash=sha256:2408a76bc6289283a8eecfca67e298ec83c67db51a4c2e1b713dd180bb39e90e \
+    --hash=sha256:49cead814bff0945fcb2ee07579259418672ac175d3dc3d8102a4b0a656ed4df
 numpy==1.19.5; python_version == "3.8" and python_full_version >= "3.7.1" \
     --hash=sha256:cc6bd4fd593cb261332568485e20a0712883cf631f6f5e8e86a52caa8b2b50ff \
     --hash=sha256:aeb9ed923be74e659984e321f609b9ba54a48354bfd168d21a2b072ed1e833ea \
