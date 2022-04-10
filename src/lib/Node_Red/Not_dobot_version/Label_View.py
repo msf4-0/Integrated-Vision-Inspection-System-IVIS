@@ -1,8 +1,11 @@
 from multiprocessing import Process
+import os
 import time
 import json
 import paho.mqtt.client as mqtt
 import pandas as pd
+
+from deployment.utils import CONFIG
 
 # initialize for the topic on which the msg is received
 recv_topic = ""
@@ -35,21 +38,21 @@ def main_cb(client, userdata, msg):
         print('In callback, msg:', recv_msg)
 
 
-# localhost / 127.0.0.1
-host = "localhost"
-
-client = mqtt.Client("VisionSysApp")
-client.connect(host, port=1883)
-client.loop_start()
-
-# Subscribe to all topics
-for topic in TOPICS:
-    client.subscribe(topic)
-
-client.on_message = main_cb
-
-
 def main():
+    # localhost / 127.0.0.1
+    host = 'mosquitto' if os.environ.get(
+        "DOCKERCOMPOSE") else CONFIG["mqtt"]["broker"]
+
+    client = mqtt.Client("VisionSysApp")
+    client.connect(host, port=1883)
+    client.loop_start()
+
+    # Subscribe to all topics
+    for topic in TOPICS:
+        client.subscribe(topic)
+
+    client.on_message = main_cb
+
     while True:
         # Get data from CSV file
         if recv_topic == "topic/runCSV":

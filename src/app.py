@@ -65,10 +65,11 @@ def setup():
         if SECRETS_PATH.exists() and test_database_connection(**st.secrets['postgres']):
             logger.debug(f"Connected with: {st.secrets = }")
         else:
-            logger.error("There were some error creating the database config or "
-                         "connecting to database")
-            st.error("""There were some error creating the database config, the database 
-                information seems to be incorrect. Please change them in your ".env" file.""")
+            error_txt = ('There were some error creating the database config. Please '
+                         'try to refresh the page, or fix the database information in '
+                         'your ".env" file.')
+            logger.error(error_txt)
+            st.error(error_txt)
             st.stop()
 
     # setup database if Streamlit's secrets.toml file is not generated yet
