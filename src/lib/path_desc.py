@@ -37,8 +37,20 @@ from core.utils.log import logger
 
 _CURR_FILEPATH = Path(__file__).resolve()
 
-_DIR_APP_NAME = "integrated-vision-inspection-system"
+# ! DEPRECATED: RENAMED folder path to a shorter name
+_OLD_DIR_APP_NAME = "integrated-vision-inspection-system"
+_DIR_APP_NAME = "IVIS"
 _DIR_AUTHOR_NAME = "SHRDC"
+
+
+def rename_dir_for_backward_compatibility(new_dir: str):
+    old_dir = new_dir.replace(
+        _DIR_APP_NAME, _OLD_DIR_APP_NAME)
+    if os.path.exists(old_dir):
+        logger.info("Renaming old data directory to new name, "
+                    f"from '{old_dir}' to '{new_dir}'")
+        os.rename(old_dir, new_dir)
+
 
 # REFERENCED LS
 
@@ -47,7 +59,12 @@ def get_config_dir():
     config_dir = user_config_dir(
         appname=_DIR_APP_NAME,
         appauthor=_DIR_AUTHOR_NAME)
-    os.makedirs(config_dir, exist_ok=True)
+
+    rename_dir_for_backward_compatibility(config_dir)
+
+    # then only create if really not exists
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
     return config_dir
 
 
@@ -55,7 +72,11 @@ def get_data_dir():
     data_dir = user_data_dir(
         appname=_DIR_APP_NAME,
         appauthor=_DIR_AUTHOR_NAME)
-    os.makedirs(data_dir, exist_ok=True)
+
+    rename_dir_for_backward_compatibility(data_dir)
+
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
     return data_dir
 
 
@@ -70,7 +91,7 @@ def get_temp_dir() -> str:
 PROJECT_ROOT = _CURR_FILEPATH.parents[2]
 SECRETS_PATH = PROJECT_ROOT / ".streamlit" / "secrets.toml"
 
-# DATA_DIR = Path.home() / '.local/share/integrated-vision-inspection-system/app_media'
+# DATA_DIR = Path.home() / '.local/share/IVIS/app_media'
 BASE_DATA_DIR = Path(get_data_dir())
 MEDIA_ROOT = BASE_DATA_DIR / 'app_media'
 DATABASE_DIR = MEDIA_ROOT / 'data'

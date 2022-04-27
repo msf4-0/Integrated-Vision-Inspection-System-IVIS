@@ -32,6 +32,7 @@ from keras_unet_collection.activations import Snake, GELU
 
 # >>>> User-defined Modules >>>>
 from core.utils.log import logger
+from path_desc import _DIR_APP_NAME, _OLD_DIR_APP_NAME, BASE_DATA_DIR
 if TYPE_CHECKING:
     from training.training_management import AugmentationConfig
 
@@ -315,6 +316,32 @@ def get_segmentation_model_custom_objects(training_param: Dict[str, Any]) -> Dic
     return custom_objects
 
 
+def check_and_rename_folder_paths_for_backward_compatibility(
+        X_test: List[str], y_test: List[str],
+        pickle_path: Path, encoded_label_dict: Dict[int, str] = None):
+    app_media_idx = X_test[0].find("app_media")
+    base_data_dir = str(BASE_DATA_DIR)
+
+    if _OLD_DIR_APP_NAME in X_test[0]:
+        for i in range(len(X_test)):
+            # replace the old data path with the new path
+            X_test[i] = os.path.join(base_data_dir, X_test[i][app_media_idx:])
+            y_test[i] = os.path.join(base_data_dir, y_test[i][app_media_idx:])
+
+        with open(pickle_path, 'wb') as f:
+            logger.info(
+                "For backward compatibility of renaming "
+                f"{_OLD_DIR_APP_NAME} to {_DIR_APP_NAME}, "
+                "rewriting the pickle file with the renamed test set data paths."
+                f"in {pickle_path}")
+
+            if encoded_label_dict is not None:
+                images_and_labels = (X_test, y_test, encoded_label_dict)
+            else:
+                images_and_labels = (X_test, y_test)
+            pickle.dump(images_and_labels, f)
+
+
 # NOTE: Clear cache cannot clear st.experimental_memo yet
 # https://github.com/streamlit/streamlit/issues/3986
 # @st.experimental_memo
@@ -329,9 +356,16 @@ def get_test_images_labels(
             test_set_data = pickle.load(f)
         if deployment_type == 'Image Classification':
             X_test, y_test, encoded_label_dict = test_set_data
+            check_and_rename_folder_paths_for_backward_compatibility(
+                X_test, y_test, pickle_path,
+                encoded_label_dict=encoded_label_dict
+            )
             return X_test, y_test, encoded_label_dict
         elif deployment_type == 'Semantic Segmentation with Polygons':
             X_test, y_test = test_set_data
+            check_and_rename_folder_paths_for_backward_compatibility(
+                X_test, y_test, pickle_path
+            )
             return X_test, y_test
 
 
@@ -488,7 +522,7 @@ def xml_to_df(path: str) -> pd.DataFrame:
 def get_bbox_label_info(xml_df: pd.DataFrame,
                         image_name: str) -> Tuple[List[str], Tuple[int, int, int, int]]:
     """Get the class name and bounding box coordinates associated with the image.
-    
+
     This is especially used to draw ground truth bounding boxes using `draw_gt_bboxes()`"""
     annot_df = xml_df.loc[xml_df['filename'] == image_name]
     class_names = annot_df['classname'].values
@@ -862,6 +896,7 @@ def classification_predict(preprocessed_img: np.ndarray, model: Any,
 # *********************** Classification model funcs ***********************
 
 # ************************ Segmentation model funcs ************************
+
 
 def get_mask_path_from_image_path(image_path: str, mask_dir: Path):
     fname_no_ext = os.path.splitext(os.path.basename(image_path))[0]
