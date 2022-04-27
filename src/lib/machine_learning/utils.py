@@ -487,7 +487,9 @@ def xml_to_df(path: str) -> pd.DataFrame:
 
 def get_bbox_label_info(xml_df: pd.DataFrame,
                         image_name: str) -> Tuple[List[str], Tuple[int, int, int, int]]:
-    """Get the class name and bounding box coordinates associated with the image."""
+    """Get the class name and bounding box coordinates associated with the image.
+    
+    This is especially used to draw ground truth bounding boxes using `draw_gt_bboxes()`"""
     annot_df = xml_df.loc[xml_df['filename'] == image_name]
     class_names = annot_df['classname'].values
     bboxes = annot_df.loc[:, 'xmin': 'ymax'].values

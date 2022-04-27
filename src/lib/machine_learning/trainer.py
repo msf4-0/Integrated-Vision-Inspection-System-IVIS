@@ -743,6 +743,8 @@ class Trainer:
                 start_t = perf_counter()
                 img_with_detections, detections = tfod_inference_pipeline(
                     img, model=self.model,
+                    conf_threshold=conf_threshold,
+                    category_index=category_index,
                     is_checkpoint=is_checkpoint)
                 time_elapsed = perf_counter() - start_t
                 logger.info(f"Done inference on {filename}. "
