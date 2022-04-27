@@ -43,9 +43,7 @@ _DIR_APP_NAME = "IVIS"
 _DIR_AUTHOR_NAME = "SHRDC"
 
 
-def rename_dir_for_backward_compatibility(new_dir: str):
-    old_dir = new_dir.replace(
-        _DIR_APP_NAME, _OLD_DIR_APP_NAME)
+def rename_dir_for_backward_compatibility(old_dir: str, new_dir: str):
     if os.path.exists(old_dir):
         logger.info("Renaming old data directory to new name, "
                     f"from '{old_dir}' to '{new_dir}'")
@@ -59,8 +57,12 @@ def get_config_dir():
     config_dir = user_config_dir(
         appname=_DIR_APP_NAME,
         appauthor=_DIR_AUTHOR_NAME)
+    old_config_dir = user_config_dir(
+        appname=_OLD_DIR_APP_NAME,
+        appauthor=_DIR_AUTHOR_NAME)
 
-    rename_dir_for_backward_compatibility(config_dir)
+    rename_dir_for_backward_compatibility(
+        old_config_dir, config_dir)
 
     # then only create if really not exists
     if not os.path.exists(config_dir):
@@ -72,8 +74,12 @@ def get_data_dir():
     data_dir = user_data_dir(
         appname=_DIR_APP_NAME,
         appauthor=_DIR_AUTHOR_NAME)
+    old_data_dir  = user_data_dir(
+        appname=_OLD_DIR_APP_NAME,
+        appauthor=_DIR_AUTHOR_NAME)
 
-    rename_dir_for_backward_compatibility(data_dir)
+    rename_dir_for_backward_compatibility(
+        old_data_dir, data_dir)
 
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
