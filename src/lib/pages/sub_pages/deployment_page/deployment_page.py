@@ -151,7 +151,8 @@ def index(RELEASE=True):
                 try:
                     curr_source = next(available_ports)
                 except StopIteration:
-                    curr_source = session_state.working_ports[0]
+                    # use empty string just in case there is no working_ports yet
+                    curr_source = ''
             else:
                 # empty string for IP camera
                 curr_source = ''
