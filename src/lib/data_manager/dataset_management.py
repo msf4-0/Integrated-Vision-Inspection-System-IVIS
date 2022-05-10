@@ -125,6 +125,35 @@ class FileTypes(IntEnum):
 
 # <<<< Variable Declaration <<<<
 
+CSV_IMAGE_COL = 'image'
+CSV_LABEL_COL = 'label'
+
+def check_required_csv_columns(df: pd.DataFrame):
+    required_columns = [CSV_IMAGE_COL, CSV_LABEL_COL]
+    ok = set(required_columns).issubset(df.columns)
+    if not ok:
+        error_txt = "Missing 'image' column or 'label' column (or both) in the CSV file."
+        st.error(error_txt)
+        logger.error(error_txt)
+        st.stop()
+
+def check_invalid_paths(df: pd.DataFrame):
+    """Currently used to check for backslash and frontslash only."""
+    # the pattern for backslash/frontslash
+    backslash_pattern = r"/|\\"
+    # first row for filename, second row for label name
+    backslash_rows = df[(df.iloc[:, 0].str.contains(
+        backslash_pattern)) | (df.iloc[:, 1].str.contains(backslash_pattern))]
+    if not backslash_rows.empty:
+        # backslash/frontslash is unwanted because we will create the class
+        # directories for our training later, and backslash would cause the
+        # directories to be incorrect
+        st.error(
+            "Backslash/frontslash is found in the following image names or "
+            "class labels, please remove them as only filename/labelname is required.")
+        st.dataframe(backslash_rows)
+        st.stop()
+
 
 def get_items_from_indices(indices: List[int], input_items: Iterable) -> List[Any]:
     if len(indices) == 1:
@@ -347,10 +376,10 @@ class BaseDataset:
         If `return_names` is True, return only the image filenames.
         """
         dataset_path = BaseDataset.get_dataset_path(dataset_name)
-        image_paths = list(list_images(dataset_path))
+        image_paths = list_images(dataset_path)
         if return_names:
             return [os.path.basename(p) for p in image_paths]
-        return image_paths
+        return list(image_paths)
 
     def save_dataset(
             self, archive_dir: Path,
@@ -602,34 +631,30 @@ class NewDataset(BaseDataset):
         # ***************** Checking CSV file data *****************
         if required_filetype == '.csv':
             df = pd.read_csv(BytesIO(annotation_filebytes), dtype=str)
+
+            check_required_csv_columns(df)
+
             if len(df) != len(filepaths):
                 st.error(f"The CSV file has {len(df)} rows, which "
                          f"is not the same as the number of uploaded images: {len(filepaths)}")
-                # st.stop()
-            # the pattern for backslash/frontslash
-            backslash_pattern = r"/|\\"
-            # first row for filename, second row for label name
-            backslash_rows = df[(df.iloc[:, 0].str.contains(
-                backslash_pattern)) | (df.iloc[:, 1].str.contains(backslash_pattern))]
-            if not backslash_rows.empty:
-                # backslash/frontslash is unwanted because we will create the class
-                # directories for our training later, and backslash would cause the
-                # directories to be incorrect
-                st.error("Backslash is found in the following image names or class labels, "
-                         "please remove them as only filename/labelname is required.")
-                st.dataframe(backslash_rows)
                 st.stop()
 
-            if len(df.iloc[:, 0].unique()) != len(df):
-                txt = ("Duplicated image filenames found, which would be confusing "
-                       "to interpret!")
-                st.error(txt)
-                logger.error(txt)
-                st.stop()
+            # Currently NOT checking for backslash/frontslash now to allow 
+            # all kinds of inputs ,and use only the filenames of the images 
+            # to parse the annotations
+            # check_invalid_paths(df)
 
             # get the image names in the CSV file
             annot_img_names = df.iloc[:, 0].apply(
                 lambda x: os.path.basename(x)).tolist()
+
+            # if len(df.iloc[:, 0].unique()) != len(df):
+            if len(set(annot_img_names)) != len(annot_img_names):
+                txt = ("Duplicated image filenames found, which would be confusing "
+                       "to interpret! Please make sure the image names are unique.")
+                st.error(txt)
+                logger.error(txt)
+                st.stop()
 
         # ***************** Checking JSON file data *****************
         elif required_filetype == '.json':
@@ -714,7 +739,8 @@ class NewDataset(BaseDataset):
             # only one CSV file after validation is passed
             csv_path = self.archive_dir / self.annotation_files[0]
             df = pd.read_csv(csv_path, dtype=str)
-            for img_name, label in df.values:
+            for img_path, label in zip(df[CSV_IMAGE_COL], df[CSV_LABEL_COL]):
+                img_name = os.path.basename(img_path)
                 result = create_classification_result(label)
                 yield img_name, result
         else:

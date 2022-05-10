@@ -410,19 +410,22 @@ def new_dataset(RELEASE=True, conn=None, is_new_project: bool = True, is_existin
             st.info(file_format_info)
             if session_state.is_labeled:
                 st.info(
-                    "#### Compatible Annotation Format:  \n"
-                    "- Object detection should have one XML file for each uploaded image.  \n"
-                    "**Filenames** should be **unique** for the best results.  \n"
-                    "- Image classification can have two types:  \n"
-                    "1. CSV file: should only have images and only one CSV file, "
-                    "the first row of CSV file should be the filename with extension, while "
-                    "the second row should be the class label name.  \n"
-                    "Note that the filenames **must be unique**.  \n"
-                    "2. Label by folder names: Each image is labeled by the folder name they "
-                    "reside in. E.g. *cat1.jpg* image is in a folder named as *cat*, this "
-                    "image will be labeled as *cat*  \n"
-                    "- Image segmentation should only have images and only one COCO JSON file.  \n"
-                    "**Filenames** should also be **unique** for the best results.")
+                    """
+                    #### Compatible Annotation Format:  \n
+                    - **Object detection** should have one XML file for each uploaded image.  \n
+                    **Filenames** should be **unique** for the best results.  \n
+                    - **Image classification** can have two types:  \n
+                    1. *CSV file*: should only have images and only one CSV file, 
+                    the CSV file must contain an *'image'* column for the image path
+                    (but the image filenames will be extracted), and another *'label'* column
+                    containing the labels for the images.  \n
+                    Note that the filenames **must be unique**.  \n
+                    2. *Label by folder names*: Each image is labeled by the folder name they 
+                    reside in. E.g. *cat1.jpg* image is in a folder named as *cat*, this 
+                    image will be labeled as *cat*  \n
+                    - **Image segmentation** should only have images and only one COCO JSON file.  \n
+                    **Filenames** should also be **unique** for the best results.
+                    """)
 
         # default to CSV file for everything else
         classif_annot_type = 'CSV file'
