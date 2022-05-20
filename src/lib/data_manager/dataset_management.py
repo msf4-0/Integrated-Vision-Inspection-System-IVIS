@@ -668,7 +668,8 @@ class NewDataset(BaseDataset):
 
             annot_img_names = [os.path.basename(d['file_name'])
                                for d in coco_json['images']]
-            annot_img_ids = [d['image_id'] for d in coco_json['annotations']]
+            annot_img_ids = set(
+                [d['image_id'] for d in coco_json['annotations']])
             total_images = len(filepaths)
             error_txt = None
             if len(annot_img_ids) != total_images:
