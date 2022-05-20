@@ -44,6 +44,7 @@ from typing import Any, Dict, Iterable, Iterator, List, NamedTuple, Set, Tuple, 
 import xml.etree.ElementTree as ET
 
 import cv2
+from cv2 import erode
 from natsort import os_sorted
 import numpy as np
 from imutils.paths import list_images
@@ -125,8 +126,10 @@ class FileTypes(IntEnum):
 
 # <<<< Variable Declaration <<<<
 
+
 CSV_IMAGE_COL = 'image'
 CSV_LABEL_COL = 'label'
+
 
 def check_required_csv_columns(df: pd.DataFrame):
     required_columns = [CSV_IMAGE_COL, CSV_LABEL_COL]
@@ -136,6 +139,7 @@ def check_required_csv_columns(df: pd.DataFrame):
         st.error(error_txt)
         logger.error(error_txt)
         st.stop()
+
 
 def check_invalid_paths(df: pd.DataFrame):
     """Currently used to check for backslash and frontslash only."""
@@ -639,8 +643,8 @@ class NewDataset(BaseDataset):
                          f"is not the same as the number of uploaded images: {len(filepaths)}")
                 st.stop()
 
-            # Currently NOT checking for backslash/frontslash now to allow 
-            # all kinds of inputs ,and use only the filenames of the images 
+            # Currently NOT checking for backslash/frontslash now to allow
+            # all kinds of inputs ,and use only the filenames of the images
             # to parse the annotations
             # check_invalid_paths(df)
 
@@ -664,10 +668,23 @@ class NewDataset(BaseDataset):
 
             annot_img_names = [os.path.basename(d['file_name'])
                                for d in coco_json['images']]
-            if len(annot_img_names) != len(filepaths):
-                st.error(f"Every image should have its own image ID. "
-                         f"But found {len(annot_img_names)} image data in the COCO JSON "
-                         f"when you have uploaded {len(filepaths)} images.")
+            annot_img_ids = [d['image_id'] for d in coco_json['annotations']]
+            total_images = len(filepaths)
+            error_txt = None
+            if len(annot_img_ids) != total_images:
+                error_txt = (
+                    f"Every annotation should have its own valid image ID. "
+                    f"But found {len(annot_img_ids)} image IDs in the COCO JSON "
+                    f"annotations but you have uploaded {total_images} images.")
+            if len(annot_img_names) != total_images:
+                error_txt = (
+                    f"Every image should have its own image ID. "
+                    f"But found {len(annot_img_names)} image data in the COCO JSON "
+                    f"but you have uploaded {total_images} images.")
+            if error_txt is not None:
+                st.error(error_txt)
+                logger.error(error_txt)
+                st.stop()
 
         # ************ Checking both CSV and JSON file for unknown image names ************
         unknown_annot_img = set(annot_img_names).difference(img_names)
@@ -774,14 +791,25 @@ class NewDataset(BaseDataset):
         for annot in coco_json['annotations']:
             annot_id = annot['id']
             img_id = annot['image_id']
-            img_info = image_id2info[img_id]
+            img_info = image_id2info.get(img_id)
+            if img_info is None:
+                txt = (
+                    f'Unable to find the corresponding image info for image ID {img_id} for '
+                    f'annotation ID {annot_id}. Each annotation must have its associated '
+                    'image ID in the "image" values. Please check your COCO JSON file.')
+                st.error(txt)
+                logger.error(txt)
+                # delete the invalid dataset
+                self.delete_dataset(self.id)
+                st.stop()
             relative_fpath = img_info['file_name']
             # filename = os.path.basename(relative_fpath)
 
             if first:
                 first = False
-                # initial image_id is always 0
-                prev_img_id = 0
+                # take the first img_id from the COCO json file
+                # sometimes could be 0, sometimes could be 1
+                prev_img_id = img_id
                 result = []
                 prev_fpath = relative_fpath
 

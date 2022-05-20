@@ -734,7 +734,7 @@ class Project(BaseProject):
         then only the annotations associated with the `training_id` is queried.
 
         """
-        # NOTE: that the `image_path` queried from the database is generated in 
+        # NOTE: that the `image_path` queried from the database is generated in
         # the same way as the `helper.get_directory_name()` function.
         if for_training_id > 0:
             sql_query = r"""
