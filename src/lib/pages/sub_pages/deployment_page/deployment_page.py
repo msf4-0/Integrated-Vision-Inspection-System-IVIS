@@ -33,6 +33,7 @@ import sys
 from time import perf_counter, sleep
 from itertools import cycle
 import gc
+from typing import Any, Callable, Dict, List
 
 import cv2
 # from imutils.video.webcamvideostream import WebcamVideoStream
@@ -265,6 +266,66 @@ def index(RELEASE=True):
         # rerun just to avoid displaying unnecessary buttons
         # st.experimental_rerun()
 
+    def update_conf_topic():
+        """To compare current and previous topics to update the MQTT topics"""
+        for topic_attr in topics.__dict__.keys():
+            for i in range(conf.num_cameras):
+                if topic_attr == 'publish_frame':
+                    # only this attribute is a List[str]
+                    state_key = f'publish_frame_{i}'
+                    previous_topic = topics.publish_frame[i]
+                else:
+                    if i > 0:
+                        # don't need to check the same topic_attr more than once
+                        break
+                    state_key = topic_attr
+                    previous_topic = getattr(topics, topic_attr)
+
+                new_topic = session_state[state_key]
+                if new_topic == '':
+                    logger.error('Topic cannot be empty string')
+                    error_msg_place.error(
+                        'Topic cannot be empty string')
+                    sleep(1)
+                    st.experimental_rerun()
+
+                if new_topic == previous_topic:
+                    # no need to change anything if user didn't change the topic
+                    continue
+
+                # unsubscribe the old topic and remove old topic callback
+                client.unsubscribe(previous_topic)
+                client.message_callback_remove(previous_topic)
+
+                # update MQTTTopics with new topic, add callback, and subscribe
+                if topic_attr == 'publish_frame':
+                    topics.publish_frame[i] = new_topic
+                else:
+                    setattr(topics, topic_attr, new_topic)
+
+                callback_func = topic_2cb.get(previous_topic)
+                if callback_func is not None:
+                    # only add callbacks for the topics that have callbacks
+                    client.message_callback_add(
+                        new_topic, callback_func)
+                client.subscribe(new_topic, qos=mqtt_conf.qos)
+
+                logger.info(f"Updated MQTTTopics.{topic_attr} from {previous_topic} "
+                            f"to {new_topic}")
+
+    def get_result_postprocessor() -> Callable[..., List[Dict[str, Any]]]:
+        if DEPLOYMENT_TYPE == 'Image Classification':
+            get_result_fn = partial(deployment.get_classification_results,
+                                    timezone=conf.timezone)
+        elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
+            get_result_fn = partial(deployment.get_segmentation_results,
+                                    timezone=conf.timezone)
+        else:
+            get_result_fn = partial(deployment.get_detection_results,
+                                    conf_threshold=conf.confidence_threshold,
+                                    timezone=conf.timezone)
+        return get_result_fn
+
     # connect MQTT broker and set up callbacks
     if not session_state.client_connected:
         logger.debug(f"{mqtt_conf = }")
@@ -451,6 +512,27 @@ def index(RELEASE=True):
             st.sidebar.button("Randomly select one", key='btn_random_select',
                               on_click=random_select)
 
+            st.sidebar.markdown("___")
+            st.sidebar.subheader("MQTT QoS")
+            st.sidebar.radio(
+                'MQTT QoS', (0, 1, 2), mqtt_conf.qos, key='mqtt_qos',
+                on_change=update_mqtt_qos)
+
+            with st.sidebar.form('form_img_mqtt_topics', clear_on_submit=True):
+                st.subheader("MQTT Topics")
+                st.text_input(
+                    'Publishing results to', topics.publish_results,
+                    key='publish_results', help="This is used to publish inference results "
+                    "to the outside. Our MQTT client is not subscribed to this topic.")
+                st.text_input(
+                    'Publish frame to our app', topics.recv_frame,
+                    key='image_recv_frame', help="Publish the image frame in bytes/buffer "
+                    "to this topic for MQTT input deployment.")
+                st.form_submit_button(
+                    "Update Config", on_click=update_conf_topic,
+                    help="Please press this button to update if you change any MQTT "
+                    "topic name(s).")
+
             st.markdown("**Selected image from project dataset**")
             img: np.ndarray = cv2.imread(image_path)
             # using this to cater to the case of multiple uploaded images
@@ -466,31 +548,6 @@ def index(RELEASE=True):
 
             imgs_info = read_images_from_uploaded(uploaded_imgs)
         else:
-            def update_image_recv_topic():
-                previous_topic = topics.recv_frame
-                new_topic = session_state.image_recv_frame
-
-                client.unsubscribe(previous_topic)
-                client.message_callback_remove(previous_topic)
-
-                topics.recv_frame = new_topic
-                client.subscribe(new_topic)
-                client.message_callback_add(new_topic, image_recv_frame_cb)
-                logger.info(
-                    f"Updated topic from {previous_topic} to {new_topic}")
-
-            st.sidebar.markdown("___")
-            st.sidebar.subheader("MQTT QoS")
-            st.sidebar.radio(
-                'MQTT QoS', (0, 1, 2), mqtt_conf.qos, key='mqtt_qos',
-                on_change=update_mqtt_qos)
-
-            st.sidebar.subheader("MQTT Topic")
-            st.sidebar.text_input(
-                'Publish frame to our app', topics.recv_frame,
-                key='image_recv_frame', help="Publish the image frame in bytes to this topic "
-                "for MQTT input deployment", on_change=update_image_recv_topic)
-
             if not deploy_btn_place.checkbox(
                     "Deploy model for MQTT input", key='btn_deploy_mqtt_image'):
                 st.stop()
@@ -519,6 +576,7 @@ def index(RELEASE=True):
 
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
+        get_result_fn = get_result_postprocessor()
 
         deploy_status_place.info("**Status**: Deployed for input images")
 
@@ -549,14 +607,15 @@ def index(RELEASE=True):
                         please check with Admin/Developer for debugging.""")
                     st.stop()
             if DEPLOYMENT_TYPE == 'Image Classification':
-                pred_classname, y_proba = inference_output
+                pred_classname = inference_output['pred_classname']
+                probability = inference_output['probability']
                 caption = (f"{filename}; "
                            f"Predicted: {pred_classname}; "
-                           f"Score: {y_proba * 100:.1f}")
+                           f"Score: {probability * 100:.1f}")
                 st.image(img, channels='BGR',
                          width=display_width, caption=caption)
             elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-                drawn_mask_output, _ = inference_output
+                drawn_mask_output = inference_output['img']
                 # convert to RGB for visualizing with Matplotlib
                 rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -574,7 +633,7 @@ def index(RELEASE=True):
                 plt.tight_layout()
                 st.pyplot(fig)
             else:
-                img_with_detections, detections = inference_output
+                img_with_detections = inference_output['img']
                 st.image(img_with_detections, width=display_width,
                          caption=f'Detection result for: {filename}')
             st.markdown("___")
@@ -593,6 +652,12 @@ def index(RELEASE=True):
                         # reset the state and refresh the page once received
                         session_state.refresh = False
                         st.experimental_rerun()
+
+        # Publish inference results through MQTT
+        results = get_result_fn(**inference_output)
+        payload = json.dumps(results)
+        client.publish(topics.publish_results, payload, qos=mqtt_conf.qos)
+        logger.info(f"Inference results published for {filename}")
 
         st.stop()
 
@@ -1000,53 +1065,6 @@ def index(RELEASE=True):
                 topics.publish_frame = [
                     f'{ORI_PUBLISH_FRAME_TOPIC}_{i}'
                     for i in range(conf.num_cameras)]
-
-            # def update_conf_topic(topic_attr: str):
-            def update_conf_topic():
-                for topic_attr in topics.__dict__.keys():
-                    for i in range(conf.num_cameras):
-                        if topic_attr == 'publish_frame':
-                            # only this attribute is a List[str]
-                            state_key = f'publish_frame_{i}'
-                            previous_topic = topics.publish_frame[i]
-                        else:
-                            if i > 0:
-                                # don't need to check the same topic_attr more than once
-                                break
-                            state_key = topic_attr
-                            previous_topic = getattr(topics, topic_attr)
-
-                        new_topic = session_state[state_key]
-                        if new_topic == '':
-                            logger.error('Topic cannot be empty string')
-                            error_msg_place.error(
-                                'Topic cannot be empty string')
-                            sleep(1)
-                            st.experimental_rerun()
-
-                        if new_topic == previous_topic:
-                            # no need to change anything if user didn't change the topic
-                            continue
-
-                        # unsubscribe the old topic and remove old topic callback
-                        client.unsubscribe(previous_topic)
-                        client.message_callback_remove(previous_topic)
-
-                        # update MQTTTopics with new topic, add callback, and subscribe
-                        if topic_attr == 'publish_frame':
-                            topics.publish_frame[i] = new_topic
-                        else:
-                            setattr(topics, topic_attr, new_topic)
-
-                        callback_func = topic_2cb.get(previous_topic)
-                        if callback_func is not None:
-                            # only add callbacks for the topics that have callbacks
-                            client.message_callback_add(
-                                new_topic, callback_func)
-                        client.subscribe(new_topic, qos=mqtt_conf.qos)
-
-                        logger.info(f"Updated MQTTTopics.{topic_attr} from {previous_topic} "
-                                    f"to {new_topic}")
 
             st.sidebar.radio(
                 'MQTT QoS', (0, 1, 2), mqtt_conf.qos, key='mqtt_qos',
@@ -1497,20 +1515,8 @@ def index(RELEASE=True):
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=draw_result, **pipeline_kwargs)
 
-        if DEPLOYMENT_TYPE == 'Image Classification':
-            is_image_classif = True
-            get_result_fn = partial(deployment.get_classification_results,
-                                    timezone=timezone)
-        elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-            is_image_classif = False
-            get_result_fn = partial(deployment.get_segmentation_results,
-                                    timezone=timezone)
-        else:
-            is_image_classif = False
-            get_result_fn = partial(deployment.get_detection_results,
-                                    get_bbox_coords=get_bbox_coords,
-                                    conf_threshold=conf.confidence_threshold,
-                                    timezone=timezone)
+        get_result_fn = get_result_postprocessor()
+
         publish_func = partial(client.publish,
                                topics.publish_results, qos=mqtt_conf.qos)
         publish_frame_funcs = []
@@ -1613,22 +1619,9 @@ def index(RELEASE=True):
             # frame.flags.writeable = True  # might need this?
             # run inference on the frame
             inference_output = inference_pipeline(frame)
-            if is_image_classif:
-                results = get_result_fn(*inference_output,
-                                        camera_title=cam_title)
-                output_img = frame
-                # the read frame is in BGR format
-                channels = 'BGR'
-            else:
-                if draw_result:
-                    output_img, pred = inference_output
-                    channels = 'RGB'
-                else:
-                    pred = inference_output
-                    output_img = frame
-                    # the read frame is in BGR format
-                    channels = 'BGR'
-                results = get_result_fn(pred, camera_title=cam_title)
+            output_img = inference_output['img']
+            channels = inference_output['channels']
+            results = get_result_fn(**inference_output, camera_title=cam_title)
 
             if show_video:
                 output_video_place[i].image(output_img, channels=channels,

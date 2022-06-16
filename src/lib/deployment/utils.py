@@ -24,13 +24,16 @@ from path_desc import MQTT_CONFIG_PATH
 def classification_inference_pipeline(
         img: np.ndarray, model: tf.keras.Model, image_size: int,
         encoded_label_dict: Dict[int, str],
-        preprocess_fn: Callable = None, **kwargs) -> Tuple[str, float]:
+        preprocess_fn: Callable = None, **kwargs) -> Dict[str, Any]:
     preprocessed_img = preprocess_image(
         img, image_size, preprocess_fn=preprocess_fn)
     y_pred, y_proba = classification_predict(
         preprocessed_img, model, return_proba=True)
     pred_classname = encoded_label_dict.get(y_pred, 'Unknown')
-    return pred_classname, y_proba
+    # OpenCV read frame in BGR channels
+    return {"img": img, "channels": "BGR",
+            "pred_classname": pred_classname,
+            "probability": y_proba}
 
 
 def tfod_inference_pipeline(
@@ -38,13 +41,13 @@ def tfod_inference_pipeline(
         conf_threshold: float = 0.6,
         draw_result: bool = True,
         category_index: Dict[int, Dict[str, Any]] = None,
-        is_checkpoint: bool = False, **kwargs) -> Union[
-            Tuple[np.ndarray, Dict[str, Any]],
-            Dict[str, Any]]:
+        is_checkpoint: bool = False, **kwargs) -> Dict[str, Any]:
     """Note that if `draw_result` = True, the `img` will be converted to RGB and 
     overwritten with the visuals."""
     # NOTE: This step is required for TFOD!
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # converted to RGB above
+    channels = "RGB"
     # take note of this tensor_dtype!
     tensor_dtype = tf.float32 if is_checkpoint else tf.uint8
     detections = tfod_detect(model, img, tensor_dtype=tensor_dtype)
@@ -53,33 +56,35 @@ def tfod_inference_pipeline(
                          category_index,
                          conf_threshold,
                          is_checkpoint=is_checkpoint)
-        return img, detections
-    return detections
+    return {"img": img, "detections": detections, "channels": channels}
 
 
 def segment_inference_pipeline(
         img: np.ndarray, model: tf.keras.Model, image_size: int,
         draw_result: bool = True, class_colors: np.ndarray = None,
-        ignore_background: bool = False, **kwargs) -> Union[
-            Tuple[np.ndarray, np.ndarray],
-            np.ndarray]:
+        ignore_background: bool = False, **kwargs) -> Tuple[np.ndarray, np.ndarray]:
     """`class_colors` can be obtained from `create_class_colors()` and MUST convert
     to `np.ndarray` format for fast computation!"""
     orig_H, orig_W = img.shape[:2]
-    # converting here instead of inside preprocess_image() to pass RGB image to
+    # converting here instead of inside preprocess_image() to directly pass RGB image to
     # get_colored_mask_image() to avoid converting back and forth
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     preprocessed_img = preprocess_image(
-        img, image_size, bgr2rgb=False)
+        rgb_img, image_size, bgr2rgb=False)
     pred_mask = segmentation_predict(
         model, preprocessed_img, orig_W, orig_H)
     if draw_result:
         # must provide class_colors
         drawn_output = get_colored_mask_image(
-            img, pred_mask, class_colors,
+            rgb_img, pred_mask, class_colors,
             ignore_background=ignore_background)
-        return drawn_output, pred_mask
-    return pred_mask
+        # to return the drawn output image instead of original one
+        img = drawn_output
+        channels = "RGB"
+    else:
+        # OpenCV read frame in BGR, passed as "img" into this function
+        channels = "BGR"
+    return {"img": img, "prediction_mask": pred_mask, "channels": channels}
 
 
 def image_from_buffer(buffer: bytes) -> np.ndarray:

@@ -359,7 +359,7 @@ class Deployment(BaseDeployment):
         tf.keras.backend.clear_session()
         gc.collect()
 
-    def get_inference_pipeline(self, **kwargs) -> Callable:
+    def get_inference_pipeline(self, **kwargs) -> Callable[..., Dict[str, Any]]:
         assert 'img' not in kwargs, "Image should only be passed in during inference time"
         if self.deployment_type == 'Image Classification':
             return partial(
@@ -377,7 +377,7 @@ class Deployment(BaseDeployment):
                 **kwargs)
 
     def get_classification_results(self, pred_classname: str, probability: float,
-                                   timezone: str, camera_title: str = ''):
+                                   timezone: str, camera_title: str = '', **kwargs):
         results = [{'name': pred_classname,
                     # need to change to string to be serialized with json.dumps()
                     'probability': f"{probability * 100:.2f}%",
@@ -388,7 +388,7 @@ class Deployment(BaseDeployment):
     def get_detection_results(self, detections: Dict[str, Any], timezone: str,
                               camera_title: str = '',
                               get_bbox_coords: bool = False,
-                              conf_threshold: float = None) -> List[Dict[str, Any]]:
+                              conf_threshold: float = None, **kwargs) -> List[Dict[str, Any]]:
         results = []
         now = get_now_string(timezone=timezone)
         for class_id, prob, box in zip(detections['detection_classes'],
@@ -415,8 +415,9 @@ class Deployment(BaseDeployment):
             results.append(detection)
         return results
 
-    def get_segmentation_results(self, prediction_mask: np.ndarray,
-                                 timezone: str, camera_title: str = '') -> List[Dict[str, Any]]:
+    def get_segmentation_results(
+            self, prediction_mask: np.ndarray,
+            timezone: str, camera_title: str = '', **kwargs) -> List[Dict[str, Any]]:
         class_names = self.class_names_arr[np.unique(prediction_mask)]
         results = [{'classes_found': class_names.tolist(),
                     'view': camera_title,
