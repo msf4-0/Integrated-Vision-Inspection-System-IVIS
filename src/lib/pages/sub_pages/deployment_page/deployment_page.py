@@ -271,7 +271,9 @@ def index(RELEASE=True):
         for topic_attr in topics.__dict__.keys():
             for i in range(conf.num_cameras):
                 if topic_attr == 'publish_frame':
-                    # only this attribute is a List[str]
+                    # only this attribute is a List[str],
+                    # for image deployment, num_cameras already reset to 1
+                    #   in reset_single_camera_conf()
                     state_key = f'publish_frame_{i}'
                     previous_topic = topics.publish_frame[i]
                 else:
@@ -415,6 +417,8 @@ def index(RELEASE=True):
                 client.message_callback_add(
                     topics.recv_frame, recv_frame_cb)
             else:
+                # reset to default camera config state
+                reset_single_camera_conf()
                 client.message_callback_add(
                     topics.recv_frame, image_recv_frame_cb)
 
@@ -521,13 +525,17 @@ def index(RELEASE=True):
             with st.sidebar.form('form_img_mqtt_topics', clear_on_submit=True):
                 st.subheader("MQTT Topics")
                 st.text_input(
+                    'Publish frame to our app', topics.recv_frame,
+                    key='image_recv_frame', help="Publish the image frame in bytes/buffer "
+                    "to this topic for MQTT input deployment.")
+                st.text_input(
                     'Publishing results to', topics.publish_results,
                     key='publish_results', help="This is used to publish inference results "
                     "to the outside. Our MQTT client is not subscribed to this topic.")
                 st.text_input(
-                    'Publish frame to our app', topics.recv_frame,
-                    key='image_recv_frame', help="Publish the image frame in bytes/buffer "
-                    "to this topic for MQTT input deployment.")
+                    f'Publishing frames for to', topics.publish_frame[0],
+                    key='publish_frame_0', help="This is used to publish output "
+                    "images. Our MQTT client is not subscribed to this topic.")
                 st.form_submit_button(
                     "Update Config", on_click=update_conf_topic,
                     help="Please press this button to update if you change any MQTT "
@@ -612,12 +620,15 @@ def index(RELEASE=True):
                 caption = (f"{filename}; "
                            f"Predicted: {pred_classname}; "
                            f"Score: {probability * 100:.1f}")
-                st.image(img, channels='BGR',
+                output_img = img
+                channels = "BGR"
+                st.image(output_img, channels=channels,
                          width=display_width, caption=caption)
             elif DEPLOYMENT_TYPE == 'Semantic Segmentation with Polygons':
-                drawn_mask_output = inference_output['img']
+                output_img = inference_output['img']
                 # convert to RGB for visualizing with Matplotlib
                 rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                channels = "RGB"
 
                 fig = plt.figure()
                 plt.subplot(121)
@@ -627,14 +638,15 @@ def index(RELEASE=True):
 
                 plt.subplot(122)
                 plt.title("Predicted")
-                plt.imshow(drawn_mask_output)
+                plt.imshow(output_img)
                 plt.axis('off')
 
                 plt.tight_layout()
                 st.pyplot(fig)
             else:
-                img_with_detections = inference_output['img']
-                st.image(img_with_detections, width=display_width,
+                output_img = inference_output['img']
+                channels = "RGB"
+                st.image(output_img, width=display_width,
                          caption=f'Detection result for: {filename}')
             st.markdown("___")
 
@@ -658,6 +670,11 @@ def index(RELEASE=True):
         payload = json.dumps(results)
         client.publish(topics.publish_results, payload, qos=mqtt_conf.qos)
         logger.info(f"Inference results published for {filename}")
+
+        # publish output image through MQTT
+        frame_bytes = image_to_bytes(output_img, channels)
+        client.publish(topics.publish_frame[0], frame_bytes, qos=mqtt_conf.qos)
+        logger.info(f"Output image published for {filename}")
 
         st.stop()
 
