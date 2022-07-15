@@ -516,31 +516,6 @@ def index(RELEASE=True):
             st.sidebar.button("Randomly select one", key='btn_random_select',
                               on_click=random_select)
 
-            st.sidebar.markdown("___")
-            st.sidebar.subheader("MQTT QoS")
-            st.sidebar.radio(
-                'MQTT QoS', (0, 1, 2), mqtt_conf.qos, key='mqtt_qos',
-                on_change=update_mqtt_qos)
-
-            with st.sidebar.form('form_img_mqtt_topics', clear_on_submit=True):
-                st.subheader("MQTT Topics")
-                st.text_input(
-                    'Publish frame to our app', topics.recv_frame,
-                    key='image_recv_frame', help="Publish the image frame in bytes/buffer "
-                    "to this topic for MQTT input deployment.")
-                st.text_input(
-                    'Publishing results to', topics.publish_results,
-                    key='publish_results', help="This is used to publish inference results "
-                    "to the outside. Our MQTT client is not subscribed to this topic.")
-                st.text_input(
-                    f'Publishing frames for to', topics.publish_frame[0],
-                    key='publish_frame_0', help="This is used to publish output "
-                    "images. Our MQTT client is not subscribed to this topic.")
-                st.form_submit_button(
-                    "Update Config", on_click=update_conf_topic,
-                    help="Please press this button to update if you change any MQTT "
-                    "topic name(s).")
-
             st.markdown("**Selected image from project dataset**")
             img: np.ndarray = cv2.imread(image_path)
             # using this to cater to the case of multiple uploaded images
@@ -581,6 +556,31 @@ def index(RELEASE=True):
             display_width = st.sidebar.slider(
                 "Select width of image to resize for display",
                 35, 1000, 500, 5, key='display_width')
+
+        st.sidebar.markdown("___")
+        st.sidebar.subheader("MQTT QoS")
+        st.sidebar.radio(
+            'MQTT QoS', (0, 1, 2), mqtt_conf.qos, key='mqtt_qos',
+            on_change=update_mqtt_qos)
+
+        with st.sidebar.form('form_img_mqtt_topics', clear_on_submit=True):
+            st.subheader("MQTT Topics")
+            st.text_input(
+                'Publish frame to our app', topics.recv_frame,
+                key='image_recv_frame', help="Publish the image frame in bytes/buffer "
+                "to this topic for MQTT input deployment.")
+            st.text_input(
+                'Publishing results to', topics.publish_results,
+                key='publish_results', help="This is used to publish inference results "
+                "to the outside. Our MQTT client is not subscribed to this topic.")
+            st.text_input(
+                f'Publishing frames for to', topics.publish_frame[0],
+                key='publish_frame_0', help="This is used to publish output "
+                "images. Our MQTT client is not subscribed to this topic.")
+            st.form_submit_button(
+                "Update Config", on_click=update_conf_topic,
+                help="Please press this button to update if you change any MQTT "
+                "topic name(s).")
 
         inference_pipeline = deployment.get_inference_pipeline(
             draw_result=True, **pipeline_kwargs)
