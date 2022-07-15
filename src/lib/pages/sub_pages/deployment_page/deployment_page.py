@@ -650,6 +650,18 @@ def index(RELEASE=True):
                          caption=f'Detection result for: {filename}')
             st.markdown("___")
 
+        # Publish inference results through MQTT
+        results = get_result_fn(**inference_output)
+        payload = json.dumps(results)
+        client.publish(topics.publish_results, payload, qos=mqtt_conf.qos)
+        logger.info(f"Inference results published for {filename}")
+
+        # publish output image through MQTT
+        frame_bytes = image_to_bytes(output_img, channels)
+        client.publish(topics.publish_frame[0], frame_bytes, qos=mqtt_conf.qos)
+        logger.info(f"Output image published for {filename}")
+
+        # the continuous loop should be at the end to avoid blocking others
         if image_type == "From MQTT":
             st.button("Refresh page")
 
@@ -664,17 +676,6 @@ def index(RELEASE=True):
                         # reset the state and refresh the page once received
                         session_state.refresh = False
                         st.experimental_rerun()
-
-        # Publish inference results through MQTT
-        results = get_result_fn(**inference_output)
-        payload = json.dumps(results)
-        client.publish(topics.publish_results, payload, qos=mqtt_conf.qos)
-        logger.info(f"Inference results published for {filename}")
-
-        # publish output image through MQTT
-        frame_bytes = image_to_bytes(output_img, channels)
-        client.publish(topics.publish_frame[0], frame_bytes, qos=mqtt_conf.qos)
-        logger.info(f"Output image published for {filename}")
 
         st.stop()
 
